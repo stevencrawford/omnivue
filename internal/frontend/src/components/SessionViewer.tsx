@@ -524,10 +524,51 @@ function UserContent({
   expanded: boolean;
   isLong: boolean;
 }) {
+  const [maxHeight, setMaxHeight] = useState(160);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
   const displayContent = !expanded && isLong ? content.slice(0, 3000) + "\n\n..." : content;
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    const startY = e.clientY;
+    const startHeight = containerRef.current?.offsetHeight || maxHeight;
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const newHeight = Math.max(80, startHeight + (e.clientY - startY));
+      setMaxHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      isDragging.current = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "s-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  };
+
   return (
-    <div className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed max-h-40 overflow-y-auto">
-      {displayContent}
+    <div className="relative">
+      <div
+        ref={containerRef}
+        className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed overflow-y-auto"
+        style={{ maxHeight: `${maxHeight}px` }}
+      >
+        {displayContent}
+      </div>
+      <div
+        className="h-2 -mb-0.5 cursor-s-resize hover:bg-blue-500/10 active:bg-blue-500/20 transition-colors rounded-sm"
+        onMouseDown={handleResizeMouseDown}
+      />
     </div>
   );
 }
