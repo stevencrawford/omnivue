@@ -68,6 +68,7 @@ make lint
   - `adapter.go` — `Adapter` interface + `OpenReadOnlyDB()` safeguard
   - `detect.go` — `AutoDiscover()` scans known paths for agent session data
   - `opencode/opencode.go` — OpenCode adapter: reads `opencode.db` (SQLite, read-only)
+  - `copilot/copilot.go` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
 - `internal/store/store.go` — Manages `$XDG_STATE_HOME/sess/sess.db`: sources, folders, FTS5 search index
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, 30s polling for changes
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
@@ -96,6 +97,8 @@ make lint
 | GET | `/_/api/sessions` | List all sessions |
 | GET | `/_/api/sessions/{id}` | Get session details |
 | GET | `/_/api/sessions/{id}/messages` | Get session messages with tool calls |
+| GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |
+| GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
 | GET | `/_/events` | SSE event stream (update, session-changed) |
@@ -104,7 +107,15 @@ make lint
 
 - Package manager: **pnpm**
 - Framework: React 19 + TypeScript + Tailwind CSS v4
-- Key components: `App.tsx` (routing/state), `Sidebar.tsx` (session tree by repo), `SessionViewer.tsx` (tabbed detail view with conversation, plan, diff)
+- Key dependencies: `react-markdown`, `remark-gfm`, `remark-breaks`, `rehype-highlight`
+- Key components:
+  - `App.tsx` — Routing/state, session selection
+  - `Sidebar.tsx` — Session tree grouped by repo, resizable
+  - `SessionViewer.tsx` — Tabbed detail view (session/plan/diff), message rendering
+  - `MarkdownContent.tsx` — Markdown renderer with syntax highlighting
+  - `PlanView.tsx` — Plan/checkpoint items with status indicators
+  - `DiffView.tsx` — File change list with expandable unified diff view
+  - `ThemeToggle.tsx` — Light/dark theme toggle
 - Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers)
 - Utilities: `buildTree.ts` (groups sessions by repository)
 - Theme: GitHub-style light/dark via `data-theme` attribute
@@ -124,9 +135,9 @@ make lint
 ## Phase Status
 
 - [x] Phase 1: Foundation — OpenCode ingest & list (COMPLETE)
-- [ ] Phase 1.5: Copilot adapter
-- [ ] Phase 2: Session conversation view (messages rendering)
-- [ ] Phase 3: Plan & diff tabs
+- [x] Phase 1.5: Copilot adapter (COMPLETE)
+- [x] Phase 2: Session conversation view (messages rendering) (COMPLETE)
+- [x] Phase 3: Plan & diff tabs (COMPLETE)
 - [ ] Phase 4: Persistent search (FTS5 indexing)
 - [ ] Phase 5: User folders
 - [ ] Phase 6: Resume session
