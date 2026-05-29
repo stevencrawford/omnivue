@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 
 interface SSECallbacks {
   onUpdate: () => void;
-  onFileChanged?: (fileId: string) => void;
+  onSessionChanged?: (sessionId: string) => void;
 }
 
 export function useSSE(callbacks: SSECallbacks) {
@@ -41,12 +41,12 @@ export function useSSE(callbacks: SSECallbacks) {
         callbacksRef.current.onUpdate();
       });
 
-      es.addEventListener("file-changed", (e) => {
+      es.addEventListener("session-changed", (e) => {
         try {
           const data = JSON.parse(e.data);
-          callbacksRef.current.onFileChanged?.(data.id);
+          callbacksRef.current.onSessionChanged?.(data.id);
         } catch {
-          // ignore malformed data
+          // ignore
         }
       });
 

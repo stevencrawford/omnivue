@@ -1,141 +1,96 @@
-import type { FileEntry } from "../hooks/useApi";
+import type { Session } from "../hooks/useApi";
 
 export interface TreeNode {
+  /** Display name (repository name or session title) */
   name: string;
+  /** Full path identifier */
   fullPath: string;
+  /** Children nodes (sessions under a repo) */
   children: TreeNode[];
-  file: FileEntry | null;
+  /** Session data if this is a leaf node */
+  session?: Session;
+  /** Whether this is a repository group node */
+  isGroup: boolean;
 }
 
-export function buildTree(files: FileEntry[]): TreeNode {
-  if (files.length === 0) {
-    return { name: "", fullPath: "", children: [], file: null };
+/**
+ * Builds a tree of sessions grouped by repository.
+ * Returns repo nodes at the top level, each containing session leaves
+ * sorted by updatedAt descending.
+ */
+export function buildTree(sessions: Session[]): TreeNode[] {
+  if (!sessions || sessions.length === 0) return [];
+
+  // Group sessions by repository
+  const byRepo = new Map<string, Session[]>();
+  for (const session of sessions) {
+    const repo = session.repository || "Unknown";
+    const existing = byRepo.get(repo);
+    if (existing) {
+      existing.push(session);
+    } else {
+      byRepo.set(repo, [session]);
+    }
   }
 
-  // Separate uploaded files from filesystem files
-  const fsFiles = files.filter((f) => !f.uploaded);
-  const uploadedFiles = files.filter((f) => f.uploaded);
+  // Build tree nodes
+  const repoNodes: TreeNode[] = [];
+  for (const [repo, repoSessions] of byRepo) {
+    // Sort sessions by updatedAt descending (most recent first)
+    const sorted = [...repoSessions].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
 
-  if (fsFiles.length === 0) {
-    // All files are uploaded — flat list at root
-    const root: TreeNode = { name: "", fullPath: "", children: [], file: null };
-    for (const file of uploadedFiles) {
-      root.children.push({
-        name: file.name,
-        fullPath: `uploaded:${file.id}`,
-        children: [],
-        file,
-      });
-    }
-    sortTree(root);
-    return root;
-  }
-
-  // Split each file path into segments once
-  const splitPaths = fsFiles.map((f) => f.path.split("/"));
-  const dirSegmentsList = splitPaths.map((parts) => parts.slice(0, -1));
-
-  // Find common prefix among directory parts
-  const commonPrefix = findCommonPrefix(dirSegmentsList);
-  const prefixLen = commonPrefix.length;
-
-  // Build a trie from relative paths
-  const root: TreeNode = { name: "", fullPath: "", children: [], file: null };
-
-  for (let fi = 0; fi < fsFiles.length; fi++) {
-    const file = fsFiles[fi];
-    const parts = splitPaths[fi];
-    const dirParts = parts.slice(prefixLen, -1); // relative dir segments
-    let current = root;
-
-    for (const segment of dirParts) {
-      let child = current.children.find((c) => c.file == null && c.name === segment);
-      if (!child) {
-        child = {
-          name: segment,
-          fullPath: current.fullPath ? `${current.fullPath}/${segment}` : segment,
-          children: [],
-          file: null,
-        };
-        current.children.push(child);
-      }
-      current = child;
-    }
-
-    current.children.push({
-      name: file.name,
-      fullPath: current.fullPath ? `${current.fullPath}/${file.name}` : file.name,
+    const children: TreeNode[] = sorted.map((session) => ({
+      name: session.title || session.id,
+      fullPath: `${repo}/${session.id}`,
       children: [],
-      file,
+      session,
+      isGroup: false,
+    }));
+
+    repoNodes.push({
+      name: repo,
+      fullPath: repo,
+      children,
+      isGroup: true,
     });
   }
 
-  // Add uploaded files at root level
-  for (const file of uploadedFiles) {
-    root.children.push({
-      name: file.name,
-      fullPath: `uploaded:${file.id}`,
-      children: [],
-      file,
-    });
-  }
-
-  // Collapse single-child directory nodes
-  collapseSingleChild(root);
-
-  // Sort: directories first, then alphabetical
-  sortTree(root);
-
-  return root;
-}
-
-function findCommonPrefix(segmentsList: string[][]): string[] {
-  if (segmentsList.length === 0) return [];
-  const first = segmentsList[0];
-  let len = first.length;
-  for (let i = 1; i < segmentsList.length; i++) {
-    len = Math.min(len, segmentsList[i].length);
-    for (let j = 0; j < len; j++) {
-      if (first[j] !== segmentsList[i][j]) {
-        len = j;
-        break;
-      }
-    }
-  }
-  return first.slice(0, len);
-}
-
-function collapseSingleChild(node: TreeNode): void {
-  for (let i = 0; i < node.children.length; i++) {
-    let child = node.children[i];
-    // Collapse chain: directory with exactly one child that is also a directory
-    while (child.file == null && child.children.length === 1 && child.children[0].file == null) {
-      const grandchild = child.children[0];
-      child = {
-        name: `${child.name}/${grandchild.name}`,
-        fullPath: grandchild.fullPath,
-        children: grandchild.children,
-        file: null,
-      };
-    }
-    node.children[i] = child;
-    collapseSingleChild(child);
-  }
-}
-
-const naturalCompare = new Intl.Collator(undefined, {
-  numeric: true,
-  sensitivity: "base",
-}).compare;
-
-function sortTree(node: TreeNode): void {
-  node.children.sort((a, b) => {
-    const aIsDir = a.file == null;
-    const bIsDir = b.file == null;
-    if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
-    return naturalCompare(a.name, b.name);
+  // Sort repos: most recently active first
+  repoNodes.sort((a, b) => {
+    const aLatest = a.children[0]?.session?.updatedAt || "";
+    const bLatest = b.children[0]?.session?.updatedAt || "";
+    return bLatest.localeCompare(aLatest);
   });
-  for (const child of node.children) {
-    sortTree(child);
-  }
+
+  return repoNodes;
+}
+
+/**
+ * Formats a relative time string (e.g., "2h ago", "3d ago").
+ */
+export function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return "just now";
+}
+
+/**
+ * Formats cost as a readable string.
+ */
+export function formatCost(cost: number): string {
+  if (cost === 0) return "";
+  if (cost < 0.01) return "<$0.01";
+  return `$${cost.toFixed(2)}`;
 }

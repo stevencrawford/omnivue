@@ -1,502 +1,220 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import type { FileEntry, Group, SearchResult } from "../hooks/useApi";
-import { removeFile, moveFile } from "../hooks/useApi";
-import { buildFileUrl } from "../utils/groups";
-import { isPlainLeftClick } from "../utils/linkClick";
-import { escapeRegExp } from "../utils/regex";
-import type { ViewMode } from "./ViewModeToggle";
-import { TreeView } from "./TreeView";
-import { FileContextMenu } from "./FileContextMenu";
-import { FileIcon } from "./FileIcon";
+import { useMemo, useState } from "react";
+import type { Session } from "../hooks/useApi";
+import { buildTree, relativeTime, formatCost } from "../utils/buildTree";
+import type { TreeNode } from "../utils/buildTree";
 
-const MIN_WIDTH = 180;
-const MAX_WIDTH = 480;
-const DEFAULT_WIDTH = 260;
-const STORAGE_KEY = "mo-sidebar-width";
+interface SidebarProps {
+  sessions: Session[];
+  activeSessionId: string | null;
+  onSessionSelect: (sessionId: string) => void;
+}
+
+const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
+const COLLAPSED_KEY = "sess-sidebar-collapsed";
 
 function getInitialWidth(): number {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    const n = parseInt(stored, 10);
-    if (n >= MIN_WIDTH && n <= MAX_WIDTH) return n;
+  try {
+    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (stored) return Math.max(200, Math.min(600, Number(stored)));
+  } catch {
+    /* ignore */
   }
-  return DEFAULT_WIDTH;
+  return 300;
 }
 
-function renderHighlightedText(text: string, query: string) {
-  if (!query) {
-    return text;
+function getInitialCollapsed(): Set<string> {
+  try {
+    const stored = localStorage.getItem(COLLAPSED_KEY);
+    if (stored) return new Set(JSON.parse(stored));
+  } catch {
+    /* ignore */
   }
-
-  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
-  return parts.map((part, index) =>
-    part.toLowerCase() === query.toLowerCase() ? (
-      <mark key={`${part}:${index}`} className="bg-transparent p-0 font-semibold text-gh-text">
-        {part}
-      </mark>
-    ) : (
-      <span key={`${part}:${index}`}>{part}</span>
-    ),
-  );
+  return new Set();
 }
 
-interface FileItemProps {
-  file: FileEntry;
-  activeGroup: string;
-  isActive: boolean;
-  showTitle: boolean;
-  menuOpenId: string | null;
-  otherGroups: Group[];
-  onFileSelect: (id: string) => void;
-  onMenuToggle: (id: string) => void;
-  onOpenInNewTab: (id: string) => void;
-  onCopyPath: (path: string) => void;
-  onCopyLink: (id: string) => void;
-  onMoveToGroup: (id: string, group: string) => void;
-  onRemove: (id: string) => void;
-  menuRef: React.RefObject<HTMLDivElement | null>;
-}
+export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarProps) {
+  const [width, setWidth] = useState(getInitialWidth);
+  const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
+  const [isResizing, setIsResizing] = useState(false);
 
-function FileItem({
-  file,
-  activeGroup,
-  isActive,
-  showTitle,
-  menuOpenId,
-  otherGroups,
-  onFileSelect,
-  onMenuToggle,
-  onOpenInNewTab,
-  onCopyPath,
-  onCopyLink,
-  onMoveToGroup,
-  onRemove,
-  menuRef,
-}: FileItemProps) {
-  return (
-    <div className="relative group/file">
-      <a
-        href={buildFileUrl(activeGroup, file.id)}
-        className={`flex items-center gap-2 w-full px-3 py-2 border-none cursor-pointer text-left text-sm no-underline transition-colors duration-150 ${
-          isActive
-            ? "bg-gh-bg-active text-gh-text font-semibold"
-            : "bg-transparent text-gh-text-secondary hover:bg-gh-bg-hover"
-        }`}
-        onClick={(e) => {
-          if (!isPlainLeftClick(e)) return;
-          e.preventDefault();
-          onFileSelect(file.id);
-        }}
-        title={file.uploaded ? file.name : file.path}
-        aria-current={isActive ? "page" : undefined}
-      >
-        <FileIcon uploaded={file.uploaded} />
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap pr-6">
-          {(showTitle && file.title) || file.name}
-        </span>
-      </a>
-      <FileContextMenu
-        file={file}
-        isOpen={menuOpenId === file.id}
-        otherGroups={otherGroups}
-        onToggle={onMenuToggle}
-        onOpenInNewTab={onOpenInNewTab}
-        onCopyPath={onCopyPath}
-        onCopyLink={onCopyLink}
-        onMoveToGroup={onMoveToGroup}
-        onRemove={onRemove}
-        menuRef={menuRef}
-      />
-    </div>
-  );
-}
+  const tree = useMemo(() => buildTree(sessions), [sessions]);
 
-function SortableFileItem(props: FileItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.file.id,
-  });
+  const toggleCollapse = (path: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : undefined,
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = width;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const newWidth = Math.max(200, Math.min(600, startWidth + (ev.clientX - startX)));
+      setWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+      } catch {
+        /* ignore */
+      }
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <FileItem {...props} />
+    <aside
+      className="flex flex-col border-r border-gh-border bg-gh-bg-sidebar overflow-hidden shrink-0"
+      style={{ width: `${width}px` }}
+    >
+      <div className="flex-1 overflow-y-auto p-2">
+        {tree.length === 0 ? (
+          <div className="text-xs text-gh-text-secondary p-2">No sessions</div>
+        ) : (
+          tree.map((node) => (
+            <RepoNode
+              key={node.fullPath}
+              node={node}
+              collapsed={collapsed}
+              onToggleCollapse={toggleCollapse}
+              activeSessionId={activeSessionId}
+              onSessionSelect={onSessionSelect}
+            />
+          ))
+        )}
+      </div>
+      {/* Resize handle */}
+      <div
+        className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400/50 transition-colors ${isResizing ? "bg-blue-400/50" : ""}`}
+        style={{ left: `${width - 2}px`, position: "fixed", height: "100vh", top: 0 }}
+        onMouseDown={handleMouseDown}
+      />
+    </aside>
+  );
+}
+
+interface RepoNodeProps {
+  node: TreeNode;
+  collapsed: Set<string>;
+  onToggleCollapse: (path: string) => void;
+  activeSessionId: string | null;
+  onSessionSelect: (sessionId: string) => void;
+}
+
+function RepoNode({
+  node,
+  collapsed,
+  onToggleCollapse,
+  activeSessionId,
+  onSessionSelect,
+}: RepoNodeProps) {
+  const isCollapsed = collapsed.has(node.fullPath);
+
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-xs font-medium text-gh-text-secondary hover:bg-gh-bg-hover cursor-pointer"
+        onClick={() => onToggleCollapse(node.fullPath)}
+      >
+        <svg
+          className={`size-3 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M6 4l4 4-4 4" />
+        </svg>
+        <span className="truncate">{node.name}</span>
+        <span className="ml-auto text-[10px] text-gh-text-secondary">
+          {node.children.length}
+        </span>
+      </button>
+      {!isCollapsed && (
+        <div className="ml-2 border-l border-gh-border">
+          {node.children.map((child) => (
+            <SessionNode
+              key={child.session!.id}
+              session={child.session!}
+              isActive={child.session!.id === activeSessionId}
+              onSelect={() => onSessionSelect(child.session!.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-interface SidebarProps {
-  groups: Group[];
-  activeGroup: string;
-  activeFileId: string | null;
-  onFileSelect: (id: string) => void;
-  onFilesReorder: (groupName: string, fileIds: string[]) => void;
-  viewMode: ViewMode;
-  showTitle: boolean;
-  searchQuery: string | null;
-  onSearchQueryChange: (query: string | null) => void;
-  searchResults?: SearchResult[];
-  searchLoading?: boolean;
-  onSearchResultSelect?: (fileId: string, heading?: string) => void;
+interface SessionNodeProps {
+  session: Session;
+  isActive: boolean;
+  onSelect: () => void;
 }
 
-export function Sidebar({
-  groups,
-  activeGroup,
-  activeFileId,
-  onFileSelect,
-  onFilesReorder,
-  viewMode,
-  showTitle,
-  searchQuery,
-  onSearchQueryChange,
-  searchResults = [],
-  searchLoading = false,
-  onSearchResultSelect,
-}: SidebarProps) {
-  const allFiles = useMemo(() => {
-    const currentGroup = groups.find((g) => g.name === activeGroup);
-    return currentGroup?.files ?? [];
-  }, [groups, activeGroup]);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const searchOpen = searchQuery != null;
-  const isSearching = searchQuery != null && searchQuery.length > 0;
-
-  const files = useMemo(() => {
-    if (!searchQuery) return allFiles;
-    const q = searchQuery.toLowerCase();
-    return allFiles.filter(
-      (f) => f.name.toLowerCase().includes(q) || (f.title && f.title.toLowerCase().includes(q)),
-    );
-  }, [allFiles, searchQuery]);
-
-  useEffect(() => {
-    if (searchOpen) {
-      searchInputRef.current?.focus();
-    }
-  }, [searchOpen]);
-
-  const [width, setWidth] = useState(getInitialWidth);
-  const resizeDragging = useRef(false);
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [contentMatchesOpen, setContentMatchesOpen] = useState(true);
-  const [fileMatchesOpen, setFileMatchesOpen] = useState(true);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-
-      const oldIndex = files.findIndex((f) => f.id === active.id);
-      const newIndex = files.findIndex((f) => f.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return;
-
-      const reordered = arrayMove(files, oldIndex, newIndex);
-      onFilesReorder(
-        activeGroup,
-        reordered.map((f) => f.id),
-      );
-    },
-    [files, activeGroup, onFilesReorder],
-  );
-
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    resizeDragging.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, []);
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!resizeDragging.current) return;
-      const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX));
-      setWidth(clamped);
-    };
-    const onMouseUp = () => {
-      if (!resizeDragging.current) return;
-      resizeDragging.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(width));
-  }, [width]);
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (menuOpenId == null) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpenId(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [menuOpenId]);
-
-  const handleOpenInNewTab = useCallback(
-    (id: string) => {
-      setMenuOpenId(null);
-      window.open(buildFileUrl(activeGroup, id), "_blank");
-    },
-    [activeGroup],
-  );
-
-  const otherGroups = useMemo(() => {
-    return [...groups]
-      .filter((g) => g.name !== activeGroup)
-      .sort((a, b) => {
-        if (a.name === "default") return 1;
-        if (b.name === "default") return -1;
-        return a.name.localeCompare(b.name);
-      });
-  }, [groups, activeGroup]);
-
-  const handleMoveToGroup = useCallback(
-    async (id: string, group: string) => {
-      setMenuOpenId(null);
-      try {
-        await moveFile(activeGroup, id, group);
-      } catch (err) {
-        window.alert(err instanceof Error ? err.message : "Failed to move file");
-      }
-    },
-    [activeGroup],
-  );
-
-  const handleCopyPath = useCallback((path: string) => {
-    setMenuOpenId(null);
-    navigator.clipboard.writeText(path).catch(() => {});
-  }, []);
-
-  const handleCopyLink = useCallback(
-    (id: string) => {
-      setMenuOpenId(null);
-      const url = new URL(buildFileUrl(activeGroup, id), window.location.origin);
-      navigator.clipboard.writeText(url.toString()).catch(() => {});
-    },
-    [activeGroup],
-  );
-
-  const handleRemove = useCallback(
-    (id: string) => {
-      setMenuOpenId(null);
-      removeFile(activeGroup, id);
-    },
-    [activeGroup],
-  );
-
-  const handleMenuToggle = useCallback((id: string) => {
-    setMenuOpenId((prev) => (prev === id ? null : id));
-  }, []);
-
+function SessionNode({ session, isActive, onSelect }: SessionNodeProps) {
   return (
-    <aside
-      className="relative bg-gh-bg-sidebar border-r border-gh-border flex flex-col overflow-y-auto overscroll-contain shrink-0"
-      style={{ width }}
+    <button
+      type="button"
+      className={`flex flex-col gap-0.5 w-full px-3 py-1.5 text-left rounded-sm cursor-pointer transition-colors ${
+        isActive
+          ? "bg-gh-bg-active text-gh-text"
+          : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+      }`}
+      onClick={onSelect}
+      title={session.directory}
     >
-      {searchOpen && (
-        <div className="px-2 pt-2 pb-1">
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchQueryChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onSearchQueryChange(null);
-            }}
-            placeholder="Search files..."
-            className="w-full px-2 py-1.5 text-sm bg-gh-bg border border-gh-border rounded-md text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-gh-accent"
-          />
-        </div>
-      )}
-      <nav className="flex flex-col pb-1">
-        {isSearching ? (
-          <>
-            {searchLoading ? (
-              <div className="px-3 py-2 text-sm text-gh-text-secondary">Searching contents...</div>
-            ) : searchResults.length > 0 ? (
-              <>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-3 pt-2 pb-1 text-left text-xs font-semibold uppercase tracking-wide text-gh-text-secondary"
-                  onClick={() => setContentMatchesOpen((v) => !v)}
-                  aria-expanded={contentMatchesOpen}
-                >
-                  <span>Content matches</span>
-                  <span className="text-sm leading-none">{contentMatchesOpen ? "−" : "+"}</span>
-                </button>
-                {contentMatchesOpen &&
-                  searchResults.flatMap((result) =>
-                    result.matches.map((match, index) => (
-                      <a
-                        key={`${result.fileId}:${match.line}:${index}`}
-                        href={buildFileUrl(activeGroup, result.fileId)}
-                        className="w-full px-3 py-2 text-left border-none bg-transparent cursor-pointer no-underline text-gh-text-secondary transition-colors duration-150 hover:bg-gh-bg-hover"
-                        onClick={(e) => {
-                          if (!isPlainLeftClick(e)) return;
-                          e.preventDefault();
-                          onSearchResultSelect?.(result.fileId, match.heading);
-                        }}
-                      >
-                        <div className="flex items-center gap-2 text-sm font-medium text-gh-text">
-                          <FileIcon uploaded={result.uploaded} />
-                          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                            {(showTitle && result.title) || result.fileName}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gh-text-secondary">{`Line ${match.line}`}</div>
-                        <div className="mt-2 rounded-sm bg-gh-bg-hover/80 px-2 py-1.5">
-                          {match.before?.map((line, i) => (
-                            <div
-                              key={`before:${i}`}
-                              className="text-xs leading-5 text-gh-text-secondary whitespace-pre-wrap break-words"
-                            >
-                              {line}
-                            </div>
-                          ))}
-                          <div className="text-sm leading-5 text-gh-text-secondary whitespace-pre-wrap break-words">
-                            {renderHighlightedText(match.text, searchQuery)}
-                          </div>
-                          {match.after?.map((line, i) => (
-                            <div
-                              key={`after:${i}`}
-                              className="text-xs leading-5 text-gh-text-secondary whitespace-pre-wrap break-words"
-                            >
-                              {line}
-                            </div>
-                          ))}
-                        </div>
-                      </a>
-                    )),
-                  )}
-              </>
-            ) : null}
-            {files.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-3 pt-2 pb-1 text-left text-xs font-semibold uppercase tracking-wide text-gh-text-secondary"
-                  onClick={() => setFileMatchesOpen((v) => !v)}
-                  aria-expanded={fileMatchesOpen}
-                >
-                  <span>File name matches</span>
-                  <span className="text-sm leading-none">{fileMatchesOpen ? "−" : "+"}</span>
-                </button>
-                {fileMatchesOpen &&
-                  files.map((f) => (
-                    <FileItem
-                      key={f.id}
-                      file={f}
-                      activeGroup={activeGroup}
-                      isActive={f.id === activeFileId}
-                      showTitle={showTitle}
-                      menuOpenId={menuOpenId}
-                      otherGroups={otherGroups}
-                      onFileSelect={onFileSelect}
-                      onMenuToggle={handleMenuToggle}
-                      onOpenInNewTab={handleOpenInNewTab}
-                      onCopyPath={handleCopyPath}
-                      onCopyLink={handleCopyLink}
-                      onMoveToGroup={handleMoveToGroup}
-                      onRemove={handleRemove}
-                      menuRef={menuRef}
-                    />
-                  ))}
-              </>
-            )}
-            {!searchLoading && searchResults.length === 0 && files.length === 0 && (
-              <div className="px-3 py-2 text-sm text-gh-text-secondary">No matches found</div>
-            )}
-          </>
-        ) : viewMode === "tree" ? (
-          <TreeView
-            files={files}
-            activeGroup={activeGroup}
-            activeFileId={activeFileId}
-            showTitle={showTitle}
-            menuOpenId={menuOpenId}
-            otherGroups={otherGroups}
-            onFileSelect={onFileSelect}
-            onMenuToggle={handleMenuToggle}
-            onOpenInNewTab={handleOpenInNewTab}
-            onCopyPath={handleCopyPath}
-            onCopyLink={handleCopyLink}
-            onMoveToGroup={handleMoveToGroup}
-            onRemove={handleRemove}
-            menuRef={menuRef}
-          />
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={files.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-              {files.map((f) => (
-                <SortableFileItem
-                  key={f.id}
-                  file={f}
-                  activeGroup={activeGroup}
-                  isActive={f.id === activeFileId}
-                  showTitle={showTitle}
-                  menuOpenId={menuOpenId}
-                  otherGroups={otherGroups}
-                  onFileSelect={onFileSelect}
-                  onMenuToggle={handleMenuToggle}
-                  onOpenInNewTab={handleOpenInNewTab}
-                  onCopyPath={handleCopyPath}
-                  onCopyLink={handleCopyLink}
-                  onMoveToGroup={handleMoveToGroup}
-                  onRemove={handleRemove}
-                  menuRef={menuRef}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
+      <div className="flex items-center gap-1.5 w-full">
+        <AgentBadge agent={session.agent} />
+        <span className="text-xs truncate flex-1">
+          {session.title || session.id.slice(0, 12)}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 text-[10px] text-gh-text-secondary pl-5">
+        <span>{relativeTime(session.updatedAt)}</span>
+        {session.model && (
+          <span className="truncate max-w-[80px]">{shortModel(session.model)}</span>
         )}
-      </nav>
-      {/* Resize handle */}
-      <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gh-border active:bg-gh-border transition-colors"
-        onMouseDown={onMouseDown}
-      />
-    </aside>
+        {session.cost > 0 && <span>{formatCost(session.cost)}</span>}
+      </div>
+    </button>
   );
+}
+
+function AgentBadge({ agent }: { agent: string }) {
+  const colors: Record<string, string> = {
+    opencode: "bg-purple-500/20 text-purple-400",
+    copilot: "bg-blue-500/20 text-blue-400",
+  };
+  const cls = colors[agent] || "bg-gray-500/20 text-gray-400";
+  return (
+    <span className={`text-[9px] font-bold uppercase px-1 py-0.5 rounded ${cls}`}>
+      {agent === "opencode" ? "OC" : agent === "copilot" ? "CP" : agent.slice(0, 2)}
+    </span>
+  );
+}
+
+function shortModel(model: string): string {
+  // "claude-opus-4.6" -> "opus-4.6"
+  // "gpt-4o" -> "gpt-4o"
+  return model.replace("claude-", "").replace("openai/", "");
 }
