@@ -3,10 +3,12 @@
 export interface Session {
   id: string;
   sourceId: string;
+  parentId?: string;
   title: string;
   repository: string;
   branch: string;
   agent: string;
+  subAgent?: string;
   model: string;
   cost: number;
   directory: string;
@@ -51,6 +53,7 @@ export interface ToolCall {
   output: string;
   status: string;
   duration?: number;
+  metadata?: string;
 }
 
 export interface StatusInfo {
@@ -164,7 +167,12 @@ export async function createFolder(name: string, color?: string, icon?: string):
   return res.json();
 }
 
-export async function updateFolder(id: string, name: string, color?: string, icon?: string): Promise<void> {
+export async function updateFolder(
+  id: string,
+  name: string,
+  color?: string,
+  icon?: string,
+): Promise<void> {
   const res = await fetch(`/_/api/folders/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -187,15 +195,18 @@ export async function fetchFolderSessions(folderId: string): Promise<string[]> {
 export async function assignSessionToFolder(folderId: string, sessionId: string): Promise<void> {
   const res = await fetch(
     `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
-    { method: "POST" }
+    { method: "POST" },
   );
   if (!res.ok) throw new Error("Failed to assign session");
 }
 
-export async function unassignSessionFromFolder(folderId: string, sessionId: string): Promise<void> {
+export async function unassignSessionFromFolder(
+  folderId: string,
+  sessionId: string,
+): Promise<void> {
   const res = await fetch(
     `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
-    { method: "DELETE" }
+    { method: "DELETE" },
   );
   if (!res.ok) throw new Error("Failed to unassign session");
 }
