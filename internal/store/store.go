@@ -165,6 +165,12 @@ func (s *Store) UnassignSession(folderID, sessionID string) error {
 
 // --- Search Index ---
 
+// ClearSessionIndex removes all FTS entries for a session (before re-indexing).
+func (s *Store) ClearSessionIndex(sessionID string) error {
+	_, err := s.db.Exec(`DELETE FROM search_index WHERE session_id = ?`, sessionID)
+	return err
+}
+
 // IndexSession indexes a session's content for full-text search.
 func (s *Store) IndexSession(sessionID, sourceID, chunkType, repository, content string) error {
 	_, err := s.db.Exec(`
