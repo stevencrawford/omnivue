@@ -99,6 +99,7 @@ make lint
 | GET | `/_/api/sessions/{id}/messages` | Get session messages with tool calls |
 | GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |
 | GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
+| GET | `/_/api/sessions/{id}/resume` | Get CLI command to resume the session |
 | GET | `/_/api/search?q=<query>&limit=<n>` | Full-text search across session content |
 | GET | `/_/api/folders` | List all folders |
 | POST | `/_/api/folders` | Create a new folder |
@@ -148,4 +149,4 @@ make lint
 - [x] Phase 3: Plan & diff tabs (COMPLETE)
 - [x] Phase 4: Persistent search (FTS5 indexing) (COMPLETE)
 - [x] Phase 5: User folders (COMPLETE)
-- [ ] Phase 6: Resume session
+- [x] Phase 6: Resume session (COMPLETE)
