@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { Session } from "../hooks/useApi";
 import { buildTree, relativeTime, formatCost } from "../utils/buildTree";
 import type { TreeNode } from "../utils/buildTree";
+import { SearchPanel } from "./SearchPanel";
 
 interface SidebarProps {
   sessions: Session[];
@@ -36,6 +37,7 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
   const [width, setWidth] = useState(getInitialWidth);
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
   const [isResizing, setIsResizing] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const tree = useMemo(() => buildTree(sessions), [sessions]);
 
@@ -87,22 +89,49 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
       className="flex flex-col border-r border-gh-border bg-gh-bg-sidebar overflow-hidden shrink-0"
       style={{ width: `${width}px` }}
     >
-      <div className="flex-1 overflow-y-auto p-2">
-        {tree.length === 0 ? (
-          <div className="text-xs text-gh-text-secondary p-2">No sessions</div>
-        ) : (
-          tree.map((node) => (
-            <RepoNode
-              key={node.fullPath}
-              node={node}
-              collapsed={collapsed}
-              onToggleCollapse={toggleCollapse}
-              activeSessionId={activeSessionId}
-              onSessionSelect={onSessionSelect}
-            />
-          ))
-        )}
+      {/* Search toggle bar */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gh-border">
+        <button
+          type="button"
+          className={`flex items-center gap-1.5 flex-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+            searchOpen
+              ? "bg-gh-bg-active text-gh-text"
+              : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+          }`}
+          onClick={() => setSearchOpen((v) => !v)}
+        >
+          <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
+          </svg>
+          <span>Search</span>
+        </button>
       </div>
+      {searchOpen ? (
+        <SearchPanel
+          onSelectSession={(id) => {
+            onSessionSelect(id);
+            setSearchOpen(false);
+          }}
+          onClose={() => setSearchOpen(false)}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto p-2">
+          {tree.length === 0 ? (
+            <div className="text-xs text-gh-text-secondary p-2">No sessions</div>
+          ) : (
+            tree.map((node) => (
+              <RepoNode
+                key={node.fullPath}
+                node={node}
+                collapsed={collapsed}
+                onToggleCollapse={toggleCollapse}
+                activeSessionId={activeSessionId}
+                onSessionSelect={onSessionSelect}
+              />
+            ))
+          )}
+        </div>
+      )}
       {/* Resize handle */}
       <div
         className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400/50 transition-colors ${isResizing ? "bg-blue-400/50" : ""}`}

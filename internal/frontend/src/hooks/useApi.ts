@@ -74,6 +74,14 @@ export interface DiffFile {
   patch?: string;
 }
 
+export interface SearchResult {
+  sessionId: string;
+  sourceId: string;
+  chunkType: string;
+  repository: string;
+  snippet: string;
+}
+
 export async function fetchSessions(): Promise<Session[]> {
   const res = await fetch("/_/api/sessions");
   if (!res.ok) throw new Error("Failed to fetch sessions");
@@ -113,5 +121,12 @@ export async function fetchSources(): Promise<Source[]> {
 export async function fetchStatus(): Promise<StatusInfo> {
   const res = await fetch("/_/api/status");
   if (!res.ok) throw new Error("Failed to fetch status");
+  return res.json();
+}
+
+export async function fetchSearch(query: string, limit = 50): Promise<SearchResult[]> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  const res = await fetch(`/_/api/search?${params}`);
+  if (!res.ok) throw new Error("Failed to search");
   return res.json();
 }
