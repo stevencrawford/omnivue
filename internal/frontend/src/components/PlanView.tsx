@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Plan } from "../hooks/useApi";
 import { fetchPlan } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
@@ -9,44 +9,49 @@ interface PlanViewProps {
 
 export function PlanView({ sessionId }: PlanViewProps) {
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchPlan(sessionId);
-      setPlan(data);
-    } catch {
-      setPlan(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [sessionId]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+    fetchPlan(sessionId)
+      .then((data) => {
+        if (!cancelled) {
+          setPlan(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   if (loading) {
     return (
-      <div className="p-8 text-center">
-        <div className="inline-block animate-pulse text-sm text-gh-text-secondary">
-          Loading plan...
-        </div>
+      <div className="flex-1 flex items-center justify-center text-sm text-gh-text-secondary">
+        Loading plan...
       </div>
     );
   }
 
-  if (!plan || !plan.markdown) {
+  if (error || !plan || !plan.markdown) {
     return (
-      <div className="p-8 text-center text-sm text-gh-text-secondary">
-        No plan for this session
+      <div className="flex-1 flex items-center justify-center text-sm text-gh-text-secondary">
+        No plan found for this session
       </div>
     );
   }
 
   return (
-    <div className="p-4 max-w-4xl">
+    <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full">
       <MarkdownContent content={plan.markdown} />
     </div>
   );
