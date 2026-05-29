@@ -371,6 +371,27 @@ func (s *State) GetSources() []ingest.Source {
 	return sources
 }
 
+// GetResumeCommand returns the CLI command to resume a session.
+func (s *State) GetResumeCommand(ctx context.Context, sessionID string) (string, error) {
+	s.mu.RLock()
+	var sourceID string
+	var sess *ingest.Session
+	for i, se := range s.sessions {
+		if se.ID == sessionID {
+			sourceID = se.SourceID
+			sess = &s.sessions[i]
+			break
+		}
+	}
+	adapter := s.adapters[sourceID]
+	s.mu.RUnlock()
+
+	if adapter == nil || sess == nil {
+		return "", fmt.Errorf("session not found: %s", sessionID)
+	}
+	return adapter.ResumeCommand(sess), nil
+}
+
 // Search performs full-text search across indexed session content.
 func (s *State) Search(query string, limit int) ([]store.SearchResult, error) {
 	if s.store == nil {
@@ -393,6 +414,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(state))
 	mux.HandleFunc("GET /_/api/search", handleSearch(state))
 	mux.HandleFunc("GET /_/api/folders", handleListFolders(state))
 	mux.HandleFunc("POST /_/api/folders", handleCreateFolder(state))
@@ -495,6 +517,19 @@ func handleGetDiffs(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(diffs)
+	}
+}
+
+func handleGetResumeCommand(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		cmd, err := state.GetResumeCommand(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"command": cmd})
 	}
 }
 
