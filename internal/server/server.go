@@ -394,6 +394,13 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(state))
 	mux.HandleFunc("GET /_/api/search", handleSearch(state))
+	mux.HandleFunc("GET /_/api/folders", handleListFolders(state))
+	mux.HandleFunc("POST /_/api/folders", handleCreateFolder(state))
+	mux.HandleFunc("PATCH /_/api/folders/{id}", handleUpdateFolder(state))
+	mux.HandleFunc("DELETE /_/api/folders/{id}", handleDeleteFolder(state))
+	mux.HandleFunc("GET /_/api/folders/{id}/sessions", handleGetFolderSessions(state))
+	mux.HandleFunc("POST /_/api/folders/{id}/sessions/{sessionId}", handleAssignSession(state))
+	mux.HandleFunc("DELETE /_/api/folders/{id}/sessions/{sessionId}", handleUnassignSession(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
@@ -518,6 +525,167 @@ func handleSearch(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(results)
+	}
+}
+
+// --- Folder handlers ---
+
+func handleListFolders(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]store.Folder{})
+			return
+		}
+		folders, err := state.store.ListFolders()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if folders == nil {
+			folders = []store.Folder{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(folders)
+	}
+}
+
+type createFolderRequest struct {
+	Name  string `json:"name"`
+	Color string `json:"color,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+func handleCreateFolder(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		var req createFolderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+
+		now := time.Now()
+		f := store.Folder{
+			ID:        fmt.Sprintf("folder_%d", now.UnixNano()),
+			Name:      req.Name,
+			Color:     req.Color,
+			Icon:      req.Icon,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := state.store.CreateFolder(f); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(f)
+	}
+}
+
+type updateFolderRequest struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+	Icon  string `json:"icon"`
+}
+
+func handleUpdateFolder(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		id := r.PathValue("id")
+		var req updateFolderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		if err := state.store.UpdateFolder(id, req.Name, req.Color, req.Icon); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleDeleteFolder(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		id := r.PathValue("id")
+		if err := state.store.DeleteFolder(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleGetFolderSessions(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]string{})
+			return
+		}
+		id := r.PathValue("id")
+		sessionIDs, err := state.store.GetFolderSessions(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if sessionIDs == nil {
+			sessionIDs = []string{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sessionIDs)
+	}
+}
+
+func handleAssignSession(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		folderID := r.PathValue("id")
+		sessionID := r.PathValue("sessionId")
+		if err := state.store.AssignSession(folderID, sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleUnassignSession(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		folderID := r.PathValue("id")
+		sessionID := r.PathValue("sessionId")
+		if err := state.store.UnassignSession(folderID, sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
