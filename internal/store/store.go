@@ -163,6 +163,60 @@ func (s *Store) UnassignSession(folderID, sessionID string) error {
 	return err
 }
 
+// UpdateFolder updates a folder's name, color, and icon.
+func (s *Store) UpdateFolder(id, name, color, icon string) error {
+	_, err := s.db.Exec(`
+		UPDATE folders SET name = ?, color = ?, icon = ?, updated_at = ?
+		WHERE id = ?
+	`, name, color, icon, time.Now().Format(time.RFC3339), id)
+	return err
+}
+
+// DeleteFolder removes a folder and its session assignments.
+func (s *Store) DeleteFolder(id string) error {
+	// folder_sessions has ON DELETE CASCADE, so just delete the folder
+	_, err := s.db.Exec(`DELETE FROM folders WHERE id = ?`, id)
+	return err
+}
+
+// GetFolderSessions returns session IDs assigned to a folder.
+func (s *Store) GetFolderSessions(folderID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT session_id FROM folder_sessions WHERE folder_id = ? ORDER BY sort_order, added_at`, folderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// GetSessionFolders returns folder IDs that a session belongs to.
+func (s *Store) GetSessionFolders(sessionID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT folder_id FROM folder_sessions WHERE session_id = ?`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // --- Search Index ---
 
 // ClearSessionIndex removes all FTS entries for a session (before re-indexing).
