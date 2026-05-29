@@ -3,6 +3,8 @@ import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchMessages } from "../hooks/useApi";
 import { relativeTime, formatCost } from "../utils/buildTree";
 import { MarkdownContent } from "./MarkdownContent";
+import { PlanView } from "./PlanView";
+import { DiffView } from "./DiffView";
 
 interface SessionViewerProps {
   session: Session;
@@ -70,14 +72,10 @@ export function SessionViewer({ session }: SessionViewerProps) {
           <ConversationView messages={messages} loading={loading} />
         )}
         {activeTab === "plan" && (
-          <div className="p-4 text-sm text-gh-text-secondary italic">
-            Plan view coming in Phase 3
-          </div>
+          <PlanView sessionId={session.id} />
         )}
         {activeTab === "diff" && (
-          <div className="p-4 text-sm text-gh-text-secondary italic">
-            Diff view coming in Phase 3
-          </div>
+          <DiffView sessionId={session.id} />
         )}
       </div>
     </div>

@@ -60,6 +60,20 @@ export interface StatusInfo {
   sessions: number;
 }
 
+export interface PlanItem {
+  content: string;
+  status: string;
+  priority: string;
+}
+
+export interface DiffFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+}
+
 export async function fetchSessions(): Promise<Session[]> {
   const res = await fetch("/_/api/sessions");
   if (!res.ok) throw new Error("Failed to fetch sessions");
@@ -75,6 +89,18 @@ export async function fetchSession(id: string): Promise<Session> {
 export async function fetchMessages(sessionId: string): Promise<Message[]> {
   const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/messages`);
   if (!res.ok) throw new Error("Failed to fetch messages");
+  return res.json();
+}
+
+export async function fetchPlan(sessionId: string): Promise<PlanItem[]> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/plan`);
+  if (!res.ok) throw new Error("Failed to fetch plan");
+  return res.json();
+}
+
+export async function fetchDiffs(sessionId: string): Promise<DiffFile[]> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/diffs`);
+  if (!res.ok) throw new Error("Failed to fetch diffs");
   return res.json();
 }
 
