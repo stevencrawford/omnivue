@@ -99,6 +99,7 @@ make lint
 | GET | `/_/api/sessions/{id}/messages` | Get session messages with tool calls |
 | GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |
 | GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
+| GET | `/_/api/search?q=<query>&limit=<n>` | Full-text search across session content |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
 | GET | `/_/events` | SSE event stream (update, session-changed) |
@@ -138,6 +139,6 @@ make lint
 - [x] Phase 1.5: Copilot adapter (COMPLETE)
 - [x] Phase 2: Session conversation view (messages rendering) (COMPLETE)
 - [x] Phase 3: Plan & diff tabs (COMPLETE)
-- [ ] Phase 4: Persistent search (FTS5 indexing)
+- [x] Phase 4: Persistent search (FTS5 indexing) (COMPLETE)
 - [ ] Phase 5: User folders
 - [ ] Phase 6: Resume session
