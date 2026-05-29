@@ -526,7 +526,7 @@ function UserContent({
 }) {
   const displayContent = !expanded && isLong ? content.slice(0, 3000) + "\n\n..." : content;
   return (
-    <div className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed">
+    <div className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed max-h-40 overflow-y-auto">
       {displayContent}
     </div>
   );
