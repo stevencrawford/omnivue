@@ -82,6 +82,17 @@ export interface SearchResult {
   snippet: string;
 }
 
+export interface Folder {
+  id: string;
+  name: string;
+  parentId?: string;
+  sortOrder: number;
+  color?: string;
+  icon?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export async function fetchSessions(): Promise<Session[]> {
   const res = await fetch("/_/api/sessions");
   if (!res.ok) throw new Error("Failed to fetch sessions");
@@ -129,4 +140,56 @@ export async function fetchSearch(query: string, limit = 50): Promise<SearchResu
   const res = await fetch(`/_/api/search?${params}`);
   if (!res.ok) throw new Error("Failed to search");
   return res.json();
+}
+
+export async function fetchFolders(): Promise<Folder[]> {
+  const res = await fetch("/_/api/folders");
+  if (!res.ok) throw new Error("Failed to fetch folders");
+  return res.json();
+}
+
+export async function createFolder(name: string, color?: string, icon?: string): Promise<Folder> {
+  const res = await fetch("/_/api/folders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color, icon }),
+  });
+  if (!res.ok) throw new Error("Failed to create folder");
+  return res.json();
+}
+
+export async function updateFolder(id: string, name: string, color?: string, icon?: string): Promise<void> {
+  const res = await fetch(`/_/api/folders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color: color || "", icon: icon || "" }),
+  });
+  if (!res.ok) throw new Error("Failed to update folder");
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  const res = await fetch(`/_/api/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete folder");
+}
+
+export async function fetchFolderSessions(folderId: string): Promise<string[]> {
+  const res = await fetch(`/_/api/folders/${encodeURIComponent(folderId)}/sessions`);
+  if (!res.ok) throw new Error("Failed to fetch folder sessions");
+  return res.json();
+}
+
+export async function assignSessionToFolder(folderId: string, sessionId: string): Promise<void> {
+  const res = await fetch(
+    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
+    { method: "POST" }
+  );
+  if (!res.ok) throw new Error("Failed to assign session");
+}
+
+export async function unassignSessionFromFolder(folderId: string, sessionId: string): Promise<void> {
+  const res = await fetch(
+    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error("Failed to unassign session");
 }

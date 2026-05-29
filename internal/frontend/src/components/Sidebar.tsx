@@ -3,6 +3,7 @@ import type { Session } from "../hooks/useApi";
 import { buildTree, relativeTime, formatCost } from "../utils/buildTree";
 import type { TreeNode } from "../utils/buildTree";
 import { SearchPanel } from "./SearchPanel";
+import { FolderPanel } from "./FolderPanel";
 
 interface SidebarProps {
   sessions: Session[];
@@ -116,6 +117,11 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
         />
       ) : (
         <div className="flex-1 overflow-y-auto p-2">
+          <FolderPanel
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSessionSelect={onSessionSelect}
+          />
           {tree.length === 0 ? (
             <div className="text-xs text-gh-text-secondary p-2">No sessions</div>
           ) : (
