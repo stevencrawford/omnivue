@@ -239,6 +239,44 @@ func (s *State) GetMessages(ctx context.Context, sessionID string) ([]ingest.Mes
 	return adapter.GetMessages(ctx, sessionID)
 }
 
+// GetPlan returns plan items for a session.
+func (s *State) GetPlan(ctx context.Context, sessionID string) ([]ingest.PlanItem, error) {
+	s.mu.RLock()
+	var sourceID string
+	for _, sess := range s.sessions {
+		if sess.ID == sessionID {
+			sourceID = sess.SourceID
+			break
+		}
+	}
+	adapter := s.adapters[sourceID]
+	s.mu.RUnlock()
+
+	if adapter == nil {
+		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	}
+	return adapter.GetPlan(ctx, sessionID)
+}
+
+// GetDiffs returns file diffs for a session.
+func (s *State) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	s.mu.RLock()
+	var sourceID string
+	for _, sess := range s.sessions {
+		if sess.ID == sessionID {
+			sourceID = sess.SourceID
+			break
+		}
+	}
+	adapter := s.adapters[sourceID]
+	s.mu.RUnlock()
+
+	if adapter == nil {
+		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	}
+	return adapter.GetDiffs(ctx, sessionID)
+}
+
 // GetSources returns configured sources from the store.
 func (s *State) GetSources() []ingest.Source {
 	if s.store == nil {
@@ -260,6 +298,8 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/sessions", handleSessions(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}", handleGetSession(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
@@ -322,6 +362,38 @@ func handleGetMessages(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
+	}
+}
+
+func handleGetPlan(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		plan, err := state.GetPlan(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if plan == nil {
+			plan = []ingest.PlanItem{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(plan)
+	}
+}
+
+func handleGetDiffs(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		diffs, err := state.GetDiffs(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if diffs == nil {
+			diffs = []ingest.DiffFile{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(diffs)
 	}
 }
 
