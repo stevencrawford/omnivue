@@ -56,9 +56,7 @@ export function DiffView({ sessionId }: DiffViewProps) {
         {stats.additions > 0 && (
           <span className="text-green-500 font-mono">+{stats.additions}</span>
         )}
-        {stats.deletions > 0 && (
-          <span className="text-red-500 font-mono">-{stats.deletions}</span>
-        )}
+        {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
         <div className="ml-auto flex items-center gap-1.5 text-[10px] text-gh-text-secondary">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
@@ -121,9 +119,7 @@ function DiffFileRow({ diff }: { diff: DiffFile }) {
 
         {/* File path */}
         <span className="text-xs font-mono truncate">
-          {dirPath && (
-            <span className="text-gh-text-secondary">{dirPath}/</span>
-          )}
+          {dirPath && <span className="text-gh-text-secondary">{dirPath}/</span>}
           <span className="text-gh-text font-medium">{fileName}</span>
         </span>
 
@@ -229,10 +225,18 @@ function computeStats(diffs: DiffFile[]) {
     additions += d.additions;
     deletions += d.deletions;
     switch (d.status) {
-      case "added": added++; break;
-      case "deleted": deleted++; break;
-      case "renamed": renamed++; break;
-      default: modified++; break;
+      case "added":
+        added++;
+        break;
+      case "deleted":
+        deleted++;
+        break;
+      case "renamed":
+        renamed++;
+        break;
+      default:
+        modified++;
+        break;
     }
   }
 

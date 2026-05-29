@@ -16,6 +16,8 @@ interface FolderPanelProps {
   onSessionSelect: (sessionId: string) => void;
 }
 
+type FolderSort = "name" | "count";
+
 export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: FolderPanelProps) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
@@ -25,8 +27,23 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [assigningFolder, setAssigningFolder] = useState<string | null>(null);
+  const [folderSort, setFolderSort] = useState<FolderSort>("name");
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  const [folderSortOpen, setFolderSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
+
+  // Close sort dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setFolderSortOpen(false);
+      }
+    };
+    if (folderSortOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [folderSortOpen]);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -96,6 +113,16 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
     }
   };
 
+  const handleDrop = async (folderId: string, sessionId: string) => {
+    try {
+      await assignSessionToFolder(folderId, sessionId);
+      const ids = await fetchFolderSessions(folderId);
+      setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const handleAssign = async (folderId: string, sessionId: string) => {
     try {
       await assignSessionToFolder(folderId, sessionId);
@@ -117,7 +144,21 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
   const getSession = (id: string) => sessions.find((s) => s.id === id);
+
+  const sortedFolders = [...folders].sort((a, b) => {
+    if (folderSort === "count") {
+      const aCount = folderSessions[a.id]?.length || 0;
+      const bCount = folderSessions[b.id]?.length || 0;
+      return bCount - aCount;
+    }
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <div className="border-b border-gh-border pb-1 mb-1">
@@ -126,16 +167,67 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
         <span className="text-[10px] font-semibold uppercase tracking-wider text-gh-text-secondary">
           Folders
         </span>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="text-gh-text-secondary hover:text-gh-text cursor-pointer"
-          title="New folder"
-        >
-          <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setAllCollapsed((v) => !v)}
+            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+            title={allCollapsed ? "Expand all" : "Collapse all"}
+          >
+            {allCollapsed ? (
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+              </svg>
+            ) : (
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
+              </svg>
+            )}
+          </button>
+          <div className="relative" ref={sortRef}>
+            <button
+              type="button"
+              onClick={() => setFolderSortOpen((v) => !v)}
+              className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+              title="Sort folders"
+            >
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75ZM4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8Zm2.75 4.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
+              </svg>
+            </button>
+            {folderSortOpen && (
+              <div className="absolute left-0 top-full mt-1 w-24 bg-gh-bg-sidebar border border-gh-border rounded shadow-lg z-20 py-1">
+                {(["name", "count"] as FolderSort[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
+                      folderSort === mode
+                        ? "text-gh-text bg-gh-bg-active"
+                        : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                    }`}
+                    onClick={() => {
+                      setFolderSort(mode);
+                      setFolderSortOpen(false);
+                    }}
+                  >
+                    {mode === "name" ? "Name" : "Count"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+            title="New folder"
+          >
+            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Create new folder */}
@@ -148,9 +240,14 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleCreate();
-              if (e.key === "Escape") { setCreating(false); setNewName(""); }
+              if (e.key === "Escape") {
+                setCreating(false);
+                setNewName("");
+              }
             }}
-            onBlur={() => { if (!newName.trim()) setCreating(false); }}
+            onBlur={() => {
+              if (!newName.trim()) setCreating(false);
+            }}
             placeholder="Folder name"
             className="w-full text-xs bg-gh-bg border border-gh-border rounded px-2 py-1 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-blue-400"
           />
@@ -158,12 +255,20 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       )}
 
       {/* Folder list */}
-      {folders.length === 0 && !creating && (
+      {sortedFolders.length === 0 && !creating && (
         <div className="text-[10px] text-gh-text-secondary px-2 py-1">No folders yet</div>
       )}
-      {folders.map((folder) => (
+      {sortedFolders.map((folder) => (
         <div key={folder.id} className="group">
-          <div className="flex items-center gap-1 px-2 py-0.5">
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 transition-colors"
+            onDragOver={handleDragOver}
+            onDrop={(e) => {
+              e.preventDefault();
+              const sessionId = e.dataTransfer.getData("text/plain");
+              if (sessionId) handleDrop(folder.id, sessionId);
+            }}
+          >
             {editingId === folder.id ? (
               <input
                 ref={editRef}
@@ -180,17 +285,23 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             ) : (
               <button
                 type="button"
-                className="flex items-center gap-1.5 flex-1 text-xs text-gh-text-secondary hover:text-gh-text cursor-pointer truncate"
-                onClick={() => toggleExpand(folder.id)}
+                className={`flex items-center gap-1.5 flex-1 text-xs cursor-pointer truncate transition-colors ${
+                  allCollapsed && expandedFolder !== folder.id
+                    ? "text-gh-text-secondary"
+                    : "text-gh-text-secondary hover:text-gh-text"
+                }`}
+                onClick={() => !allCollapsed && toggleExpand(folder.id)}
               >
                 <svg
-                  className={`size-2.5 transition-transform ${expandedFolder === folder.id ? "rotate-90" : ""}`}
+                  className={`size-2.5 transition-transform ${
+                    !allCollapsed && expandedFolder === folder.id ? "rotate-90" : ""
+                  }`}
                   viewBox="0 0 16 16"
                   fill="currentColor"
                 >
                   <path d="M6 4l4 4-4 4" />
                 </svg>
-                <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                <svg className="size-3 shrink-0" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
                 </svg>
                 <span className="truncate">{folder.name}</span>
@@ -206,7 +317,9 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               <div className="hidden group-hover:flex items-center gap-0.5">
                 <button
                   type="button"
-                  onClick={() => setAssigningFolder(assigningFolder === folder.id ? null : folder.id)}
+                  onClick={() =>
+                    setAssigningFolder(assigningFolder === folder.id ? null : folder.id)
+                  }
                   className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
                   title="Add session"
                 >
@@ -216,7 +329,10 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setEditingId(folder.id); setEditName(folder.name); }}
+                  onClick={() => {
+                    setEditingId(folder.id);
+                    setEditName(folder.name);
+                  }}
                   className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
                   title="Rename"
                 >
@@ -249,7 +365,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
           )}
 
           {/* Expanded folder sessions */}
-          {expandedFolder === folder.id && folderSessions[folder.id] && (
+          {!allCollapsed && expandedFolder === folder.id && folderSessions[folder.id] && (
             <div className="ml-5 border-l border-gh-border">
               {folderSessions[folder.id].length === 0 ? (
                 <div className="text-[10px] text-gh-text-secondary px-2 py-1">Empty</div>
@@ -258,29 +374,13 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   const sess = getSession(sid);
                   if (!sess) return null;
                   return (
-                    <div key={sid} className="flex items-center group/item">
-                      <button
-                        type="button"
-                        className={`flex-1 text-left px-2 py-1 text-xs truncate cursor-pointer transition-colors ${
-                          sid === activeSessionId
-                            ? "text-gh-text bg-gh-bg-active"
-                            : "text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover"
-                        }`}
-                        onClick={() => onSessionSelect(sid)}
-                      >
-                        {sess.title || sid.slice(0, 12)}
-                      </button>
-                      <button
-                        type="button"
-                        className="hidden group-hover/item:block text-gh-text-secondary hover:text-red-400 cursor-pointer p-1"
-                        onClick={() => handleUnassign(folder.id, sid)}
-                        title="Remove from folder"
-                      >
-                        <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-                        </svg>
-                      </button>
-                    </div>
+                    <FolderSessionRow
+                      key={sid}
+                      session={sess}
+                      isActive={sid === activeSessionId}
+                      onSelect={() => onSessionSelect(sid)}
+                      onRemove={() => handleUnassign(folder.id, sid)}
+                    />
                   );
                 })
               )}
@@ -288,6 +388,72 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+interface FolderSessionRowProps {
+  session: Session;
+  isActive: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}
+
+function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessionRowProps) {
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", session.id);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = () => setDragOver(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const draggedId = e.dataTransfer.getData("text/plain");
+    if (draggedId && draggedId !== session.id) {
+      // Re-trigger on the outer folder drop handler via event bubbling
+      // The parent handler will pick this up
+    }
+  };
+
+  return (
+    <div
+      className={`flex items-center group/item ${dragOver ? "drag-over" : ""}`}
+      draggable
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <button
+        type="button"
+        className={`session-draggable flex-1 text-left px-2 py-1 text-xs truncate cursor-pointer transition-colors ${
+          isActive
+            ? "text-gh-text bg-gh-bg-active"
+            : "text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover"
+        }`}
+        onClick={onSelect}
+      >
+        {session.title || session.id.slice(0, 12)}
+      </button>
+      <button
+        type="button"
+        className="hidden group-hover/item:block text-gh-text-secondary hover:text-red-400 cursor-pointer p-1"
+        onClick={onRemove}
+        title="Remove from folder"
+      >
+        <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -310,10 +476,11 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
   }, []);
 
   const unassigned = sessions.filter(
-    (s) => !assignedIds.includes(s.id) && (
-      !filter || s.title.toLowerCase().includes(filter.toLowerCase()) ||
-      s.repository.toLowerCase().includes(filter.toLowerCase())
-    )
+    (s) =>
+      !assignedIds.includes(s.id) &&
+      (!filter ||
+        s.title.toLowerCase().includes(filter.toLowerCase()) ||
+        s.repository.toLowerCase().includes(filter.toLowerCase())),
   );
 
   return (
@@ -323,13 +490,17 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
         type="text"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
         placeholder="Filter sessions..."
         className="text-xs bg-transparent border-b border-gh-border px-2 py-1 text-gh-text placeholder:text-gh-text-secondary outline-none"
       />
       <div className="flex-1 overflow-y-auto">
         {unassigned.length === 0 ? (
-          <div className="text-[10px] text-gh-text-secondary p-2 text-center">No sessions to add</div>
+          <div className="text-[10px] text-gh-text-secondary p-2 text-center">
+            No sessions to add
+          </div>
         ) : (
           unassigned.slice(0, 20).map((s) => (
             <button

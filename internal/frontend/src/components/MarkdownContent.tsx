@@ -73,11 +73,7 @@ export function MarkdownContent({ content, className = "" }: MarkdownContentProp
             );
           },
           td({ children }) {
-            return (
-              <td className="border border-gh-border px-3 py-1.5">
-                {children}
-              </td>
-            );
+            return <td className="border border-gh-border px-3 py-1.5">{children}</td>;
           },
           // Blockquote
           blockquote({ children }) {
@@ -89,10 +85,18 @@ export function MarkdownContent({ content, className = "" }: MarkdownContentProp
           },
           // Headings
           h1({ children }) {
-            return <h1 className="text-lg font-bold mt-4 mb-2 pb-1 border-b border-gh-border">{children}</h1>;
+            return (
+              <h1 className="text-lg font-bold mt-4 mb-2 pb-1 border-b border-gh-border">
+                {children}
+              </h1>
+            );
           },
           h2({ children }) {
-            return <h2 className="text-base font-bold mt-3 mb-2 pb-1 border-b border-gh-border">{children}</h2>;
+            return (
+              <h2 className="text-base font-bold mt-3 mb-2 pb-1 border-b border-gh-border">
+                {children}
+              </h2>
+            );
           },
           h3({ children }) {
             return <h3 className="text-sm font-bold mt-3 mb-1">{children}</h3>;
