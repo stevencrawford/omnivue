@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/k1LoW/mo/internal/xdg"
+	"github.com/stevencrawford/sess/internal/xdg"
 )
 
 const logFilePrefix = "mo-"

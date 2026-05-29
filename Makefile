@@ -1,4 +1,4 @@
-PKG = github.com/k1LoW/mo
+PKG = github.com/stevencrawford/sess
 COMMIT = $(shell git rev-parse --short HEAD)
 
 BUILD_LDFLAGS = "-s -w -X $(PKG)/version.Revision=$(COMMIT)"
@@ -15,10 +15,10 @@ test:
 	go test ./... -coverprofile=coverage.out -covermode=count -count=1
 
 build: generate
-	go build -ldflags=$(BUILD_LDFLAGS) -trimpath -o mo .
+	go build -ldflags=$(BUILD_LDFLAGS) -trimpath -o sess .
 
 dev: build
-	./mo -p 16275 --foreground $(ARGS)
+	./sess -p 16275 --foreground $(ARGS)
 
 screenshot: build
 	cd internal/frontend && pnpm run screenshots
