@@ -249,7 +249,8 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	}
 	if output != "" {
 		source := "task-output"
-		md := "# Sub-agent Response\n\n" + output
+		cleaned := stripTaskWrapper(output)
+		md := "# Sub-agent Response\n\n" + cleaned
 		return &ingest.Plan{Markdown: md, Source: source}, nil
 	}
 
@@ -456,6 +457,22 @@ func extractSubAgentFromTitle(title string) string {
 		return ""
 	}
 	return title[idx+2 : idx+2+endIdx]
+}
+
+func stripTaskWrapper(output string) string {
+	lines := strings.Split(output, "\n")
+	var result []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || trimmed == "<task_result>" || trimmed == "</task_result>" || trimmed == "</task>" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "<task ") && strings.HasSuffix(trimmed, ">") {
+			continue
+		}
+		result = append(result, line)
+	}
+	return strings.TrimSpace(strings.Join(result, "\n"))
 }
 
 func marshalJSON(v interface{}) string {
