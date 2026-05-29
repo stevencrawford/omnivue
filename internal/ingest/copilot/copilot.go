@@ -297,7 +297,18 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 	}
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) ([]ingest.PlanItem, error) {
+func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	// Try to read plan.md from the session-state directory
+	planPath := filepath.Join(a.basePath, "session-state", sessionID, "plan.md")
+	data, err := os.ReadFile(planPath)
+	if err == nil && len(data) > 0 {
+		return &ingest.Plan{
+			Markdown: string(data),
+			Source:   "file",
+		}, nil
+	}
+
+	// Fall back to the checkpoints table
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT title, overview, next_steps
 		FROM checkpoints
@@ -319,27 +330,25 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) ([]ingest.PlanI
 		return nil, fmt.Errorf("scanning checkpoint: %w", err)
 	}
 
-	var items []ingest.PlanItem
-
-	// Add overview as a completed item
+	var md string
+	if title.Valid && title.String != "" {
+		md += "# " + title.String + "\n\n"
+	}
 	if overview.Valid && overview.String != "" {
-		items = append(items, ingest.PlanItem{
-			Content:  overview.String,
-			Status:   "completed",
-			Priority: "medium",
-		})
+		md += "## Overview\n\n" + overview.String + "\n\n"
 	}
-
-	// Add next steps as pending items
 	if nextSteps.Valid && nextSteps.String != "" {
-		items = append(items, ingest.PlanItem{
-			Content:  nextSteps.String,
-			Status:   "pending",
-			Priority: "medium",
-		})
+		md += "## Next Steps\n\n" + nextSteps.String + "\n"
 	}
 
-	return items, nil
+	if md == "" {
+		return nil, nil
+	}
+
+	return &ingest.Plan{
+		Markdown: md,
+		Source:   "synthesized",
+	}, nil
 }
 
 func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {

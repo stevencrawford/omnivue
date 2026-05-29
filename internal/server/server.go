@@ -324,8 +324,8 @@ func (s *State) GetMessages(ctx context.Context, sessionID string) ([]ingest.Mes
 	return adapter.GetMessages(ctx, sessionID)
 }
 
-// GetPlan returns plan items for a session.
-func (s *State) GetPlan(ctx context.Context, sessionID string) ([]ingest.PlanItem, error) {
+// GetPlan returns the plan for a session.
+func (s *State) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	s.mu.RLock()
 	var sourceID string
 	for _, sess := range s.sessions {
@@ -497,7 +497,7 @@ func handleGetPlan(state *State) http.HandlerFunc {
 			return
 		}
 		if plan == nil {
-			plan = []ingest.PlanItem{}
+			plan = &ingest.Plan{Markdown: "", Source: ""}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(plan)

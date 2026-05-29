@@ -60,10 +60,9 @@ export interface StatusInfo {
   sessions: number;
 }
 
-export interface PlanItem {
-  content: string;
-  status: string;
-  priority: string;
+export interface Plan {
+  markdown: string;
+  source: string;
 }
 
 export interface DiffFile {
@@ -111,7 +110,7 @@ export async function fetchMessages(sessionId: string): Promise<Message[]> {
   return res.json();
 }
 
-export async function fetchPlan(sessionId: string): Promise<PlanItem[]> {
+export async function fetchPlan(sessionId: string): Promise<Plan> {
   const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/plan`);
   if (!res.ok) throw new Error("Failed to fetch plan");
   return res.json();

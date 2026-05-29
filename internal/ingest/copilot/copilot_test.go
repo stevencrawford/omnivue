@@ -133,28 +133,23 @@ func TestAdapter_GetPlan(t *testing.T) {
 		t.Skip("no sessions available")
 	}
 
-	// Try to find a session with checkpoints
+	// Try to find a session with a plan
 	for _, s := range sessions {
 		plan, err := adapter.GetPlan(context.Background(), s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(plan) > 0 {
-			t.Logf("Session %s has %d plan items", s.ID, len(plan))
-			for i, item := range plan {
-				preview := item.Content
-				if len(preview) > 80 {
-					preview = preview[:80] + "..."
-				}
-				t.Logf("  [%s] %s", item.Status, preview)
-				if i >= 3 {
-					break
-				}
+		if plan != nil && plan.Markdown != "" {
+			t.Logf("Session %s has plan (source: %s, %d bytes)", s.ID, plan.Source, len(plan.Markdown))
+			preview := plan.Markdown
+			if len(preview) > 200 {
+				preview = preview[:200] + "..."
 			}
+			t.Logf("  %s", preview)
 			return
 		}
 	}
-	t.Log("No sessions with checkpoints found")
+	t.Log("No sessions with plans found")
 }
 
 func TestAdapter_GetDiffs(t *testing.T) {

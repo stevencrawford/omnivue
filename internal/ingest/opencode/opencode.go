@@ -214,7 +214,7 @@ func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]part
 	return parts, rows.Err()
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) ([]ingest.PlanItem, error) {
+func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT content, status, priority
 		FROM todo
@@ -226,15 +226,38 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) ([]ingest.PlanI
 	}
 	defer rows.Close()
 
-	var items []ingest.PlanItem
+	var md string
 	for rows.Next() {
-		var item ingest.PlanItem
-		if err := rows.Scan(&item.Content, &item.Status, &item.Priority); err != nil {
+		var content, status, priority string
+		if err := rows.Scan(&content, &status, &priority); err != nil {
 			continue
 		}
-		items = append(items, item)
+
+		checkbox := "- [ ] "
+		if status == "completed" {
+			checkbox = "- [x] "
+		}
+
+		line := checkbox + content
+		if priority == "high" {
+			line += " `high`"
+		} else if priority == "low" {
+			line += " `low`"
+		}
+		md += line + "\n"
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if md == "" {
+		return nil, nil
+	}
+
+	return &ingest.Plan{
+		Markdown: md,
+		Source:   "synthesized",
+	}, nil
 }
 
 func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {

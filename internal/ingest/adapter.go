@@ -24,8 +24,8 @@ type Adapter interface {
 	// GetMessages returns the conversation messages for a session.
 	GetMessages(ctx context.Context, sessionID string) ([]Message, error)
 
-	// GetPlan returns the plan/todo items for a session.
-	GetPlan(ctx context.Context, sessionID string) ([]PlanItem, error)
+	// GetPlan returns the session plan as markdown.
+	GetPlan(ctx context.Context, sessionID string) (*Plan, error)
 
 	// GetDiffs returns the file diffs for a session.
 	GetDiffs(ctx context.Context, sessionID string) ([]DiffFile, error)

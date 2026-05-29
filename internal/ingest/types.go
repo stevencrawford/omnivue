@@ -80,6 +80,12 @@ type PlanItem struct {
 	Priority string `json:"priority"` // "high", "medium", "low"
 }
 
+// Plan represents a session plan rendered as markdown.
+type Plan struct {
+	Markdown string `json:"markdown"`
+	Source   string `json:"source"` // "file" (read from disk), "synthesized" (generated from structured data)
+}
+
 // DiffFile represents a changed file in a session.
 type DiffFile struct {
 	Path      string `json:"path"`
@@ -93,7 +99,7 @@ type DiffFile struct {
 type SessionDetail struct {
 	Session  Session    `json:"session"`
 	Messages []Message  `json:"messages,omitempty"`
-	Plan     []PlanItem `json:"plan,omitempty"`
+	Plan     *Plan      `json:"plan,omitempty"`
 	Diffs    []DiffFile `json:"diffs,omitempty"`
 }
 
