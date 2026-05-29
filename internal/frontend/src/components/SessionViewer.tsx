@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
-import { fetchMessages } from "../hooks/useApi";
+import { fetchMessages, fetchResumeCommand } from "../hooks/useApi";
 import { relativeTime, formatCost } from "../utils/buildTree";
 import { MarkdownContent } from "./MarkdownContent";
 import { PlanView } from "./PlanView";
@@ -83,7 +83,20 @@ export function SessionViewer({ session }: SessionViewerProps) {
 }
 
 function SessionHeader({ session }: { session: Session }) {
+  const [copied, setCopied] = useState(false);
   const totalTokens = session.tokensInput + session.tokensOutput;
+
+  const handleResume = async () => {
+    try {
+      const cmd = await fetchResumeCommand(session.id);
+      await navigator.clipboard.writeText(cmd);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div className="px-4 py-3 border-b border-gh-border bg-gh-bg-sidebar">
       <div className="flex items-center gap-2 mb-1">
@@ -93,6 +106,32 @@ function SessionHeader({ session }: { session: Session }) {
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold uppercase shrink-0">
           {session.agent}
         </span>
+        <button
+          type="button"
+          onClick={handleResume}
+          className={`ml-auto flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border cursor-pointer transition-colors ${
+            copied
+              ? "border-green-500/40 bg-green-500/10 text-green-400"
+              : "border-gh-border bg-gh-bg hover:bg-gh-bg-hover text-gh-text-secondary hover:text-gh-text"
+          }`}
+          title="Copy resume command to clipboard"
+        >
+          {copied ? (
+            <>
+              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+              </svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
+              </svg>
+              Resume
+            </>
+          )}
+        </button>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-gh-text-secondary">
         <span title="Repository">{session.repository}</span>

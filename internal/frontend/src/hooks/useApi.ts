@@ -123,6 +123,13 @@ export async function fetchDiffs(sessionId: string): Promise<DiffFile[]> {
   return res.json();
 }
 
+export async function fetchResumeCommand(sessionId: string): Promise<string> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/resume`);
+  if (!res.ok) throw new Error("Failed to fetch resume command");
+  const data = await res.json();
+  return data.command;
+}
+
 export async function fetchSources(): Promise<Source[]> {
   const res = await fetch("/_/api/sources");
   if (!res.ok) throw new Error("Failed to fetch sources");
