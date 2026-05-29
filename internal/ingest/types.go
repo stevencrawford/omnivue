@@ -1,0 +1,106 @@
+package ingest
+
+import "time"
+
+// AgentType identifies the AI coding agent that produced the session.
+type AgentType string
+
+const (
+	AgentOpenCode AgentType = "opencode"
+	AgentCopilot  AgentType = "copilot"
+)
+
+// Source represents a configured session data source.
+type Source struct {
+	ID        string    `json:"id"`
+	Path      string    `json:"path"`
+	AgentType AgentType `json:"agentType"`
+	Label     string    `json:"label"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// Session represents a unified session entry from any agent.
+type Session struct {
+	ID         string    `json:"id"`
+	SourceID   string    `json:"sourceId"`
+	Title      string    `json:"title"`
+	Repository string    `json:"repository"`
+	Branch     string    `json:"branch"`
+	Agent      AgentType `json:"agent"`
+	Model      string    `json:"model"`
+	Cost       float64   `json:"cost"`
+	Directory  string    `json:"directory"`
+	Status     string    `json:"status"` // "active", "completed", "archived"
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+
+	// Token usage
+	TokensInput      int `json:"tokensInput"`
+	TokensOutput     int `json:"tokensOutput"`
+	TokensReasoning  int `json:"tokensReasoning"`
+	TokensCacheRead  int `json:"tokensCacheRead"`
+	TokensCacheWrite int `json:"tokensCacheWrite"`
+
+	// Diff summary
+	DiffFiles     int `json:"diffFiles"`
+	DiffAdditions int `json:"diffAdditions"`
+	DiffDeletions int `json:"diffDeletions"`
+}
+
+// Message represents a conversation message within a session.
+type Message struct {
+	ID        string     `json:"id"`
+	Role      string     `json:"role"` // "user", "assistant", "system"
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"toolCalls,omitempty"`
+	Timestamp time.Time  `json:"timestamp"`
+	Model     string     `json:"model,omitempty"`
+	Agent     string     `json:"agent,omitempty"`
+
+	// Token usage for this message
+	TokensInput  int `json:"tokensInput,omitempty"`
+	TokensOutput int `json:"tokensOutput,omitempty"`
+}
+
+// ToolCall represents a tool invocation within a message.
+type ToolCall struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Input    string `json:"input"`
+	Output   string `json:"output"`
+	Status   string `json:"status"` // "completed", "failed", "running"
+	Duration int64  `json:"duration,omitempty"` // milliseconds
+}
+
+// PlanItem represents a task/todo within a session plan.
+type PlanItem struct {
+	Content  string `json:"content"`
+	Status   string `json:"status"`   // "pending", "in_progress", "completed", "cancelled"
+	Priority string `json:"priority"` // "high", "medium", "low"
+}
+
+// DiffFile represents a changed file in a session.
+type DiffFile struct {
+	Path      string `json:"path"`
+	Status    string `json:"status"` // "added", "modified", "deleted", "renamed"
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	Patch     string `json:"patch,omitempty"` // unified diff content
+}
+
+// SessionDetail includes the full session with messages, plan, and diffs.
+type SessionDetail struct {
+	Session  Session    `json:"session"`
+	Messages []Message  `json:"messages,omitempty"`
+	Plan     []PlanItem `json:"plan,omitempty"`
+	Diffs    []DiffFile `json:"diffs,omitempty"`
+}
+
+// DiscoveredSource represents a potential session source found during auto-discovery.
+type DiscoveredSource struct {
+	Path      string    `json:"path"`
+	AgentType AgentType `json:"agentType"`
+	Label     string    `json:"label"`
+	Sessions  int       `json:"sessions"` // approximate count
+}
