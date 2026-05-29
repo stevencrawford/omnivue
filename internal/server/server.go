@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -79,6 +82,9 @@ func NewState(ctx context.Context) *State {
 	// Initial session load
 	s.refreshSessions(ctx)
 
+	// Initial indexing (background)
+	go s.indexSessions(ctx)
+
 	// Start poller
 	pollCtx, pollCancel := context.WithCancel(ctx)
 	s.pollStop = pollCancel
@@ -118,6 +124,84 @@ func (s *State) refreshSessions(ctx context.Context) {
 	s.sessions = allSessions
 }
 
+// indexSessions indexes session content into the FTS5 search index.
+// It runs incrementally: sessions are only re-indexed if their content hash changes.
+func (s *State) indexSessions(ctx context.Context) {
+	if s.store == nil {
+		return
+	}
+
+	s.mu.RLock()
+	sessions := make([]ingest.Session, len(s.sessions))
+	copy(sessions, s.sessions)
+	adapters := make(map[string]ingest.Adapter, len(s.adapters))
+	for k, v := range s.adapters {
+		adapters[k] = v
+	}
+	s.mu.RUnlock()
+
+	for _, sess := range sessions {
+		adapter := adapters[sess.SourceID]
+		if adapter == nil {
+			continue
+		}
+
+		// Get messages for hashing
+		messages, err := adapter.GetMessages(ctx, sess.ID)
+		if err != nil {
+			continue
+		}
+		if len(messages) == 0 {
+			continue
+		}
+
+		// Build content and compute hash
+		var contentBuilder strings.Builder
+		contentBuilder.WriteString(sess.Title)
+		contentBuilder.WriteString("\n")
+		for _, msg := range messages {
+			contentBuilder.WriteString(msg.Content)
+			contentBuilder.WriteString("\n")
+			for _, tc := range msg.ToolCalls {
+				contentBuilder.WriteString(tc.Name)
+				contentBuilder.WriteString(" ")
+				contentBuilder.WriteString(tc.Output)
+				contentBuilder.WriteString("\n")
+			}
+		}
+		content := contentBuilder.String()
+
+		h := sha256.Sum256([]byte(content))
+		contentHash := hex.EncodeToString(h[:8]) // 16 chars is enough
+
+		// Check if already indexed with same hash
+		existingHash, err := s.store.GetIndexState(sess.ID)
+		if err != nil {
+			continue
+		}
+		if existingHash == contentHash {
+			continue // already up to date
+		}
+
+		// Clear old index entries and re-index
+		if err := s.store.ClearSessionIndex(sess.ID); err != nil {
+			slog.Warn("failed to clear session index", "session", sess.ID, "error", err)
+			continue
+		}
+
+		// Index as a single chunk (session content)
+		if err := s.store.IndexSession(sess.ID, sess.SourceID, "messages", sess.Repository, content); err != nil {
+			slog.Warn("failed to index session", "session", sess.ID, "error", err)
+			continue
+		}
+
+		// Update index state
+		if err := s.store.UpdateIndexState(sess.ID, sess.SourceID, contentHash); err != nil {
+			slog.Warn("failed to update index state", "session", sess.ID, "error", err)
+		}
+	}
+}
+
 func (s *State) pollLoop(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -145,6 +229,7 @@ func (s *State) pollLoop(ctx context.Context) {
 			}
 			if changed {
 				s.refreshSessions(ctx)
+				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
 			}
 		}
@@ -286,6 +371,14 @@ func (s *State) GetSources() []ingest.Source {
 	return sources
 }
 
+// Search performs full-text search across indexed session content.
+func (s *State) Search(query string, limit int) ([]store.SearchResult, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return s.store.Search(query, limit)
+}
+
 // --- HTTP Handler ---
 
 // NewHandler creates the HTTP handler for the sess server.
@@ -300,6 +393,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(state))
+	mux.HandleFunc("GET /_/api/search", handleSearch(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
@@ -394,6 +488,36 @@ func handleGetDiffs(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(diffs)
+	}
+}
+
+func handleSearch(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		if q == "" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]store.SearchResult{})
+			return
+		}
+		limit := 50
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+		results, err := state.Search(q, limit)
+		if err != nil {
+			// FTS5 syntax errors should return empty results, not 500
+			slog.Warn("search error", "query", q, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]store.SearchResult{})
+			return
+		}
+		if results == nil {
+			results = []store.SearchResult{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(results)
 	}
 }
 
