@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
@@ -41,7 +42,7 @@ func (a *Adapter) Detect(path string) bool {
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT 
-			s.id, s.title, s.directory, s.model, s.agent,
+			s.id, s.parent_id, s.title, s.directory, s.model, s.agent,
 			s.cost, s.tokens_input, s.tokens_output, s.tokens_reasoning,
 			s.tokens_cache_read, s.tokens_cache_write,
 			s.summary_files, s.summary_additions, s.summary_deletions,
@@ -59,19 +60,20 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	var sessions []ingest.Session
 	for rows.Next() {
 		var (
-			s           ingest.Session
-			modelJSON   sql.NullString
-			agent       sql.NullString
-			summFiles   sql.NullInt64
-			summAdd     sql.NullInt64
-			summDel     sql.NullInt64
-			timeCreated int64
-			timeUpdated int64
-			projectName string
+			s            ingest.Session
+			parentID     sql.NullString
+			modelJSON    sql.NullString
+			agentCol     sql.NullString
+			summFiles    sql.NullInt64
+			summAdd      sql.NullInt64
+			summDel      sql.NullInt64
+			timeCreated  int64
+			timeUpdated  int64
+			projectName  string
 		)
 
 		err := rows.Scan(
-			&s.ID, &s.Title, &s.Directory, &modelJSON, &agent,
+			&s.ID, &parentID, &s.Title, &s.Directory, &modelJSON, &agentCol,
 			&s.Cost, &s.TokensInput, &s.TokensOutput, &s.TokensReasoning,
 			&s.TokensCacheRead, &s.TokensCacheWrite,
 			&summFiles, &summAdd, &summDel,
@@ -88,7 +90,22 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Branch = "" // OpenCode doesn't store branch in session table
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
-		s.Status = "completed" // default; could be refined
+		s.Status = "completed"
+
+		if parentID.Valid {
+			s.ParentID = parentID.String
+		}
+
+		if agentCol.Valid && agentCol.String != "" {
+			s.SubAgent = agentCol.String
+		} else {
+			s.SubAgent = extractSubAgentFromTitle(s.Title)
+		}
+
+		// Infer status: if parent_id and agent_col are both set, it's definitely completed
+		if agentCol.Valid {
+			s.Status = "completed"
+		}
 
 		if summFiles.Valid {
 			s.DiffFiles = int(summFiles.Int64)
@@ -98,10 +115,6 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		}
 		if summDel.Valid {
 			s.DiffDeletions = int(summDel.Int64)
-		}
-
-		if agent.Valid {
-			s.Status = "completed"
 		}
 
 		sessions = append(sessions, s)
@@ -172,13 +185,20 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 						msg.Content += "\n" + p.Text
 					}
 				case "tool":
-					msg.ToolCalls = append(msg.ToolCalls, ingest.ToolCall{
+					tc := ingest.ToolCall{
 						ID:     p.CallID,
 						Name:   p.Tool,
 						Input:  marshalJSON(p.State.Input),
 						Output: p.State.Output,
 						Status: p.State.Status,
-					})
+					}
+					if p.State.Metadata != nil {
+						tc.Metadata = marshalJSON(p.State.Metadata)
+					}
+					if p.State.Time != nil {
+						tc.Duration = p.State.Time.End - p.State.Time.Start
+					}
+					msg.ToolCalls = append(msg.ToolCalls, tc)
 				}
 			}
 		}
@@ -215,49 +235,122 @@ func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]part
 }
 
 func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT content, status, priority
-		FROM todo
-		WHERE session_id = ?
-		ORDER BY position ASC
-	`, sessionID)
+	// Check if this is a child session (has a parent)
+	var parentID sql.NullString
+	err := a.db.QueryRowContext(ctx, `SELECT parent_id FROM session WHERE id = ?`, sessionID).Scan(&parentID)
+	if err != nil || !parentID.Valid {
+		return a.planFromMessages(ctx, sessionID)
+	}
+
+	// Child session: find the task output in the parent session
+	output, err := a.findTaskOutput(ctx, parentID.String, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("querying todos: %w", err)
+		return nil, err
+	}
+	if output != "" {
+		source := "task-output"
+		md := "# Sub-agent Response\n\n" + output
+		return &ingest.Plan{Markdown: md, Source: source}, nil
+	}
+
+	return a.planFromMessages(ctx, sessionID)
+}
+
+func (a *Adapter) findTaskOutput(ctx context.Context, parentID, childID string) (string, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT p.data
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE m.session_id = ?
+		  AND json_extract(m.data, '$.role') = 'assistant'
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') = 'task'
+	`, parentID)
+	if err != nil {
+		return "", fmt.Errorf("querying task parts: %w", err)
 	}
 	defer rows.Close()
 
-	var md string
 	for rows.Next() {
-		var content, status, priority string
-		if err := rows.Scan(&content, &status, &priority); err != nil {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
 			continue
 		}
-
-		checkbox := "- [ ] "
-		if status == "completed" {
-			checkbox = "- [x] "
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
 		}
-
-		line := checkbox + content
-		if priority == "high" {
-			line += " `high`"
-		} else if priority == "low" {
-			line += " `low`"
+		if p.State.Metadata == nil {
+			continue
 		}
-		md += line + "\n"
+		meta, ok := p.State.Metadata.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sid, _ := meta["sessionId"].(string)
+		if sid == childID {
+			return p.State.Output, nil
+		}
+	}
+	return "", rows.Err()
+}
+
+func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT p.data
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE p.session_id = ?
+		  AND json_extract(m.data, '$.role') = 'assistant'
+		  AND json_extract(p.data, '$.type') = 'text'
+		ORDER BY m.time_created ASC, p.time_created ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying plan parts: %w", err)
+	}
+	defer rows.Close()
+
+	var sections []string
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
+		}
+		if hasPlanContent(p.Text) {
+			sections = append(sections, p.Text)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	if md == "" {
+	if len(sections) == 0 {
 		return nil, nil
 	}
 
+	md := strings.Join(sections, "\n\n---\n\n")
 	return &ingest.Plan{
 		Markdown: md,
 		Source:   "synthesized",
 	}, nil
+}
+
+func hasPlanContent(text string) bool {
+	markers := []string{
+		"- [", "## Plan", "## Implemen", "## Steps", "## Todo",
+		"## Task", "## Goal", "## Object", "## Check",
+		"Step ", "\n1. ", "\n2. ", "\n3. ",
+	}
+	for _, m := range markers {
+		if strings.Contains(text, m) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
@@ -313,9 +406,16 @@ type partData struct {
 }
 
 type partState struct {
-	Status string      `json:"status"`
-	Input  interface{} `json:"input"`
-	Output string      `json:"output"`
+	Status   string      `json:"status"`
+	Input    interface{} `json:"input"`
+	Output   string      `json:"output"`
+	Metadata interface{} `json:"metadata,omitempty"`
+	Time     *partTime   `json:"time,omitempty"`
+}
+
+type partTime struct {
+	Start int64 `json:"start"`
+	End   int64 `json:"end"`
 }
 
 // extractModelID extracts the model ID from a JSON model object or plain string.
@@ -344,6 +444,18 @@ func deriveRepository(directory, projectName string) string {
 	}
 	// Fall back to last path component
 	return filepath.Base(directory)
+}
+
+func extractSubAgentFromTitle(title string) string {
+	idx := strings.Index(title, "(@")
+	if idx == -1 {
+		return ""
+	}
+	endIdx := strings.Index(title[idx+2:], " ")
+	if endIdx == -1 {
+		return ""
+	}
+	return title[idx+2 : idx+2+endIdx]
 }
 
 func marshalJSON(v interface{}) string {

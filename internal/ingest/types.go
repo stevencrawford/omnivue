@@ -24,10 +24,12 @@ type Source struct {
 type Session struct {
 	ID         string    `json:"id"`
 	SourceID   string    `json:"sourceId"`
+	ParentID   string    `json:"parentId,omitempty"`
 	Title      string    `json:"title"`
 	Repository string    `json:"repository"`
 	Branch     string    `json:"branch"`
 	Agent      AgentType `json:"agent"`
+	SubAgent   string    `json:"subAgent,omitempty"`
 	Model      string    `json:"model"`
 	Cost       float64   `json:"cost"`
 	Directory  string    `json:"directory"`
@@ -69,8 +71,9 @@ type ToolCall struct {
 	Name     string `json:"name"`
 	Input    string `json:"input"`
 	Output   string `json:"output"`
-	Status   string `json:"status"` // "completed", "failed", "running"
+	Status   string `json:"status"`   // "completed", "failed", "running"
 	Duration int64  `json:"duration,omitempty"` // milliseconds
+	Metadata string `json:"metadata,omitempty"` // tool-specific metadata (JSON)
 }
 
 // PlanItem represents a task/todo within a session plan.
