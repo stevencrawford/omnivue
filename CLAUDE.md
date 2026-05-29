@@ -100,6 +100,13 @@ make lint
 | GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |
 | GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
 | GET | `/_/api/search?q=<query>&limit=<n>` | Full-text search across session content |
+| GET | `/_/api/folders` | List all folders |
+| POST | `/_/api/folders` | Create a new folder |
+| PATCH | `/_/api/folders/{id}` | Update folder (name, color, icon) |
+| DELETE | `/_/api/folders/{id}` | Delete a folder |
+| GET | `/_/api/folders/{id}/sessions` | List session IDs in a folder |
+| POST | `/_/api/folders/{id}/sessions/{sid}` | Assign a session to a folder |
+| DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
 | GET | `/_/events` | SSE event stream (update, session-changed) |
@@ -140,5 +147,5 @@ make lint
 - [x] Phase 2: Session conversation view (messages rendering) (COMPLETE)
 - [x] Phase 3: Plan & diff tabs (COMPLETE)
 - [x] Phase 4: Persistent search (FTS5 indexing) (COMPLETE)
-- [ ] Phase 5: User folders
+- [x] Phase 5: User folders (COMPLETE)
 - [ ] Phase 6: Resume session
