@@ -1,4 +1,30 @@
 @import "tailwindcss";
+@import "highlight.js/styles/github.css" layer(base);
+
+/* Dark mode override for highlight.js */
+[data-theme="dark"] .hljs {
+  color: #e6edf3;
+  background: #161b22;
+}
+[data-theme="dark"] .hljs-comment,
+[data-theme="dark"] .hljs-quote { color: #8b949e; }
+[data-theme="dark"] .hljs-keyword,
+[data-theme="dark"] .hljs-selector-tag { color: #ff7b72; }
+[data-theme="dark"] .hljs-string,
+[data-theme="dark"] .hljs-addition { color: #a5d6ff; }
+[data-theme="dark"] .hljs-number,
+[data-theme="dark"] .hljs-literal { color: #79c0ff; }
+[data-theme="dark"] .hljs-built_in,
+[data-theme="dark"] .hljs-type { color: #ffa657; }
+[data-theme="dark"] .hljs-title,
+[data-theme="dark"] .hljs-section,
+[data-theme="dark"] .hljs-name { color: #d2a8ff; }
+[data-theme="dark"] .hljs-selector-class,
+[data-theme="dark"] .hljs-selector-id { color: #7ee787; }
+[data-theme="dark"] .hljs-deletion { color: #ffa198; }
+[data-theme="dark"] .hljs-attr,
+[data-theme="dark"] .hljs-attribute { color: #79c0ff; }
+[data-theme="dark"] .hljs-meta { color: #d2a8ff; }
 
 @theme {
   --color-gh-bg: #ffffff;
