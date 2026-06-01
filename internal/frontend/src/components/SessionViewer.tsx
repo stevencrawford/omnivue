@@ -8,6 +8,25 @@ import { PlanView } from "./PlanView";
 import { DiffView } from "./DiffView";
 import { useSessionNav } from "../hooks/useNav";
 
+/** Merge consecutive tool-call-only assistant messages into a single block. */
+function groupMessages(messages: Message[]): Message[] {
+  const result: Message[] = [];
+  for (const msg of messages) {
+    if (msg.role === "assistant") {
+      const tools = msg.toolCalls ?? [];
+      if (tools.length > 0 && !shouldShowStepContent(msg.content ?? "", tools)) {
+        const last = result[result.length - 1];
+        if (last && last.role === "assistant" && last.toolCalls && last.toolCalls.length > 0) {
+          last.toolCalls = [...last.toolCalls, ...tools];
+          continue;
+        }
+      }
+    }
+    result.push({ ...msg, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined });
+  }
+  return result;
+}
+
 interface SessionViewerProps {
   session: Session;
 }
@@ -176,6 +195,10 @@ function ConversationView({
     prevLengthRef.current = messages.length;
   }, [messages.length]);
 
+  const firstMessage = messages[0];
+  const tail = messages.slice(1);
+  const grouped = useMemo(() => groupMessages(tail), [tail]);
+
   const handleResume = async () => {
     try {
       const cmd = await fetchResumeCommand(session.id);
@@ -211,18 +234,15 @@ function ConversationView({
     );
   }
 
-  const firstMessage = messages[0];
-  const tail = messages.slice(1);
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
-        {tail.length === 0 ? (
+        {grouped.length === 0 ? (
           <p className="text-center text-xs text-gh-text-secondary py-8">
             Agent work appears here as tools run and responses stream in.
           </p>
         ) : (
-          tail.map((msg) => <MessageBlock key={msg.id} message={msg} />)
+          grouped.map((msg) => <MessageBlock key={msg.id} message={msg} />)
         )}
       </div>
 
