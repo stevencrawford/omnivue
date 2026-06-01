@@ -367,7 +367,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
 
           {/* Expanded folder sessions */}
           {!allCollapsed && expandedFolder === folder.id && folderSessions[folder.id] && (
-            <div className="ml-5 border-l border-gh-border">
+            <div>
               {folderSessions[folder.id].length === 0 ? (
                 <div className="text-[10px] text-gh-text-secondary px-2 py-1">Empty</div>
               ) : (
