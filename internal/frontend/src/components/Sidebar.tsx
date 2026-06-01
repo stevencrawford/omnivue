@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { Session } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
-import { sessionTitle, sessionMetaParts, SessionStatusDot, relativeTime } from "../utils/sessionUtils";
+import {
+  sessionTitle,
+  sessionMetaParts,
+  SessionStatusDot,
+  relativeTime,
+} from "../utils/sessionUtils";
 import { FolderPanel } from "./FolderPanel";
 import { useSessionNav } from "../hooks/useNav";
 
@@ -197,10 +202,7 @@ export function Sidebar({
       className="flex flex-col border-r border-gh-border bg-gh-bg-sidebar overflow-hidden shrink-0 relative"
       style={{ width: `${width}px` }}
     >
-      <div
-        className="overflow-y-auto shrink-0 px-1.5 py-2"
-        style={{ height: folderHeight }}
-      >
+      <div className="overflow-y-auto shrink-0 px-1.5 py-2" style={{ height: folderHeight }}>
         <FolderPanel
           sessions={sessions}
           activeSessionId={activeSessionId}
@@ -268,11 +270,11 @@ export function Sidebar({
                 collapsed={collapsed}
                 onToggleCollapse={toggleCollapse}
                 activeSessionId={activeSessionId}
-              onSessionSelect={onSessionSelect}
-              expandedParentId={expandedParentId}
-              onExpandParent={setExpandedParentId}
-              newSessionIds={newSessionIds}
-            />
+                onSessionSelect={onSessionSelect}
+                expandedParentId={expandedParentId}
+                onExpandParent={setExpandedParentId}
+                newSessionIds={newSessionIds}
+              />
             ))}
           </div>
         )}
@@ -390,7 +392,10 @@ function SessionRow({
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
-          <SessionStatusDot isNew={newSessionIds.has(session.id)} />
+          <SessionStatusDot
+            isNew={newSessionIds.has(session.id)}
+            isLive={session.status === "active"}
+          />
           <span
             className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
           >
@@ -428,11 +433,9 @@ function SessionRow({
                 }}
                 onClick={() => navigateToSession(session.id)}
                 title={session.directory || session.title}
-className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-  subActive
-    ? "sess-session-active"
-    : "hover:bg-gh-bg-hover"
-}`}
+                className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
+                  subActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+                }`}
               >
                 <span className="text-[10px] text-accent/80 shrink-0">↳</span>
                 <span className="text-[11px] truncate flex-1">

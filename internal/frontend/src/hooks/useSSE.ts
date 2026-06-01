@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 
 interface SSECallbacks {
   onUpdate: () => void;
-  onSessionChanged?: (sessionId: string) => void;
+  onSessionChanged?: (sessionIds: string[]) => void;
 }
 
 export function useSSE(callbacks: SSECallbacks) {
@@ -44,7 +44,9 @@ export function useSSE(callbacks: SSECallbacks) {
       es.addEventListener("session-changed", (e) => {
         try {
           const data = JSON.parse(e.data);
-          callbacksRef.current.onSessionChanged?.(data.id);
+          if (Array.isArray(data.ids)) {
+            callbacksRef.current.onSessionChanged?.(data.ids);
+          }
         } catch {
           // ignore
         }

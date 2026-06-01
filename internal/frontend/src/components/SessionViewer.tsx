@@ -29,6 +29,7 @@ function groupMessages(messages: Message[]): Message[] {
 
 interface SessionViewerProps {
   session: Session;
+  liveChangedIds: Set<string>;
 }
 
 type Tab = "session" | "plan" | "diff";
@@ -60,7 +61,7 @@ const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
   },
 };
 
-export function SessionViewer({ session }: SessionViewerProps) {
+export function SessionViewer({ session, liveChangedIds }: SessionViewerProps) {
   const [activeTab, setActiveTab] = useState<Tab>("session");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +82,19 @@ export function SessionViewer({ session }: SessionViewerProps) {
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  // Live refetch: when the backend announces a change to this session,
+  // re-pull messages with a small debounce so a burst of changes coalesces
+  // into a single network request. Only acts on the session tab — plan/diff
+  // tabs manage their own fetch on sessionId change.
+  useEffect(() => {
+    if (activeTab !== "session") return;
+    if (!liveChangedIds.has(session.id)) return;
+    const handle = setTimeout(() => {
+      loadMessages();
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [liveChangedIds, session.id, activeTab, loadMessages]);
 
   const messageCount = useMemo(() => {
     const user = messages.filter((m) => m.role === "user").length;
@@ -260,7 +274,11 @@ function ConversationView({
           >
             <path d="M6 4l4 4-4 4" />
           </svg>
-          <svg className="size-4 text-accent-secondary shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <svg
+            className="size-4 text-accent-secondary shrink-0"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+          >
             <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm5 6a5 5 0 0 0-10 0h10Z" />
           </svg>
           <span className="text-xs font-semibold text-gh-text">Task</span>
@@ -464,8 +482,7 @@ function ToolCallList({
 }) {
   const [showAll, setShowAll] = useState(false);
   const capped = toolCalls.length > TOOL_CALL_VISIBLE_CAP;
-  const visible =
-    capped && !showAll ? toolCalls.slice(0, TOOL_CALL_VISIBLE_CAP) : toolCalls;
+  const visible = capped && !showAll ? toolCalls.slice(0, TOOL_CALL_VISIBLE_CAP) : toolCalls;
   const hiddenCount = toolCalls.length - visible.length;
 
   if (compact) {
@@ -475,11 +492,7 @@ function ToolCallList({
           <ToolCallRow key={tool.id} tool={tool} agent={agent} compact />
         ))}
         {capped && (
-          <button
-            type="button"
-            className="sess-tool-more"
-            onClick={() => setShowAll((v) => !v)}
-          >
+          <button type="button" className="sess-tool-more" onClick={() => setShowAll((v) => !v)}>
             {showAll
               ? "Show fewer"
               : `Show ${hiddenCount} more tool call${hiddenCount === 1 ? "" : "s"}`}
@@ -548,7 +561,9 @@ function ToolCallRow({
           <span className={`text-[10px] ${statusColor} font-bold shrink-0`}>
             {completed ? "\u2713" : "\u2022"}
           </span>
-          <span className="font-mono text-[11px] truncate flex-1 min-w-0 text-gh-text">{summary}</span>
+          <span className="font-mono text-[11px] truncate flex-1 min-w-0 text-gh-text">
+            {summary}
+          </span>
           {!compact && tool.duration && tool.duration > 0 ? (
             <span className="text-[10px] text-gh-text-secondary shrink-0">
               {tool.duration < 1000
@@ -618,4 +633,3 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
     </div>
   );
 }
-

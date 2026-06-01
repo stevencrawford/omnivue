@@ -40,7 +40,10 @@ export function sessionMetaParts(session: Session): string[] {
   return parts;
 }
 
-export function SessionStatusDot({ isNew }: { isNew: boolean }) {
+export function SessionStatusDot({ isNew, isLive }: { isNew: boolean; isLive?: boolean }) {
+  if (isLive) {
+    return <span className="sess-live-dot shrink-0" title="Live" />;
+  }
   return (
     <span
       className={`sess-session-dot ${isNew ? "sess-session-dot--new" : "sess-session-dot--seen"}`}

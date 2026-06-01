@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -35,6 +35,7 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
   const scrollPositions = useRef(new Map<string, number>());
 
   const saveScrollPosition = useCallback((id: string, pos: number) => {
@@ -72,6 +73,11 @@ export function App() {
     onUpdate: () => {
       loadSessions();
     },
+    onSessionChanged: (ids) => {
+      if (ids.length > 0) {
+        setLiveChangedIds(new Set(ids));
+      }
+    },
   });
 
   useEffect(() => {
@@ -82,6 +88,7 @@ export function App() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
   const { newSessionIds, markSessionSeen } = useNewSessions(sessions);
+  const liveCount = useMemo(() => sessions.filter((s) => s.status === "active").length, [sessions]);
 
   useEffect(() => {
     if (activeSession) markSessionSeen(activeSession);
@@ -106,8 +113,7 @@ export function App() {
     [sessions, markSessionSeen],
   );
 
-  const isMac =
-    typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
+  const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
   return (
     <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
@@ -144,14 +150,15 @@ export function App() {
               {sessions.length} session{sessions.length !== 1 ? "s" : ""}
             </span>
           </div>
-          {sessions.length > 0 && <span className="sess-live-dot shrink-0" title="Live sync" />}
+          {liveCount > 0 && (
+            <span
+              className="sess-live-dot shrink-0"
+              title={`${liveCount} live session${liveCount === 1 ? "" : "s"}`}
+            />
+          )}
         </div>
 
-        <button
-          type="button"
-          className="sess-search-trigger"
-          onClick={() => setSearchOpen(true)}
-        >
+        <button type="button" className="sess-search-trigger" onClick={() => setSearchOpen(true)}>
           <svg className="size-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
           </svg>
@@ -189,12 +196,18 @@ export function App() {
           <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
             {activeSession ? (
               <ErrorBoundary>
-                <SessionViewer session={activeSession} />
+                <SessionViewer session={activeSession} liveChangedIds={liveChangedIds} />
               </ErrorBoundary>
             ) : (
               <div className="sess-empty-state flex-1 h-full">
                 <div className="sess-empty-icon">
-                  <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                  <svg
+                    className="size-6"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"

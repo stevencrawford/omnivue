@@ -60,7 +60,7 @@ export function PlanView({ sessionId }: PlanViewProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-8 py-6 w-full">
+    <div className="flex-1 overflow-y-auto px-8 py-2 w-full">
       <MarkdownContent content={plan.markdown} className="markdown-body--wide" />
     </div>
   );
