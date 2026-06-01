@@ -21,7 +21,7 @@ function getInitialWidth(): number {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     if (stored) return Math.max(220, Math.min(600, Number(stored)));
   } catch {
-    /* ignore */
+    // localStorage may be unavailable
   }
   return 280;
 }
@@ -31,7 +31,7 @@ function getInitialCollapsed(): Set<string> {
     const stored = localStorage.getItem(COLLAPSED_KEY);
     if (stored) return new Set(JSON.parse(stored));
   } catch {
-    /* ignore */
+    // localStorage may be unavailable
   }
   return new Set();
 }
@@ -41,7 +41,7 @@ function getInitialSort(): SortMode {
     const stored = localStorage.getItem(SORT_KEY);
     if (stored === "name" || stored === "agent") return stored;
   } catch {
-    /* ignore */
+    // localStorage may be unavailable
   }
   return "recent";
 }
@@ -124,7 +124,7 @@ export function Sidebar({
     try {
       localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
     } catch {
-      /* ignore */
+      // localStorage may be unavailable
     }
   }, []);
 
@@ -158,7 +158,7 @@ export function Sidebar({
     try {
       localStorage.setItem(SORT_KEY, mode);
     } catch {
-      /* ignore */
+      // localStorage may be unavailable
     }
   }, []);
 
@@ -191,7 +191,7 @@ export function Sidebar({
       try {
         localStorage.setItem(SIDEBAR_WIDTH_KEY, String(finalWidth));
       } catch {
-        /* ignore */
+        // localStorage may be unavailable
       }
     };
 
@@ -316,19 +316,23 @@ function RepoNode({
       </button>
       {!isCollapsed && (
         <div className="space-y-px mt-px">
-          {node.children.map((child) => (
-            <SessionRow
-              key={child.session!.id}
-              session={child.session!}
-              childNodes={child.children}
-              isActive={child.session!.id === activeSessionId}
-              activeSessionId={activeSessionId}
-              onSelect={() => onSessionSelect(child.session!.id)}
-              expandedParentId={expandedParentId}
-              onExpandParent={onExpandParent}
-              newSessionIds={newSessionIds}
-            />
-          ))}
+          {node.children.map((child) => {
+            const session = child.session;
+            if (!session) return null;
+            return (
+              <SessionRow
+                key={session.id}
+                session={session}
+                childNodes={child.children}
+                isActive={session.id === activeSessionId}
+                activeSessionId={activeSessionId}
+                onSelect={() => onSessionSelect(session.id)}
+                expandedParentId={expandedParentId}
+                onExpandParent={onExpandParent}
+                newSessionIds={newSessionIds}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -405,19 +409,20 @@ function SessionRow({
       {subCount > 0 && subsVisible && (
         <div className="ml-5 mt-px mb-1 space-y-px border-l border-gh-border/60">
           {childNodes.map((child) => {
-            const sub = child.session!;
-            const subActive = sub.id === activeSessionId;
+            const session = child.session;
+            if (!session) return null;
+            const subActive = session.id === activeSessionId;
             return (
               <button
-                key={sub.id}
+                key={session.id}
                 type="button"
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", sub.id);
+                  e.dataTransfer.setData("text/plain", session.id);
                   e.dataTransfer.effectAllowed = "copy";
                 }}
-                onClick={() => navigateToSession(sub.id)}
-                title={sub.directory || sub.title}
+                onClick={() => navigateToSession(session.id)}
+                title={session.directory || session.title}
                 className={`session-draggable w-full flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
                   subActive
                     ? "sess-session-active"
@@ -426,13 +431,13 @@ function SessionRow({
               >
                 <span className="text-[10px] text-accent/80 shrink-0">↳</span>
                 <span className="text-[11px] truncate flex-1">
-                  {sub.subAgent ? (
-                    <span className="text-gh-text-secondary">{sub.subAgent}: </span>
+                  {session.subAgent ? (
+                    <span className="text-gh-text-secondary">{session.subAgent}: </span>
                   ) : null}
-                  {sessionTitle(sub)}
+                  {sessionTitle(session)}
                 </span>
                 <span className="text-[10px] opacity-60 tabular-nums shrink-0">
-                  {relativeTime(sub.updatedAt)}
+                  {relativeTime(session.updatedAt)}
                 </span>
               </button>
             );

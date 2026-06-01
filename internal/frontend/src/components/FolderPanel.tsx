@@ -49,8 +49,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
     try {
       const data = await fetchFolders();
       setFolders(data);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to load folders:", err);
     }
   }, []);
 
@@ -73,8 +73,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       setNewName("");
       setCreating(false);
       loadFolders();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to create folder:", err);
     }
   };
 
@@ -84,8 +84,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       await updateFolder(id, editName.trim());
       setEditingId(null);
       loadFolders();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to rename folder:", err);
     }
   };
 
@@ -94,8 +94,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       await deleteFolder(id);
       if (expandedFolder === id) setExpandedFolder(null);
       loadFolders();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to delete folder:", err);
     }
   };
 
@@ -108,8 +108,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
     try {
       const ids = await fetchFolderSessions(id);
       setFolderSessions((prev) => ({ ...prev, [id]: ids }));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to load folder sessions:", err);
     }
   };
 
@@ -118,8 +118,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       await assignSessionToFolder(folderId, sessionId);
       const ids = await fetchFolderSessions(folderId);
       setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to assign session to folder:", err);
     }
   };
 
@@ -129,8 +129,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       const ids = await fetchFolderSessions(folderId);
       setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
       setAssigningFolder(null);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to assign session to folder:", err);
     }
   };
 
@@ -139,8 +139,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       await unassignSessionFromFolder(folderId, sessionId);
       const ids = await fetchFolderSessions(folderId);
       setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to unassign session from folder:", err);
     }
   };
 
@@ -203,8 +203,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                     type="button"
                     className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
                       folderSort === mode
-            ? "sess-session-active"
-            : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                        ? "sess-session-active"
+                        : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
                     }`}
                     onClick={() => {
                       setFolderSort(mode);
@@ -392,6 +392,8 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
   );
 }
 
+// --- Folder Session Row ---
+
 interface FolderSessionRowProps {
   session: Session;
   isActive: boolean;
@@ -400,38 +402,16 @@ interface FolderSessionRowProps {
 }
 
 function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessionRowProps) {
-  const [dragOver, setDragOver] = useState(false);
-
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
     e.dataTransfer.effectAllowed = "copy";
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
-  };
-
-  const handleDragLeave = () => setDragOver(false);
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const draggedId = e.dataTransfer.getData("text/plain");
-    if (draggedId && draggedId !== session.id) {
-      // Re-trigger on the outer folder drop handler via event bubbling
-      // The parent handler will pick this up
-    }
-  };
-
   return (
     <div
-      className={`flex items-center group/item ${dragOver ? "drag-over" : ""}`}
+      className="flex items-center group/item"
       draggable
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
     >
       <button
         type="button"

@@ -15,7 +15,8 @@ export function DiffView({ sessionId }: DiffViewProps) {
     try {
       const data = await fetchDiffs(sessionId);
       setDiffs(data || []);
-    } catch {
+    } catch (err) {
+      console.error("Failed to load diffs:", err);
       setDiffs([]);
     } finally {
       setLoading(false);
@@ -142,9 +143,9 @@ function DiffFileRow({ diff }: { diff: DiffFile }) {
       </button>
 
       {/* Expanded patch view */}
-      {expanded && hasPatch && (
+      {expanded && hasPatch && diff.patch && (
         <div className="border-t border-gh-border bg-gh-bg">
-          <PatchView patch={diff.patch!} />
+          <PatchView patch={diff.patch} />
         </div>
       )}
     </div>

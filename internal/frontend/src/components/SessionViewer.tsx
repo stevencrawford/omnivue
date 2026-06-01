@@ -60,7 +60,8 @@ export function SessionViewer({ session }: SessionViewerProps) {
     try {
       const data = await fetchMessages(session.id);
       setMessages(data || []);
-    } catch {
+    } catch (err) {
+      console.error("Failed to load messages:", err);
       setMessages([]);
     } finally {
       setLoading(false);
@@ -555,7 +556,7 @@ function ToolCallRow({
             className="shrink-0 px-2 py-1.5 text-[10px] font-medium text-accent hover:text-accent-secondary hover:bg-gh-bg-hover cursor-pointer transition-colors"
             onClick={(e) => {
               e.stopPropagation();
-              navigateToSession(childSessionId!);
+              navigateToSession(childSessionId);
             }}
           >
             View ▶
