@@ -235,10 +235,14 @@ func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]part
 }
 
 func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	// Check if this is a child session (has a parent)
+	// Check if this is a child session (has a parent) and read agent mode
 	var parentID sql.NullString
-	err := a.db.QueryRowContext(ctx, `SELECT parent_id FROM session WHERE id = ?`, sessionID).Scan(&parentID)
+	var agentCol sql.NullString
+	err := a.db.QueryRowContext(ctx, `SELECT parent_id, agent FROM session WHERE id = ?`, sessionID).Scan(&parentID, &agentCol)
 	if err != nil || !parentID.Valid {
+		if agentCol.Valid && agentCol.String == "plan" {
+			return a.planFromLastMessage(ctx, sessionID)
+		}
 		return a.planFromMessages(ctx, sessionID)
 	}
 
@@ -254,7 +258,61 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 		return &ingest.Plan{Markdown: md, Source: source}, nil
 	}
 
+	if agentCol.Valid && agentCol.String == "plan" {
+		return a.planFromLastMessage(ctx, sessionID)
+	}
+
 	return a.planFromMessages(ctx, sessionID)
+}
+
+func (a *Adapter) planFromLastMessage(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	// Get the last assistant message
+	var lastMsgID string
+	err := a.db.QueryRowContext(ctx, `
+		SELECT id FROM message
+		WHERE session_id = ? AND json_extract(data, '$.role') = 'assistant'
+		ORDER BY time_created DESC, id DESC
+		LIMIT 1
+	`, sessionID).Scan(&lastMsgID)
+	if err != nil {
+		return nil, nil
+	}
+
+	// Get text and reasoning parts from the last message
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT data FROM part
+		WHERE message_id = ? AND json_extract(data, '$.type') IN ('text', 'reasoning')
+		ORDER BY time_created ASC, id ASC
+	`, lastMsgID)
+	if err != nil {
+		return nil, fmt.Errorf("querying last message parts: %w", err)
+	}
+	defer rows.Close()
+
+	var sections []string
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
+		}
+		if strings.Contains(p.Text, "## ") && len(p.Text) > 200 {
+			sections = append(sections, p.Text)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(sections) == 0 {
+		return nil, nil
+	}
+
+	md := strings.Join(sections, "\n\n---\n\n")
+	return &ingest.Plan{Markdown: md, Source: "synthesized"}, nil
 }
 
 func (a *Adapter) findTaskOutput(ctx context.Context, parentID, childID string) (string, error) {
