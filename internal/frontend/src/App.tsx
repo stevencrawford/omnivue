@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchPanel } from "./components/SearchPanel";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useSSE } from "./hooks/useSSE";
 import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
@@ -44,8 +45,8 @@ export function App() {
     try {
       const data = await fetchSessions();
       setSessions(data || []);
-    } catch {
-      // server may not be ready yet
+    } catch (err) {
+      console.error("Failed to load sessions:", err);
     }
   }, []);
 
@@ -176,16 +177,20 @@ export function App() {
       >
         <div className="flex flex-1 overflow-hidden">
           {sidebarOpen && (
-            <Sidebar
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSessionSelect={handleSessionSelect}
-              newSessionIds={newSessionIds}
-            />
+            <ErrorBoundary>
+              <Sidebar
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onSessionSelect={handleSessionSelect}
+                newSessionIds={newSessionIds}
+              />
+            </ErrorBoundary>
           )}
           <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
             {activeSession ? (
-              <SessionViewer session={activeSession} />
+              <ErrorBoundary>
+                <SessionViewer session={activeSession} />
+              </ErrorBoundary>
             ) : (
               <div className="sess-empty-state flex-1 h-full">
                 <div className="sess-empty-icon">

@@ -7,6 +7,20 @@ interface SearchPanelProps {
   onClose: () => void;
 }
 
+function sanitizeSnippet(snippet: string): string {
+  const parts: string[] = [];
+  let lastIndex = 0;
+  const tagRe = /<\/?mark>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = tagRe.exec(snippet)) !== null) {
+    parts.push(snippet.slice(lastIndex, match.index).replace(/<[^>]*>/g, ""));
+    parts.push(match[0]);
+    lastIndex = tagRe.lastIndex;
+  }
+  parts.push(snippet.slice(lastIndex).replace(/<[^>]*>/g, ""));
+  return parts.join("");
+}
+
 export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -28,7 +42,8 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
     try {
       const data = await fetchSearch(q.trim());
       setResults(data);
-    } catch {
+    } catch (err) {
+      console.error("Search failed:", err);
       setResults([]);
     } finally {
       setLoading(false);
@@ -130,7 +145,7 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                   )}
                   <div
                     className="text-xs text-gh-text line-clamp-2 search-result"
-                    dangerouslySetInnerHTML={{ __html: r.snippet }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeSnippet(r.snippet) }}
                   />
                 </button>
               ))}
