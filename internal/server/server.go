@@ -105,11 +105,15 @@ func createAdapter(src ingest.Source) (ingest.Adapter, error) {
 }
 
 func (s *State) refreshSessions(ctx context.Context) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	adapters := make(map[string]ingest.Adapter, len(s.adapters))
+	for k, v := range s.adapters {
+		adapters[k] = v
+	}
+	s.mu.RUnlock()
 
 	var allSessions []ingest.Session
-	for sourceID, adapter := range s.adapters {
+	for sourceID, adapter := range adapters {
 		sessions, err := adapter.ListSessions(ctx)
 		if err != nil {
 			slog.Warn("failed to list sessions", "source", sourceID, "error", err)
@@ -121,7 +125,9 @@ func (s *State) refreshSessions(ctx context.Context) {
 		allSessions = append(allSessions, sessions...)
 	}
 
+	s.mu.Lock()
 	s.sessions = allSessions
+	s.mu.Unlock()
 }
 
 // indexSessions indexes session content into the FTS5 search index.
