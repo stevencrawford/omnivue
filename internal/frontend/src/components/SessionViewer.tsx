@@ -2,16 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchMessages, fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
-import {
-  buildConversationTurns,
-  type AssistantTurn,
-  type ConversationTurn,
-} from "../utils/conversationTurns";
-import {
-  dedupeConsecutiveLines,
-  getToolSummary,
-  shouldShowStepContent,
-} from "../utils/toolDisplay";
+import { getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
 import { MarkdownContent } from "./MarkdownContent";
 import { PlanView } from "./PlanView";
 import { DiffView } from "./DiffView";
@@ -221,17 +212,17 @@ function ConversationView({
   }
 
   const firstMessage = messages[0];
-  const turns = buildConversationTurns(messages.slice(1));
+  const tail = messages.slice(1);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
-        {turns.length === 0 ? (
+        {tail.length === 0 ? (
           <p className="text-center text-xs text-gh-text-secondary py-8">
             Agent work appears here as tools run and responses stream in.
           </p>
         ) : (
-          turns.map((turn) => <ConversationTurnBlock key={turn.id} turn={turn} />)
+          tail.map((msg) => <MessageBlock key={msg.id} message={msg} />)
         )}
       </div>
 
@@ -331,16 +322,17 @@ function ConversationView({
   );
 }
 
-// --- Conversation turns ---
+// --- Per-message rendering (chronological) ---
 
-function ConversationTurnBlock({ turn }: { turn: ConversationTurn }) {
-  if (turn.type === "user") {
-    return <UserTurnView content={turn.content} />;
+function MessageBlock({ message }: { message: Message }) {
+  if (message.role === "user") {
+    return <UserTurnView content={message.content} />;
   }
-  if (turn.type === "system") {
-    return <div className="sess-system-notice whitespace-pre-wrap">{turn.content}</div>;
+  if (message.role === "system") {
+    if (!message.content?.trim()) return null;
+    return <div className="sess-system-notice whitespace-pre-wrap">{message.content}</div>;
   }
-  return <AssistantTurnView turn={turn} />;
+  return <AssistantMessageView message={message} />;
 }
 
 function UserTurnView({ content }: { content: string }) {
@@ -367,30 +359,25 @@ function UserTurnView({ content }: { content: string }) {
   );
 }
 
-function AssistantTurnView({ turn }: { turn: AssistantTurn }) {
-  const agent = turn.agent || turn.steps.find((s) => s.agent && s.agent !== "main")?.agent;
-  const allTools = turn.steps.flatMap((s) => s.toolCalls || []);
-  const contentBlocks = dedupeConsecutiveLines(
-    turn.steps
-      .filter((s) => shouldShowStepContent(s.content, s.toolCalls))
-      .map((s) => s.content.trim()),
-  );
+function AssistantMessageView({ message }: { message: Message }) {
+  const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
+  const text = (message.content || "").trim();
+  const tools = message.toolCalls ?? [];
+  if (!text && tools.length === 0) return null;
+  const showText = shouldShowStepContent(text, tools);
+  if (!showText && tools.length === 0) return null;
 
   return (
     <div className="sess-agent-stream">
-      {agent && agent !== "main" && (
+      {agent && (
         <span className="inline-block mb-2 text-[10px] px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border">
           {agent}
         </span>
       )}
-      {contentBlocks.map((text, i) => (
-        <div key={i} className={i > 0 ? "sess-agent-step" : ""}>
-          <AssistantStepContent content={text} />
-        </div>
-      ))}
-      {allTools.length > 0 && (
-        <div className={contentBlocks.length > 0 ? "mt-3" : ""}>
-          <ToolCallList toolCalls={allTools} agent={agent} compact />
+      {showText && <AssistantStepContent content={text} />}
+      {tools.length > 0 && (
+        <div className={showText ? "mt-2" : ""}>
+          <ToolCallList toolCalls={tools} agent={agent} compact />
         </div>
       )}
     </div>
