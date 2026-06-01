@@ -136,7 +136,7 @@ func TestCleanOldLogs(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create an "old" log file
-	oldFile := filepath.Join(dir, "mo-1234.log")
+	oldFile := filepath.Join(dir, "sess-1234.log")
 	if err := os.WriteFile(oldFile, []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestCleanOldLogs(t *testing.T) {
 	}
 
 	// Create a "recent" log file
-	recentFile := filepath.Join(dir, "mo-5678.log")
+	recentFile := filepath.Join(dir, "sess-5678.log")
 	if err := os.WriteFile(recentFile, []byte("recent"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestSetup(t *testing.T) {
 	}
 	cleanup()
 
-	logFile := filepath.Join(dir, "mo", "log", "mo-19999.log")
+	logFile := filepath.Join(dir, "sess", "log", "sess-19999.log")
 	if _, err := os.Stat(logFile); err != nil {
 		t.Errorf("expected log file to be created: %v", err)
 	}

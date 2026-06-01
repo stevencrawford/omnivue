@@ -816,31 +816,4 @@ func handleSPA() http.HandlerFunc {
 	}
 }
 
-// Legacy exports needed by cmd package (minimal interface).
-// These will be removed once we fully decouple.
 
-const DefaultGroup = "default"
-
-func ResolveGroupName(name string) (string, error) {
-	if name == "" {
-		return DefaultGroup, nil
-	}
-	return name, nil
-}
-
-// RestoreData is kept for API compatibility with backup package.
-type RestoreData struct {
-	Groups        map[string][]string  `json:"groups,omitempty"`
-	Patterns      map[string][]string  `json:"patterns,omitempty"`
-	UploadedFiles []UploadedFileData   `json:"uploadedFiles,omitempty"`
-}
-
-type UploadedFileData struct {
-	Name    string `json:"name"`
-	Content string `json:"content"`
-	Group   string `json:"group"`
-}
-
-func WriteRestoreFile(data RestoreData) (string, error) {
-	return "", nil // Not used in sess
-}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -36,7 +37,9 @@ func (a *Adapter) Type() ingest.AgentType {
 }
 
 func (a *Adapter) Detect(path string) bool {
-	return ingest.AutoDiscover() != nil // simplified; real detection in detect.go
+	dbPath := filepath.Join(path, "opencode.db")
+	_, err := os.Stat(dbPath)
+	return err == nil
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
