@@ -104,15 +104,46 @@ func createAdapter(src ingest.Source) (ingest.Adapter, error) {
 	}
 }
 
-func (s *State) refreshSessions(ctx context.Context) {
+// liveWindow defines how recently a session must have been updated to be
+// considered "active" (live). Used as a server-side liveness heuristic since
+// neither OpenCode nor Copilot expose an explicit in-progress flag.
+const liveWindow = 2 * time.Minute
+
+// pollCadenceLive / pollCadenceIdle control the adaptive poll interval. When
+// at least one session is live, the server polls every 5s so the UI feels
+// real-time; otherwise it backs off to 30s to save DB queries.
+const (
+	pollCadenceLive = 5 * time.Second
+	pollCadenceIdle = 30 * time.Second
+)
+
+// pollInterval returns the cadence to use for the next poll tick, based on
+// the number of currently-live sessions.
+func pollInterval(liveCount int) time.Duration {
+	if liveCount > 0 {
+		return pollCadenceLive
+	}
+	return pollCadenceIdle
+}
+
+// refreshSessions re-reads the session list from every adapter, applies the
+// liveness heuristic (sets Status="active" when UpdatedAt is within liveWindow),
+// and returns the set of session IDs whose UpdatedAt changed since the last
+// refresh plus the total live count.
+func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveCount int) {
 	s.mu.RLock()
 	adapters := make(map[string]ingest.Adapter, len(s.adapters))
 	for k, v := range s.adapters {
 		adapters[k] = v
 	}
+	prev := make(map[string]time.Time, len(s.sessions))
+	for _, sess := range s.sessions {
+		prev[sess.ID] = sess.UpdatedAt
+	}
 	s.mu.RUnlock()
 
 	var allSessions []ingest.Session
+	now := time.Now()
 	for sourceID, adapter := range adapters {
 		sessions, err := adapter.ListSessions(ctx)
 		if err != nil {
@@ -121,13 +152,34 @@ func (s *State) refreshSessions(ctx context.Context) {
 		}
 		for i := range sessions {
 			sessions[i].SourceID = sourceID
+			// Liveness heuristic: a session is "active" if its last update is
+			// within liveWindow. We override whatever the adapter hardcoded so
+			// the frontend gets a single source of truth.
+			if !sessions[i].UpdatedAt.IsZero() && now.Sub(sessions[i].UpdatedAt) < liveWindow {
+				if sessions[i].Status != "active" {
+					sessions[i].Status = "active"
+				}
+				liveCount++
+			} else if sessions[i].Status == "active" {
+				sessions[i].Status = "completed"
+			}
 		}
 		allSessions = append(allSessions, sessions...)
+	}
+
+	// Diff against the previous snapshot to identify sessions whose content
+	// has changed since the last refresh. Newly-arrived sessions and sessions
+	// whose UpdatedAt moved forward are both considered changed.
+	for _, sess := range allSessions {
+		if prevTime, ok := prev[sess.ID]; !ok || !sess.UpdatedAt.Equal(prevTime) {
+			changedIDs = append(changedIDs, sess.ID)
+		}
 	}
 
 	s.mu.Lock()
 	s.sessions = allSessions
 	s.mu.Unlock()
+	return changedIDs, liveCount
 }
 
 // indexSessions indexes session content into the FTS5 search index.
@@ -209,17 +261,17 @@ func (s *State) indexSessions(ctx context.Context) {
 }
 
 func (s *State) pollLoop(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
 	// Track last known modification times per source
 	lastMod := make(map[string]int64)
+	var liveCount int
 
 	for {
+		interval := pollInterval(liveCount)
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-time.After(interval):
 			changed := false
 			for sourceID, adapter := range s.adapters {
 				ts, err := adapter.LastModified(ctx)
@@ -234,9 +286,25 @@ func (s *State) pollLoop(ctx context.Context) {
 				}
 			}
 			if changed {
-				s.refreshSessions(ctx)
+				ids, lc := s.refreshSessions(ctx)
+				liveCount = lc
 				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
+				if len(ids) > 0 {
+					data, _ := json.Marshal(map[string]any{"ids": ids})
+					s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+				}
+			} else if liveCount > 0 {
+				// No source-level change, but liveness windows may have expired
+				// since the last refresh (e.g. a session went idle 3 min ago).
+				// Re-run the heuristic to keep Status fresh without the heavier
+				// full reload cost — but only if the snapshot might be stale.
+				_, lc := s.refreshSessions(ctx)
+				if lc != liveCount {
+					// Status transitions are visible to clients; push an update.
+					s.sendEvent(sseEvent{Name: "update"})
+				}
+				liveCount = lc
 			}
 		}
 	}
