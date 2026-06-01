@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "../hooks/useApi";
-import { buildTree, parentIdsWithChildren, relativeTime } from "../utils/buildTree";
+import { buildTree, relativeTime } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
 import { FolderPanel } from "./FolderPanel";
 import { useSessionNav } from "../hooks/useNav";
@@ -15,7 +15,6 @@ interface SidebarProps {
 const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
 const COLLAPSED_KEY = "sess-sidebar-collapsed";
 const SORT_KEY = "sess-sidebar-sort";
-const SUB_COLLAPSED_KEY = "sess-sidebar-sub-collapsed";
 
 function getInitialWidth(): number {
   try {
@@ -45,16 +44,6 @@ function getInitialSort(): SortMode {
     /* ignore */
   }
   return "recent";
-}
-
-function getInitialSubCollapsed(sessions: Session[]): Set<string> {
-  try {
-    const stored = localStorage.getItem(SUB_COLLAPSED_KEY);
-    if (stored !== null) return new Set(JSON.parse(stored));
-  } catch {
-    /* ignore */
-  }
-  return parentIdsWithChildren(sessions);
 }
 
 const SORT_LABELS: Record<SortMode, string> = {
@@ -123,23 +112,17 @@ export function Sidebar({
   const [isResizing, setIsResizing] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
-  const [subCollapsed, setSubCollapsed] = useState<Set<string>>(() =>
-    getInitialSubCollapsed(sessions),
-  );
+  const [expandedParentId, setExpandedParentId] = useState<string | null>(() => {
+    if (!activeSessionId) return null;
+    const session = sessions.find((s) => s.id === activeSessionId);
+    return session?.parentId || null;
+  });
 
   const tree = useMemo(() => buildTree(sessions, sortMode), [sessions, sortMode]);
 
   const saveCollapsed = useCallback((next: Set<string>) => {
     try {
       localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const saveSubCollapsed = useCallback((next: Set<string>) => {
-    try {
-      localStorage.setItem(SUB_COLLAPSED_KEY, JSON.stringify([...next]));
     } catch {
       /* ignore */
     }
@@ -156,19 +139,6 @@ export function Sidebar({
       });
     },
     [saveCollapsed],
-  );
-
-  const toggleSubCollapsed = useCallback(
-    (parentId: string) => {
-      setSubCollapsed((prev) => {
-        const next = new Set(prev);
-        if (next.has(parentId)) next.delete(parentId);
-        else next.add(parentId);
-        saveSubCollapsed(next);
-        return next;
-      });
-    },
-    [saveSubCollapsed],
   );
 
   const collapseAll = useCallback(() => {
@@ -294,8 +264,8 @@ export function Sidebar({
                 onToggleCollapse={toggleCollapse}
                 activeSessionId={activeSessionId}
               onSessionSelect={onSessionSelect}
-              subCollapsed={subCollapsed}
-              onToggleSubCollapsed={toggleSubCollapsed}
+              expandedParentId={expandedParentId}
+              onExpandParent={setExpandedParentId}
               newSessionIds={newSessionIds}
             />
             ))}
@@ -317,8 +287,8 @@ function RepoNode({
   onToggleCollapse,
   activeSessionId,
   onSessionSelect,
-  subCollapsed,
-  onToggleSubCollapsed,
+  expandedParentId,
+  onExpandParent,
   newSessionIds,
 }: {
   node: TreeNode;
@@ -326,8 +296,8 @@ function RepoNode({
   onToggleCollapse: (path: string) => void;
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  subCollapsed: Set<string>;
-  onToggleSubCollapsed: (id: string) => void;
+  expandedParentId: string | null;
+  onExpandParent: (id: string) => void;
   newSessionIds: Set<string>;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
@@ -354,8 +324,8 @@ function RepoNode({
               isActive={child.session!.id === activeSessionId}
               activeSessionId={activeSessionId}
               onSelect={() => onSessionSelect(child.session!.id)}
-              subCollapsed={subCollapsed}
-              onToggleSubCollapsed={onToggleSubCollapsed}
+              expandedParentId={expandedParentId}
+              onExpandParent={onExpandParent}
               newSessionIds={newSessionIds}
             />
           ))}
@@ -371,8 +341,8 @@ function SessionRow({
   isActive,
   activeSessionId,
   onSelect,
-  subCollapsed,
-  onToggleSubCollapsed,
+  expandedParentId,
+  onExpandParent,
   newSessionIds,
 }: {
   session: Session;
@@ -380,71 +350,59 @@ function SessionRow({
   isActive: boolean;
   activeSessionId: string | null;
   onSelect: () => void;
-  subCollapsed: Set<string>;
-  onToggleSubCollapsed: (id: string) => void;
+  expandedParentId: string | null;
+  onExpandParent: (id: string) => void;
   newSessionIds: Set<string>;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
-  const subsHidden = subCollapsed.has(session.id);
+  const subsVisible = session.id === expandedParentId;
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
     e.dataTransfer.effectAllowed = "copy";
   };
 
+  const handleClick = () => {
+    if (subCount > 0) onExpandParent(session.id);
+    onSelect();
+  };
+
   return (
-    <div className="pl-2">
-      <div className="flex items-stretch min-w-0">
-        {subCount > 0 ? (
-          <button
-            type="button"
-            className="shrink-0 flex items-center justify-center w-5 text-gh-text-secondary hover:text-gh-text cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSubCollapsed(session.id);
-            }}
-            aria-label={subsHidden ? "Show sub-agents" : "Hide sub-agents"}
+    <div>
+      <button
+        type="button"
+        draggable
+        onDragStart={handleDragStart}
+        onClick={handleClick}
+        title={session.directory || session.repository}
+        className={`session-draggable sess-parent-session w-full text-left transition-all ${
+          isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+        }`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <SessionStatusDot isNew={newSessionIds.has(session.id)} />
+          <span
+            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
           >
-            <Chevron open={!subsHidden} className="size-2.5" />
-          </button>
-        ) : (
-          <span className="w-5 shrink-0" />
-        )}
-        <button
-          type="button"
-          draggable
-          onDragStart={handleDragStart}
-          onClick={onSelect}
-          title={session.directory || session.repository}
-          className={`session-draggable sess-parent-session flex-1 min-w-0 text-left transition-all ${
-            isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
-          }`}
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <SessionStatusDot isNew={newSessionIds.has(session.id)} />
-            <span
-              className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
-            >
-              {sessionTitle(session)}
+            {sessionTitle(session)}
+          </span>
+          {subCount > 0 && !subsVisible && (
+            <span className="shrink-0 text-[10px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
+              {subCount}
             </span>
-            {subCount > 0 && subsHidden && (
-              <span className="shrink-0 text-[10px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
-                {subCount}
-              </span>
-            )}
-            <span className="shrink-0 text-[10px] text-gh-text-secondary tabular-nums">
-              {relativeTime(session.updatedAt)}
-            </span>
-          </div>
-          {sessionMetaParts(session).length > 0 && (
-            <p className="sess-parent-session-meta truncate mt-0.5 pl-[0.875rem]">
-              {sessionMetaParts(session).join(" · ")}
-            </p>
           )}
-        </button>
-      </div>
-      {subCount > 0 && !subsHidden && (
+          <span className="shrink-0 text-[10px] text-gh-text-secondary tabular-nums">
+            {relativeTime(session.updatedAt)}
+          </span>
+        </div>
+        {sessionMetaParts(session).length > 0 && (
+          <p className="sess-parent-session-meta truncate mt-0.5">
+            {sessionMetaParts(session).join(" · ")}
+          </p>
+        )}
+      </button>
+      {subCount > 0 && subsVisible && (
         <div className="ml-5 mt-px mb-1 space-y-px border-l border-gh-border/60">
           {childNodes.map((child) => {
             const sub = child.session!;
