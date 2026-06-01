@@ -4,9 +4,30 @@ import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchPanel } from "./components/SearchPanel";
 import { useSSE } from "./hooks/useSSE";
+import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
 import type { Session } from "./hooks/useApi";
 import { fetchSessions } from "./hooks/useApi";
+
+function SessLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect width="24" height="24" rx="6" fill="url(#logo-bg)" />
+      <path d="M7 8h10v1.5H7V8zm0 4h7v1.5H7v-1.5zm0 4h9v1.5H7V16z" fill="url(#logo-lines)" />
+      <circle cx="18" cy="6" r="2" fill="#22D3EE" />
+      <defs>
+        <linearGradient id="logo-bg" x1="0" y1="0" x2="24" y2="24">
+          <stop stopColor="#1a1a28" />
+          <stop offset="1" stopColor="#12121c" />
+        </linearGradient>
+        <linearGradient id="logo-lines" x1="7" y1="8" x2="17" y2="17">
+          <stop stopColor="#A78BFA" />
+          <stop offset="1" stopColor="#22D3EE" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
 
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -28,12 +49,10 @@ export function App() {
     }
   }, []);
 
-  // Initial fetch
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
 
-  // Keyboard shortcut for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
@@ -48,14 +67,12 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchOpen]);
 
-  // SSE for live updates
   useSSE({
     onUpdate: () => {
       loadSessions();
     },
   });
 
-  // Select first session if none active and sessions available
   useEffect(() => {
     if (activeSessionId === null && sessions.length > 0) {
       setActiveSessionId(sessions[0].id);
@@ -63,25 +80,43 @@ export function App() {
   }, [sessions, activeSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+  const { newSessionIds, markSessionSeen } = useNewSessions(sessions);
 
-  const handleSessionSelect = useCallback((sessionId: string) => {
-    setActiveSessionId(sessionId);
-  }, []);
+  useEffect(() => {
+    if (activeSession) markSessionSeen(activeSession);
+  }, [activeSession, markSessionSeen]);
 
-  const handleSearchSelect = useCallback((sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setSearchOpen(false);
-  }, []);
+  const handleSessionSelect = useCallback(
+    (sessionId: string) => {
+      setActiveSessionId(sessionId);
+      const session = sessions.find((s) => s.id === sessionId);
+      if (session) markSessionSeen(session);
+    },
+    [sessions, markSessionSeen],
+  );
+
+  const handleSearchSelect = useCallback(
+    (sessionId: string) => {
+      setActiveSessionId(sessionId);
+      setSearchOpen(false);
+      const session = sessions.find((s) => s.id === sessionId);
+      if (session) markSessionSeen(session);
+    },
+    [sessions, markSessionSeen],
+  );
+
+  const isMac =
+    typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
   return (
     <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
-      <header className="h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 bg-gh-header-bg text-gh-header-text border-b border-gh-header-border">
-        <div className="flex items-center gap-3">
+      <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-gh-header-border">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            className="flex items-center justify-center bg-transparent border border-gh-border rounded-md p-1.5 cursor-pointer text-gh-header-text transition-colors duration-150 hover:bg-gh-bg-hover"
+            className="sess-icon-btn shrink-0"
             onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="Sidebar"
+            aria-label="Toggle sidebar"
             aria-expanded={sidebarOpen}
             title="Toggle sidebar"
           >
@@ -101,25 +136,26 @@ export function App() {
               )}
             </svg>
           </button>
-          <h1 className="text-sm font-semibold tracking-wide">sess</h1>
-          <span className="text-xs text-gh-text-secondary">
-            {sessions.length} session{sessions.length !== 1 ? "s" : ""}
-          </span>
+          <SessLogo className="size-7 shrink-0" />
+          <div className="flex items-baseline gap-2 min-w-0">
+            <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
+            <span className="text-[11px] text-gh-text-secondary truncate">
+              {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {sessions.length > 0 && <span className="sess-live-dot shrink-0" title="Live sync" />}
         </div>
 
-        {/* Search button - centered */}
         <button
           type="button"
-          className="flex items-center gap-2 w-80 px-3 py-1.5 text-xs text-gh-text-secondary bg-gh-bg border border-gh-border rounded-md cursor-pointer transition-colors hover:bg-gh-bg-hover hover:text-gh-text"
+          className="sess-search-trigger"
           onClick={() => setSearchOpen(true)}
         >
-          <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <svg className="size-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
           </svg>
-          <span>Search sessions...</span>
-          <span className="ml-auto text-[10px] px-1 py-0.5 rounded border border-gh-border">
-            {(navigator as any).platform?.includes("Mac") ? "Cmd" : "Ctrl"}+P
-          </span>
+          <span className="flex-1 text-left">Search sessions...</span>
+          <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}P</span>
         </button>
 
         <div className="flex items-center justify-end gap-2">
@@ -127,7 +163,6 @@ export function App() {
         </div>
       </header>
 
-      {/* Search overlay */}
       {searchOpen && (
         <SearchPanel onSelectSession={handleSearchSelect} onClose={() => setSearchOpen(false)} />
       )}
@@ -145,20 +180,33 @@ export function App() {
               sessions={sessions}
               activeSessionId={activeSessionId}
               onSessionSelect={handleSessionSelect}
+              newSessionIds={newSessionIds}
             />
           )}
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 flex flex-col overflow-hidden bg-gh-bg">
-              {activeSession ? (
-                <SessionViewer session={activeSession} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gh-text-secondary text-sm">
-                  {sessions.length === 0
-                    ? "No sessions found. Run 'sess init' to configure sources."
-                    : "Select a session"}
+          <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
+            {activeSession ? (
+              <SessionViewer session={activeSession} />
+            ) : (
+              <div className="sess-empty-state flex-1 h-full">
+                <div className="sess-empty-icon">
+                  <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
+                  </svg>
                 </div>
-              )}
-            </div>
+                <p className="text-sm font-medium text-gh-text">
+                  {sessions.length === 0 ? "No sessions yet" : "Select a session"}
+                </p>
+                <p className="text-xs text-gh-text-secondary max-w-xs">
+                  {sessions.length === 0
+                    ? "Run sess init to discover OpenCode, Copilot, and other agent sources."
+                    : "Pick a session from the sidebar to view conversation, plan, and diffs."}
+                </p>
+              </div>
+            )}
           </main>
         </div>
       </SessionNavContext.Provider>

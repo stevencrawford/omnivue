@@ -28,18 +28,22 @@ export function DiffView({ sessionId }: DiffViewProps) {
 
   if (loading) {
     return (
-      <div className="p-8 text-center">
-        <div className="inline-block animate-pulse text-sm text-gh-text-secondary">
-          Loading diffs...
-        </div>
+      <div className="flex items-center justify-center gap-2 p-8 text-sm text-gh-text-secondary">
+        <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+        Loading diffs...
       </div>
     );
   }
 
   if (diffs.length === 0) {
     return (
-      <div className="p-8 text-center text-sm text-gh-text-secondary">
-        No file changes in this session
+      <div className="sess-empty-state p-8">
+        <div className="sess-empty-icon">
+          <svg className="size-5" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2Z" />
+          </svg>
+        </div>
+        <p className="text-sm text-gh-text-secondary">No file changes in this session</p>
       </div>
     );
   }
@@ -47,9 +51,9 @@ export function DiffView({ sessionId }: DiffViewProps) {
   const stats = computeStats(diffs);
 
   return (
-    <div className="p-4 max-w-4xl">
+    <div className="p-6 w-full">
       {/* Summary bar */}
-      <div className="flex items-center gap-3 mb-4 px-3 py-2 bg-gh-bg-sidebar border border-gh-border rounded-lg text-xs">
+      <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-surface-elevated border border-gh-border rounded-xl text-xs">
         <span className="font-semibold text-gh-text">
           {diffs.length} {diffs.length === 1 ? "file" : "files"} changed
         </span>
@@ -76,7 +80,7 @@ export function DiffView({ sessionId }: DiffViewProps) {
       </div>
 
       {/* File list */}
-      <div className="border border-gh-border rounded-lg overflow-hidden divide-y divide-gh-border">
+      <div className="border border-gh-border rounded-xl overflow-hidden divide-y divide-gh-border bg-surface-elevated">
         {diffs.map((diff, i) => (
           <DiffFileRow key={i} diff={diff} />
         ))}
@@ -183,8 +187,8 @@ function ChangeBar({ additions, deletions }: { additions: number; deletions: num
 }
 
 function getLineClass(line: string): string {
-  if (line.startsWith("@@")) return "bg-blue-500/10 text-blue-400";
-  if (line.startsWith("+")) return "bg-green-500/10 text-green-300";
+  if (line.startsWith("@@")) return "bg-accent-muted text-accent";
+  if (line.startsWith("+")) return "bg-emerald-500/10 text-emerald-300";
   if (line.startsWith("-")) return "bg-red-500/10 text-red-300";
   return "text-gh-text";
 }

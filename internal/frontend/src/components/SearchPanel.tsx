@@ -67,10 +67,10 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
     <>
       <div className="search-overlay-backdrop" onClick={onClose} />
       <div className="search-overlay">
-        <div className="search-overlay-panel bg-gh-bg-sidebar border border-gh-border rounded-lg shadow-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gh-border">
+        <div className="search-overlay-panel">
+          <div className="flex items-center gap-2 px-3 py-3 border-b border-gh-border">
             <svg
-              className="size-4 text-gh-text-secondary shrink-0"
+              className="size-4 text-accent shrink-0"
               viewBox="0 0 16 16"
               fill="currentColor"
             >
@@ -82,7 +82,7 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder="Search sessions..."
+              placeholder="Search sessions, messages, plans..."
               className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none"
             />
             {query && (
@@ -92,50 +92,51 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                   setQuery("");
                   setResults([]);
                 }}
-                className="text-gh-text-secondary hover:text-gh-text cursor-pointer"
+                className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
               >
                 <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
                 </svg>
               </button>
             )}
-            <span className="text-[10px] text-gh-text-secondary px-1.5 py-0.5 rounded border border-gh-border">
-              Esc
-            </span>
+            <span className="sess-kbd">Esc</span>
           </div>
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
             {loading && (
-              <div className="text-xs text-gh-text-secondary p-4 text-center">Searching...</div>
+              <div className="flex items-center justify-center gap-2 text-xs text-gh-text-secondary p-6">
+                <span className="size-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                Searching...
+              </div>
             )}
             {!loading && query && results.length === 0 && (
-              <div className="text-xs text-gh-text-secondary p-4 text-center">No results</div>
+              <div className="text-xs text-gh-text-secondary p-6 text-center">No results</div>
             )}
             {!loading &&
               results.map((r, i) => (
                 <button
                   key={`${r.sessionId}-${i}`}
                   type="button"
-                  className={`w-full text-left px-4 py-2.5 border-b border-gh-border cursor-pointer transition-colors ${
+                  className={`w-full text-left px-4 py-3 border-b border-gh-border cursor-pointer transition-colors ${
                     i === selectedIndex
-                      ? "bg-gh-bg-active text-gh-text"
+                      ? "search-result--selected text-gh-text"
                       : "hover:bg-gh-bg-hover text-gh-text-secondary"
                   }`}
                   onClick={() => onSelectSession(r.sessionId)}
                 >
                   {r.repository && (
-                    <div className="text-[10px] text-gh-text-secondary truncate mb-0.5">
+                    <div className="text-[10px] font-mono text-gh-text-secondary truncate mb-1">
                       {r.repository}
                     </div>
                   )}
                   <div
-                    className="text-xs text-gh-text line-clamp-2 [&>mark]:bg-yellow-300/40 [&>mark]:text-gh-text [&>mark]:rounded-sm"
+                    className="text-xs text-gh-text line-clamp-2 search-result"
                     dangerouslySetInnerHTML={{ __html: r.snippet }}
                   />
                 </button>
               ))}
             {!loading && !query && (
-              <div className="text-xs text-gh-text-secondary p-4 text-center">
-                Type to search across all session content
+              <div className="text-xs text-gh-text-secondary p-6 text-center leading-relaxed">
+                Search across conversations, tool calls, and plan content
               </div>
             )}
           </div>

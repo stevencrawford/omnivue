@@ -164,7 +164,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
     <div className="border-b border-gh-border pb-1 mb-1">
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-gh-text-secondary">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-gh-text-secondary">
           Folders
         </span>
         <div className="flex items-center gap-0.5">
@@ -196,15 +196,15 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               </svg>
             </button>
             {folderSortOpen && (
-              <div className="absolute left-0 top-full mt-1 w-24 bg-gh-bg-sidebar border border-gh-border rounded shadow-lg z-20 py-1">
+              <div className="absolute left-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
                 {(["name", "count"] as FolderSort[]).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
                       folderSort === mode
-                        ? "text-gh-text bg-gh-bg-active"
-                        : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+            ? "sess-session-active"
+            : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
                     }`}
                     onClick={() => {
                       setFolderSort(mode);
@@ -249,7 +249,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               if (!newName.trim()) setCreating(false);
             }}
             placeholder="Folder name"
-            className="w-full text-xs bg-gh-bg border border-gh-border rounded px-2 py-1 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-blue-400"
+            className="w-full text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
           />
         </div>
       )}
@@ -280,7 +280,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   if (e.key === "Escape") setEditingId(null);
                 }}
                 onBlur={() => handleRename(folder.id)}
-                className="flex-1 text-xs bg-gh-bg border border-gh-border rounded px-1.5 py-0.5 text-gh-text outline-none focus:border-blue-400"
+                className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-1.5 py-0.5 text-gh-text outline-none focus:border-accent"
               />
             ) : (
               <button

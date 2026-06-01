@@ -11,6 +11,22 @@ export interface TreeNode {
   childSessions?: Session[];
 }
 
+/** Last path segment for display (e.g. `~/dev/foo` → `foo`). */
+export function shortRepoName(repository: string): string {
+  if (!repository) return "Unknown";
+  const normalized = repository.replace(/\\/g, "/").replace(/\/$/, "");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : repository;
+}
+
+export function parentIdsWithChildren(sessions: Session[]): Set<string> {
+  const ids = new Set<string>();
+  for (const s of sessions) {
+    if (s.parentId) ids.add(s.parentId);
+  }
+  return ids;
+}
+
 export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): TreeNode[] {
   if (!sessions || sessions.length === 0) return [];
 
@@ -29,19 +45,19 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
   // Only root sessions go into repo grouping
   const rootSessions = sessions.filter((s) => !childIds.has(s.id));
 
-  const byRepo = new Map<string, Session[]>();
+  const byRepo = new Map<string, { label: string; sessions: Session[] }>();
   for (const session of rootSessions) {
-    const repo = session.repository || "Unknown";
-    const existing = byRepo.get(repo);
+    const repoKey = session.repository || "Unknown";
+    const existing = byRepo.get(repoKey);
     if (existing) {
-      existing.push(session);
+      existing.sessions.push(session);
     } else {
-      byRepo.set(repo, [session]);
+      byRepo.set(repoKey, { label: shortRepoName(repoKey), sessions: [session] });
     }
   }
 
   const repoNodes: TreeNode[] = [];
-  for (const [repo, repoSessions] of byRepo) {
+  for (const [repoKey, { label: repoLabel, sessions: repoSessions }] of byRepo) {
     const sorted = [...repoSessions].sort((a, b) => {
       switch (sortMode) {
         case "name":
@@ -59,18 +75,22 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
     const children: TreeNode[] = sorted.map((session) => {
       const childSessions = childMap.get(session.id);
       const childNodes = childSessions
-        ? childSessions.map((cs) => ({
-            name: cs.title || cs.id,
-            fullPath: `${repo}/${session.id}/${cs.id}`,
-            children: [],
-            session: cs,
-            isGroup: false,
-          }))
+        ? [...childSessions]
+            .sort(
+              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+            )
+            .map((cs) => ({
+              name: cs.title || cs.id.slice(0, 8),
+              fullPath: `${repoKey}/${session.id}/${cs.id}`,
+              children: [],
+              session: cs,
+              isGroup: false,
+            }))
         : [];
 
       return {
         name: session.title || session.id,
-        fullPath: `${repo}/${session.id}`,
+        fullPath: `${repoKey}/${session.id}`,
         children: childNodes,
         session,
         isGroup: false,
@@ -79,8 +99,8 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
     });
 
     repoNodes.push({
-      name: repo,
-      fullPath: repo,
+      name: repoLabel,
+      fullPath: repoKey,
       children,
       isGroup: true,
     });

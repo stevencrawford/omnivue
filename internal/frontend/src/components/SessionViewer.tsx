@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchMessages, fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
+import {
+  buildConversationTurns,
+  type AssistantTurn,
+  type ConversationTurn,
+} from "../utils/conversationTurns";
+import {
+  dedupeConsecutiveLines,
+  getToolSummary,
+  shouldShowStepContent,
+} from "../utils/toolDisplay";
 import { MarkdownContent } from "./MarkdownContent";
 import { PlanView } from "./PlanView";
 import { DiffView } from "./DiffView";
@@ -12,6 +22,33 @@ interface SessionViewerProps {
 }
 
 type Tab = "session" | "plan" | "diff";
+
+const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
+  session: {
+    label: "Session",
+    icon: (
+      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
+      </svg>
+    ),
+  },
+  plan: {
+    label: "Plan",
+    icon: (
+      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5ZM5 5.75A.75.75 0 0 1 5.75 5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.75Z" />
+      </svg>
+    ),
+  },
+  diff: {
+    label: "Diff",
+    icon: (
+      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
+      </svg>
+    ),
+  },
+};
 
 export function SessionViewer({ session }: SessionViewerProps) {
   const [activeTab, setActiveTab] = useState<Tab>("session");
@@ -45,23 +82,18 @@ export function SessionViewer({ session }: SessionViewerProps) {
       <SessionHeader session={session} />
 
       {/* Tab bar */}
-      <div className="flex border-b border-gh-border px-4 bg-gh-bg-sidebar shrink-0">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-gh-border shrink-0">
         {(["session", "plan", "diff"] as Tab[]).map((tab) => (
           <button
             key={tab}
             type="button"
-            className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
-              activeTab === tab
-                ? "border-blue-500 text-gh-text"
-                : "border-transparent text-gh-text-secondary hover:text-gh-text"
-            }`}
+            className={`sess-tab-pill ${activeTab === tab ? "sess-tab-pill--active" : ""}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {TAB_META[tab].icon}
+            {TAB_META[tab].label}
             {tab === "session" && messageCount.total > 0 && (
-              <span className="ml-1.5 text-[10px] text-gh-text-secondary">
-                ({messageCount.total})
-              </span>
+              <span className="text-[10px] opacity-70 tabular-nums">{messageCount.total}</span>
             )}
           </button>
         ))}
@@ -82,16 +114,24 @@ export function SessionViewer({ session }: SessionViewerProps) {
 }
 
 function SessionHeader({ session }: { session: Session }) {
+  const badgeClass =
+    session.agent === "opencode"
+      ? "sess-agent-badge sess-agent-badge--opencode"
+      : session.agent === "copilot"
+        ? "sess-agent-badge sess-agent-badge--copilot"
+        : "sess-agent-badge bg-gh-bg-hover text-gh-text-secondary";
+
   return (
-    <div className="px-4 py-2 border-b border-gh-border bg-gh-bg-sidebar shrink-0">
-      <div className="flex items-center gap-2">
+    <div className="px-4 py-3 border-b border-gh-border shrink-0">
+      <div className="flex items-center gap-2 min-w-0">
         <h2 className="text-sm font-semibold text-gh-text truncate">
           {session.title || session.id}
         </h2>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold uppercase shrink-0">
-          {session.agent}
-        </span>
-        <span className="text-[10px] text-gh-text-secondary ml-auto" title={session.directory}>
+        <span className={`${badgeClass} shrink-0`}>{session.agent}</span>
+        <span
+          className="text-[10px] font-mono text-gh-text-secondary ml-auto truncate max-w-[40%]"
+          title={session.directory}
+        >
           {session.repository || session.directory}
         </span>
       </div>
@@ -158,7 +198,8 @@ function ConversationView({
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="inline-block animate-pulse text-sm text-gh-text-secondary">
+        <div className="flex items-center gap-2 text-sm text-gh-text-secondary">
+          <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           Loading conversation...
         </div>
       </div>
@@ -167,31 +208,34 @@ function ConversationView({
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-gh-text-secondary">
-        No messages in this session
+      <div className="sess-empty-state flex-1">
+        <div className="sess-empty-icon">
+          <svg className="size-5" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
+          </svg>
+        </div>
+        <p className="text-sm text-gh-text-secondary">No messages in this session</p>
       </div>
     );
   }
 
   const firstMessage = messages[0];
-  const restMessages = messages.slice(1);
-
-  // Group consecutive assistant messages that are tool-only (no text content)
-  const groupedMessages = groupAssistantMessages(restMessages);
+  const turns = buildConversationTurns(messages.slice(1));
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
-      {/* Scrollable conversation */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="divide-y divide-gh-border">
-          {groupedMessages.map((msg) => (
-            <MessageBubble key={isGrouped(msg) ? msg.groupId : msg.id} message={msg} />
-          ))}
-        </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
+        {turns.length === 0 ? (
+          <p className="text-center text-xs text-gh-text-secondary py-8">
+            Agent work appears here as tools run and responses stream in.
+          </p>
+        ) : (
+          turns.map((turn) => <ConversationTurnBlock key={turn.id} turn={turn} />)
+        )}
       </div>
 
       {/* Pinned user prompt at bottom */}
-      <div className="pinned-prompt bg-gh-bg-sidebar">
+      <div className="sess-pinned-bar shrink-0">
         <button
           type="button"
           className="flex items-center gap-2 w-full px-4 py-2 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
@@ -204,16 +248,24 @@ function ConversationView({
           >
             <path d="M6 4l4 4-4 4" />
           </svg>
-          <svg className="size-4 text-blue-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <svg className="size-4 text-accent-secondary shrink-0" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm5 6a5 5 0 0 0-10 0h10Z" />
           </svg>
-          <span className="text-xs font-semibold text-gh-text">User Prompt</span>
+          <span className="text-xs font-semibold text-gh-text">Task</span>
           {session.model && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-gh-bg-hover text-gh-text-secondary font-mono">
               {session.model}
             </span>
           )}
-          <span className="text-[10px] text-purple-400 font-bold uppercase px-1.5 py-0.5 rounded bg-purple-500/20">
+          <span
+            className={
+              session.agent === "opencode"
+                ? "sess-agent-badge sess-agent-badge--opencode"
+                : session.agent === "copilot"
+                  ? "sess-agent-badge sess-agent-badge--copilot"
+                  : "sess-agent-badge"
+            }
+          >
             {session.agent}
           </span>
 
@@ -242,10 +294,10 @@ function ConversationView({
               e.stopPropagation();
               handleResume();
             }}
-            className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded border cursor-pointer transition-colors ml-auto shrink-0 ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium rounded-md border cursor-pointer transition-all ml-auto shrink-0 ${
               copied
-                ? "border-green-500/40 bg-green-500/10 text-green-400"
-                : "border-gh-border bg-gh-bg hover:bg-gh-bg-hover text-gh-text-secondary hover:text-gh-text"
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                : "border-accent-border bg-accent-muted text-accent hover:shadow-[0_0_12px_var(--color-glow)]"
             }`}
             title="Copy resume command"
           >
@@ -278,97 +330,94 @@ function ConversationView({
   );
 }
 
-// --- Group consecutive assistant messages ---
+// --- Conversation turns ---
 
-type DisplayMessage =
-  | Message
-  | {
-      groupId: string;
-      messages: Message[];
-      role: "assistant";
-      content: "";
-      toolCalls: ToolCall[];
-      timestamp: string;
-      model?: string;
-      agent?: string;
-      id: string;
-      tokensInput?: number;
-      tokensOutput?: number;
-    };
-
-function isGrouped(msg: DisplayMessage): msg is {
-  groupId: string;
-  messages: Message[];
-  role: "assistant";
-  content: "";
-  toolCalls: ToolCall[];
-  timestamp: string;
-  model?: string;
-  agent?: string;
-  id: string;
-  tokensInput?: number;
-  tokensOutput?: number;
-} {
-  return "groupId" in msg;
-}
-
-function groupAssistantMessages(messages: Message[]): DisplayMessage[] {
-  if (messages.length === 0) return [];
-
-  const result: DisplayMessage[] = [];
-  let i = 0;
-
-  while (i < messages.length) {
-    const msg = messages[i];
-
-    // If this is an assistant message with tool calls but no text content
-    // look ahead to group consecutive similar messages
-    if (msg.role === "assistant" && !msg.content && msg.toolCalls && msg.toolCalls.length > 0) {
-      const group: Message[] = [msg];
-      let j = i + 1;
-      while (j < messages.length) {
-        const next = messages[j];
-        if (
-          next.role === "assistant" &&
-          !next.content &&
-          next.toolCalls &&
-          next.toolCalls.length > 0
-        ) {
-          group.push(next);
-          j++;
-        } else {
-          break;
-        }
-      }
-
-      if (group.length > 1) {
-        const allCalls = group.flatMap((m) => m.toolCalls || []);
-        result.push({
-          groupId: `group-${i}`,
-          messages: group,
-          role: "assistant",
-          content: "",
-          toolCalls: allCalls,
-          timestamp: group[0].timestamp,
-          model: group[0].model,
-          agent: group[0].agent,
-          id: group[0].id,
-          tokensInput: group.reduce((s, m) => s + (m.tokensInput || 0), 0),
-          tokensOutput: group.reduce((s, m) => s + (m.tokensOutput || 0), 0),
-        });
-        i = j;
-        continue;
-      }
-    }
-
-    result.push(msg);
-    i++;
+function ConversationTurnBlock({ turn }: { turn: ConversationTurn }) {
+  if (turn.type === "user") {
+    return <UserTurnView content={turn.content} />;
   }
-
-  return result;
+  if (turn.type === "system") {
+    return <div className="sess-system-notice whitespace-pre-wrap">{turn.content}</div>;
+  }
+  return <AssistantTurnView turn={turn} />;
 }
 
-// --- User Prompt Bubble ---
+function UserTurnView({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(true);
+  const isLong = content.length > 2000;
+  const display = !expanded && isLong ? content.slice(0, 2000) + "…" : content;
+
+  return (
+    <div className="sess-user-turn">
+      <div className="sess-user-turn-label">Follow-up</div>
+      <div className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed">
+        {display}
+      </div>
+      {isLong && (
+        <button
+          type="button"
+          className="mt-1 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AssistantTurnView({ turn }: { turn: AssistantTurn }) {
+  const agent = turn.agent || turn.steps.find((s) => s.agent && s.agent !== "main")?.agent;
+  const allTools = turn.steps.flatMap((s) => s.toolCalls || []);
+  const contentBlocks = dedupeConsecutiveLines(
+    turn.steps
+      .filter((s) => shouldShowStepContent(s.content, s.toolCalls))
+      .map((s) => s.content.trim()),
+  );
+
+  return (
+    <div className="sess-agent-stream">
+      {agent && agent !== "main" && (
+        <span className="inline-block mb-2 text-[10px] px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border">
+          {agent}
+        </span>
+      )}
+      {contentBlocks.map((text, i) => (
+        <div key={i} className={i > 0 ? "sess-agent-step" : ""}>
+          <AssistantStepContent content={text} />
+        </div>
+      ))}
+      {allTools.length > 0 && (
+        <div className={contentBlocks.length > 0 ? "mt-3" : ""}>
+          <ToolCallList toolCalls={allTools} agent={agent} compact />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssistantStepContent({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(true);
+  const isLong = content.length > 4000;
+  const display = !expanded && isLong ? content.slice(0, 4000) + "\n\n…" : content;
+
+  return (
+    <div>
+      <MarkdownContent content={display} className="markdown-body--wide" />
+      {isLong && (
+        <button
+          type="button"
+          className="mt-1 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// --- Pinned user prompt ---
 
 function UserPromptBubble({ message }: { message: Message }) {
   const [expanded, setExpanded] = useState(true);
@@ -382,7 +431,7 @@ function UserPromptBubble({ message }: { message: Message }) {
       {isLong && (
         <button
           type="button"
-          className="mt-1 text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer"
+          className="mt-1 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? "Show less" : "Show more"}
@@ -392,292 +441,118 @@ function UserPromptBubble({ message }: { message: Message }) {
   );
 }
 
-// --- Message Bubble ---
-
-function MessageBubble({ message }: { message: DisplayMessage }) {
-  const isUser = message.role === "user";
-  const isSystem = message.role === "system";
-  const isAssistantGroup = isGrouped(message);
-  const [expanded, setExpanded] = useState(true);
-  const [groupExpanded, setGroupExpanded] = useState(false);
-  const isLong = message.content.length > 3000;
-
-  return (
-    <div className={`px-4 py-3 ${isUser ? "bg-blue-500/5" : isSystem ? "bg-yellow-500/5" : ""}`}>
-      {/* Assistant group header */}
-      {isAssistantGroup && (
-        <div className="flex items-center gap-2 mb-2">
-          <svg className="size-4 text-green-400" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 2.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM5.5 10.5a2.5 2.5 0 0 1 5 0v.5h-5v-.5Z" />
-          </svg>
-          <span className="text-xs font-semibold text-green-400">Assistant</span>
-          <span className="text-[10px] text-gh-text-secondary">
-            {message.messages!.length} grouped messages
-          </span>
-          <button
-            type="button"
-            className="ml-auto text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer"
-            onClick={() => setGroupExpanded(!groupExpanded)}
-          >
-            {groupExpanded ? "Collapse all" : "Show all"}
-          </button>
-        </div>
-      )}
-
-      {/* Regular message header */}
-      {!isAssistantGroup && (
-        <div className="flex items-center gap-2 mb-2">
-          <RoleIcon role={message.role} />
-          <span
-            className={`text-xs font-semibold ${isUser ? "text-blue-400" : isSystem ? "text-yellow-400" : "text-green-400"}`}
-          >
-            {message.role === "assistant"
-              ? "Assistant"
-              : message.role === "user"
-                ? "You"
-                : "System"}
-          </span>
-          {message.model && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gh-bg-hover text-gh-text-secondary font-mono">
-              {truncateModel(message.model)}
-            </span>
-          )}
-          {message.agent && message.agent !== "main" && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
-              {message.agent}
-            </span>
-          )}
-          {message.tokensInput || message.tokensOutput ? (
-            <span className="text-[10px] text-gh-text-secondary ml-auto">
-              {message.tokensInput ? `${(message.tokensInput / 1000).toFixed(1)}k in` : ""}
-              {message.tokensInput && message.tokensOutput ? " / " : ""}
-              {message.tokensOutput ? `${(message.tokensOutput / 1000).toFixed(1)}k out` : ""}
-            </span>
-          ) : null}
-          <span className="text-[10px] text-gh-text-secondary ml-auto">
-            {formatTimestamp(message.timestamp)}
-          </span>
-        </div>
-      )}
-
-      {/* Content (not for assistant groups) */}
-      {!isAssistantGroup && message.content && (
-        <div className="ml-6 max-h-content">
-          {isUser ? (
-            <UserContent content={message.content} expanded={expanded} isLong={isLong} />
-          ) : (
-            <AssistantContent content={message.content} expanded={expanded} isLong={isLong} />
-          )}
-          {isLong && (
-            <button
-              type="button"
-              className="mt-1 text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? "Show less" : "Show more"}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Tool calls (from single message or grouped) */}
-      {message.toolCalls && message.toolCalls.length > 0 && (
-        <div className="ml-6 mt-2">
-          <ToolCallList toolCalls={message.toolCalls} agent={message.agent} />
-        </div>
-      )}
-
-      {/* Expanded group sub-messages */}
-      {isAssistantGroup && groupExpanded && (
-        <div className="ml-6 mt-2 border border-gh-border rounded-md divide-y divide-gh-border">
-          {message.messages!.map((subMsg) => (
-            <div key={subMsg.id} className="px-3 py-2">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] text-gh-text-secondary">
-                  {formatTimestamp(subMsg.timestamp)}
-                </span>
-                {subMsg.model && (
-                  <span className="text-[10px] text-gh-text-secondary font-mono">
-                    {subMsg.model}
-                  </span>
-                )}
-              </div>
-              {subMsg.toolCalls && subMsg.toolCalls.length > 0 && (
-                <ToolCallList toolCalls={subMsg.toolCalls} agent={subMsg.agent} />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- Content renderers ---
-
-function UserContent({
-  content,
-  expanded,
-  isLong,
-}: {
-  content: string;
-  expanded: boolean;
-  isLong: boolean;
-}) {
-  const [maxHeight, setMaxHeight] = useState(160);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-
-  const displayContent = !expanded && isLong ? content.slice(0, 3000) + "\n\n..." : content;
-
-  const handleResizeMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    isDragging.current = true;
-    const startY = e.clientY;
-    const startHeight = containerRef.current?.offsetHeight || maxHeight;
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging.current) return;
-      const newHeight = Math.max(80, startHeight + (e.clientY - startY));
-      setMaxHeight(newHeight);
-    };
-
-    const onMouseUp = () => {
-      isDragging.current = false;
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    document.body.style.cursor = "s-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  };
-
-  return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed overflow-y-auto"
-        style={{ maxHeight: `${maxHeight}px` }}
-      >
-        {displayContent}
-      </div>
-      <div
-        className="h-2 -mb-0.5 cursor-s-resize hover:bg-blue-500/10 active:bg-blue-500/20 transition-colors rounded-sm"
-        onMouseDown={handleResizeMouseDown}
-      />
-    </div>
-  );
-}
-
-function AssistantContent({
-  content,
-  expanded,
-  isLong,
-}: {
-  content: string;
-  expanded: boolean;
-  isLong: boolean;
-}) {
-  const displayContent = !expanded && isLong ? content.slice(0, 3000) + "\n\n..." : content;
-  return <MarkdownContent content={displayContent} />;
-}
-
 // --- Tool call rendering ---
 
-interface ToolCallGroup {
-  name: string;
-  calls: ToolCall[];
-}
+const TOOL_CALL_VISIBLE_CAP = 10;
 
-function groupToolCalls(toolCalls: ToolCall[]): ToolCallGroup[] {
-  if (toolCalls.length === 0) return [];
-  const groups: ToolCallGroup[] = [];
-  let current: ToolCallGroup = { name: toolCalls[0].name, calls: [toolCalls[0]] };
-  for (let i = 1; i < toolCalls.length; i++) {
-    if (toolCalls[i].name === current.name) {
-      current.calls.push(toolCalls[i]);
-    } else {
-      groups.push(current);
-      current = { name: toolCalls[i].name, calls: [toolCalls[i]] };
-    }
+function ToolCallList({
+  toolCalls,
+  agent,
+  compact = false,
+}: {
+  toolCalls: ToolCall[];
+  agent?: string;
+  compact?: boolean;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const capped = toolCalls.length > TOOL_CALL_VISIBLE_CAP;
+  const visible =
+    capped && !showAll ? toolCalls.slice(0, TOOL_CALL_VISIBLE_CAP) : toolCalls;
+  const hiddenCount = toolCalls.length - visible.length;
+
+  if (compact) {
+    return (
+      <div className="sess-tool-compact">
+        {visible.map((tool) => (
+          <ToolCallRow key={tool.id} tool={tool} agent={agent} compact />
+        ))}
+        {capped && (
+          <button
+            type="button"
+            className="sess-tool-more"
+            onClick={() => setShowAll((v) => !v)}
+          >
+            {showAll
+              ? "Show fewer"
+              : `Show ${hiddenCount} more tool call${hiddenCount === 1 ? "" : "s"}`}
+          </button>
+        )}
+      </div>
+    );
   }
-  groups.push(current);
-  return groups;
-}
-
-function ToolCallList({ toolCalls, agent }: { toolCalls: ToolCall[]; agent?: string }) {
-  const groups = useMemo(() => groupToolCalls(toolCalls), [toolCalls]);
 
   return (
     <div className="space-y-1">
-      {groups.map((group, i) => (
-        <ToolCallGroupItem key={`${group.name}-${i}`} group={group} agent={agent} />
+      {toolCalls.map((tool) => (
+        <ToolCallRow key={tool.id} tool={tool} agent={agent} />
       ))}
     </div>
   );
 }
 
-function ToolCallGroupItem({ group, agent }: { group: ToolCallGroup; agent?: string }) {
+function ToolCallRow({
+  tool,
+  agent,
+  compact = false,
+}: {
+  tool: ToolCall;
+  agent?: string;
+  compact?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const { navigateToSession } = useSessionNav();
-  const first = group.calls[0];
-  const allCompleted = group.calls.every((tc) => tc.status === "completed");
-  const statusColor = allCompleted ? "text-green-400" : "text-yellow-400";
-  const summary = getToolSummary(first, agent);
+  const completed = tool.status === "completed";
+  const statusColor = completed ? "text-emerald-400" : "text-amber-400";
+  const summary = getToolSummary(tool, agent);
 
-  // Extract child session ID from task metadata
-  const isTask = first.name === "task";
+  const isTask = tool.name === "task";
   let childSessionId: string | null = null;
-  if (isTask && first.metadata) {
+  if (isTask && tool.metadata) {
     try {
-      const meta = JSON.parse(first.metadata);
+      const meta = JSON.parse(tool.metadata);
       childSessionId = meta.sessionId || null;
     } catch {
       /* ignore */
     }
   }
 
+  const rowClass = compact
+    ? "sess-tool-compact-row"
+    : "flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors";
+
+  const wrapperClass = compact
+    ? ""
+    : "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50";
+
   return (
-    <div className="border border-gh-border rounded-md overflow-hidden">
+    <div className={wrapperClass}>
       <div className="flex items-center w-full">
-        <button
-          type="button"
-          className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <svg
-            className={`size-3 text-gh-text-secondary transition-transform ${expanded ? "rotate-90" : ""}`}
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
-            <path d="M6 4l4 4-4 4" />
-          </svg>
-          <span className={`text-[10px] ${statusColor} font-bold`}>
-            {allCompleted ? "\u2713" : "\u2022"}
+        <button type="button" className={rowClass} onClick={() => setExpanded(!expanded)}>
+          {!compact && (
+            <svg
+              className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <path d="M6 4l4 4-4 4" />
+            </svg>
+          )}
+          <span className={`text-[10px] ${statusColor} font-bold shrink-0`}>
+            {completed ? "\u2713" : "\u2022"}
           </span>
-          <span className="text-[11px] font-mono text-gh-text font-medium truncate">{summary}</span>
-          {group.calls.length > 1 && (
-            <span className="text-[10px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary shrink-0">
-              {group.calls.length}
-            </span>
-          )}
-          <span className={`text-[10px] shrink-0 ${statusColor}`}>{first.status}</span>
-          {first.duration && first.duration > 0 && (
+          <span className="font-mono text-[11px] truncate flex-1 min-w-0 text-gh-text">{summary}</span>
+          {!compact && tool.duration && tool.duration > 0 ? (
             <span className="text-[10px] text-gh-text-secondary shrink-0">
-              {first.duration < 1000
-                ? `${first.duration}ms`
-                : `${(first.duration / 1000).toFixed(1)}s`}
+              {tool.duration < 1000
+                ? `${tool.duration}ms`
+                : `${(tool.duration / 1000).toFixed(1)}s`}
             </span>
-          )}
+          ) : null}
         </button>
         {isTask && childSessionId && (
           <button
             type="button"
-            className="shrink-0 px-2 py-1.5 text-[10px] font-medium text-blue-400 hover:text-blue-300 hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            className="shrink-0 px-2 py-1.5 text-[10px] font-medium text-accent hover:text-accent-secondary hover:bg-gh-bg-hover cursor-pointer transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               navigateToSession(childSessionId!);
@@ -687,39 +562,6 @@ function ToolCallGroupItem({ group, agent }: { group: ToolCallGroup; agent?: str
           </button>
         )}
       </div>
-      {expanded && (
-        <div className="border-t border-gh-border divide-y divide-gh-border">
-          {group.calls.map((tc) => (
-            <ToolCallDetail key={tc.id} tool={tc} agent={agent} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ToolCallDetail({ tool, agent }: { tool: ToolCall; agent?: string }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div>
-      <button
-        type="button"
-        className="flex items-center gap-2 w-full px-3 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className="text-[10px] font-mono text-gh-text-secondary">{tool.name}</span>
-        <span className="text-[10px] text-gh-text-secondary truncate">
-          {toolDetailPreview(tool, agent)}
-        </span>
-        <span className="ml-auto text-[10px] text-gh-text-secondary">
-          {expanded
-            ? "collapse"
-            : tool.input.length > 500
-              ? `expand (${(tool.input.length / 1024).toFixed(1)}kb)`
-              : "details"}
-        </span>
-      </button>
       {expanded && (
         <div className="border-t border-gh-border px-3 py-2 space-y-2 bg-gh-bg-secondary/50">
           {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
@@ -755,7 +597,7 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
         {isLong && (
           <button
             type="button"
-            className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer"
+            className="text-[10px] text-accent hover:text-accent-secondary cursor-pointer"
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? "collapse" : `expand (${(content.length / 1024).toFixed(1)}kb)`}
@@ -769,123 +611,3 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
   );
 }
 
-// --- Tool call summarization ---
-
-function getToolSummary(tool: ToolCall, agent?: string): string {
-  if (agent === "opencode") {
-    if (tool.name === "task") {
-      const desc = extractJSONField(tool.input, "description") || "";
-      return `\u{1F4CB} ${desc.slice(0, 60)}`;
-    }
-    if (tool.name === "todowrite") {
-      const content =
-        extractJSONField(tool.input, "content") || extractJSONField(tool.input, "text") || "";
-      const status = extractJSONField(tool.input, "status") || "pending";
-      const check = status === "completed" ? "\u2713" : "\u25CB";
-      return `${check} ${content.slice(0, 60)}`;
-    }
-  }
-  return getDefaultToolSummary(tool);
-}
-
-function getDefaultToolSummary(tool: ToolCall): string {
-  const name = tool.name;
-  const input = tool.input;
-
-  if (name === "edit" || name === "write" || name === "read") {
-    const fp =
-      extractJSONField(input, "filePath") ||
-      extractJSONField(input, "file_path") ||
-      extractJSONField(input, "path") ||
-      "";
-    if (fp) return `${name}: ${fp}`;
-  }
-
-  if (name === "bash" || name === "command") {
-    const cmd = extractJSONField(input, "command") || "";
-    if (cmd) return `bash: ${cmd.slice(0, 60)}`;
-    return "bash";
-  }
-
-  if (name === "search" || name === "grep") {
-    const pattern = extractJSONField(input, "pattern") || extractJSONField(input, "query") || "";
-    if (pattern) return `grep: ${pattern.slice(0, 60)}`;
-  }
-
-  if (name === "tool") {
-    const toolName = extractJSONField(input, "name") || "";
-    if (toolName) return `tool: ${toolName}`;
-  }
-
-  return name;
-}
-
-function toolDetailPreview(tool: ToolCall, agent?: string): string {
-  if (agent === "opencode") {
-    if (tool.name === "task") {
-      const desc = extractJSONField(tool.input, "description") || "";
-      return desc.slice(0, 80);
-    }
-    if (tool.name === "todowrite") {
-      const content = extractJSONField(tool.input, "content") || "";
-      return content.slice(0, 80);
-    }
-  }
-  return getDefaultToolSummary(tool);
-}
-
-function extractJSONField(jsonStr: string, field: string): string | null {
-  if (!jsonStr) return null;
-  try {
-    const parsed = JSON.parse(jsonStr);
-    const val = parsed[field];
-    if (typeof val === "string" && val) return val;
-    if (typeof val === "number") return String(val);
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-// --- Helpers ---
-
-function RoleIcon({ role }: { role: string }) {
-  if (role === "user") {
-    return (
-      <svg className="size-4 text-blue-400" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm5 6a5 5 0 0 0-10 0h10Z" />
-      </svg>
-    );
-  }
-  if (role === "assistant") {
-    return (
-      <svg className="size-4 text-green-400" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 2.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM5.5 10.5a2.5 2.5 0 0 1 5 0v.5h-5v-.5Z" />
-      </svg>
-    );
-  }
-  return (
-    <svg className="size-4 text-yellow-400" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7.25 5a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0V5Zm.75 6.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
-    </svg>
-  );
-}
-
-function truncateModel(model: string): string {
-  return model.replace("anthropic/", "").replace("openai/", "").replace("github-copilot/", "");
-}
-
-function formatTimestamp(ts: string): string {
-  const date = new Date(ts);
-  if (isNaN(date.getTime())) return "";
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  if (isToday) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-  return (
-    date.toLocaleDateString([], { month: "short", day: "numeric" }) +
-    " " +
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
-}

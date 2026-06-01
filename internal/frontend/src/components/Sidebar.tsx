@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "../hooks/useApi";
-import { buildTree, relativeTime, formatCost } from "../utils/buildTree";
+import { buildTree, parentIdsWithChildren, relativeTime } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
 import { FolderPanel } from "./FolderPanel";
 import { useSessionNav } from "../hooks/useNav";
@@ -9,20 +9,22 @@ interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
+  newSessionIds: Set<string>;
 }
 
 const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
 const COLLAPSED_KEY = "sess-sidebar-collapsed";
 const SORT_KEY = "sess-sidebar-sort";
+const SUB_COLLAPSED_KEY = "sess-sidebar-sub-collapsed";
 
 function getInitialWidth(): number {
   try {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (stored) return Math.max(200, Math.min(600, Number(stored)));
+    if (stored) return Math.max(220, Math.min(600, Number(stored)));
   } catch {
     /* ignore */
   }
-  return 300;
+  return 280;
 }
 
 function getInitialCollapsed(): Set<string> {
@@ -45,34 +47,85 @@ function getInitialSort(): SortMode {
   return "recent";
 }
 
+function getInitialSubCollapsed(sessions: Session[]): Set<string> {
+  try {
+    const stored = localStorage.getItem(SUB_COLLAPSED_KEY);
+    if (stored !== null) return new Set(JSON.parse(stored));
+  } catch {
+    /* ignore */
+  }
+  return parentIdsWithChildren(sessions);
+}
+
 const SORT_LABELS: Record<SortMode, string> = {
   recent: "Recent",
   name: "Name",
   agent: "Agent",
 };
 
-function shortModel(model: string): string {
-  return model.replace("claude-", "").replace("openai/", "");
+function sessionTitle(session: Session): string {
+  const t = session.title?.trim();
+  if (t) return t;
+  return session.id.slice(0, 10);
 }
 
-export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarProps) {
+function shortDir(directory: string): string {
+  if (!directory) return "";
+  const parts = directory.replace(/\\/g, "/").replace(/\/$/, "").split("/").filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1]! : directory;
+}
+
+function shortModel(model: string): string {
+  if (!model) return "";
+  return model
+    .replace("anthropic/", "")
+    .replace("openai/", "")
+    .replace("github-copilot/", "")
+    .replace("claude-", "")
+    .replace("gpt-", "");
+}
+
+function agentLabel(agent: string): string {
+  if (agent === "opencode") return "OpenCode";
+  if (agent === "copilot") return "Copilot";
+  return agent;
+}
+
+function sessionMetaParts(session: Session): string[] {
+  const parts: string[] = [];
+  if (session.agent) parts.push(agentLabel(session.agent));
+  const dir = shortDir(session.directory);
+  if (dir) parts.push(dir);
+  if (session.branch) parts.push(session.branch);
+  const model = shortModel(session.model);
+  if (model) parts.push(model);
+  return parts;
+}
+
+function SessionStatusDot({ isNew }: { isNew: boolean }) {
+  return (
+    <span
+      className={`sess-session-dot ${isNew ? "sess-session-dot--new" : "sess-session-dot--seen"}`}
+      title={isNew ? "New or updated" : "Viewed"}
+    />
+  );
+}
+
+export function Sidebar({
+  sessions,
+  activeSessionId,
+  onSessionSelect,
+  newSessionIds,
+}: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
   const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
   const [isResizing, setIsResizing] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
-
-  const [childrenCollapsed, setChildrenCollapsed] = useState<Set<string>>(new Set());
-
-  const toggleChildCollapse = useCallback((id: string) => {
-    setChildrenCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const [subCollapsed, setSubCollapsed] = useState<Set<string>>(() =>
+    getInitialSubCollapsed(sessions),
+  );
 
   const tree = useMemo(() => buildTree(sessions, sortMode), [sessions, sortMode]);
 
@@ -84,20 +137,38 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
     }
   }, []);
 
+  const saveSubCollapsed = useCallback((next: Set<string>) => {
+    try {
+      localStorage.setItem(SUB_COLLAPSED_KEY, JSON.stringify([...next]));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const toggleCollapse = useCallback(
     (path: string) => {
       setCollapsed((prev) => {
         const next = new Set(prev);
-        if (next.has(path)) {
-          next.delete(path);
-        } else {
-          next.add(path);
-        }
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
         saveCollapsed(next);
         return next;
       });
     },
     [saveCollapsed],
+  );
+
+  const toggleSubCollapsed = useCallback(
+    (parentId: string) => {
+      setSubCollapsed((prev) => {
+        const next = new Set(prev);
+        if (next.has(parentId)) next.delete(parentId);
+        else next.add(parentId);
+        saveSubCollapsed(next);
+        return next;
+      });
+    },
+    [saveSubCollapsed],
   );
 
   const collapseAll = useCallback(() => {
@@ -121,7 +192,6 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
     }
   }, []);
 
-  // Close sort dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
@@ -139,16 +209,17 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
     const startWidth = width;
 
     const handleMouseMove = (ev: MouseEvent) => {
-      const newWidth = Math.max(200, Math.min(600, startWidth + (ev.clientX - startX)));
+      const newWidth = Math.max(220, Math.min(600, startWidth + (ev.clientX - startX)));
       setWidth(newWidth);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (ev: MouseEvent) => {
       setIsResizing(false);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      const finalWidth = Math.max(220, Math.min(600, startWidth + (ev.clientX - startX)));
       try {
-        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(finalWidth));
       } catch {
         /* ignore */
       }
@@ -165,49 +236,31 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
       className="flex flex-col border-r border-gh-border bg-gh-bg-sidebar overflow-hidden shrink-0 relative"
       style={{ width: `${width}px` }}
     >
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto px-1.5 py-2">
         <FolderPanel
           sessions={sessions}
           activeSessionId={activeSessionId}
           onSessionSelect={onSessionSelect}
         />
 
-        {/* SESSIONS header */}
         {sessions.length > 0 && (
-          <div className="flex items-center justify-between px-2 py-1 mt-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-gh-text-secondary">
+          <div className="flex items-center justify-between px-1.5 py-1 mt-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-gh-text-secondary">
               Sessions
             </span>
             <div className="flex items-center gap-0.5">
-              <button
-                type="button"
+              <IconBtn
+                title={allCollapsed ? "Expand all repos" : "Collapse all repos"}
                 onClick={allCollapsed ? expandAll : collapseAll}
-                className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
-                title={allCollapsed ? "Expand all" : "Collapse all"}
               >
-                {allCollapsed ? (
-                  <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-                  </svg>
-                ) : (
-                  <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
-                  </svg>
-                )}
-              </button>
+                {allCollapsed ? <PlusIcon /> : <MinusIcon />}
+              </IconBtn>
               <div className="relative" ref={sortRef}>
-                <button
-                  type="button"
-                  onClick={() => setSortOpen((v) => !v)}
-                  className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
-                  title="Sort sessions"
-                >
-                  <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75ZM4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8Zm2.75 4.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
-                  </svg>
-                </button>
+                <IconBtn title="Sort" onClick={() => setSortOpen((v) => !v)}>
+                  <SortIcon />
+                </IconBtn>
                 {sortOpen && (
-                  <div className="absolute left-0 top-full mt-1 w-24 bg-gh-bg-sidebar border border-gh-border rounded shadow-lg z-20 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
                     {(["recent", "name", "agent"] as SortMode[]).map((mode) => (
                       <button
                         key={mode}
@@ -230,40 +283,32 @@ export function Sidebar({ sessions, activeSessionId, onSessionSelect }: SidebarP
         )}
 
         {tree.length === 0 ? (
-          <div className="text-xs text-gh-text-secondary p-2">No sessions</div>
+          <div className="text-xs text-gh-text-secondary px-2 py-1">No sessions</div>
         ) : (
-          tree.map((node) => (
-            <RepoNode
-              key={node.fullPath}
-              node={node}
-              collapsed={collapsed}
-              onToggleCollapse={toggleCollapse}
-              activeSessionId={activeSessionId}
+          <div className="space-y-0.5">
+            {tree.map((node) => (
+              <RepoNode
+                key={node.fullPath}
+                node={node}
+                collapsed={collapsed}
+                onToggleCollapse={toggleCollapse}
+                activeSessionId={activeSessionId}
               onSessionSelect={onSessionSelect}
-              childrenCollapsed={childrenCollapsed}
-              onToggleChildCollapse={toggleChildCollapse}
+              subCollapsed={subCollapsed}
+              onToggleSubCollapsed={toggleSubCollapsed}
+              newSessionIds={newSessionIds}
             />
-          ))
+            ))}
+          </div>
         )}
       </div>
-      {/* Resize handle */}
       <div
-        className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400/50 transition-colors ${isResizing ? "bg-blue-400/50" : ""}`}
+        className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors ${isResizing ? "bg-accent/50" : ""}`}
         style={{ left: `${width - 2}px`, position: "fixed", height: "100vh", top: 0 }}
         onMouseDown={handleMouseDown}
       />
     </aside>
   );
-}
-
-interface RepoNodeProps {
-  node: TreeNode;
-  collapsed: Set<string>;
-  onToggleCollapse: (path: string) => void;
-  activeSessionId: string | null;
-  onSessionSelect: (sessionId: string) => void;
-  childrenCollapsed: Set<string>;
-  onToggleChildCollapse: (id: string) => void;
 }
 
 function RepoNode({
@@ -272,40 +317,46 @@ function RepoNode({
   onToggleCollapse,
   activeSessionId,
   onSessionSelect,
-  childrenCollapsed,
-  onToggleChildCollapse,
-}: RepoNodeProps) {
+  subCollapsed,
+  onToggleSubCollapsed,
+  newSessionIds,
+}: {
+  node: TreeNode;
+  collapsed: Set<string>;
+  onToggleCollapse: (path: string) => void;
+  activeSessionId: string | null;
+  onSessionSelect: (sessionId: string) => void;
+  subCollapsed: Set<string>;
+  onToggleSubCollapsed: (id: string) => void;
+  newSessionIds: Set<string>;
+}) {
   const isCollapsed = collapsed.has(node.fullPath);
 
   return (
-    <div className="mb-1">
+    <div>
       <button
         type="button"
-        className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-xs font-medium text-gh-text-secondary hover:bg-gh-bg-hover cursor-pointer"
+        className="flex items-center gap-1 w-full px-1.5 py-1 rounded-md text-[11px] font-medium text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text cursor-pointer"
         onClick={() => onToggleCollapse(node.fullPath)}
+        title={node.fullPath}
       >
-        <svg
-          className={`size-3 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M6 4l4 4-4 4" />
-        </svg>
-        <span className="truncate">{node.name}</span>
-        <span className="ml-auto text-[10px] text-gh-text-secondary">{node.children.length}</span>
+        <Chevron open={!isCollapsed} />
+        <span className="truncate flex-1 text-left">{node.name}</span>
+        <span className="text-[10px] tabular-nums opacity-70">{node.children.length}</span>
       </button>
       {!isCollapsed && (
-        <div className="ml-2 border-l border-gh-border">
+        <div className="space-y-px mt-px">
           {node.children.map((child) => (
-            <SessionNode
+            <SessionRow
               key={child.session!.id}
               session={child.session!}
-              isActive={child.session!.id === activeSessionId}
-              onSelect={() => onSessionSelect(child.session!.id)}
               childNodes={child.children}
-              collapsedChildren={childrenCollapsed}
-              onToggleChildren={onToggleChildCollapse}
+              isActive={child.session!.id === activeSessionId}
               activeSessionId={activeSessionId}
+              onSelect={() => onSessionSelect(child.session!.id)}
+              subCollapsed={subCollapsed}
+              onToggleSubCollapsed={onToggleSubCollapsed}
+              newSessionIds={newSessionIds}
             />
           ))}
         </div>
@@ -314,112 +365,179 @@ function RepoNode({
   );
 }
 
-interface SessionNodeProps {
-  session: Session;
-  isActive: boolean;
-  onSelect: () => void;
-  childNodes?: TreeNode[];
-  collapsedChildren?: Set<string>;
-  onToggleChildren?: (id: string) => void;
-  activeSessionId?: string | null;
-}
-
-function SessionNode({
+function SessionRow({
   session,
-  isActive,
-  onSelect,
   childNodes,
-  collapsedChildren,
-  onToggleChildren,
-  activeSessionId: outerActiveId,
-}: SessionNodeProps) {
+  isActive,
+  activeSessionId,
+  onSelect,
+  subCollapsed,
+  onToggleSubCollapsed,
+  newSessionIds,
+}: {
+  session: Session;
+  childNodes: TreeNode[];
+  isActive: boolean;
+  activeSessionId: string | null;
+  onSelect: () => void;
+  subCollapsed: Set<string>;
+  onToggleSubCollapsed: (id: string) => void;
+  newSessionIds: Set<string>;
+}) {
   const { navigateToSession } = useSessionNav();
+  const subCount = childNodes.length;
+  const subsHidden = subCollapsed.has(session.id);
+
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
     e.dataTransfer.effectAllowed = "copy";
   };
 
-  const hasChildren = childNodes && childNodes.length > 0;
-  const isCollapsed = collapsedChildren?.has(session.id);
-
   return (
-    <div>
-      <div className="flex items-center w-full">
-        {hasChildren && (
+    <div className="pl-2">
+      <div className="flex items-stretch min-w-0">
+        {subCount > 0 ? (
           <button
             type="button"
-            className="shrink-0 p-1 text-gh-text-secondary hover:text-gh-text cursor-pointer"
+            className="shrink-0 flex items-center justify-center w-5 text-gh-text-secondary hover:text-gh-text cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
-              onToggleChildren?.(session.id);
+              onToggleSubCollapsed(session.id);
             }}
+            aria-label={subsHidden ? "Show sub-agents" : "Hide sub-agents"}
           >
-            <svg
-              className={`size-3 transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M6 4l4 4-4 4" />
-            </svg>
+            <Chevron open={!subsHidden} className="size-2.5" />
           </button>
+        ) : (
+          <span className="w-5 shrink-0" />
         )}
-        {!hasChildren && <div className="w-5 shrink-0" />}
         <button
           type="button"
           draggable
           onDragStart={handleDragStart}
-          className={`session-draggable flex flex-col gap-0.5 flex-1 min-w-0 px-1 py-1.5 text-left rounded-sm cursor-pointer transition-colors ${
-            isActive
-              ? "bg-gh-bg-active text-gh-text"
-              : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
-          }`}
           onClick={onSelect}
-          title={session.directory}
+          title={session.directory || session.repository}
+          className={`session-draggable sess-parent-session flex-1 min-w-0 text-left transition-all ${
+            isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+          }`}
         >
-          <div className="flex items-center gap-1.5 w-full">
-            <AgentBadge agent={session.agent} subAgent={session.subAgent} />
-            <span className="text-xs truncate flex-1">
-              {session.title || session.id.slice(0, 12)}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <SessionStatusDot isNew={newSessionIds.has(session.id)} />
+            <span
+              className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
+            >
+              {sessionTitle(session)}
+            </span>
+            {subCount > 0 && subsHidden && (
+              <span className="shrink-0 text-[10px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
+                {subCount}
+              </span>
+            )}
+            <span className="shrink-0 text-[10px] text-gh-text-secondary tabular-nums">
+              {relativeTime(session.updatedAt)}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-gh-text-secondary pl-5">
-            <span>{relativeTime(session.updatedAt)}</span>
-            {session.model && (
-              <span className="truncate max-w-[80px]">{shortModel(session.model)}</span>
-            )}
-            {session.subAgent && <span className="text-[9px] uppercase">{session.subAgent}</span>}
-            {session.cost > 0 && <span>{formatCost(session.cost)}</span>}
-          </div>
+          {sessionMetaParts(session).length > 0 && (
+            <p className="sess-parent-session-meta truncate mt-0.5 pl-[0.875rem]">
+              {sessionMetaParts(session).join(" · ")}
+            </p>
+          )}
         </button>
       </div>
-      {hasChildren && !isCollapsed && (
-        <div className="ml-4 border-l border-gh-border">
-          {childNodes!.map((child) => (
-            <SessionNode
-              key={child.session!.id}
-              session={child.session!}
-              isActive={child.session!.id === outerActiveId}
-              onSelect={() => navigateToSession(child.session!.id)}
-            />
-          ))}
+      {subCount > 0 && !subsHidden && (
+        <div className="ml-5 mt-px mb-1 space-y-px border-l border-gh-border/60">
+          {childNodes.map((child) => {
+            const sub = child.session!;
+            const subActive = sub.id === activeSessionId;
+            return (
+              <button
+                key={sub.id}
+                type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", sub.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+                onClick={() => navigateToSession(sub.id)}
+                title={sub.directory || sub.title}
+                className={`session-draggable w-full flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
+                  subActive
+                    ? "sess-session-active"
+                    : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                }`}
+              >
+                <span className="text-[10px] text-accent/80 shrink-0">↳</span>
+                <span className="text-[11px] truncate flex-1">
+                  {sub.subAgent ? (
+                    <span className="text-gh-text-secondary">{sub.subAgent}: </span>
+                  ) : null}
+                  {sessionTitle(sub)}
+                </span>
+                <span className="text-[10px] opacity-60 tabular-nums shrink-0">
+                  {relativeTime(sub.updatedAt)}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function AgentBadge({ agent, subAgent }: { agent: string; subAgent?: string }) {
-  const colors: Record<string, string> = {
-    opencode: "bg-purple-500/20 text-purple-400",
-    copilot: "bg-blue-500/20 text-blue-400",
-  };
-  const cls = colors[agent] || "bg-gray-500/20 text-gray-400";
+function Chevron({ open, className = "size-3" }: { open: boolean; className?: string }) {
   return (
-    <span
-      className={`text-[9px] font-bold uppercase px-1 py-0.5 rounded ${cls}`}
-      title={subAgent || agent}
+    <svg
+      className={`${className} shrink-0 transition-transform text-gh-text-secondary ${open ? "rotate-90" : ""}`}
+      viewBox="0 0 16 16"
+      fill="currentColor"
     >
-      {agent === "opencode" ? "OC" : agent === "copilot" ? "CP" : agent.slice(0, 2)}
-    </span>
+      <path d="M6 4l4 4-4 4" />
+    </svg>
+  );
+}
+
+function IconBtn({
+  children,
+  onClick,
+  title,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
+    >
+      {children}
+    </button>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+    </svg>
+  );
+}
+
+function MinusIcon() {
+  return (
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
+    </svg>
+  );
+}
+
+function SortIcon() {
+  return (
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75ZM4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8Zm2.75 4.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
+    </svg>
   );
 }
