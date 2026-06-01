@@ -9,6 +9,7 @@ import {
   assignSessionToFolder,
   unassignSessionFromFolder,
 } from "../hooks/useApi";
+import { sessionTitle, sessionMetaParts, SessionStatusDot, relativeTime } from "../utils/sessionUtils";
 
 interface FolderPanelProps {
   sessions: Session[];
@@ -408,26 +409,38 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
   };
 
   return (
-    <div
-      className="flex items-center group/item"
-      draggable
-      onDragStart={handleDragStart}
-    >
+    <div className="group/item relative">
       <button
         type="button"
-        className={`session-draggable flex-1 text-left px-2 py-1 text-xs truncate cursor-pointer transition-colors ${
-          isActive
-            ? "text-gh-text bg-gh-bg-active"
-            : "text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover"
-        }`}
+        draggable
+        onDragStart={handleDragStart}
         onClick={onSelect}
+        title={session.directory || session.repository}
+        className={`session-draggable sess-parent-session w-full text-left transition-all ${
+          isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+        }`}
       >
-        {session.title || session.id.slice(0, 12)}
+        <div className="flex items-center gap-1.5 min-w-0 pr-6">
+          <SessionStatusDot isNew={false} />
+          <span
+            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
+          >
+            {sessionTitle(session)}
+          </span>
+          <span className="shrink-0 text-[10px] text-gh-text-secondary tabular-nums">
+            {relativeTime(session.updatedAt)}
+          </span>
+        </div>
+        {sessionMetaParts(session).length > 0 && (
+          <p className="sess-parent-session-meta truncate mt-0.5 pr-6">
+            {sessionMetaParts(session).join(" · ")}
+          </p>
+        )}
       </button>
       <button
         type="button"
-        className="hidden group-hover/item:block text-gh-text-secondary hover:text-red-400 cursor-pointer p-1"
-        onClick={onRemove}
+        className="hidden group-hover/item:block absolute right-1 top-1/2 -translate-y-1/2 text-gh-text-secondary hover:text-red-400 cursor-pointer p-0.5"
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
         title="Remove from folder"
       >
         <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">

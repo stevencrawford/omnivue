@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "../hooks/useApi";
-import { buildTree, relativeTime } from "../utils/buildTree";
+import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
+import { sessionTitle, sessionMetaParts, SessionStatusDot, relativeTime } from "../utils/sessionUtils";
 import { FolderPanel } from "./FolderPanel";
 import { useSessionNav } from "../hooks/useNav";
 
@@ -13,6 +14,7 @@ interface SidebarProps {
 }
 
 const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
+const FOLDER_HEIGHT_KEY = "sess-sidebar-folder-height";
 const COLLAPSED_KEY = "sess-sidebar-collapsed";
 const SORT_KEY = "sess-sidebar-sort";
 
@@ -52,54 +54,6 @@ const SORT_LABELS: Record<SortMode, string> = {
   agent: "Agent",
 };
 
-function sessionTitle(session: Session): string {
-  const t = session.title?.trim();
-  if (t) return t;
-  return session.id.slice(0, 10);
-}
-
-function shortDir(directory: string): string {
-  if (!directory) return "";
-  const parts = directory.replace(/\\/g, "/").replace(/\/$/, "").split("/").filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1]! : directory;
-}
-
-function shortModel(model: string): string {
-  if (!model) return "";
-  return model
-    .replace("anthropic/", "")
-    .replace("openai/", "")
-    .replace("github-copilot/", "")
-    .replace("claude-", "")
-    .replace("gpt-", "");
-}
-
-function agentLabel(agent: string): string {
-  if (agent === "opencode") return "OpenCode";
-  if (agent === "copilot") return "Copilot";
-  return agent;
-}
-
-function sessionMetaParts(session: Session): string[] {
-  const parts: string[] = [];
-  if (session.agent) parts.push(agentLabel(session.agent));
-  const dir = shortDir(session.directory);
-  if (dir) parts.push(dir);
-  if (session.branch) parts.push(session.branch);
-  const model = shortModel(session.model);
-  if (model) parts.push(model);
-  return parts;
-}
-
-function SessionStatusDot({ isNew }: { isNew: boolean }) {
-  return (
-    <span
-      className={`sess-session-dot ${isNew ? "sess-session-dot--new" : "sess-session-dot--seen"}`}
-      title={isNew ? "New or updated" : "Viewed"}
-    />
-  );
-}
-
 export function Sidebar({
   sessions,
   activeSessionId,
@@ -107,6 +61,16 @@ export function Sidebar({
   newSessionIds,
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
+  const [folderHeight, setFolderHeight] = useState(() => {
+    try {
+      const stored = localStorage.getItem(FOLDER_HEIGHT_KEY);
+      if (stored) return Math.max(80, Math.min(600, Number(stored)));
+    } catch {
+      // localStorage may be unavailable
+    }
+    return 200;
+  });
+  const [isFolderResizing, setIsFolderResizing] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
   const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
   const [isResizing, setIsResizing] = useState(false);
@@ -201,20 +165,61 @@ export function Sidebar({
 
   const allCollapsed = tree.length > 0 && tree.every((n) => collapsed.has(n.fullPath));
 
+  const handleFolderResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsFolderResizing(true);
+    const startY = e.clientY;
+    const startHeight = folderHeight;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const newHeight = Math.max(80, Math.min(600, startHeight + (ev.clientY - startY)));
+      setFolderHeight(newHeight);
+    };
+
+    const handleMouseUp = (ev: MouseEvent) => {
+      setIsFolderResizing(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      const finalHeight = Math.max(80, Math.min(600, startHeight + (ev.clientY - startY)));
+      try {
+        localStorage.setItem(FOLDER_HEIGHT_KEY, String(finalHeight));
+      } catch {
+        // localStorage may be unavailable
+      }
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
   return (
     <aside
       className="flex flex-col border-r border-gh-border bg-gh-bg-sidebar overflow-hidden shrink-0 relative"
       style={{ width: `${width}px` }}
     >
-      <div className="flex-1 overflow-y-auto px-1.5 py-2">
+      <div
+        className="overflow-y-auto shrink-0 px-1.5 py-2"
+        style={{ height: folderHeight }}
+      >
         <FolderPanel
           sessions={sessions}
           activeSessionId={activeSessionId}
           onSessionSelect={onSessionSelect}
         />
+      </div>
 
+      <div
+        className={`shrink-0 h-1.5 cursor-row-resize flex items-center justify-center hover:bg-accent/30 transition-colors ${
+          isFolderResizing ? "bg-accent/40" : ""
+        }`}
+        onMouseDown={handleFolderResizeStart}
+      >
+        <div className="w-6 h-0.5 rounded-full bg-gh-border" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-1.5 py-2">
         {sessions.length > 0 && (
-          <div className="flex items-center justify-between px-1.5 py-1 mt-0.5">
+          <div className="flex items-center justify-between px-1.5 py-1">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-gh-text-secondary">
               Sessions
             </span>
@@ -407,7 +412,7 @@ function SessionRow({
         )}
       </button>
       {subCount > 0 && subsVisible && (
-        <div className="ml-5 mt-px mb-1 space-y-px border-l border-gh-border/60">
+        <div className="ml-2 mt-px mb-1 space-y-px border-l border-gh-border/60">
           {childNodes.map((child) => {
             const session = child.session;
             if (!session) return null;
@@ -423,11 +428,11 @@ function SessionRow({
                 }}
                 onClick={() => navigateToSession(session.id)}
                 title={session.directory || session.title}
-                className={`session-draggable w-full flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-                  subActive
-                    ? "sess-session-active"
-                    : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
-                }`}
+className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
+  subActive
+    ? "sess-session-active"
+    : "hover:bg-gh-bg-hover"
+}`}
               >
                 <span className="text-[10px] text-accent/80 shrink-0">↳</span>
                 <span className="text-[11px] truncate flex-1">
