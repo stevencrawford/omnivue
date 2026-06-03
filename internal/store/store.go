@@ -519,8 +519,28 @@ func (s *Store) migrate() error {
 		);
 	`)
 
-	// Migration: add updated_at column to search_index for existing databases
-	s.db.Exec(`ALTER TABLE search_index ADD COLUMN updated_at TEXT`)
+	// Migration: ensure updated_at column exists on search_index.
+	// FTS5 ALTER TABLE ADD COLUMN may fail on some platforms, so we
+	// test the column and drop/recreate the table if needed.
+	_, probeErr := s.db.Exec(`SELECT updated_at FROM search_index LIMIT 0`)
+	if probeErr != nil {
+		s.db.Exec(`DROP TABLE IF EXISTS search_index`)
+		s.db.Exec(`DROP TABLE IF EXISTS index_state`)
+		s.db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+			content,
+			session_id UNINDEXED,
+			source_id UNINDEXED,
+			chunk_type UNINDEXED,
+			repository UNINDEXED,
+			updated_at UNINDEXED
+		)`)
+		s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
+			session_id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			last_indexed_at TEXT NOT NULL,
+			content_hash TEXT
+		)`)
+	}
 
 	return err
 }
