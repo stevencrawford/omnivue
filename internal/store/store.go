@@ -378,10 +378,15 @@ func (s *Store) ClearSessionIndex(sessionID string) error {
 
 // IndexSession indexes a session's content for full-text search.
 func (s *Store) IndexSession(sessionID, sourceID, chunkType, repository, content string) error {
+	return s.IndexSessionAt(sessionID, sourceID, chunkType, repository, content, "")
+}
+
+// IndexSessionAt indexes session content with an explicit last-updated timestamp.
+func (s *Store) IndexSessionAt(sessionID, sourceID, chunkType, repository, content, updatedAt string) error {
 	_, err := s.db.Exec(`
-		INSERT INTO search_index (content, session_id, source_id, chunk_type, repository)
-		VALUES (?, ?, ?, ?, ?)
-	`, content, sessionID, sourceID, chunkType, repository)
+		INSERT INTO search_index (content, session_id, source_id, chunk_type, repository, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, content, sessionID, sourceID, chunkType, repository, updatedAt)
 	return err
 }
 
@@ -411,7 +416,7 @@ func (s *Store) Search(query string, limit int) ([]SearchResult, error) {
 		limit = 50
 	}
 	rows, err := s.db.Query(`
-		SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64)
+		SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, '')
 		FROM search_index
 		WHERE search_index MATCH ?
 		ORDER BY
@@ -432,7 +437,7 @@ func (s *Store) Search(query string, limit int) ([]SearchResult, error) {
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.ChunkType, &r.Repository, &r.Snippet); err != nil {
+		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.ChunkType, &r.Repository, &r.Snippet, &r.UpdatedAt); err != nil {
 			continue
 		}
 		results = append(results, r)
@@ -447,6 +452,7 @@ type SearchResult struct {
 	ChunkType  string `json:"chunkType"`
 	Repository string `json:"repository"`
 	Snippet    string `json:"snippet"`
+	UpdatedAt  string `json:"updatedAt"`
 }
 
 // migrate runs database migrations.
@@ -486,7 +492,8 @@ func (s *Store) migrate() error {
 			session_id UNINDEXED,
 			source_id UNINDEXED,
 			chunk_type UNINDEXED,
-			repository UNINDEXED
+			repository UNINDEXED,
+			updated_at UNINDEXED
 		);
 
 		CREATE TABLE IF NOT EXISTS index_state (
@@ -511,5 +518,9 @@ func (s *Store) migrate() error {
 			updated_at TEXT NOT NULL
 		);
 	`)
+
+	// Migration: add updated_at column to search_index for existing databases
+	s.db.Exec(`ALTER TABLE search_index ADD COLUMN updated_at TEXT`)
+
 	return err
 }

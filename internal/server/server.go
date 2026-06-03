@@ -268,20 +268,22 @@ func (s *State) indexSessions(ctx context.Context) {
 			continue
 		}
 
+		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
+
 		// Index name chunk
-		if err := s.store.IndexSession(sess.ID, sess.SourceID, "name", sess.Repository, nameContent); err != nil {
+		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt); err != nil {
 			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
 		}
 
 		// Index plan chunk
 		if planContent != "" {
-			if err := s.store.IndexSession(sess.ID, sess.SourceID, "plan", sess.Repository, planContent); err != nil {
+			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt); err != nil {
 				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
 			}
 		}
 
 		// Index messages chunk
-		if err := s.store.IndexSession(sess.ID, sess.SourceID, "messages", sess.Repository, messagesContent); err != nil {
+		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "messages", sess.Repository, messagesContent, updatedAt); err != nil {
 			slog.Warn("failed to index session messages", "session", sess.ID, "error", err)
 		}
 

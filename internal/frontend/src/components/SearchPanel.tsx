@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SearchResult } from "../hooks/useApi";
 import { fetchSearch } from "../hooks/useApi";
+import { relativeTime } from "../utils/sessionUtils";
 
 interface SearchPanelProps {
   onSelectSession: (sessionId: string) => void;
@@ -190,11 +191,18 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                         }`}
                         onClick={() => onSelectSession(r.sessionId)}
                       >
-                        {r.repository && (
-                          <div className="text-[10px] font-mono text-gh-text-secondary truncate mb-1">
-                            {r.repository}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 mb-1">
+                          {r.repository && (
+                            <span className="text-[10px] font-mono text-gh-text-secondary truncate">
+                              {r.repository}
+                            </span>
+                          )}
+                          {r.updatedAt && (
+                            <span className="text-[10px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
+                              {relativeTime(r.updatedAt)}
+                            </span>
+                          )}
+                        </div>
                         <div
                           className="text-xs text-gh-text line-clamp-2 search-result"
                           dangerouslySetInnerHTML={{ __html: sanitizeSnippet(r.snippet) }}

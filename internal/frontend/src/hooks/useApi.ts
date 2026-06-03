@@ -92,6 +92,7 @@ export interface SearchResult {
   chunkType: string;
   repository: string;
   snippet: string;
+  updatedAt?: string;
 }
 
 export interface Folder {
