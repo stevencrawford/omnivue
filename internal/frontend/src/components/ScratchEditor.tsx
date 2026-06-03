@@ -11,13 +11,7 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
-import type { ScratchFile } from "../hooks/useApi";
-import {
-  fetchScratchFiles,
-  createScratchFile,
-  updateScratchFile,
-  deleteScratchFile,
-} from "../hooks/useApi";
+import { getScratchFile, updateScratchFile, deleteScratchFile } from "../hooks/useApi";
 
 marked.use({ gfm: true, breaks: true });
 const lowlight = createLowlight(common);
@@ -82,13 +76,12 @@ function estimateTokens(text: string): number {
 
 interface ScratchEditorProps {
   sessionId: string;
-  selectedFileId?: string | null;
-  onNewFile?: (file: ScratchFile) => void;
+  fileId: string;
+  onDelete?: () => void;
+  onTitleChange?: (title: string) => void;
 }
 
-export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchEditorProps) {
-  const [files, setFiles] = useState<ScratchFile[]>([]);
-  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: ScratchEditorProps) {
   const [title, setTitle] = useState("");
   const [sourceContent, setSourceContent] = useState("");
   const [loading, setLoading] = useState(true);
@@ -101,40 +94,24 @@ export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchE
   const lastSavedTitleRef = useRef("");
   const isUpdatingRef = useRef(false);
 
-  const loadFiles = useCallback(async () => {
+  const loadFile = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await fetchScratchFiles(sessionId);
-      setFiles(data);
+      const f = await getScratchFile(sessionId, fileId);
+      setTitle(f.title);
+      setSourceContent(f.content);
+      lastSavedMarkdownRef.current = f.content;
+      lastSavedTitleRef.current = f.title;
     } catch {
-      setFiles([]);
+      /* ignore */
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, fileId]);
 
   useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
-
-  // Handle external selection via prop
-  useEffect(() => {
-    if (selectedFileId && selectedFileId !== activeFileId) {
-      const f = files.find((file) => file.id === selectedFileId);
-      if (f) selectFile(f.id);
-    }
-  }, [selectedFileId, files]);
-
-  // Update file list when a new file is created externally
-  useEffect(() => {
-    if (files.length > 0 && !activeFileId) {
-      selectFile(files[0].id);
-    }
-  }, [files.length]);
-
-  const activeFile = useMemo(
-    () => files.find((f) => f.id === activeFileId) || null,
-    [files, activeFileId],
-  );
+    loadFile();
+  }, [loadFile]);
 
   const editor = useEditor({
     extensions: [
@@ -192,53 +169,44 @@ export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchE
     };
   }, [editor]);
 
-  // Load content into editor when switching files
+  // Load content into editor when file changes
   useEffect(() => {
-    if (!editor || !activeFile) return;
+    if (!editor || loading) return;
     isUpdatingRef.current = true;
-    const html = marked.parse(activeFile.content) as string;
+    const html = marked.parse(sourceContent) as string;
     editor.commands.setContent(html);
-    setSourceContent(activeFile.content);
-    lastSavedMarkdownRef.current = activeFile.content;
     isUpdatingRef.current = false;
-  }, [activeFile?.id, editor]);
+  }, [fileId, editor, loading]);
 
-  // Auto-save
+  // Auto-save WYSIWYG mode
   useEffect(() => {
-    if (!activeFileId || !editor || editorMode !== "wysiwyg") return;
+    if (!fileId || !editor || editorMode !== "wysiwyg") return;
     const md = turndownService.turndown(editor.getHTML());
     if (md === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
-      doSave(activeFileId, title, md);
+      doSave(fileId, title, md);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [editor?.getHTML(), title, activeFileId, editorMode]);
+  }, [editor?.getHTML(), title, fileId, editorMode]);
 
-  // Auto-save for source mode
+  // Auto-save source mode
   useEffect(() => {
-    if (!activeFileId || editorMode !== "source") return;
+    if (!fileId || editorMode !== "source") return;
     if (sourceContent === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
-      doSave(activeFileId, title, sourceContent);
+      doSave(fileId, title, sourceContent);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [sourceContent, title, activeFileId, editorMode]);
+  }, [sourceContent, title, fileId, editorMode]);
 
   const doSave = useCallback(
-    async (fileId: string, newTitle: string, md: string) => {
+    async (fid: string, newTitle: string, md: string) => {
       setSaveStatus("saving");
       try {
-        await updateScratchFile(sessionId, fileId, newTitle, md);
+        await updateScratchFile(sessionId, fid, newTitle, md);
         setSaveStatus("saved");
         lastSavedMarkdownRef.current = md;
         lastSavedTitleRef.current = newTitle;
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileId
-              ? { ...f, title: newTitle, content: md, updatedAt: new Date().toISOString() }
-              : f,
-          ),
-        );
       } catch {
         setSaveStatus("error");
       }
@@ -246,59 +214,28 @@ export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchE
     [sessionId],
   );
 
-  const selectFile = (id: string) => {
-    setActiveFileId(id);
-    const f = files.find((f) => f.id === id);
-    if (f) {
-      setTitle(f.title);
-      setSourceContent(f.content);
-      lastSavedMarkdownRef.current = f.content;
-      lastSavedTitleRef.current = f.title;
-      setSaveStatus("idle");
-    }
-  };
-
-  const handleCreate = async () => {
-    try {
-      const f = await createScratchFile(sessionId, "Untitled", "# Untitled");
-      setFiles((prev) => [f, ...prev]);
-      selectFile(f.id);
-      onNewFile?.(f);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!activeFileId) return;
-    try {
-      await deleteScratchFile(sessionId, activeFileId);
-      const next = files.filter((f) => f.id !== activeFileId);
-      setFiles(next);
-      if (next.length > 0) {
-        selectFile(next[0].id);
-      } else {
-        setActiveFileId(null);
-        setTitle("");
-        setSourceContent("");
-      }
-    } catch {
-      /* ignore */
-    }
-  };
-
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
+    onTitleChange?.(newTitle);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if (activeFileId && newTitle !== lastSavedTitleRef.current) {
+      if (fileId && newTitle !== lastSavedTitleRef.current) {
         const md =
           editorMode === "wysiwyg" && editor
             ? turndownService.turndown(editor.getHTML())
             : sourceContent;
-        doSave(activeFileId, newTitle, md);
+        doSave(fileId, newTitle, md);
       }
     }, DEBOUNCE_MS);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteScratchFile(sessionId, fileId);
+      onDelete?.();
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleToolbarAction = (action: string) => {
@@ -369,10 +306,35 @@ export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchE
     return { chars, words, lines, tokens };
   }, [currentContent]);
 
-  const editorContent = (
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-xs text-gh-text-secondary">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
     <div
-      className={`flex flex-col overflow-hidden ${isFullscreen ? "fixed inset-0 z-50 bg-gh-bg p-4" : "flex-1"}`}
+      className={`flex flex-col flex-1 overflow-hidden ${isFullscreen ? "fixed inset-0 z-50 bg-gh-bg" : ""}`}
     >
+      {/* Title bar */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gh-border shrink-0">
+        <svg
+          className="size-3.5 text-gh-text-secondary shrink-0"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5Z" />
+        </svg>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => handleTitleChange(e.target.value)}
+          className="flex-1 bg-transparent text-xs font-semibold text-gh-text outline-none min-w-0"
+        />
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between px-2 py-1 border-b border-gh-border shrink-0 bg-gh-bg-secondary/50">
         <div className="flex items-center gap-0.5">
@@ -508,7 +470,7 @@ export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchE
             options={monacoEditorOptions}
           />
         ) : (
-          <div className="h-full overflow-y-auto px-4 py-2">
+          <div className="h-full overflow-y-auto px-4 py-2 markdown-ayu">
             <EditorContent editor={editor} />
           </div>
         )}
@@ -533,94 +495,6 @@ export function ScratchEditor({ sessionId, selectedFileId, onNewFile }: ScratchE
           {saveStatus === "error" && <span className="text-red-500">Save failed</span>}
         </div>
       </div>
-    </div>
-  );
-
-  return (
-    <div className="flex-1 flex overflow-hidden">
-      {/* File list sidebar */}
-      <div className="w-44 shrink-0 border-r border-gh-border flex flex-col bg-gh-bg-sidebar">
-        <div className="flex items-center justify-between px-2 py-1.5 border-b border-gh-border">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-gh-text-secondary">
-            Scratch
-          </span>
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
-            title="New scratch file"
-          >
-            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-            </svg>
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {files.length === 0 && !loading && (
-            <div className="text-[11px] text-gh-text-secondary text-center px-2 py-4">
-              No scratch files
-            </div>
-          )}
-          {files.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className={`w-full text-left px-2 py-1.5 text-[11px] border-b border-gh-border cursor-pointer transition-colors ${
-                f.id === activeFileId
-                  ? "bg-accent-muted text-gh-text"
-                  : "hover:bg-gh-bg-hover text-gh-text-secondary"
-              }`}
-              onClick={() => selectFile(f.id)}
-            >
-              <div className="truncate font-medium">{f.title}</div>
-              <div className="text-[10px] opacity-60 truncate">
-                {new Date(f.updatedAt).toLocaleDateString()}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Editor area */}
-      {activeFile ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Title bar */}
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gh-border shrink-0">
-            <svg
-              className="size-3.5 text-gh-text-secondary shrink-0"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5Z" />
-            </svg>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              className="flex-1 bg-transparent text-xs font-semibold text-gh-text outline-none min-w-0"
-            />
-          </div>
-          {editorContent}
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="sess-empty-icon mx-auto mb-2">
-              <svg className="size-5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5Z" />
-              </svg>
-            </div>
-            <p className="text-xs text-gh-text-secondary">No scratch file selected</p>
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="mt-2 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
-            >
-              Create one
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

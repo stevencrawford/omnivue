@@ -20,7 +20,7 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("session");
   const [scratchFiles, setScratchFiles] = useState<ScratchFile[]>([]);
-  const [selectedScratchFileId, setSelectedScratchFileId] = useState<string | null>(null);
+  const [openScratchTabs, setOpenScratchTabs] = useState<string[]>([]);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
   const scrollPositions = useRef(new Map<string, number>());
 
@@ -67,16 +67,13 @@ export function App() {
         return;
       }
 
-      // Search takes precedence over other shortcuts when open
       if (searchOpen) return;
 
-      // Tab switching: Cmd/Ctrl+1-4
       if ((e.metaKey || e.ctrlKey) && !isInput) {
         const tabMap: Record<string, Tab> = {
           "1": "session",
           "2": "plan",
           "3": "diff",
-          "4": "scratch",
         };
         const tab = tabMap[e.key];
         if (tab) {
@@ -86,7 +83,6 @@ export function App() {
         }
       }
 
-      // Session navigation: j/k (global, but scoped away from inputs)
       if (!isInput && !e.metaKey && !e.ctrlKey) {
         if (e.key === "j" || e.key === "ArrowDown") {
           e.preventDefault();
@@ -137,6 +133,14 @@ export function App() {
     if (activeSession) markSessionSeen(activeSession);
   }, [activeSession, markSessionSeen]);
 
+  const scratchFileMap = useMemo(() => {
+    const map: Record<string, { title: string }> = {};
+    for (const f of scratchFiles) {
+      map[f.id] = { title: f.title };
+    }
+    return map;
+  }, [scratchFiles]);
+
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
@@ -158,17 +162,32 @@ export function App() {
     try {
       const f = await createScratchFile(activeSessionId, "Untitled", "# Untitled");
       setScratchFiles((prev) => [f, ...prev]);
-      setSelectedScratchFileId(f.id);
-      setActiveTab("scratch");
+      setOpenScratchTabs((prev) => [...prev, f.id]);
+      setActiveTab(`scratch:${f.id}`);
     } catch {
       /* ignore */
     }
   }, [activeSessionId]);
 
+  const handleCloseScratchTab = useCallback(
+    (fileId: string) => {
+      setOpenScratchTabs((prev) => {
+        const next = prev.filter((id) => id !== fileId);
+        return next;
+      });
+      const tab: Tab = `scratch:${fileId}`;
+      if (activeTab === tab && activeSession) {
+        setActiveTab("session");
+      }
+      setScratchFiles((prev) => prev.filter((f) => f.id !== fileId));
+    },
+    [activeTab, activeSession],
+  );
+
   const handleOpenScratchFile = useCallback((sessionId: string, fileId: string) => {
     setActiveSessionId(sessionId);
-    setSelectedScratchFileId(fileId);
-    setActiveTab("scratch");
+    setOpenScratchTabs((prev) => (prev.includes(fileId) ? prev : [...prev, fileId]));
+    setActiveTab(`scratch:${fileId}`);
   }, []);
 
   const handleSearchSelect = useCallback(
@@ -270,7 +289,9 @@ export function App() {
                   liveChangedIds={liveChangedIds}
                   activeTab={activeTab}
                   onTabChange={setActiveTab}
-                  selectedScratchFileId={selectedScratchFileId}
+                  openScratchTabs={openScratchTabs}
+                  scratchFileMap={scratchFileMap}
+                  onCloseScratchTab={handleCloseScratchTab}
                   onNewScratchFile={handleNewScratchFile}
                 />
               </ErrorBoundary>

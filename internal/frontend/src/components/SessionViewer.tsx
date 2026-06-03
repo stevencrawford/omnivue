@@ -33,19 +33,22 @@ function groupMessages(messages: Message[]): Message[] {
   return result;
 }
 
-export type Tab = "session" | "plan" | "diff" | "scratch";
+export type Tab = "session" | "plan" | "diff" | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
   liveChangedIds: Set<string>;
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
-  selectedScratchFileId?: string | null;
+  openScratchTabs: string[];
+  scratchFileMap: Record<string, { title: string }>;
+  onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
 }
 
-const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
-  session: {
+const MAIN_TABS: { tab: "session" | "plan" | "diff"; label: string; icon: ReactNode }[] = [
+  {
+    tab: "session",
     label: "Session",
     icon: (
       <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
@@ -53,7 +56,8 @@ const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
       </svg>
     ),
   },
-  plan: {
+  {
+    tab: "plan",
     label: "Plan",
     icon: (
       <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
@@ -61,7 +65,8 @@ const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
       </svg>
     ),
   },
-  diff: {
+  {
+    tab: "diff",
     label: "Diff",
     icon: (
       <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
@@ -69,22 +74,16 @@ const TAB_META: Record<Tab, { label: string; icon: ReactNode }> = {
       </svg>
     ),
   },
-  scratch: {
-    label: "Scratch",
-    icon: (
-      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5ZM6 7.5a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5A.75.75 0 0 1 6 7.5Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 6 10.5Z" />
-      </svg>
-    ),
-  },
-};
+];
 
 export function SessionViewer({
   session,
   liveChangedIds,
   activeTab: activeTabProp,
   onTabChange,
-  selectedScratchFileId,
+  openScratchTabs,
+  scratchFileMap,
+  onCloseScratchTab,
   onNewScratchFile,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
@@ -129,47 +128,107 @@ export function SessionViewer({
     return { user, assistant, total: messages.length };
   }, [messages]);
 
-  const availableTabs: Tab[] = useMemo(() => {
-    const tabs: Tab[] = ["session", "plan"];
-    if (!session.parentId) {
-      tabs.push("diff", "scratch");
-    }
-    return tabs;
-  }, [session.parentId]);
-
+  // Fallback: if active tab refers to a scratch file no longer open, go to session
   useEffect(() => {
-    if (activeTab !== "session" && !availableTabs.includes(activeTab)) {
+    if (activeTab.startsWith("scratch:") && !openScratchTabs.includes(activeTab.slice(8))) {
       setActiveTab("session");
     }
-  }, [activeTab, availableTabs]);
+  }, [activeTab, openScratchTabs]);
+
+  // Tab helper: get tab icon
+  const tabIcon = (tab: Tab): ReactNode => {
+    if (tab === "session")
+      return (
+        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
+        </svg>
+      );
+    if (tab === "plan")
+      return (
+        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5ZM5 5.75A.75.75 0 0 1 5.75 5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.75Z" />
+        </svg>
+      );
+    if (tab === "diff")
+      return (
+        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
+        </svg>
+      );
+    if (tab.startsWith("scratch:"))
+      return (
+        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5Z" />
+        </svg>
+      );
+    return null;
+  };
+
+  const scratchTabLabel = (fileId: string): string => {
+    const info = scratchFileMap[fileId];
+    return info?.title || "Untitled";
+  };
+
+  const isScratchTab = (tab: Tab): tab is `scratch:${string}` => tab.startsWith("scratch:");
+  const scratchFileIdFromTab = (tab: Tab): string | null =>
+    isScratchTab(tab) ? tab.slice(8) : null;
 
   return (
     <div className="flex flex-col h-full">
       <SessionHeader session={session} />
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-gh-border shrink-0">
-        {availableTabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={`sess-tab-pill ${activeTab === tab ? "sess-tab-pill--active" : ""}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {TAB_META[tab].icon}
-            {TAB_META[tab].label}
-            {tab === "session" && messageCount.total > 0 && (
-              <span className="text-[10px] opacity-70 tabular-nums">{messageCount.total}</span>
-            )}
-          </button>
-        ))}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-gh-border shrink-0 overflow-x-auto">
+        {MAIN_TABS.map(
+          (meta) =>
+            (meta.tab !== "diff" || !session.parentId) && (
+              <button
+                key={meta.tab}
+                type="button"
+                className={`sess-tab-pill shrink-0 ${activeTab === meta.tab ? "sess-tab-pill--active" : ""}`}
+                onClick={() => setActiveTab(meta.tab)}
+              >
+                {meta.icon}
+                {meta.label}
+                {meta.tab === "session" && messageCount.total > 0 && (
+                  <span className="text-[10px] opacity-70 tabular-nums">{messageCount.total}</span>
+                )}
+              </button>
+            ),
+        )}
+        {openScratchTabs.map((fid) => {
+          const tab: Tab = `scratch:${fid}`;
+          return (
+            <button
+              key={fid}
+              type="button"
+              className={`sess-tab-pill shrink-0 ${activeTab === tab ? "sess-tab-pill--active" : ""}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tabIcon(tab)}
+              <span className="truncate max-w-28">{scratchTabLabel(fid)}</span>
+              <span
+                role="button"
+                className="ml-1 text-gh-text-secondary hover:text-gh-text cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseScratchTab(fid);
+                }}
+              >
+                <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+                </svg>
+              </span>
+            </button>
+          );
+        })}
         {!session.parentId && (
           <>
-            <div className="w-px h-4 bg-gh-border mx-1" />
+            <div className="w-px h-4 bg-gh-border mx-1 shrink-0" />
             <button
               type="button"
               onClick={onNewScratchFile}
-              className="sess-tab-pill text-gh-text-secondary hover:text-gh-text"
+              className="sess-tab-pill text-gh-text-secondary hover:text-gh-text shrink-0"
               title="New scratch file"
             >
               <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
@@ -190,9 +249,21 @@ export function SessionViewer({
           <DiffView sessionId={session.id} />
         </div>
       )}
-      {activeTab === "scratch" && (
-        <ScratchEditor sessionId={session.id} selectedFileId={selectedScratchFileId} />
-      )}
+      {isScratchTab(activeTab) &&
+        (() => {
+          const fid = scratchFileIdFromTab(activeTab)!;
+          return (
+            <ScratchEditor
+              key={fid}
+              sessionId={session.id}
+              fileId={fid}
+              onDelete={() => onCloseScratchTab(fid)}
+              onTitleChange={(_newTitle) => {
+                // Title changes reflected via scratchFileMap passed from parent
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }
@@ -280,16 +351,18 @@ function SessionHeader({ session }: { session: Session }) {
             <h2 className="text-sm font-semibold text-gh-text truncate">
               {displayTitle || session.id}
             </h2>
-            <button
-              type="button"
-              onClick={startEdit}
-              className="shrink-0 text-gh-text-secondary hover:text-accent cursor-pointer p-0.5 rounded transition-colors"
-              title="Rename session"
-            >
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L3.745 8.815a.25.25 0 0 0-.063.109l-.579 2.027 2.027-.579a.25.25 0 0 0 .109-.063l8.273-8.273a.25.25 0 0 0 0-.354l-1.086-1.086Z" />
-              </svg>
-            </button>
+            {!session.parentId && (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="shrink-0 text-gh-text-secondary hover:text-accent cursor-pointer p-0.5 rounded transition-colors"
+                title="Rename session"
+              >
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L3.745 8.815a.25.25 0 0 0-.063.109l-.579 2.027 2.027-.579a.25.25 0 0 0 .109-.063l8.273-8.273a.25.25 0 0 0 0-.354l-1.086-1.086Z" />
+                </svg>
+              </button>
+            )}
           </>
         )}
         <span className={`${badgeClass} shrink-0`}>{session.agent}</span>
