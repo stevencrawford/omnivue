@@ -44,12 +44,10 @@ export function SessionStatusDot({ isNew, isLive }: { isNew: boolean; isLive?: b
   if (isLive) {
     return <span className="sess-live-dot shrink-0" title="Live" />;
   }
-  return (
-    <span
-      className={`sess-session-dot ${isNew ? "sess-session-dot--new" : "sess-session-dot--seen"}`}
-      title={isNew ? "New or updated" : "Viewed"}
-    />
-  );
+  if (isNew) {
+    return <span className="sess-session-dot sess-session-dot--new" title="New or updated" />;
+  }
+  return null;
 }
 
 export { relativeTime };

@@ -23,12 +23,25 @@
     ]
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@tiptap/extension-code-block-lowlight": "^3.24.0",
+    "@tiptap/extension-link": "^3.24.0",
+    "@tiptap/extension-table": "^3.24.0",
+    "@tiptap/extension-table-cell": "^3.24.0",
+    "@tiptap/extension-table-header": "^3.24.0",
+    "@tiptap/extension-table-row": "^3.24.0",
+    "@tiptap/pm": "^3.24.0",
+    "@tiptap/react": "^3.24.0",
+    "@tiptap/starter-kit": "^3.24.0",
+    "lowlight": "^3.3.0",
+    "marked": "^18.0.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-breaks": "^4.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
@@ -37,9 +50,11 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.1.0",
+    "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.7",
     "jsdom": "^29.1.1",
+    "monaco-editor": "^0.55.1",
     "oxfmt": "^0.52.0",
     "oxlint": "^1.67.0",
     "rollup-plugin-license": "^3.7.1",

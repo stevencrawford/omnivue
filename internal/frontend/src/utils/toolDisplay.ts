@@ -88,15 +88,7 @@ export function getToolSummary(tool: ToolCall, agent?: string): string {
 }
 
 function isGenericHarnessLabel(name: string): boolean {
-  const generic = new Set([
-    "build",
-    "tool",
-    "step",
-    "action",
-    "run",
-    "execute",
-    "invoke",
-  ]);
+  const generic = new Set(["build", "tool", "step", "action", "run", "execute", "invoke"]);
   return generic.has(name.toLowerCase());
 }
 
@@ -107,7 +99,10 @@ export function shouldShowStepContent(content: string, toolCalls?: ToolCall[]): 
 
   if (!toolCalls?.length) return true;
 
-  const normalized = text.toLowerCase().replace(/^#+\s*/, "").trim();
+  const normalized = text
+    .toLowerCase()
+    .replace(/^#+\s*/, "")
+    .trim();
 
   for (const tc of toolCalls) {
     if (normalized === tc.name.toLowerCase()) return false;

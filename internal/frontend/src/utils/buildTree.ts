@@ -76,9 +76,7 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
       const childSessions = childMap.get(session.id);
       const childNodes = childSessions
         ? [...childSessions]
-            .sort(
-              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-            )
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
             .map((cs) => ({
               name: cs.title || cs.id.slice(0, 8),
               fullPath: `${repoKey}/${session.id}/${cs.id}`,

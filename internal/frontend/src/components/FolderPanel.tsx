@@ -9,7 +9,12 @@ import {
   assignSessionToFolder,
   unassignSessionFromFolder,
 } from "../hooks/useApi";
-import { sessionTitle, sessionMetaParts, SessionStatusDot, relativeTime } from "../utils/sessionUtils";
+import {
+  sessionTitle,
+  sessionMetaParts,
+  SessionStatusDot,
+  relativeTime,
+} from "../utils/sessionUtils";
 
 interface FolderPanelProps {
   sessions: Session[];
@@ -440,7 +445,10 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
       <button
         type="button"
         className="hidden group-hover/item:block absolute right-1 top-1/2 -translate-y-1/2 text-gh-text-secondary hover:text-red-400 cursor-pointer p-0.5"
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
         title="Remove from folder"
       >
         <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">
