@@ -217,6 +217,157 @@ func (s *Store) GetSessionFolders(sessionID string) ([]string, error) {
 	return ids, rows.Err()
 }
 
+// --- Session Name Overrides ---
+
+// SetSessionName sets or updates the display name override for a session.
+func (s *Store) SetSessionName(sessionID, displayName string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO session_names (session_id, display_name, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(session_id) DO UPDATE SET display_name=excluded.display_name, updated_at=excluded.updated_at
+	`, sessionID, displayName, time.Now().Format(time.RFC3339))
+	return err
+}
+
+// ClearSessionName removes the display name override for a session.
+func (s *Store) ClearSessionName(sessionID string) error {
+	_, err := s.db.Exec(`DELETE FROM session_names WHERE session_id = ?`, sessionID)
+	return err
+}
+
+// GetSessionName returns the display name override, or empty string if not set.
+func (s *Store) GetSessionName(sessionID string) (string, error) {
+	var name string
+	err := s.db.QueryRow(`SELECT display_name FROM session_names WHERE session_id = ?`, sessionID).Scan(&name)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return name, err
+}
+
+// AllSessionNames returns all display name overrides as a map.
+func (s *Store) AllSessionNames() (map[string]string, error) {
+	rows, err := s.db.Query(`SELECT session_id, display_name FROM session_names`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	names := make(map[string]string)
+	for rows.Next() {
+		var sid, name string
+		if err := rows.Scan(&sid, &name); err != nil {
+			continue
+		}
+		names[sid] = name
+	}
+	return names, rows.Err()
+}
+
+// --- Scratch Files ---
+
+// ScratchFile represents a scratch markdown note attached to a session.
+type ScratchFile struct {
+	ID        string    `json:"id"`
+	SessionID string    `json:"sessionId"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// CreateScratchFile creates a new scratch file.
+func (s *Store) CreateScratchFile(f ScratchFile) error {
+	_, err := s.db.Exec(`
+		INSERT INTO scratch_files (id, session_id, title, content, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, f.ID, f.SessionID, f.Title, f.Content, f.CreatedAt.Format(time.RFC3339), f.UpdatedAt.Format(time.RFC3339))
+	return err
+}
+
+// ListScratchFiles returns all scratch files for a session, ordered by updated_at desc.
+func (s *Store) ListScratchFiles(sessionID string) ([]ScratchFile, error) {
+	rows, err := s.db.Query(`
+		SELECT id, session_id, title, content, created_at, updated_at
+		FROM scratch_files
+		WHERE session_id = ?
+		ORDER BY updated_at DESC
+	`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []ScratchFile
+	for rows.Next() {
+		var f ScratchFile
+		var createdAt, updatedAt string
+		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &createdAt, &updatedAt); err != nil {
+			continue
+		}
+		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+// ListAllScratchFiles returns all scratch files across all sessions.
+func (s *Store) ListAllScratchFiles() ([]ScratchFile, error) {
+	rows, err := s.db.Query(`
+		SELECT id, session_id, title, content, created_at, updated_at
+		FROM scratch_files
+		ORDER BY updated_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []ScratchFile
+	for rows.Next() {
+		var f ScratchFile
+		var createdAt, updatedAt string
+		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &createdAt, &updatedAt); err != nil {
+			continue
+		}
+		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+// GetScratchFile returns a single scratch file by ID.
+func (s *Store) GetScratchFile(id string) (*ScratchFile, error) {
+	var f ScratchFile
+	var createdAt, updatedAt string
+	err := s.db.QueryRow(`
+		SELECT id, session_id, title, content, created_at, updated_at
+		FROM scratch_files WHERE id = ?
+	`, id).Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &createdAt, &updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return &f, nil
+}
+
+// UpdateScratchFile updates a scratch file's title and content.
+func (s *Store) UpdateScratchFile(id, title, content string) error {
+	_, err := s.db.Exec(`
+		UPDATE scratch_files SET title = ?, content = ?, updated_at = ?
+		WHERE id = ?
+	`, title, content, time.Now().Format(time.RFC3339), id)
+	return err
+}
+
+// DeleteScratchFile removes a scratch file.
+func (s *Store) DeleteScratchFile(id string) error {
+	_, err := s.db.Exec(`DELETE FROM scratch_files WHERE id = ?`, id)
+	return err
+}
+
 // --- Search Index ---
 
 // ClearSessionIndex removes all FTS entries for a session (before re-indexing).
@@ -263,7 +414,14 @@ func (s *Store) Search(query string, limit int) ([]SearchResult, error) {
 		SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64)
 		FROM search_index
 		WHERE search_index MATCH ?
-		ORDER BY rank
+		ORDER BY
+			CASE chunk_type
+				WHEN 'name' THEN 0
+				WHEN 'plan' THEN 1
+				WHEN 'messages' THEN 2
+				ELSE 3
+			END,
+			rank
 		LIMIT ?
 	`, query, limit)
 	if err != nil {
@@ -336,6 +494,21 @@ func (s *Store) migrate() error {
 			source_id TEXT NOT NULL,
 			last_indexed_at TEXT NOT NULL,
 			content_hash TEXT
+		);
+
+		CREATE TABLE IF NOT EXISTS session_names (
+			session_id TEXT PRIMARY KEY,
+			display_name TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS scratch_files (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT 'Untitled',
+			content TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
 		);
 	`)
 	return err

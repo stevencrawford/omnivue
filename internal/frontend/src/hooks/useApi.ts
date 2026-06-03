@@ -38,6 +38,7 @@ export interface Message {
   id: string;
   role: string;
   content: string;
+  reasoning?: string;
   toolCalls?: ToolCall[];
   timestamp: string;
   model?: string;
@@ -54,6 +55,15 @@ export interface ToolCall {
   status: string;
   duration?: number;
   metadata?: string;
+}
+
+export interface ScratchFile {
+  id: string;
+  sessionId: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StatusInfo {
@@ -123,6 +133,22 @@ export async function fetchDiffs(sessionId: string): Promise<DiffFile[]> {
   const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/diffs`);
   if (!res.ok) throw new Error("Failed to fetch diffs");
   return res.json();
+}
+
+export async function setSessionName(sessionId: string, displayName: string): Promise<void> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/name`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName }),
+  });
+  if (!res.ok) throw new Error("Failed to set session name");
+}
+
+export async function clearSessionName(sessionId: string): Promise<void> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/name`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to clear session name");
 }
 
 export async function fetchResumeCommand(sessionId: string): Promise<string> {
@@ -209,4 +235,65 @@ export async function unassignSessionFromFolder(
     { method: "DELETE" },
   );
   if (!res.ok) throw new Error("Failed to unassign session");
+}
+
+// --- Scratch Files ---
+
+export async function fetchScratchFiles(sessionId: string): Promise<ScratchFile[]> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`);
+  if (!res.ok) throw new Error("Failed to fetch scratch files");
+  return res.json();
+}
+
+export async function createScratchFile(
+  sessionId: string,
+  title: string,
+  content?: string,
+): Promise<ScratchFile> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, content: content || "" }),
+  });
+  if (!res.ok) throw new Error("Failed to create scratch file");
+  return res.json();
+}
+
+export async function getScratchFile(sessionId: string, fileId: string): Promise<ScratchFile> {
+  const res = await fetch(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+  );
+  if (!res.ok) throw new Error("Failed to get scratch file");
+  return res.json();
+}
+
+export async function updateScratchFile(
+  sessionId: string,
+  fileId: string,
+  title: string,
+  content: string,
+): Promise<void> {
+  const res = await fetch(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, content }),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to update scratch file");
+}
+
+export async function deleteScratchFile(sessionId: string, fileId: string): Promise<void> {
+  const res = await fetch(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error("Failed to delete scratch file");
+}
+
+export async function fetchAllScratchFiles(): Promise<ScratchFile[]> {
+  const res = await fetch("/_/api/scratch");
+  if (!res.ok) throw new Error("Failed to fetch scratch files");
+  return res.json();
 }

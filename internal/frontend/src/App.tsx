@@ -4,37 +4,23 @@ import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchPanel } from "./components/SearchPanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
 import type { Session } from "./hooks/useApi";
-import { fetchSessions } from "./hooks/useApi";
-
-function SessLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect width="24" height="24" rx="6" fill="url(#logo-bg)" />
-      <path d="M7 8h10v1.5H7V8zm0 4h7v1.5H7v-1.5zm0 4h9v1.5H7V16z" fill="url(#logo-lines)" />
-      <circle cx="18" cy="6" r="2" fill="#22D3EE" />
-      <defs>
-        <linearGradient id="logo-bg" x1="0" y1="0" x2="24" y2="24">
-          <stop stopColor="#1a1a28" />
-          <stop offset="1" stopColor="#12121c" />
-        </linearGradient>
-        <linearGradient id="logo-lines" x1="7" y1="8" x2="17" y2="17">
-          <stop stopColor="#A78BFA" />
-          <stop offset="1" stopColor="#22D3EE" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
+import { fetchSessions, createScratchFile } from "./hooks/useApi";
+import type { ScratchFile } from "./hooks/useApi";
+import { fetchAllScratchFiles } from "./hooks/useApi";
 
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("session");
+  const [scratchFiles, setScratchFiles] = useState<ScratchFile[]>([]);
+  const [selectedScratchFileId, setSelectedScratchFileId] = useState<string | null>(null);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
   const scrollPositions = useRef(new Map<string, number>());
 
@@ -51,23 +37,80 @@ export function App() {
     }
   }, []);
 
+  const loadScratchFiles = useCallback(async () => {
+    try {
+      const data = await fetchAllScratchFiles();
+      setScratchFiles(data || []);
+    } catch {
+      setScratchFiles([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadSessions();
-  }, [loadSessions]);
+    loadScratchFiles();
+  }, [loadSessions, loadScratchFiles]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput =
+        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+
       if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
         e.preventDefault();
         setSearchOpen((v) => !v);
+        return;
       }
       if (e.key === "Escape" && searchOpen) {
         setSearchOpen(false);
+        return;
+      }
+
+      // Search takes precedence over other shortcuts when open
+      if (searchOpen) return;
+
+      // Tab switching: Cmd/Ctrl+1-4
+      if ((e.metaKey || e.ctrlKey) && !isInput) {
+        const tabMap: Record<string, Tab> = {
+          "1": "session",
+          "2": "plan",
+          "3": "diff",
+          "4": "scratch",
+        };
+        const tab = tabMap[e.key];
+        if (tab) {
+          e.preventDefault();
+          setActiveTab(tab);
+          return;
+        }
+      }
+
+      // Session navigation: j/k (global, but scoped away from inputs)
+      if (!isInput && !e.metaKey && !e.ctrlKey) {
+        if (e.key === "j" || e.key === "ArrowDown") {
+          e.preventDefault();
+          setActiveSessionId((prev) => {
+            const idx = sessions.findIndex((s) => s.id === prev);
+            if (idx < sessions.length - 1) return sessions[idx + 1].id;
+            return prev;
+          });
+          return;
+        }
+        if (e.key === "k" || e.key === "ArrowUp") {
+          e.preventDefault();
+          setActiveSessionId((prev) => {
+            const idx = sessions.findIndex((s) => s.id === prev);
+            if (idx > 0) return sessions[idx - 1].id;
+            return prev;
+          });
+          return;
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [searchOpen]);
+  }, [searchOpen, sessions]);
 
   useSSE({
     onUpdate: () => {
@@ -98,10 +141,35 @@ export function App() {
     (sessionId: string) => {
       setActiveSessionId(sessionId);
       const session = sessions.find((s) => s.id === sessionId);
-      if (session) markSessionSeen(session);
+      if (session) {
+        markSessionSeen(session);
+        if (session.parentId && session.subAgent === "plan") {
+          setActiveTab("plan");
+        } else {
+          setActiveTab("session");
+        }
+      }
     },
     [sessions, markSessionSeen],
   );
+
+  const handleNewScratchFile = useCallback(async () => {
+    if (!activeSessionId) return;
+    try {
+      const f = await createScratchFile(activeSessionId, "Untitled", "# Untitled");
+      setScratchFiles((prev) => [f, ...prev]);
+      setSelectedScratchFileId(f.id);
+      setActiveTab("scratch");
+    } catch {
+      /* ignore */
+    }
+  }, [activeSessionId]);
+
+  const handleOpenScratchFile = useCallback((sessionId: string, fileId: string) => {
+    setActiveSessionId(sessionId);
+    setSelectedScratchFileId(fileId);
+    setActiveTab("scratch");
+  }, []);
 
   const handleSearchSelect = useCallback(
     (sessionId: string) => {
@@ -143,7 +211,6 @@ export function App() {
               )}
             </svg>
           </button>
-          <SessLogo className="size-7 shrink-0" />
           <div className="flex items-baseline gap-2 min-w-0">
             <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
             <span className="text-[11px] text-gh-text-secondary truncate">
@@ -189,14 +256,23 @@ export function App() {
                 sessions={sessions}
                 activeSessionId={activeSessionId}
                 onSessionSelect={handleSessionSelect}
+                onScratchFileSelect={handleOpenScratchFile}
                 newSessionIds={newSessionIds}
+                scratchFiles={scratchFiles}
               />
             </ErrorBoundary>
           )}
           <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
             {activeSession ? (
               <ErrorBoundary>
-                <SessionViewer session={activeSession} liveChangedIds={liveChangedIds} />
+                <SessionViewer
+                  session={activeSession}
+                  liveChangedIds={liveChangedIds}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  selectedScratchFileId={selectedScratchFileId}
+                  onNewScratchFile={handleNewScratchFile}
+                />
               </ErrorBoundary>
             ) : (
               <div className="sess-empty-state flex-1 h-full">

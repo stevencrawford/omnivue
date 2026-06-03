@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Session } from "../hooks/useApi";
+import type { Session, ScratchFile } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
 import {
@@ -15,7 +15,9 @@ interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
+  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
   newSessionIds: Set<string>;
+  scratchFiles?: ScratchFile[];
 }
 
 const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
@@ -63,7 +65,9 @@ export function Sidebar({
   sessions,
   activeSessionId,
   onSessionSelect,
+  onScratchFileSelect,
   newSessionIds,
+  scratchFiles = [],
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [folderHeight, setFolderHeight] = useState(() => {
@@ -87,7 +91,23 @@ export function Sidebar({
     return session?.parentId || null;
   });
 
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const session = sessions.find((s) => s.id === activeSessionId);
+    const parentId = session?.parentId || null;
+    if (parentId) setExpandedParentId(parentId);
+  }, [activeSessionId, sessions]);
+
   const tree = useMemo(() => buildTree(sessions, sortMode), [sessions, sortMode]);
+  const scratchFilesBySession = useMemo(() => {
+    const map = new Map<string, ScratchFile[]>();
+    for (const f of scratchFiles) {
+      const list = map.get(f.sessionId) || [];
+      list.push(f);
+      map.set(f.sessionId, list);
+    }
+    return map;
+  }, [scratchFiles]);
 
   const saveCollapsed = useCallback((next: Set<string>) => {
     try {
@@ -271,9 +291,11 @@ export function Sidebar({
                 onToggleCollapse={toggleCollapse}
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
+                onScratchFileSelect={onScratchFileSelect}
                 expandedParentId={expandedParentId}
                 onExpandParent={setExpandedParentId}
                 newSessionIds={newSessionIds}
+                scratchFilesBySession={scratchFilesBySession}
               />
             ))}
           </div>
@@ -294,18 +316,22 @@ function RepoNode({
   onToggleCollapse,
   activeSessionId,
   onSessionSelect,
+  onScratchFileSelect,
   expandedParentId,
   onExpandParent,
   newSessionIds,
+  scratchFilesBySession,
 }: {
   node: TreeNode;
   collapsed: Set<string>;
   onToggleCollapse: (path: string) => void;
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
+  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
   newSessionIds: Set<string>;
+  scratchFilesBySession: Map<string, ScratchFile[]>;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
 
@@ -326,6 +352,7 @@ function RepoNode({
           {node.children.map((child) => {
             const session = child.session;
             if (!session) return null;
+            const sessionScratchFiles = scratchFilesBySession.get(session.id) || [];
             return (
               <SessionRow
                 key={session.id}
@@ -337,6 +364,8 @@ function RepoNode({
                 expandedParentId={expandedParentId}
                 onExpandParent={onExpandParent}
                 newSessionIds={newSessionIds}
+                scratchFiles={sessionScratchFiles}
+                onScratchFileSelect={onScratchFileSelect}
               />
             );
           })}
@@ -355,6 +384,8 @@ function SessionRow({
   expandedParentId,
   onExpandParent,
   newSessionIds,
+  scratchFiles = [],
+  onScratchFileSelect,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -364,6 +395,8 @@ function SessionRow({
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
   newSessionIds: Set<string>;
+  scratchFiles?: ScratchFile[];
+  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
@@ -450,6 +483,27 @@ function SessionRow({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Scratch files for this session */}
+      {scratchFiles.length > 0 && subsVisible && onScratchFileSelect && (
+        <div className="ml-2 mt-px mb-1 space-y-px border-l border-gh-border/40">
+          {scratchFiles.map((sf) => (
+            <button
+              key={sf.id}
+              type="button"
+              onClick={() => onScratchFileSelect?.(session.id, sf.id)}
+              className="w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors hover:bg-gh-bg-hover"
+              title={sf.title}
+            >
+              <span className="text-[10px] text-amber-400/80 shrink-0">✎</span>
+              <span className="text-[11px] truncate flex-1 text-gh-text-secondary">{sf.title}</span>
+              <span className="text-[10px] opacity-60 tabular-nums shrink-0">
+                {new Date(sf.updatedAt).toLocaleDateString()}
+              </span>
+            </button>
+          ))}
         </div>
       )}
     </div>

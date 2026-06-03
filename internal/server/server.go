@@ -167,6 +167,18 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		allSessions = append(allSessions, sessions...)
 	}
 
+	// Apply display name overrides
+	if s.store != nil {
+		overrides, err := s.store.AllSessionNames()
+		if err == nil {
+			for i := range allSessions {
+				if name, ok := overrides[allSessions[i].ID]; ok {
+					allSessions[i].Title = name
+				}
+			}
+		}
+	}
+
 	// Diff against the previous snapshot to identify sessions whose content
 	// has changed since the last refresh. Newly-arrived sessions and sessions
 	// whose UpdatedAt moved forward are both considered changed.
@@ -213,24 +225,33 @@ func (s *State) indexSessions(ctx context.Context) {
 			continue
 		}
 
-		// Build content and compute hash
-		var contentBuilder strings.Builder
-		contentBuilder.WriteString(sess.Title)
-		contentBuilder.WriteString("\n")
+		// Build content for each chunk type
+		var messagesBuilder strings.Builder
 		for _, msg := range messages {
-			contentBuilder.WriteString(msg.Content)
-			contentBuilder.WriteString("\n")
+			messagesBuilder.WriteString(msg.Content)
+			messagesBuilder.WriteString("\n")
 			for _, tc := range msg.ToolCalls {
-				contentBuilder.WriteString(tc.Name)
-				contentBuilder.WriteString(" ")
-				contentBuilder.WriteString(tc.Output)
-				contentBuilder.WriteString("\n")
+				messagesBuilder.WriteString(tc.Name)
+				messagesBuilder.WriteString(" ")
+				messagesBuilder.WriteString(tc.Output)
+				messagesBuilder.WriteString("\n")
 			}
 		}
-		content := contentBuilder.String()
+		messagesContent := messagesBuilder.String()
 
-		h := sha256.Sum256([]byte(content))
-		contentHash := hex.EncodeToString(h[:8]) // 16 chars is enough
+		// Build plan content
+		var planContent string
+		if plan, err := adapter.GetPlan(ctx, sess.ID); err == nil && plan != nil {
+			planContent = plan.Markdown
+		}
+
+		// Build name content (title is searchable)
+		nameContent := sess.Title
+
+		// Combined content for hash comparison
+		combined := nameContent + "\n" + planContent + "\n" + messagesContent
+		h := sha256.Sum256([]byte(combined))
+		contentHash := hex.EncodeToString(h[:8])
 
 		// Check if already indexed with same hash
 		existingHash, err := s.store.GetIndexState(sess.ID)
@@ -247,10 +268,21 @@ func (s *State) indexSessions(ctx context.Context) {
 			continue
 		}
 
-		// Index as a single chunk (session content)
-		if err := s.store.IndexSession(sess.ID, sess.SourceID, "messages", sess.Repository, content); err != nil {
-			slog.Warn("failed to index session", "session", sess.ID, "error", err)
-			continue
+		// Index name chunk
+		if err := s.store.IndexSession(sess.ID, sess.SourceID, "name", sess.Repository, nameContent); err != nil {
+			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
+		}
+
+		// Index plan chunk
+		if planContent != "" {
+			if err := s.store.IndexSession(sess.ID, sess.SourceID, "plan", sess.Repository, planContent); err != nil {
+				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
+			}
+		}
+
+		// Index messages chunk
+		if err := s.store.IndexSession(sess.ID, sess.SourceID, "messages", sess.Repository, messagesContent); err != nil {
+			slog.Warn("failed to index session messages", "session", sess.ID, "error", err)
 		}
 
 		// Update index state
@@ -474,6 +506,90 @@ func (s *State) Search(query string, limit int) ([]store.SearchResult, error) {
 	return s.store.Search(query, limit)
 }
 
+// SetSessionName overrides the display name for a session.
+func (s *State) SetSessionName(sessionID, displayName string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	// Also update the cached session list so the change takes effect immediately
+	s.mu.Lock()
+	for i := range s.sessions {
+		if s.sessions[i].ID == sessionID {
+			s.sessions[i].Title = displayName
+			break
+		}
+	}
+	s.mu.Unlock()
+	return s.store.SetSessionName(sessionID, displayName)
+}
+
+// ClearSessionName removes the display name override for a session.
+func (s *State) ClearSessionName(sessionID string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	s.mu.Lock()
+	// Revert to original title by re-reading from adapter
+	for i := range s.sessions {
+		if s.sessions[i].ID == sessionID {
+			s.sessions[i].Title = "" // will be filled on next refresh
+			break
+		}
+	}
+	s.mu.Unlock()
+	return s.store.ClearSessionName(sessionID)
+}
+
+// --- Scratch Files ---
+
+// ListScratchFiles returns scratch files for a session.
+func (s *State) ListScratchFiles(sessionID string) ([]store.ScratchFile, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return s.store.ListScratchFiles(sessionID)
+}
+
+// ListAllScratchFiles returns all scratch files across all sessions.
+func (s *State) ListAllScratchFiles() ([]store.ScratchFile, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return s.store.ListAllScratchFiles()
+}
+
+// CreateScratchFile creates a new scratch file.
+func (s *State) CreateScratchFile(f store.ScratchFile) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.CreateScratchFile(f)
+}
+
+// GetScratchFile returns a scratch file by ID.
+func (s *State) GetScratchFile(id string) (*store.ScratchFile, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return s.store.GetScratchFile(id)
+}
+
+// UpdateScratchFile updates a scratch file.
+func (s *State) UpdateScratchFile(id, title, content string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.UpdateScratchFile(id, title, content)
+}
+
+// DeleteScratchFile deletes a scratch file.
+func (s *State) DeleteScratchFile(id string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.DeleteScratchFile(id)
+}
+
 // --- HTTP Handler ---
 
 // NewHandler creates the HTTP handler for the sess server.
@@ -488,6 +604,14 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(state))
+	mux.HandleFunc("PUT /_/api/sessions/{id}/name", handleSetSessionName(state))
+	mux.HandleFunc("DELETE /_/api/sessions/{id}/name", handleClearSessionName(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/scratch", handleListScratchFiles(state))
+	mux.HandleFunc("POST /_/api/sessions/{id}/scratch", handleCreateScratchFile(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/scratch/{fileId}", handleGetScratchFile(state))
+	mux.HandleFunc("PUT /_/api/sessions/{id}/scratch/{fileId}", handleUpdateScratchFile(state))
+	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(state))
+	mux.HandleFunc("GET /_/api/scratch", handleListAllScratchFiles(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(state))
 	mux.HandleFunc("GET /_/api/search", handleSearch(state))
 	mux.HandleFunc("GET /_/api/folders", handleListFolders(state))
@@ -604,6 +728,152 @@ func handleGetResumeCommand(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"command": cmd})
+	}
+}
+
+func handleSetSessionName(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		var body struct {
+			DisplayName string `json:"displayName"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.DisplayName == "" {
+			http.Error(w, "displayName is required", http.StatusBadRequest)
+			return
+		}
+		if err := state.SetSessionName(id, body.DisplayName); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+func handleClearSessionName(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := state.ClearSessionName(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+func handleListScratchFiles(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		files, err := state.ListScratchFiles(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if files == nil {
+			files = []store.ScratchFile{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(files)
+	}
+}
+
+func handleCreateScratchFile(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.PathValue("id")
+		var body struct {
+			Title   string `json:"title"`
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Title == "" {
+			body.Title = "Untitled"
+		}
+		now := time.Now()
+		f := store.ScratchFile{
+			ID:        fmt.Sprintf("scratch_%d", now.UnixNano()),
+			SessionID: sessionID,
+			Title:     body.Title,
+			Content:   body.Content,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := state.CreateScratchFile(f); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(f)
+	}
+}
+
+func handleGetScratchFile(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileID := r.PathValue("fileId")
+		f, err := state.GetScratchFile(fileID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(f)
+	}
+}
+
+func handleUpdateScratchFile(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileID := r.PathValue("fileId")
+		var body struct {
+			Title   string `json:"title"`
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Title == "" {
+			body.Title = "Untitled"
+		}
+		if err := state.UpdateScratchFile(fileID, body.Title, body.Content); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+func handleDeleteScratchFile(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileID := r.PathValue("fileId")
+		if err := state.DeleteScratchFile(fileID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+func handleListAllScratchFiles(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		files, err := state.ListAllScratchFiles()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if files == nil {
+			files = []store.ScratchFile{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(files)
 	}
 }
 
