@@ -181,13 +181,19 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 		if err == nil {
 			for _, p := range parts {
 				switch p.Type {
-				case "text":
-					if msg.Content == "" {
-						msg.Content = p.Text
-					} else {
-						msg.Content += "\n" + p.Text
-					}
-				case "tool":
+		case "text":
+			if msg.Content == "" {
+				msg.Content = p.Text
+			} else {
+				msg.Content += "\n" + p.Text
+			}
+		case "reasoning":
+			if msg.Reasoning == "" {
+				msg.Reasoning = p.Text
+			} else {
+				msg.Reasoning += "\n" + p.Text
+			}
+		case "tool":
 					tc := ingest.ToolCall{
 						ID:     p.CallID,
 						Name:   p.Tool,
@@ -438,7 +444,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && opencode --session %s", session.Directory, session.ID)
+	return fmt.Sprintf("cd %s && opencode -s %s", session.Directory, session.ID)
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

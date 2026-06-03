@@ -390,7 +390,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && copilot session resume %s", session.Directory, session.ID)
+	return fmt.Sprintf("cd %s && copilot --resume=%s", session.Directory, session.ID)
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

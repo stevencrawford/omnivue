@@ -60,6 +60,9 @@ type Message struct {
 	Model     string     `json:"model,omitempty"`
 	Agent     string     `json:"agent,omitempty"`
 
+	// Reasoning/model thinking content (shown as collapsible in the UI)
+	Reasoning string `json:"reasoning,omitempty"`
+
 	// Token usage for this message
 	TokensInput  int `json:"tokensInput,omitempty"`
 	TokensOutput int `json:"tokensOutput,omitempty"`
