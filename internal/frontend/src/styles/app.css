@@ -6,6 +6,7 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-size-base: 1.125rem;
 
   --color-gh-bg: #f8f9fc;
   --color-gh-bg-secondary: #ffffff;
