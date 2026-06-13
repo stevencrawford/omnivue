@@ -20,6 +20,7 @@ export interface Session {
   tokensReasoning: number;
   tokensCacheRead: number;
   tokensCacheWrite: number;
+  messageCount: number;
   diffFiles: number;
   diffAdditions: number;
   diffDeletions: number;

@@ -20,6 +20,7 @@ const baseSession = (overrides: Partial<Session>): Session => ({
   tokensReasoning: 0,
   tokensCacheRead: 0,
   tokensCacheWrite: 0,
+  messageCount: 0,
   diffFiles: 0,
   diffAdditions: 0,
   diffDeletions: 0,

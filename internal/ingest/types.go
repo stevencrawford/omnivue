@@ -44,6 +44,9 @@ type Session struct {
 	TokensCacheRead  int `json:"tokensCacheRead"`
 	TokensCacheWrite int `json:"tokensCacheWrite"`
 
+	// Message count (used to filter empty sessions)
+	MessageCount int `json:"messageCount"`
+
 	// Diff summary
 	DiffFiles     int `json:"diffFiles"`
 	DiffAdditions int `json:"diffAdditions"`

@@ -93,6 +93,16 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		).Scan(&fileCount)
 		s.DiffFiles = fileCount
 
+		// Count messages from turns table
+		var msgCount int
+		_ = a.db.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM turns
+			WHERE session_id = ?
+			AND (user_message IS NOT NULL AND user_message != ''
+			     OR assistant_response IS NOT NULL AND assistant_response != '')
+		`, s.ID).Scan(&msgCount)
+		s.MessageCount = msgCount
+
 		sessions = append(sessions, s)
 	}
 

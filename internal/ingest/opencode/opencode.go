@@ -50,7 +50,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.tokens_cache_read, s.tokens_cache_write,
 			s.summary_files, s.summary_additions, s.summary_deletions,
 			s.time_created, s.time_updated,
-			COALESCE(p.name, '')
+			COALESCE(p.name, ''),
+			(SELECT COUNT(*) FROM message WHERE session_id = s.id)
 		FROM session s
 		LEFT JOIN project p ON s.project_id = p.id
 		ORDER BY s.time_updated DESC
@@ -73,6 +74,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			timeCreated  int64
 			timeUpdated  int64
 			projectName  string
+			msgCount     int
 		)
 
 		err := rows.Scan(
@@ -81,7 +83,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			&s.TokensCacheRead, &s.TokensCacheWrite,
 			&summFiles, &summAdd, &summDel,
 			&timeCreated, &timeUpdated,
-			&projectName,
+			&projectName, &msgCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scanning session row: %w", err)
@@ -119,6 +121,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		if summDel.Valid {
 			s.DiffDeletions = int(summDel.Int64)
 		}
+
+		s.MessageCount = msgCount
 
 		sessions = append(sessions, s)
 	}

@@ -167,6 +167,16 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		allSessions = append(allSessions, sessions...)
 	}
 
+	// Filter out Copilot sessions with no messages (e.g. sessions created on CLI launch)
+	filtered := allSessions[:0]
+	for _, sess := range allSessions {
+		if sess.Agent == ingest.AgentCopilot && sess.MessageCount == 0 {
+			continue
+		}
+		filtered = append(filtered, sess)
+	}
+	allSessions = filtered
+
 	// Apply display name overrides
 	if s.store != nil {
 		overrides, err := s.store.AllSessionNames()
