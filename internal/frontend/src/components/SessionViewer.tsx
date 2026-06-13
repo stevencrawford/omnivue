@@ -9,7 +9,7 @@ import {
 import { formatCost } from "../utils/buildTree";
 import { getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
 import { MarkdownContent } from "./MarkdownContent";
-import { PlanView } from "./PlanView";
+import { Modal } from "./Modal";
 import { DiffView } from "./DiffView";
 import { ScratchEditor } from "./ScratchEditor";
 import { useSessionNav } from "../hooks/useNav";
@@ -33,7 +33,7 @@ function groupMessages(messages: Message[]): Message[] {
   return result;
 }
 
-export type Tab = "session" | "plan" | "diff" | `scratch:${string}`;
+export type Tab = "session" | "diff" | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
@@ -46,22 +46,13 @@ interface SessionViewerProps {
   onNewScratchFile?: () => void;
 }
 
-const MAIN_TABS: { tab: "session" | "plan" | "diff"; label: string; icon: ReactNode }[] = [
+const MAIN_TABS: { tab: "session" | "diff"; label: string; icon: ReactNode }[] = [
   {
     tab: "session",
     label: "Session",
     icon: (
       <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
         <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
-      </svg>
-    ),
-  },
-  {
-    tab: "plan",
-    label: "Plan",
-    icon: (
-      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5ZM5 5.75A.75.75 0 0 1 5.75 5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.75Z" />
       </svg>
     ),
   },
@@ -91,6 +82,7 @@ export function SessionViewer({
   const setActiveTab = onTabChange ?? setLocalTab;
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(null);
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -141,12 +133,6 @@ export function SessionViewer({
       return (
         <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
-        </svg>
-      );
-    if (tab === "plan")
-      return (
-        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5ZM5 5.75A.75.75 0 0 1 5.75 5h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8.75Z" />
         </svg>
       );
     if (tab === "diff")
@@ -241,9 +227,13 @@ export function SessionViewer({
 
       {/* Tab content */}
       {activeTab === "session" && (
-        <ConversationView messages={messages} session={session} loading={loading} />
+        <ConversationView
+          messages={messages}
+          session={session}
+          loading={loading}
+          onOpenModal={(content, title) => setMarkdownModal({ content, title })}
+        />
       )}
-      {activeTab === "plan" && <PlanView sessionId={session.id} />}
       {activeTab === "diff" && (
         <div className="flex-1 overflow-y-auto">
           <DiffView sessionId={session.id} />
@@ -264,6 +254,18 @@ export function SessionViewer({
             />
           );
         })()}
+
+      {/* Markdown modal */}
+      <Modal
+        isOpen={markdownModal !== null}
+        onClose={() => setMarkdownModal(null)}
+        title={markdownModal?.title}
+        size="xl"
+      >
+        {markdownModal && (
+          <MarkdownContent content={markdownModal.content} className="markdown-body--wide" />
+        )}
+      </Modal>
     </div>
   );
 }
@@ -383,10 +385,12 @@ function ConversationView({
   messages,
   session,
   loading,
+  onOpenModal,
 }: {
   messages: Message[];
   session: Session;
   loading: boolean;
+  onOpenModal?: (content: string, title?: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
@@ -506,7 +510,9 @@ function ConversationView({
             Agent work appears here as tools run and responses stream in.
           </p>
         ) : (
-          grouped.map((msg) => <MessageBlock key={msg.id} message={msg} />)
+          grouped.map((msg) => (
+            <MessageBlock key={msg.id} message={msg} onOpenModal={onOpenModal} />
+          ))
         )}
       </div>
 
@@ -603,7 +609,7 @@ function ConversationView({
         {pinnedExpanded && (
           <div className="px-4 pb-3 overflow-y-auto border-t border-gh-border">
             <div className="ml-6 mt-2">
-              <UserPromptBubble message={firstMessage} />
+              <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
             </div>
           </div>
         )}
@@ -614,18 +620,18 @@ function ConversationView({
 
 // --- Per-message rendering (chronological) ---
 
-function MessageBlock({ message }: { message: Message }) {
+function MessageBlock({ message, onOpenModal }: { message: Message; onOpenModal?: (content: string, title?: string) => void }) {
   if (message.role === "user") {
-    return <UserTurnView content={message.content} />;
+    return <UserTurnView content={message.content} onOpenModal={onOpenModal} />;
   }
   if (message.role === "system") {
     if (!message.content?.trim()) return null;
     return <div className="sess-system-notice whitespace-pre-wrap">{message.content}</div>;
   }
-  return <AssistantMessageView message={message} />;
+  return <AssistantMessageView message={message} onOpenModal={onOpenModal} />;
 }
 
-function UserTurnView({ content }: { content: string }) {
+function UserTurnView({ content, onOpenModal }: { content: string; onOpenModal?: (content: string, title?: string) => void }) {
   const [expanded, setExpanded] = useState(true);
   const isLong = content.length > 2000;
   const display = !expanded && isLong ? content.slice(0, 2000) + "…" : content;
@@ -633,9 +639,12 @@ function UserTurnView({ content }: { content: string }) {
   return (
     <div className="sess-user-turn">
       <div className="sess-user-turn-label">Follow-up</div>
-      <div className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed">
-        {display}
-      </div>
+      <MarkdownContent
+        content={display}
+        className="markdown-body--wide"
+        onOpenModal={onOpenModal}
+        modalTitle="Follow-up"
+      />
       {isLong && (
         <button
           type="button"
@@ -679,7 +688,7 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
-function AssistantMessageView({ message }: { message: Message }) {
+function AssistantMessageView({ message, onOpenModal }: { message: Message; onOpenModal?: (content: string, title?: string) => void }) {
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
   const reasoning = message.reasoning || "";
@@ -696,7 +705,7 @@ function AssistantMessageView({ message }: { message: Message }) {
         </span>
       )}
       <ThinkingBlock reasoning={reasoning} />
-      {showText && <AssistantStepContent content={text} />}
+      {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} />}
       {tools.length > 0 && (
         <div className={showText ? "mt-2" : ""}>
           <ToolCallList toolCalls={tools} agent={agent} compact />
@@ -706,14 +715,19 @@ function AssistantMessageView({ message }: { message: Message }) {
   );
 }
 
-function AssistantStepContent({ content }: { content: string }) {
+function AssistantStepContent({ content, onOpenModal }: { content: string; onOpenModal?: (content: string, title?: string) => void }) {
   const [expanded, setExpanded] = useState(true);
   const isLong = content.length > 4000;
   const display = !expanded && isLong ? content.slice(0, 4000) + "\n\n…" : content;
 
   return (
     <div>
-      <MarkdownContent content={display} className="markdown-body--wide" />
+      <MarkdownContent
+        content={display}
+        className="markdown-body--wide"
+        onOpenModal={onOpenModal}
+        modalTitle="Assistant response"
+      />
       {isLong && (
         <button
           type="button"
@@ -729,15 +743,19 @@ function AssistantStepContent({ content }: { content: string }) {
 
 // --- Pinned user prompt ---
 
-function UserPromptBubble({ message }: { message: Message }) {
+function UserPromptBubble({ message, onOpenModal }: { message: Message; onOpenModal?: (content: string, title?: string) => void }) {
   const [expanded, setExpanded] = useState(true);
   const isLong = message.content.length > 3000;
+  const display = !expanded && isLong ? message.content.slice(0, 3000) + "\n\n..." : message.content;
 
   return (
     <div>
-      <div className="text-sm text-gh-text whitespace-pre-wrap break-words leading-relaxed">
-        {!expanded && isLong ? message.content.slice(0, 3000) + "\n\n..." : message.content}
-      </div>
+      <MarkdownContent
+        content={display}
+        className="markdown-body--wide"
+        onOpenModal={onOpenModal}
+        modalTitle="Initial prompt"
+      />
       {isLong && (
         <button
           type="button"

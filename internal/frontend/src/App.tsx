@@ -72,8 +72,7 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && !isInput) {
         const tabMap: Record<string, Tab> = {
           "1": "session",
-          "2": "plan",
-          "3": "diff",
+          "2": "diff",
         };
         const tab = tabMap[e.key];
         if (tab) {
@@ -147,11 +146,7 @@ export function App() {
       const session = sessions.find((s) => s.id === sessionId);
       if (session) {
         markSessionSeen(session);
-        if (session.parentId && session.subAgent === "plan") {
-          setActiveTab("plan");
-        } else {
-          setActiveTab("session");
-        }
+        setActiveTab("session");
       }
     },
     [sessions, markSessionSeen],
