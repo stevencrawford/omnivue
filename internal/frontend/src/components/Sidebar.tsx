@@ -408,7 +408,7 @@ function SessionRow({
   };
 
   const handleClick = () => {
-    if (subCount > 0) onExpandParent(session.id);
+    if (subCount > 0 || scratchFiles.length > 0) onExpandParent(session.id);
     onSelect();
   };
 
@@ -434,9 +434,9 @@ function SessionRow({
           >
             {sessionTitle(session)}
           </span>
-          {subCount > 0 && !subsVisible && (
+          {(subCount > 0 || scratchFiles.length > 0) && !subsVisible && (
             <span className="shrink-0 text-[11px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
-              {subCount}
+              {subCount > 0 ? subCount : "✎"}
             </span>
           )}
           <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
