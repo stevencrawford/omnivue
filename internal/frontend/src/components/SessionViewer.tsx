@@ -653,7 +653,7 @@ function UserTurnView({
       <MarkdownContent
         content={display}
         className="markdown-body--wide"
-        onOpenModal={onOpenModal}
+        onOpenModal={() => onOpenModal?.(content, "Follow-up")}
         modalTitle="Follow-up"
       />
       {isLong && (
@@ -748,7 +748,7 @@ function AssistantStepContent({
       <MarkdownContent
         content={display}
         className="markdown-body--wide"
-        onOpenModal={onOpenModal}
+        onOpenModal={() => onOpenModal?.(content, "Assistant response")}
         modalTitle="Assistant response"
       />
       {isLong && (
@@ -783,7 +783,7 @@ function UserPromptBubble({
       <MarkdownContent
         content={display}
         className="markdown-body--wide"
-        onOpenModal={onOpenModal}
+        onOpenModal={() => onOpenModal?.(message.content, "Initial prompt")}
         modalTitle="Initial prompt"
       />
       {isLong && (
