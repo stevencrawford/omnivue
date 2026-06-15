@@ -34,6 +34,8 @@ export function MarkdownContent({
     }
   };
 
+  const shortContent = content.split("\n").length <= 10;
+
   if (expandable) {
     return (
       <div>
@@ -68,6 +70,18 @@ export function MarkdownContent({
               </svg>
             )}
           </button>
+          {onOpenModal && !shortContent && (
+            <button
+              type="button"
+              onClick={() => onOpenModal(content)}
+              className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              title="Open in modal"
+            >
+              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1 2.75A1.75 1.75 0 0 1 2.75 1h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v3.5a.75.75 0 0 1-1.5 0v-3.5Zm14 0A1.75 1.75 0 0 0 13.25 1h-3.5a.75.75 0 0 0 0 1.5h3.5a.25.25 0 0 1 .25.25v3.5a.75.75 0 0 0 1.5 0v-3.5ZM1 13.25A1.75 1.75 0 0 0 2.75 15h3.5a.75.75 0 0 0 0-1.5h-3.5a.25.25 0 0 1-.25-.25v-3.5a.75.75 0 0 0-1.5 0v3.5Zm14 0A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1 0-1.5h3.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5Z" />
+              </svg>
+            </button>
+          )}
         </div>
         <div className={`relative ${!expanded ? "max-h-[15em] overflow-hidden" : ""}`}>
           {!expanded && (
@@ -118,7 +132,7 @@ export function MarkdownContent({
 
   return (
     <div className="relative group">
-      {onOpenModal && (
+      {onOpenModal && !shortContent && (
         <button
           type="button"
           onClick={() => onOpenModal(content)}
