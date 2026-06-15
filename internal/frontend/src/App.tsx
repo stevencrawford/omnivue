@@ -255,9 +255,6 @@ export function App() {
           </button>
           <div className="flex items-baseline gap-2 min-w-0">
             <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
-            <span className="text-[11px] text-gh-text-secondary truncate">
-              {sessions.length} session{sessions.length !== 1 ? "s" : ""}
-            </span>
           </div>
           {liveCount > 0 && (
             <span
