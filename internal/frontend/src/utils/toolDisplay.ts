@@ -50,6 +50,11 @@ export function getToolSummary(tool: ToolCall, agent?: string): string {
     }
   }
 
+  if (tool.name === "task_complete") {
+    const summary = extractJSONField(tool.input, "summary") || "";
+    return `\u2713 task_complete: ${summary.slice(0, 80)}`;
+  }
+
   const kind = effectiveToolKind(tool);
   const input = tool.input;
 

@@ -82,7 +82,9 @@ export function SessionViewer({
   const setActiveTab = onTabChange ?? setLocalTab;
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(null);
+  const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
+    null,
+  );
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -177,7 +179,7 @@ export function SessionViewer({
                 {meta.icon}
                 {meta.label}
                 {meta.tab === "session" && messageCount.total > 0 && (
-                  <span className="text-[10px] opacity-70 tabular-nums">{messageCount.total}</span>
+                  <span className="text-[11px] opacity-70 tabular-nums">{messageCount.total}</span>
                 )}
               </button>
             ),
@@ -342,7 +344,7 @@ function SessionHeader({ session }: { session: Session }) {
             <button
               type="button"
               onClick={clearOverride}
-              className="text-[10px] text-gh-text-secondary hover:text-gh-text cursor-pointer shrink-0 px-1"
+              className="text-[11px] text-gh-text-secondary hover:text-gh-text cursor-pointer shrink-0 px-1"
               title="Revert to original name"
             >
               Reset
@@ -369,7 +371,7 @@ function SessionHeader({ session }: { session: Session }) {
         )}
         <span className={`${badgeClass} shrink-0`}>{session.agent}</span>
         <span
-          className="text-[10px] font-mono text-gh-text-secondary ml-auto truncate max-w-[40%]"
+          className="text-[11px] font-mono text-gh-text-secondary ml-auto truncate max-w-[40%]"
           title={session.directory}
         >
           {session.repository || session.directory}
@@ -552,24 +554,24 @@ function ConversationView({
           </svg>
           <span className="text-xs font-semibold text-gh-text">Initial Prompt</span>
           {session.model && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gh-bg-hover text-gh-text-secondary font-mono">
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-gh-bg-hover text-gh-text-secondary font-mono">
               {session.model}
             </span>
           )}
 
           {/* Stats */}
           {totalTokens > 0 && (
-            <span className="text-[10px] text-gh-text-secondary" title="Tokens">
+            <span className="text-[11px] text-gh-text-secondary" title="Tokens">
               {(totalTokens / 1000).toFixed(0)}k tokens
             </span>
           )}
           {session.cost > 0 && (
-            <span className="text-[10px] text-gh-text-secondary" title="Cost">
+            <span className="text-[11px] text-gh-text-secondary" title="Cost">
               {formatCost(session.cost)}
             </span>
           )}
           {session.diffFiles > 0 && (
-            <span className="text-[10px] text-gh-text-secondary" title="Files changed">
+            <span className="text-[11px] text-gh-text-secondary" title="Files changed">
               {session.diffFiles}f<span className="text-green-500">+{session.diffAdditions}</span>
               <span className="text-red-500">-{session.diffDeletions}</span>
             </span>
@@ -582,7 +584,7 @@ function ConversationView({
               e.stopPropagation();
               handleResume();
             }}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium rounded-md border cursor-pointer transition-all ml-auto shrink-0 ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md border cursor-pointer transition-all ml-auto shrink-0 ${
               copied
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
                 : "border-accent-border bg-accent-muted text-accent hover:shadow-[0_0_12px_var(--color-glow)]"
@@ -620,7 +622,13 @@ function ConversationView({
 
 // --- Per-message rendering (chronological) ---
 
-function MessageBlock({ message, onOpenModal }: { message: Message; onOpenModal?: (content: string, title?: string) => void }) {
+function MessageBlock({
+  message,
+  onOpenModal,
+}: {
+  message: Message;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
   if (message.role === "user") {
     return <UserTurnView content={message.content} onOpenModal={onOpenModal} />;
   }
@@ -631,7 +639,13 @@ function MessageBlock({ message, onOpenModal }: { message: Message; onOpenModal?
   return <AssistantMessageView message={message} onOpenModal={onOpenModal} />;
 }
 
-function UserTurnView({ content, onOpenModal }: { content: string; onOpenModal?: (content: string, title?: string) => void }) {
+function UserTurnView({
+  content,
+  onOpenModal,
+}: {
+  content: string;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
   const [expanded, setExpanded] = useState(true);
   const isLong = content.length > 2000;
   const display = !expanded && isLong ? content.slice(0, 2000) + "…" : content;
@@ -688,7 +702,13 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
-function AssistantMessageView({ message, onOpenModal }: { message: Message; onOpenModal?: (content: string, title?: string) => void }) {
+function AssistantMessageView({
+  message,
+  onOpenModal,
+}: {
+  message: Message;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
   const reasoning = message.reasoning || "";
@@ -700,7 +720,7 @@ function AssistantMessageView({ message, onOpenModal }: { message: Message; onOp
   return (
     <div className="sess-agent-stream">
       {agent && (
-        <span className="inline-block mb-2 text-[10px] px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border">
+        <span className="inline-block mb-2 text-[11px] px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border">
           {agent}
         </span>
       )}
@@ -715,7 +735,13 @@ function AssistantMessageView({ message, onOpenModal }: { message: Message; onOp
   );
 }
 
-function AssistantStepContent({ content, onOpenModal }: { content: string; onOpenModal?: (content: string, title?: string) => void }) {
+function AssistantStepContent({
+  content,
+  onOpenModal,
+}: {
+  content: string;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
   const [expanded, setExpanded] = useState(true);
   const isLong = content.length > 4000;
   const display = !expanded && isLong ? content.slice(0, 4000) + "\n\n…" : content;
@@ -743,10 +769,17 @@ function AssistantStepContent({ content, onOpenModal }: { content: string; onOpe
 
 // --- Pinned user prompt ---
 
-function UserPromptBubble({ message, onOpenModal }: { message: Message; onOpenModal?: (content: string, title?: string) => void }) {
+function UserPromptBubble({
+  message,
+  onOpenModal,
+}: {
+  message: Message;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
   const [expanded, setExpanded] = useState(true);
   const isLong = message.content.length > 3000;
-  const display = !expanded && isLong ? message.content.slice(0, 3000) + "\n\n..." : message.content;
+  const display =
+    !expanded && isLong ? message.content.slice(0, 3000) + "\n\n..." : message.content;
 
   return (
     <div>
@@ -829,6 +862,7 @@ function ToolCallRow({
   const summary = getToolSummary(tool, agent);
 
   const isTask = tool.name === "task";
+  const isTaskComplete = tool.name === "task_complete";
   let childSessionId: string | null = null;
   if (isTask && tool.metadata) {
     try {
@@ -837,6 +871,44 @@ function ToolCallRow({
     } catch {
       /* ignore */
     }
+  }
+
+  // Special rendering for task_complete
+  if (isTaskComplete && !compact) {
+    let taskSummary = "";
+    try {
+      const parsed = JSON.parse(tool.input);
+      taskSummary = parsed.summary || "";
+    } catch {
+      /* ignore */
+    }
+
+    return (
+      <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03]">
+        <div className="px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <svg
+              className="size-4 text-emerald-400 shrink-0"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm3.36 4.76-4.25 4.5a.75.75 0 0 1-1.08.02L3.97 8.6a.75.75 0 0 1 1.06-1.06l1.7 1.7 3.72-3.94a.75.75 0 1 1 1.1 1.04Z" />
+            </svg>
+            <span className="font-semibold text-[11px] text-emerald-400">Task Complete</span>
+          </div>
+          {taskSummary && (
+            <p className="mt-1 text-[11px] text-gh-text-secondary leading-relaxed">
+              {taskSummary.split("\n")[0]}
+            </p>
+          )}
+        </div>
+        {tool.output && (
+          <div className="border-t border-emerald-500/20">
+            <MarkdownContent content={tool.output} expandable defaultExpanded />
+          </div>
+        )}
+      </div>
+    );
   }
 
   const rowClass = compact
@@ -860,14 +932,14 @@ function ToolCallRow({
               <path d="M6 4l4 4-4 4" />
             </svg>
           )}
-          <span className={`text-[10px] ${statusColor} font-bold shrink-0`}>
+          <span className={`text-[11px] ${statusColor} font-bold shrink-0`}>
             {completed ? "\u2713" : "\u2022"}
           </span>
           <span className="font-mono text-[11px] truncate flex-1 min-w-0 text-gh-text">
             {summary}
           </span>
           {!compact && tool.duration && tool.duration > 0 ? (
-            <span className="text-[10px] text-gh-text-secondary shrink-0">
+            <span className="text-[11px] text-gh-text-secondary shrink-0">
               {tool.duration < 1000
                 ? `${tool.duration}ms`
                 : `${(tool.duration / 1000).toFixed(1)}s`}
@@ -877,7 +949,7 @@ function ToolCallRow({
         {isTask && childSessionId && (
           <button
             type="button"
-            className="shrink-0 px-2 py-1.5 text-[10px] font-medium text-accent hover:text-accent-secondary hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:text-accent-secondary hover:bg-gh-bg-hover cursor-pointer transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               navigateToSession(childSessionId);
@@ -899,6 +971,7 @@ function ToolCallRow({
 
 function ToolDataBlock({ label, content }: { label: string; content: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const isLong = content.length > 500;
   const displayContent = !expanded && isLong ? content.slice(0, 500) + "..." : content;
 
@@ -915,21 +988,65 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
     }
   }
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold text-gh-text-secondary uppercase">{label}</span>
+        <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">{label}</span>
         {isLong && (
+          <span className="text-[10px] text-gh-text-secondary/60">
+            (
+            {content.length > 1024
+              ? `${(content.length / 1024).toFixed(1)}kb`
+              : `${content.length}b`}
+            )
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-0.5">
+          {isLong && (
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              title={expanded ? "Collapse" : "Expand"}
+            >
+              <svg
+                className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`}
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path d="M6 4l4 4-4 4" />
+              </svg>
+            </button>
+          )}
           <button
             type="button"
-            className="text-[10px] text-accent hover:text-accent-secondary cursor-pointer"
-            onClick={() => setExpanded(!expanded)}
+            onClick={handleCopy}
+            className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            title="Copy"
           >
-            {expanded ? "collapse" : `expand (${(content.length / 1024).toFixed(1)}kb)`}
+            {copied ? (
+              <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+              </svg>
+            ) : (
+              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
+              </svg>
+            )}
           </button>
-        )}
+        </div>
       </div>
-      <pre className="mt-0.5 p-2 bg-gh-bg rounded-md border border-gh-border overflow-x-auto text-[10px] font-mono max-h-60 overflow-y-auto leading-relaxed text-gh-text">
+      <pre className="mt-0.5 p-2 bg-gh-bg rounded-md border border-gh-border overflow-x-auto text-[11px] font-mono max-h-60 overflow-y-auto leading-relaxed text-gh-text">
         {formatted}
       </pre>
     </div>
