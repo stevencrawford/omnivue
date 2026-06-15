@@ -173,7 +173,7 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                 <div key={section.chunkType}>
                   <div className="sticky top-0 z-10 bg-gh-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-gh-border">
                     <span
-                      className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${section.badge}`}
+                      className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${section.badge}`}
                     >
                       {section.label}
                     </span>
@@ -193,12 +193,12 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                       >
                         <div className="flex items-center gap-2 mb-1">
                           {r.repository && (
-                            <span className="text-[10px] font-mono text-gh-text-secondary truncate">
+                            <span className="text-[11px] font-mono text-gh-text-secondary truncate">
                               {r.repository}
                             </span>
                           )}
                           {r.updatedAt && (
-                            <span className="text-[10px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
+                            <span className="text-[11px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
                               {relativeTime(r.updatedAt)}
                             </span>
                           )}

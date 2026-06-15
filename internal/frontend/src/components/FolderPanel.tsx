@@ -170,7 +170,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
     <div className="border-b border-gh-border pb-1 mb-1">
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-gh-text-secondary">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-gh-text-secondary">
           Folders
         </span>
         <div className="flex items-center gap-0.5">
@@ -262,7 +262,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
 
       {/* Folder list */}
       {sortedFolders.length === 0 && !creating && (
-        <div className="text-[10px] text-gh-text-secondary px-2 py-1">No folders yet</div>
+        <div className="text-[11px] text-gh-text-secondary px-2 py-1">No folders yet</div>
       )}
       {sortedFolders.map((folder) => (
         <div key={folder.id} className="group">
@@ -312,7 +312,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                 </svg>
                 <span className="truncate">{folder.name}</span>
                 {folderSessions[folder.id] && (
-                  <span className="text-[10px] text-gh-text-secondary ml-auto">
+                  <span className="text-[11px] text-gh-text-secondary ml-auto">
                     {folderSessions[folder.id].length}
                   </span>
                 )}
@@ -374,7 +374,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
           {!allCollapsed && expandedFolder === folder.id && folderSessions[folder.id] && (
             <div>
               {folderSessions[folder.id].length === 0 ? (
-                <div className="text-[10px] text-gh-text-secondary px-2 py-1">Empty</div>
+                <div className="text-[11px] text-gh-text-secondary px-2 py-1">Empty</div>
               ) : (
                 folderSessions[folder.id].map((sid) => {
                   const sess = getSession(sid);
@@ -432,7 +432,7 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
           >
             {sessionTitle(session)}
           </span>
-          <span className="shrink-0 text-[10px] text-gh-text-secondary tabular-nums">
+          <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
             {relativeTime(session.updatedAt)}
           </span>
         </div>
@@ -499,7 +499,7 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
       />
       <div className="flex-1 overflow-y-auto">
         {unassigned.length === 0 ? (
-          <div className="text-[10px] text-gh-text-secondary p-2 text-center">
+          <div className="text-[11px] text-gh-text-secondary p-2 text-center">
             No sessions to add
           </div>
         ) : (
@@ -512,7 +512,7 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
             >
               {s.title || s.id.slice(0, 12)}
               {s.repository && (
-                <span className="text-[10px] text-gh-text-secondary ml-1">({s.repository})</span>
+                <span className="text-[11px] text-gh-text-secondary ml-1">({s.repository})</span>
               )}
             </button>
           ))

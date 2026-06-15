@@ -407,7 +407,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
           <button
             type="button"
             onClick={toggleMode}
-            className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+            className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
               editorMode === "wysiwyg"
                 ? "bg-accent-muted text-accent"
                 : "text-gh-text-secondary hover:text-gh-text"
@@ -419,7 +419,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
           <button
             type="button"
             onClick={toggleMode}
-            className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+            className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
               editorMode === "source"
                 ? "bg-accent-muted text-accent"
                 : "text-gh-text-secondary hover:text-gh-text"
@@ -477,7 +477,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-gh-border text-[10px] text-gh-text-secondary">
+      <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-gh-border text-[11px] text-gh-text-secondary">
         <div className="flex items-center gap-3">
           <span>
             {stats.words.toLocaleString()} word{stats.words !== 1 ? "s" : ""}

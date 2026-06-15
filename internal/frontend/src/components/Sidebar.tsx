@@ -242,7 +242,7 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto px-1.5 py-2">
         {sessions.length > 0 && (
           <div className="flex items-center justify-between px-1.5 py-1">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-gh-text-secondary">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-gh-text-secondary">
               Sessions
             </span>
             <div className="flex items-center gap-0.5">
@@ -345,7 +345,7 @@ function RepoNode({
       >
         <Chevron open={!isCollapsed} />
         <span className="truncate flex-1 text-left">{node.name}</span>
-        <span className="text-[10px] tabular-nums opacity-70">{node.children.length}</span>
+        <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
       </button>
       {!isCollapsed && (
         <div className="space-y-px mt-px">
@@ -435,11 +435,11 @@ function SessionRow({
             {sessionTitle(session)}
           </span>
           {subCount > 0 && !subsVisible && (
-            <span className="shrink-0 text-[10px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
+            <span className="shrink-0 text-[11px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
               {subCount}
             </span>
           )}
-          <span className="shrink-0 text-[10px] text-gh-text-secondary tabular-nums">
+          <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
             {relativeTime(session.updatedAt)}
           </span>
         </div>
@@ -470,14 +470,14 @@ function SessionRow({
                   subActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
                 }`}
               >
-                <span className="text-[10px] text-accent/80 shrink-0">↳</span>
+                <span className="text-[11px] text-accent/80 shrink-0">↳</span>
                 <span className="text-[11px] truncate flex-1">
                   {session.subAgent ? (
                     <span className="text-gh-text-secondary">{session.subAgent}: </span>
                   ) : null}
                   {sessionTitle(session)}
                 </span>
-                <span className="text-[10px] opacity-60 tabular-nums shrink-0">
+                <span className="text-[11px] opacity-60 tabular-nums shrink-0">
                   {relativeTime(session.updatedAt)}
                 </span>
               </button>
@@ -497,9 +497,9 @@ function SessionRow({
               className="w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors hover:bg-gh-bg-hover"
               title={sf.title}
             >
-              <span className="text-[10px] text-amber-400/80 shrink-0">✎</span>
+              <span className="text-[11px] text-amber-400/80 shrink-0">✎</span>
               <span className="text-[11px] truncate flex-1 text-gh-text-secondary">{sf.title}</span>
-              <span className="text-[10px] opacity-60 tabular-nums shrink-0">
+              <span className="text-[11px] opacity-60 tabular-nums shrink-0">
                 {new Date(sf.updatedAt).toLocaleDateString()}
               </span>
             </button>

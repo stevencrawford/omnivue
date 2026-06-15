@@ -62,7 +62,7 @@ export function DiffView({ sessionId }: DiffViewProps) {
           <span className="text-green-500 font-mono">+{stats.additions}</span>
         )}
         {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
-        <div className="ml-auto flex items-center gap-1.5 text-[10px] text-gh-text-secondary">
+        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-gh-text-secondary">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
           </span>
@@ -118,7 +118,7 @@ function DiffFileRow({ diff }: { diff: DiffFile }) {
         )}
 
         {/* Status icon */}
-        <span className={`text-[10px] font-bold shrink-0 ${statusConfig.color}`}>
+        <span className={`text-[11px] font-bold shrink-0 ${statusConfig.color}`}>
           {statusConfig.letter}
         </span>
 
@@ -130,7 +130,7 @@ function DiffFileRow({ diff }: { diff: DiffFile }) {
 
         {/* Change stats */}
         {(diff.additions > 0 || diff.deletions > 0) && (
-          <span className="ml-auto shrink-0 flex items-center gap-1.5 text-[10px] font-mono">
+          <span className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] font-mono">
             {diff.additions > 0 && <span className="text-green-500">+{diff.additions}</span>}
             {diff.deletions > 0 && <span className="text-red-500">-{diff.deletions}</span>}
           </span>
