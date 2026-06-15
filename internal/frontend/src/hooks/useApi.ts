@@ -286,6 +286,27 @@ export async function updateScratchFile(
   if (!res.ok) throw new Error("Failed to update scratch file");
 }
 
+export async function renameScratchFile(
+  sessionId: string,
+  fileId: string,
+  newTitle: string,
+): Promise<void> {
+  const getRes = await fetch(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+  );
+  if (!getRes.ok) throw new Error("Failed to get scratch file");
+  const file = await getRes.json();
+  const res = await fetch(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: newTitle, content: file.content }),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to rename scratch file");
+}
+
 export async function deleteScratchFile(sessionId: string, fileId: string): Promise<void> {
   const res = await fetch(
     `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,

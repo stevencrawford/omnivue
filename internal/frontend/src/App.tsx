@@ -9,7 +9,7 @@ import { useSSE } from "./hooks/useSSE";
 import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
 import type { Session } from "./hooks/useApi";
-import { fetchSessions, createScratchFile } from "./hooks/useApi";
+import { fetchSessions, createScratchFile, deleteScratchFile, renameScratchFile } from "./hooks/useApi";
 import type { ScratchFile } from "./hooks/useApi";
 import { fetchAllScratchFiles } from "./hooks/useApi";
 
@@ -174,9 +174,37 @@ export function App() {
       if (activeTab === tab && activeSession) {
         setActiveTab("session");
       }
-      setScratchFiles((prev) => prev.filter((f) => f.id !== fileId));
     },
     [activeTab, activeSession],
+  );
+
+  const handleDeleteScratchFile = useCallback(
+    async (sessionId: string, fileId: string) => {
+      try {
+        await deleteScratchFile(sessionId, fileId);
+      } catch {
+        return;
+      }
+      setScratchFiles((prev) => prev.filter((f) => f.id !== fileId));
+      setOpenScratchTabs((prev) => prev.filter((id) => id !== fileId));
+      const tab: Tab = `scratch:${fileId}`;
+      if (activeTab === tab && activeSession) {
+        setActiveTab("session");
+      }
+    },
+    [activeTab, activeSession],
+  );
+
+  const handleRenameScratchFile = useCallback(
+    async (sessionId: string, fileId: string, newTitle: string) => {
+      try {
+        await renameScratchFile(sessionId, fileId, newTitle);
+      } catch {
+        return;
+      }
+      setScratchFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, title: newTitle } : f)));
+    },
+    [],
   );
 
   const handleOpenScratchFile = useCallback((sessionId: string, fileId: string) => {
@@ -271,6 +299,8 @@ export function App() {
                 activeSessionId={activeSessionId}
                 onSessionSelect={handleSessionSelect}
                 onScratchFileSelect={handleOpenScratchFile}
+                onDeleteScratchFile={handleDeleteScratchFile}
+                onRenameScratchFile={handleRenameScratchFile}
                 newSessionIds={newSessionIds}
                 scratchFiles={scratchFiles}
               />

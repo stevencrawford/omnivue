@@ -16,6 +16,8 @@ interface SidebarProps {
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
   onScratchFileSelect?: (sessionId: string, fileId: string) => void;
+  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
+  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   newSessionIds: Set<string>;
   scratchFiles?: ScratchFile[];
 }
@@ -66,6 +68,8 @@ export function Sidebar({
   activeSessionId,
   onSessionSelect,
   onScratchFileSelect,
+  onDeleteScratchFile,
+  onRenameScratchFile,
   newSessionIds,
   scratchFiles = [],
 }: SidebarProps) {
@@ -292,6 +296,8 @@ export function Sidebar({
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
                 onScratchFileSelect={onScratchFileSelect}
+                onDeleteScratchFile={onDeleteScratchFile}
+                onRenameScratchFile={onRenameScratchFile}
                 expandedParentId={expandedParentId}
                 onExpandParent={setExpandedParentId}
                 newSessionIds={newSessionIds}
@@ -317,6 +323,8 @@ function RepoNode({
   activeSessionId,
   onSessionSelect,
   onScratchFileSelect,
+  onDeleteScratchFile,
+  onRenameScratchFile,
   expandedParentId,
   onExpandParent,
   newSessionIds,
@@ -328,6 +336,8 @@ function RepoNode({
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
   onScratchFileSelect?: (sessionId: string, fileId: string) => void;
+  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
+  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
   newSessionIds: Set<string>;
@@ -366,6 +376,8 @@ function RepoNode({
                 newSessionIds={newSessionIds}
                 scratchFiles={sessionScratchFiles}
                 onScratchFileSelect={onScratchFileSelect}
+                onDeleteScratchFile={onDeleteScratchFile}
+                onRenameScratchFile={onRenameScratchFile}
               />
             );
           })}
@@ -386,6 +398,8 @@ function SessionRow({
   newSessionIds,
   scratchFiles = [],
   onScratchFileSelect,
+  onDeleteScratchFile,
+  onRenameScratchFile,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -397,10 +411,22 @@ function SessionRow({
   newSessionIds: Set<string>;
   scratchFiles?: ScratchFile[];
   onScratchFileSelect?: (sessionId: string, fileId: string) => void;
+  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
+  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
   const subsVisible = session.id === expandedParentId;
+  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renamingFileId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingFileId]);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
@@ -490,19 +516,92 @@ function SessionRow({
       {scratchFiles.length > 0 && subsVisible && onScratchFileSelect && (
         <div className="ml-2 mt-px mb-1 space-y-px border-l border-gh-border/40">
           {scratchFiles.map((sf) => (
-            <button
+            <div
               key={sf.id}
-              type="button"
-              onClick={() => onScratchFileSelect?.(session.id, sf.id)}
-              className="w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors hover:bg-gh-bg-hover"
-              title={sf.title}
+              className="group flex items-center rounded-r-md transition-colors hover:bg-gh-bg-hover"
             >
-              <span className="text-[11px] text-amber-400/80 shrink-0">✎</span>
-              <span className="text-[11px] truncate flex-1 text-gh-text-secondary">{sf.title}</span>
-              <span className="text-[11px] opacity-60 tabular-nums shrink-0">
-                {new Date(sf.updatedAt).toLocaleDateString()}
-              </span>
-            </button>
+              {renamingFileId === sf.id ? (
+                <div className="flex-1 flex items-center pl-1 py-0.5">
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                        const val = renameValue.trim();
+                        if (val) {
+                          onRenameScratchFile?.(session.id, sf.id, val);
+                        }
+                        setRenamingFileId(null);
+                      } else if (e.key === "Escape") {
+                        e.stopPropagation();
+                        setRenamingFileId(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      const val = renameValue.trim();
+                      if (val && val !== sf.title) {
+                        onRenameScratchFile?.(session.id, sf.id, val);
+                      }
+                      setRenamingFileId(null);
+                    }}
+                    className="flex-1 bg-gh-bg-secondary text-[11px] text-gh-text outline-none border border-accent-border rounded px-1 py-0.5 min-w-0"
+                  />
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onScratchFileSelect?.(session.id, sf.id)}
+                    className="flex-1 flex items-center gap-1.5 pl-1 py-0.5 text-left min-w-0"
+                    title={sf.title}
+                  >
+                    <svg className="size-3 text-gh-text-secondary shrink-0" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
+                    </svg>
+                    <span className="text-[11px] truncate flex-1 text-gh-text-secondary">{sf.title}</span>
+                    <span className="text-[11px] opacity-60 tabular-nums shrink-0">
+                      {new Date(sf.updatedAt).toLocaleDateString()}
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-px opacity-0 group-hover:opacity-100 transition-opacity">
+                    {onRenameScratchFile && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenameValue(sf.title);
+                          setRenamingFileId(sf.id);
+                        }}
+                        className="shrink-0 p-1 text-gh-text-secondary hover:text-accent cursor-pointer"
+                        title="Rename"
+                      >
+                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L3.745 8.815a.25.25 0 0 0-.063.109l-.579 2.027 2.027-.579a.25.25 0 0 0 .109-.063l8.273-8.273a.25.25 0 0 0 0-.354l-1.086-1.086Z" />
+                        </svg>
+                      </button>
+                    )}
+                    {onDeleteScratchFile && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteScratchFile(session.id, sf.id);
+                        }}
+                        className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 cursor-pointer"
+                        title="Delete scratch file"
+                      >
+                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5h-.272l-.98 9.8a1.75 1.75 0 0 1-1.738 1.56H5.74a1.75 1.75 0 0 1-1.738-1.56l-.98-9.8H3A.75.75 0 0 1 3 3h2.25V1.75A1.75 1.75 0 0 1 7 0h2a1.75 1.75 0 0 1 1.75 1.75ZM5.26 14.5a.25.25 0 0 1-.248-.223l-.96-9.61h8.896l-.96 9.61a.25.25 0 0 1-.248.223H5.26Z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           ))}
         </div>
       )}

@@ -146,7 +146,7 @@ export function SessionViewer({
     if (tab.startsWith("scratch:"))
       return (
         <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5Z" />
+          <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
         </svg>
       );
     return null;
@@ -250,9 +250,6 @@ export function SessionViewer({
               sessionId={session.id}
               fileId={fid}
               onDelete={() => onCloseScratchTab(fid)}
-              onTitleChange={(_newTitle) => {
-                // Title changes reflected via scratchFileMap passed from parent
-              }}
             />
           );
         })()}

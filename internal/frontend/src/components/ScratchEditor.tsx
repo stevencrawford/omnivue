@@ -11,7 +11,7 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
-import { getScratchFile, updateScratchFile, deleteScratchFile } from "../hooks/useApi";
+import { getScratchFile, updateScratchFile } from "../hooks/useApi";
 
 marked.use({ gfm: true, breaks: true });
 const lowlight = createLowlight(common);
@@ -74,34 +74,33 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3.7);
 }
 
+function extractFirstH1(md: string): string | null {
+  const match = md.match(/^# (.+)$/m);
+  return match ? match[1].trim() : null;
+}
+
 interface ScratchEditorProps {
   sessionId: string;
   fileId: string;
   onDelete?: () => void;
-  onTitleChange?: (title: string) => void;
 }
 
-export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: ScratchEditorProps) {
-  const [title, setTitle] = useState("");
+export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProps) {
   const [sourceContent, setSourceContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [editorMode, setEditorMode] = useState<"wysiwyg" | "source">("wysiwyg");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedMarkdownRef = useRef("");
-  const lastSavedTitleRef = useRef("");
   const isUpdatingRef = useRef(false);
 
   const loadFile = useCallback(async () => {
     setLoading(true);
     try {
       const f = await getScratchFile(sessionId, fileId);
-      setTitle(f.title);
       setSourceContent(f.content);
       lastSavedMarkdownRef.current = f.content;
-      lastSavedTitleRef.current = f.title;
     } catch {
       /* ignore */
     } finally {
@@ -184,29 +183,29 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
     const md = turndownService.turndown(editor.getHTML());
     if (md === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
-      doSave(fileId, title, md);
+      doSave(fileId, md);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [editor?.getHTML(), title, fileId, editorMode]);
+  }, [editor?.getHTML(), fileId, editorMode]);
 
   // Auto-save source mode
   useEffect(() => {
     if (!fileId || editorMode !== "source") return;
     if (sourceContent === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
-      doSave(fileId, title, sourceContent);
+      doSave(fileId, sourceContent);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [sourceContent, title, fileId, editorMode]);
+  }, [sourceContent, fileId, editorMode]);
 
   const doSave = useCallback(
-    async (fid: string, newTitle: string, md: string) => {
+    async (fid: string, md: string) => {
       setSaveStatus("saving");
+      const title = extractFirstH1(md) || "Untitled";
       try {
-        await updateScratchFile(sessionId, fid, newTitle, md);
+        await updateScratchFile(sessionId, fid, title, md);
         setSaveStatus("saved");
         lastSavedMarkdownRef.current = md;
-        lastSavedTitleRef.current = newTitle;
       } catch {
         setSaveStatus("error");
       }
@@ -214,28 +213,8 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
     [sessionId],
   );
 
-  const handleTitleChange = (newTitle: string) => {
-    setTitle(newTitle);
-    onTitleChange?.(newTitle);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (fileId && newTitle !== lastSavedTitleRef.current) {
-        const md =
-          editorMode === "wysiwyg" && editor
-            ? turndownService.turndown(editor.getHTML())
-            : sourceContent;
-        doSave(fileId, newTitle, md);
-      }
-    }, DEBOUNCE_MS);
-  };
-
-  const handleDelete = async () => {
-    try {
-      await deleteScratchFile(sessionId, fileId);
-      onDelete?.();
-    } catch {
-      /* ignore */
-    }
+  const handleClose = () => {
+    onDelete?.();
   };
 
   const handleToolbarAction = (action: string) => {
@@ -318,23 +297,6 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
     <div
       className={`flex flex-col flex-1 overflow-hidden ${isFullscreen ? "fixed inset-0 z-50 bg-gh-bg" : ""}`}
     >
-      {/* Title bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gh-border shrink-0">
-        <svg
-          className="size-3.5 text-gh-text-secondary shrink-0"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M2 2.75A1.75 1.75 0 0 1 3.75 1h8.5A1.75 1.75 0 0 1 14 2.75v10.5A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V2.75Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-8.5Z" />
-        </svg>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          className="flex-1 bg-transparent text-xs font-semibold text-gh-text outline-none min-w-0"
-        />
-      </div>
-
       {/* Toolbar */}
       <div className="flex items-center justify-between px-2 py-1 border-b border-gh-border shrink-0 bg-gh-bg-secondary/50">
         <div className="flex items-center gap-0.5">
@@ -447,12 +409,12 @@ export function ScratchEditor({ sessionId, fileId, onDelete, onTitleChange }: Sc
           </button>
           <button
             type="button"
-            onClick={handleDelete}
-            className="text-gh-text-secondary hover:text-red-400 cursor-pointer p-0.5 rounded"
-            title="Delete scratch file"
+            onClick={handleClose}
+            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
+            title="Close"
           >
             <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5h-.272l-.98 9.8a1.75 1.75 0 0 1-1.738 1.56H5.74a1.75 1.75 0 0 1-1.738-1.56l-.98-9.8H3A.75.75 0 0 1 3 3h2.25V1.75A1.75 1.75 0 0 1 7 0h2a1.75 1.75 0 0 1 1.75 1.75ZM5.26 14.5a.25.25 0 0 1-.248-.223l-.96-9.61h8.896l-.96 9.61a.25.25 0 0 1-.248.223H5.26Z" />
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
             </svg>
           </button>
         </div>
