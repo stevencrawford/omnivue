@@ -757,7 +757,7 @@ function AssistantMessageView({
       {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} />}
       {tools.length > 0 && (
         <div className={showText ? "mt-2" : ""}>
-          <ToolCallList toolCalls={tools} agent={agent} compact />
+          <ToolCallList toolCalls={tools} agent={agent} compact onOpenModal={onOpenModal} />
         </div>
       )}
     </div>
@@ -1366,7 +1366,7 @@ interface TaskInput {
   subagent_type?: string;
 }
 
-function TaskToolDiff({ tool }: { tool: ToolCall }) {
+function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModal?: (content: string, title?: string) => void }) {
   let input: TaskInput = {};
   let childSessionId: string | null = null;
   let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
@@ -1403,26 +1403,33 @@ function TaskToolDiff({ tool }: { tool: ToolCall }) {
             {completedCount}/{totalCount} steps
           </span>
         )}
-        {childSessionId && (
-          <button
-            type="button"
-            className="ml-auto shrink-0 text-accent hover:text-accent-secondary cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateToSession(childSessionId!);
-            }}
-          >
-            View session →
-          </button>
-        )}
-      </div>
-      {tool.output && (
-        <div className="px-3 py-2">
-          <pre className="text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
-            {tool.output.length > 2000 ? tool.output.slice(0, 2000) + "\n\n…" : tool.output}
-          </pre>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {tool.output && onOpenModal && (
+            <button
+              type="button"
+              className="text-accent hover:text-accent-secondary cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenModal(tool.output!, description);
+              }}
+            >
+              View result →
+            </button>
+          )}
+          {childSessionId && (
+            <button
+              type="button"
+              className="text-accent hover:text-accent-secondary cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateToSession(childSessionId!);
+              }}
+            >
+              View session →
+            </button>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1527,10 +1534,12 @@ function ToolCallList({
   toolCalls,
   agent,
   compact = false,
+  onOpenModal,
 }: {
   toolCalls: ToolCall[];
   agent?: string;
   compact?: boolean;
+  onOpenModal?: (content: string, title?: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const capped = toolCalls.length > TOOL_CALL_VISIBLE_CAP;
@@ -1541,7 +1550,7 @@ function ToolCallList({
     return (
       <div className="sess-tool-compact">
         {visible.map((tool) => (
-          <ToolCallRow key={tool.id} tool={tool} agent={agent} compact />
+          <ToolCallRow key={tool.id} tool={tool} agent={agent} compact onOpenModal={onOpenModal} />
         ))}
         {capped && (
           <button type="button" className="sess-tool-more" onClick={() => setShowAll((v) => !v)}>
@@ -1557,7 +1566,7 @@ function ToolCallList({
   return (
     <div className="space-y-1">
       {toolCalls.map((tool) => (
-        <ToolCallRow key={tool.id} tool={tool} agent={agent} />
+        <ToolCallRow key={tool.id} tool={tool} agent={agent} onOpenModal={onOpenModal} />
       ))}
     </div>
   );
@@ -1567,10 +1576,12 @@ function ToolCallRow({
   tool,
   agent,
   compact = false,
+  onOpenModal,
 }: {
   tool: ToolCall;
   agent?: string;
   compact?: boolean;
+  onOpenModal?: (content: string, title?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { navigateToSession } = useSessionNav();
@@ -1634,7 +1645,7 @@ function ToolCallRow({
       case "todowrite":
         return <TodoWriteToolDiff tool={tool} />;
       case "task":
-        return <TaskToolDiff tool={tool} />;
+        return <TaskToolDiff tool={tool} onOpenModal={onOpenModal} />;
       case "question":
         return <QuestionToolDiff tool={tool} />;
     }
