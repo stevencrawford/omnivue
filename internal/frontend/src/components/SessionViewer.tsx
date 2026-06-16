@@ -879,6 +879,9 @@ interface EditInput {
   file_path?: string;
   old_str?: string;
   new_str?: string;
+  oldString?: string;
+  newString?: string;
+  content?: string;
   view_range?: [number, number];
 }
 
@@ -923,13 +926,17 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
   }
 
   const filePath = input.filePath || input.file_path || input.path || "";
-  const oldStr = input.old_str || "";
-  const newStr = input.new_str || "";
+  // OpenCode uses oldString/newString, Copilot uses old_str/new_str
+  const oldStr = input.old_str || input.oldString || "";
+  const newStr = input.new_str || input.newString || "";
+  const content = input.content || "";
   const viewRange = input.view_range;
   const lang = detectLanguage(filePath);
 
-  // Additions: view_range present with no old_str
-  const isAddition = viewRange != null && !oldStr;
+  // Write tools provide new file content (no old content to diff against)
+  const isWrite = tool.name === "write" && !!content;
+  // Additions: view_range present with no old_str, or write tool
+  const isAddition = (viewRange != null && !oldStr) || isWrite;
 
   let fileDiffMetadata: ReturnType<typeof parseDiffFromFile> | null = null;
   if (!isAddition && oldStr && newStr) {
@@ -947,6 +954,8 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
     disableLineNumbers: false,
     theme: { light: "github-light" as const, dark: "github-dark" as const },
   };
+
+  const displayContent = newStr || content;
 
   return (
     <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mx-4 mb-3">
@@ -966,8 +975,8 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
           fileDiff={fileDiffMetadata}
           options={{ ...baseOptions, diffStyle: "split" as const }}
         />
-      ) : isAddition && newStr ? (
-        <File file={{ name: filePath, contents: newStr, lang }} options={baseOptions} />
+      ) : isAddition && displayContent ? (
+        <File file={{ name: filePath, contents: displayContent, lang }} options={baseOptions} />
       ) : null}
     </div>
   );
@@ -1082,9 +1091,10 @@ function ToolCallRow({
     );
   }
 
-  // Special rendering for edit tools
-  const isEdit = tool.name === "edit" || effectiveToolKind(tool) === "edit";
-  if (isEdit && compact) {
+  // Special rendering for edit/write tools (Copilot + OpenCode)
+  const isFileEdit =
+    tool.name === "edit" || tool.name === "write" || effectiveToolKind(tool) === "edit";
+  if (isFileEdit && compact) {
     return <EditToolDiff tool={tool} />;
   }
 
