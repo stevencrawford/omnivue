@@ -1,22 +1,21 @@
-# Copilot Instructions for mo (Markdown Opener)
+# Copilot Instructions for sess (Agent Harness Session Manager)
 
-## What is mo
+## What is sess
 
-`mo` is a CLI tool that opens Markdown files in a browser with live-reload. It runs a Go HTTP server that embeds a React SPA as a single binary. The Go module is `github.com/k1LoW/mo`.
+`sess` is a CLI tool that watches AI coding agent sessions (OpenCode, GitHub Copilot) and presents them in a browser UI for easy browsing, searching, and management. It runs a Go HTTP server that embeds a React SPA as a single binary. The Go module is `github.com/stevencrawford/sess`.
+
+Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `sess` repurposes the architecture for AI session management.
 
 ## Build & Run
 
-Requires Go and [pnpm](https://pnpm.io/). Node.js version is managed via `pnpm.executionEnv.nodeVersion` in `internal/frontend/package.json`.
+Requires Go 1.26+ and [pnpm](https://pnpm.io/). Node.js version is managed via `pnpm.executionEnv.nodeVersion` in `internal/frontend/package.json`.
 
 ```bash
 # Full build (frontend + Go binary, with ldflags)
 make build
 
 # Dev: build frontend then run with args (uses port 16275, foreground mode)
-make dev ARGS="testdata/basic.md"
-
-# Dev with tab groups (-t can only specify one group per invocation)
-make dev ARGS="-t design testdata/basic.md"
+make dev ARGS="--foreground --port 16275"
 
 # Frontend code generation only (called by make build/dev via go generate)
 make generate
@@ -43,72 +42,99 @@ make ci
 ### CLI Flags
 
 - `--port` / `-p` — Server port (default: 6275)
-- `--target` / `-t` — Tab group name (default: `"default"`)
+- `--bind` / `-b` — Bind address (default: localhost)
 - `--open` — Always open browser
 - `--no-open` — Never open browser
-- `--watch` / `-w` — Boolean flag that turns on watch mode; directory and glob positional arguments are registered as watch patterns
-- `--unwatch` — Boolean flag that removes watched patterns; directory and glob positional arguments specify which patterns to unwatch (with `-R`, a directory removes all patterns under it)
-- `--recursive` / `-R` — Recurse into subdirectories when a directory is given as an argument
-- `--close` — Close files instead of opening them
-- `--clear` — Clear saved session for the specified port
-- `--status` — Show status of all running mo servers
-- `--shutdown` — Shut down the running mo server
-- `--restart` — Restart the running mo server
-- `--foreground` — Run mo server in foreground (do not background)
-- `--json` — Output structured data as JSON to stdout
-- `--dangerously-allow-remote-access` — Allow remote access without authentication (trusted networks only)
+- `--status` — Show status of running servers
+- `--shutdown` — Shut down the running server
+- `--restart` — Restart the running server
+- `--foreground` — Run server in foreground (do not background)
+- `--json` — Output structured data as JSON
+
+### Subcommands
+
+- `sess init` — Discover and configure AI agent session sources interactively
+- `sess add <path> [--type opencode|copilot]` — Manually add a session source
 
 ## Architecture
 
 **Go backend + embedded React SPA**, single binary.
 
-- `cmd/root.go` — CLI entry point (Cobra). Handles single-instance detection: if a server is already running on the port, adds files via HTTP API instead of starting a new one.
-- `internal/server/server.go` — HTTP server, state management (mutex-guarded), SSE for live-reload, file watcher (fsnotify). All API routes use `/_/` prefix to avoid collision with SPA route paths (group names).
-- `internal/static/static.go` — `go:generate` runs the frontend build, then `go:embed` embeds the output from `internal/static/dist/`.
-- `internal/frontend/` — Vite + React 19 + TypeScript + Tailwind CSS v4 SPA. Build output goes to `internal/static/dist/` (configured in `vite.config.ts`).
-- `version/version.go` — Version info, updated by tagpr on release. Build embeds revision via ldflags.
-- `testdata/` — Sample Markdown files (GFM, mermaid, math, alerts, etc.) and fixture projects for tests and dev. Reuse these for new test cases.
+- `cmd/root.go` — CLI entry point (Cobra). Handles single-instance detection, server lifecycle (background/foreground), status/shutdown/restart.
+- `cmd/init.go` — `sess init` command: auto-discovers session sources, interactive prompts.
+- `cmd/add.go` — `sess add` command: manually adds a source.
+- `internal/ingest/` — Core ingest layer:
+  - `types.go` — Unified types: `Session`, `Message`, `ToolCall`, `PlanItem`, `DiffFile`, `Source`
+  - `adapter.go` — `Adapter` interface + `OpenReadOnlyDB()` safeguard
+  - `detect.go` — `AutoDiscover()` scans known paths for agent session data
+  - `opencode/opencode.go` — OpenCode adapter: reads `opencode.db` (SQLite, read-only)
+  - `copilot/copilot.go` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
+- `internal/store/store.go` — Manages `$XDG_STATE_HOME/sess/sess.db`: sources, folders, FTS5 search index
+- `internal/server/server.go` — HTTP server, session state, SSE for live-updates, 30s polling for changes
+- `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
+- `internal/frontend/` — Vite + React 19 + TypeScript + Tailwind CSS v4 SPA
+- `internal/logfile/` — Rotating JSON logging to `$XDG_STATE_HOME/sess/log/`
+- `internal/xdg/` — XDG Base Directory helper
+- `version/version.go` — Version info
 
-## API Conventions
+## API Endpoints
 
-All internal API endpoints are under `/_/api/` and SSE under `/_/events`. The `/_/` prefix is intentional to avoid collisions with user-facing group name routes (e.g., `/mygroup`).
+All internal API endpoints are under `/_/api/` and SSE under `/_/events`. The `/_/` prefix is intentional to avoid collisions with user-facing SPA routes.
 
-Key endpoints:
-- `GET /_/api/groups` — List all groups with files
-- `POST /_/api/files` — Add file
-- `DELETE /_/api/files/{id}` — Remove file
-- `GET /_/api/files/{id}/content` — File content (markdown)
-- `PUT /_/api/files/{id}/group` — Move file to another group
-- `PUT /_/api/reorder` — Reorder files in a group (group name in body)
-- `POST /_/api/files/open` — Open relative file link
-- `POST /_/api/patterns` — Add glob watch pattern
-- `DELETE /_/api/patterns` — Remove glob watch pattern
-- `GET /_/api/status` — Server status (version, pid, groups with patterns)
-- `GET /_/events` — SSE (event types: `update`, `file-changed`, `restart`)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/_/api/status` | Server status (version, pid, source/session counts) |
+| GET | `/_/api/sources` | List configured sources |
+| GET | `/_/api/sessions` | List all sessions |
+| GET | `/_/api/sessions/{id}` | Get session details |
+| GET | `/_/api/sessions/{id}/messages` | Get session messages with tool calls |
+| GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |
+| GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
+| GET | `/_/api/sessions/{id}/resume` | Get CLI command to resume the session |
+| GET | `/_/api/search?q=<query>&limit=<n>` | Full-text search across session content |
+| GET | `/_/api/folders` | List all folders |
+| POST | `/_/api/folders` | Create a new folder |
+| PATCH | `/_/api/folders/{id}` | Update folder (name, color, icon) |
+| DELETE | `/_/api/folders/{id}` | Delete a folder |
+| GET | `/_/api/folders/{id}/sessions` | List session IDs in a folder |
+| POST | `/_/api/folders/{id}/sessions/{sid}` | Assign a session to a folder |
+| DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
+| POST | `/_/api/shutdown` | Shutdown server |
+| POST | `/_/api/restart` | Restart server |
+| GET | `/_/events` | SSE event stream (update, session-changed) |
 
 ## Frontend
 
 - Located in `internal/frontend/`, uses **pnpm** as the package manager.
 - React 19, TypeScript, Tailwind CSS v4.
-- Markdown rendering: `react-markdown` + `remark-gfm` + `rehype-raw` + `rehype-slug` (heading IDs) + `rehype-sanitize` + `@shikijs/rehype` (syntax highlighting) + `mermaid` (diagram rendering) + `remark-math` + `rehype-katex` (math/LaTeX) + `rehype-github-alerts` (GitHub-style alerts) + `react-zoom-pan-pinch` (image zoom).
+- Markdown rendering: `react-markdown` + `remark-gfm` + `remark-breaks` + `rehype-highlight`.
 - SPA routing via `window.location.pathname` (no router library).
-- Key components: `App.tsx` (routing/state), `Sidebar.tsx` (file list with flat/tree view, resizable, drag-and-drop reorder), `TreeView.tsx` (tree view with collapsible directories), `MarkdownViewer.tsx` (rendering + raw view toggle), `TocPanel.tsx` (table of contents, resizable), `GroupDropdown.tsx` (group switcher), `FileContextMenu.tsx` (shared kebab menu for file operations), `WidthToggle.tsx` (wide/narrow content width toggle).
-- Custom hooks: `useSSE.ts` (SSE subscription with auto-reconnect), `useApi.ts` (typed API fetch wrappers), `useActiveHeading.ts` (scroll-based active heading tracking via IntersectionObserver).
-- Theme: GitHub-style light/dark via CSS custom properties (`--color-gh-*`) in `styles/app.css`, toggled by `data-theme` attribute on `<html>`. UI components use Tailwind classes like `bg-gh-bg-sidebar`, `text-gh-text-secondary`, etc.
-- Toggle button pattern: `RawToggle.tsx` and `TocToggle.tsx` follow the same style (`bg-transparent border border-gh-border rounded-md p-1.5 text-gh-text-secondary`). Header buttons (`ViewModeToggle`, `ThemeToggle`, `WidthToggle`, sidebar toggle) use `text-gh-header-text` instead. New buttons should match the appropriate variant.
+- Key components: `App.tsx` (routing/state, session selection), `Sidebar.tsx` (session tree grouped by repo, resizable), `SessionViewer.tsx` (tabbed detail view with conversation/plan/diff tabs), `MarkdownContent.tsx` (markdown renderer with syntax highlighting), `PlanView.tsx` (plan/checkpoint items with status indicators), `DiffView.tsx` (file change list with expandable unified diff), `ThemeToggle.tsx` (light/dark theme toggle).
+- Custom hooks: `useSSE.ts` (SSE subscription with auto-reconnect), `useApi.ts` (typed API fetch wrappers).
+- Utilities: `buildTree.ts` (groups sessions by repository).
+- Theme: GitHub-style light/dark via `data-theme` attribute on `<html>`. UI components use CSS custom properties (`--color-gh-*`).
+- localStorage keys use `sess-` prefix.
 
-## Key Patterns
+## Key Design Patterns
 
-- **Single instance design**: CLI probes `/_/api/status` on the target port via `probeServer()`. If already running, pushes files via `POST /_/api/files` and exits.
-- **File IDs**: Files get deterministic string IDs derived from the SHA-256 hash of the absolute path (first 8 hex characters). IDs are stable across server restarts, enabling deep linking. The frontend primarily references files by ID. Absolute paths are available via `FileEntry.path` for display.
-- **Tab groups**: Files are organized into named groups (default: "default"). Group name maps to the URL path.
-- **Live-reload via SSE**: fsnotify watches files; `file-changed` events trigger frontend to re-fetch content by file ID.
-- **State persistence**: Server state (files, groups, patterns) is backed up to `$XDG_STATE_HOME/mo/backup/mo-<port>.json` via `internal/backup`. When starting a new server, backup is always restored and merged with CLI-specified files/patterns (restored entries first, CLI entries appended, duplicates skipped). The backup file is only deleted when the CLI is invoked with `--clear`.
-- **Glob pattern watching**: `--watch` enables watch mode; positional arguments that are globs or directories are registered as patterns, expanded to matching files, and monitored for new files via fsnotify directory watches. Patterns are stored with reference-counted directory watches (`watchedDirs map[string]int`). `--unwatch` is a boolean flag; positional arguments (globs or directories) determine which patterns to remove. With `-R`, a directory argument removes all registered patterns under that directory prefix. Groups persist as long as they have files or patterns.
-- **Resizable panels**: Both `Sidebar.tsx` (left) and `TocPanel.tsx` (right) use the same drag-to-resize pattern with localStorage persistence. Left sidebar uses `e.clientX`, right panel uses `window.innerWidth - e.clientX`.
-- **Toolbar buttons in content area**: The toolbar column (ToC + Raw toggles) lives inside `MarkdownViewer.tsx`, positioned with `shrink-0 flex flex-col gap-2 -mr-4 -mt-4` to align with the header.
-- **Sidebar view modes**: Flat (default, with drag-and-drop reorder via dnd-kit) and tree (hierarchical directory view). View mode is persisted per-group in localStorage. Collapsed directory state is managed inside `TreeView` and also persisted per-group.
-- **localStorage conventions**: All keys use `mo-` prefix (e.g., `mo-sidebar-width`, `mo-sidebar-viewmode`, `mo-sidebar-tree-collapsed`, `mo-theme`). Read patterns use `try/catch` around `JSON.parse` with fallback defaults.
+- **Read-only agent data**: We NEVER write to agent databases. All SQLite connections use `?mode=ro`. The `OpenReadOnlyDB()` helper verifies read-only mode at open time.
+- **Single instance**: CLI probes `/_/api/status`. If a server is running, opens browser and exits.
+- **Unified session model**: Adapters normalize agent-specific formats to common `Session`/`Message` types.
+- **Auto-discovery**: `sess init` scans known paths (`~/.local/share/opencode`, `~/.copilot`).
+- **Live-reload via SSE**: 30s polling detects new/changed sessions, sends `update` events to frontend.
+- **Persistent search**: FTS5 in `sess.db` indexes all session content incrementally.
+- **User folders**: Stored in `sess.db` (not filesystem) — virtual organization of sessions.
+
+## Data Sources
+
+| Agent | Location | Format | Data |
+|-------|----------|--------|------|
+| OpenCode | `~/.local/share/opencode/opencode.db` | SQLite | Sessions, messages, parts, todos, diffs, tokens, costs |
+| OpenCode snapshots | `~/.local/share/opencode/snapshot/` | Git bare repos | File-level rewind |
+| Copilot | `~/.copilot/session-store.db` | SQLite | Sessions, turns, checkpoints, FTS index |
+| Copilot events | `~/.copilot/session-state/<uuid>/events.jsonl` | JSONL | Full conversation + tool calls |
+| Copilot plans | `~/.copilot/session-state/<uuid>/checkpoints/` | Markdown | Implementation plans |
+| Copilot snapshots | `~/.copilot/session-state/<uuid>/rewind-snapshots/` | JSON + raw files | File backups |
 
 ## CI/CD
 
