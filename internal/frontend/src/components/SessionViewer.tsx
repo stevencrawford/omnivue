@@ -438,6 +438,19 @@ function ConversationView({
     prevLengthRef.current = messages.length;
   }, [messages.length]);
 
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => setShowScrollTop(el.scrollTop > 200);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const firstMessage = messages[0];
   const tail = messages.slice(1);
   const grouped = useMemo(() => groupMessages(tail), [tail]);
@@ -639,6 +652,20 @@ function ConversationView({
           </div>
         )}
       </div>
+
+      {/* Scroll to top button */}
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="absolute top-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+          title="Scroll to top"
+        >
+          <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 13.75a.75.75 0 0 1-.75-.75V4.81L3.53 8.53a.75.75 0 0 1-1.06-1.06l5-5a.75.75 0 0 1 1.06 0l5 5a.75.75 0 0 1-1.06 1.06L8.75 4.81V13c0 .414-.336.75-.75.75Z" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
