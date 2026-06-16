@@ -280,7 +280,6 @@ body {
 .sess-tool-compact {
   display: flex;
   flex-direction: column;
-  gap: 1px;
   border-radius: 0.5rem;
   overflow: hidden;
   border: 1px solid var(--color-gh-border);
@@ -304,10 +303,6 @@ body {
 
 .sess-tool-compact-row:hover {
   background: var(--color-gh-bg-hover);
-}
-
-.sess-tool-compact-row + .sess-tool-compact-row {
-  border-top: 1px solid var(--color-gh-border);
 }
 
 .sess-pinned-bar {

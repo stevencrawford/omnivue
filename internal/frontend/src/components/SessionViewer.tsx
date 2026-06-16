@@ -505,7 +505,7 @@ function ConversationView({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden mb-3 relative">
+    <div className="flex-1 flex flex-col overflow-hidden relative">
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
         <WorkerPoolContextProvider
           poolOptions={{ workerFactory }}
@@ -843,7 +843,7 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   }
 
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden mb-3 bg-emerald-500/[0.03] mx-4 mb-3">
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3">
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <svg className="size-4 text-emerald-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
@@ -959,7 +959,7 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
   const displayContent = newStr || content;
 
   return (
-    <div className="border border-accent-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/30 mx-4 mb-3">
+    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mx-4 mb-3">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 text-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
@@ -1037,7 +1037,7 @@ function BashToolDiff({ tool }: { tool: ToolCall }) {
   const success = exitCode == null || exitCode === 0;
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <button
         type="button"
         className="flex items-center gap-2 w-full px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
@@ -1127,7 +1127,7 @@ function ReadToolDiff({ tool }: { tool: ToolCall }) {
     .replace(/^[0-9]{5}\| ?/gm, "");
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <button
         type="button"
         className="flex items-center gap-2 w-full px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
@@ -1195,7 +1195,7 @@ function GrepToolDiff({ tool }: { tool: ToolCall }) {
   const overLimit = lines.length > maxLines;
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8.75 1.5a.75.75 0 0 0-1.5 0v5.25H2a.75.75 0 0 0 0 1.5h5.25v5.25a.75.75 0 0 0 1.5 0V8.25H14a.75.75 0 0 0 0-1.5H8.75V1.5Z" />
@@ -1246,7 +1246,7 @@ function GlobToolDiff({ tool }: { tool: ToolCall }) {
   const output = tool.output || "";
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Z" />
@@ -1297,7 +1297,7 @@ function TodoWriteToolDiff({ tool }: { tool: ToolCall }) {
   const inProgress = todos.filter((t) => t.status === "in_progress").length;
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5ZM6.5 5.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75ZM5 5.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm0 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
@@ -1384,7 +1384,7 @@ function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModal?: (co
   const totalCount = summary?.length ?? 0;
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M1.5 2.75A1.75 1.75 0 0 1 3.25 1h9.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 12.75 15h-9.5A1.75 1.75 0 0 1 1.5 13.25V2.75Z" />
@@ -1455,7 +1455,7 @@ function QuestionToolDiff({ tool }: { tool: ToolCall }) {
       .slice(0, 120);
     if (!text) return null;
     return (
-      <div className="overflow-hidden mb-3">
+      <div className="overflow-hidden">
         <div className="px-3 py-2 text-[11px] text-gh-text">{text}</div>
         {tool.output && (
           <div className="border-t border-accent-border px-3 py-1.5 text-[11px] text-emerald-400">
@@ -1469,7 +1469,7 @@ function QuestionToolDiff({ tool }: { tool: ToolCall }) {
   const q = questions[0];
 
   return (
-    <div className="overflow-hidden mb-3">
+    <div className="overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 11.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm.75-7.25a1.75 1.75 0 0 0-1.75 1.75.75.75 0 0 0 1.5 0 .25.25 0 0 1 .5 0c0 .375-.108.555-.46.928l-.09.095C6.36 7.946 6 8.462 6 9.5a.75.75 0 0 0 1.5 0c0-.375.108-.555.46-.928l.09-.095C8.64 8.054 9 7.538 9 6.5a1.75 1.75 0 0 0-1.25-1.75Z" />
@@ -1539,11 +1539,17 @@ function ToolCallList({
   const hiddenCount = toolCalls.length - visible.length;
 
   if (compact) {
+    const rows = visible.map((tool) => (
+      <ToolCallRow key={tool.id} tool={tool} agent={agent} compact onOpenModal={onOpenModal} />
+    ));
+
+    if (visible.length <= 1) {
+      return <div className="mb-3">{rows}</div>;
+    }
+
     return (
       <div className="sess-tool-compact">
-        {visible.map((tool) => (
-          <ToolCallRow key={tool.id} tool={tool} agent={agent} compact onOpenModal={onOpenModal} />
-        ))}
+        {rows}
         {capped && (
           <button type="button" className="sess-tool-more" onClick={() => setShowAll((v) => !v)}>
             {showAll
@@ -1593,7 +1599,7 @@ function ToolCallRow({
     }
 
     return (
-      <div className="border border-emerald-500/30 rounded-lg overflow-hidden mb-3 bg-emerald-500/[0.03]">
+      <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03]">
         <div className="px-3 py-2.5">
           <div className="flex items-center gap-2">
             <svg
@@ -1660,7 +1666,7 @@ function ToolCallRow({
 
   const wrapperClass = compact
     ? ""
-    : "border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
+    : "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50";
 
   return (
     <div className={wrapperClass}>
