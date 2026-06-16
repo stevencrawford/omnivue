@@ -277,39 +277,6 @@ body {
   color: var(--color-gh-text-secondary);
 }
 
-.sess-tool-compact {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  border: 1px solid var(--color-gh-border);
-  background: var(--color-gh-bg-secondary);
-}
-
-.sess-tool-compact-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.375rem 0.625rem;
-  font-size: 0.75rem;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.12s;
-  border: none;
-  background: transparent;
-  color: var(--color-gh-text);
-}
-
-.sess-tool-compact-row:hover {
-  background: var(--color-gh-bg-hover);
-}
-
-.sess-tool-compact-row + .sess-tool-compact-row {
-  border-top: 1px solid var(--color-gh-border);
-}
-
 .sess-pinned-bar {
   border-top: 1px solid var(--color-gh-border);
   background: var(--color-gh-bg-sidebar);

@@ -9,7 +9,12 @@ import { useSSE } from "./hooks/useSSE";
 import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
 import type { Session } from "./hooks/useApi";
-import { fetchSessions, createScratchFile, deleteScratchFile, renameScratchFile } from "./hooks/useApi";
+import {
+  fetchSessions,
+  createScratchFile,
+  deleteScratchFile,
+  renameScratchFile,
+} from "./hooks/useApi";
 import type { ScratchFile } from "./hooks/useApi";
 import { fetchAllScratchFiles } from "./hooks/useApi";
 

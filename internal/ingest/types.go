@@ -53,6 +53,24 @@ type Session struct {
 	DiffDeletions int `json:"diffDeletions"`
 }
 
+// StepEvent represents a step-start or step-finish event in a message.
+type StepEvent struct {
+	Step     string     `json:"step"`     // "start" or "finish"
+	Snapshot string     `json:"snapshot,omitempty"`
+	Reason   string     `json:"reason,omitempty"`
+	Cost     float64    `json:"cost,omitempty"`
+	Tokens   StepTokens `json:"tokens,omitempty"`
+}
+
+// StepTokens represents token usage for a step.
+type StepTokens struct {
+	Input      int `json:"input"`
+	Output     int `json:"output"`
+	Reasoning  int `json:"reasoning"`
+	CacheRead  int `json:"cacheRead"`
+	CacheWrite int `json:"cacheWrite"`
+}
+
 // Message represents a conversation message within a session.
 type Message struct {
 	ID        string     `json:"id"`
@@ -65,6 +83,9 @@ type Message struct {
 
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
+
+	// Step events (step-start/step-finish markers)
+	StepEvents []StepEvent `json:"stepEvents,omitempty"`
 
 	// Token usage for this message
 	TokensInput  int `json:"tokensInput,omitempty"`
