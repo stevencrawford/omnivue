@@ -993,6 +993,7 @@ interface BashMetadata {
 }
 
 function BashToolDiff({ tool }: { tool: ToolCall }) {
+  const [expanded, setExpanded] = useState(false);
   let command = "";
   let description = "";
   try {
@@ -1019,37 +1020,47 @@ function BashToolDiff({ tool }: { tool: ToolCall }) {
 
   return (
     <div className="overflow-hidden mb-3">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
-        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 1.75C4 .784 4.784 0 5.75 0h5.5C12.216 0 13 .784 13 1.75v12.5A1.75 1.75 0 0 1 11.25 16h-5.5A1.75 1.75 0 0 1 4 14.25V1.75ZM5.75 1.5a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h5.5a.25.25 0 0 0 .25-.25V1.75a.25.25 0 0 0-.25-.25h-5.5ZM7 12.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75Z" />
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <svg
+          className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M6 4l4 4-4 4" />
         </svg>
-        {description && (
-          <span className="text-gh-text truncate" title={description}>
-            {description}
+        <span className={`shrink-0 font-bold ${success ? "text-emerald-400" : "text-red-400"}`}>
+          {success ? "✓" : "✗"}
+        </span>
+        <span className="text-gh-text truncate" title={description || command}>
+          {description || command}
+        </span>
+        {exitCode != null && (
+          <span className={`shrink-0 ml-auto tabular-nums ${success ? "text-emerald-400" : "text-red-400"}`}>
+            Exit {exitCode}
           </span>
         )}
-      </div>
-      <div className="px-3 py-2 bg-gh-bg-secondary/30">
-        <pre className="text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all">
-          <span className="text-accent-secondary">$ </span>
-          {command}
-        </pre>
-      </div>
-      {stdout && (
-        <div className="border-t border-accent-border">
-          <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
-            {trimBashOutput(stdout)}
-          </pre>
-        </div>
-      )}
-      {exitCode != null && (
-        <div className="border-t border-accent-border px-3 py-1 text-[11px] font-mono flex items-center gap-1.5">
-          <span
-            className={`inline-block size-1.5 rounded-full ${success ? "bg-emerald-400" : "bg-red-400"}`}
-          />
-          <span className={success ? "text-emerald-400" : "text-red-400"}>Exit {exitCode}</span>
-          {truncated && <span className="text-gh-text-secondary/60 ml-auto">Output truncated</span>}
-        </div>
+        {truncated && <span className="shrink-0 text-gh-text-secondary/60">truncated</span>}
+      </button>
+      {expanded && (
+        <>
+          <div className="px-3 py-2 bg-gh-bg-secondary/30">
+            <pre className="text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all">
+              <span className="text-accent-secondary">$ </span>
+              {command}
+            </pre>
+          </div>
+          {stdout && (
+            <div className="border-t border-accent-border">
+              <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+                {trimBashOutput(stdout)}
+              </pre>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
