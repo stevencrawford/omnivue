@@ -857,16 +857,6 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
           </div>
         )}
       </div>
-      {tool.output && (
-        <div className="border-t border-emerald-500/20">
-          <MarkdownContent
-            content={tool.output}
-            expandable
-            defaultExpanded
-            className="markdown-body--wide"
-          />
-        </div>
-      )}
     </div>
   );
 }
