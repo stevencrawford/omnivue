@@ -207,6 +207,11 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 // indexSessions indexes session content into the FTS5 search index.
 // It runs incrementally: sessions are only re-indexed if their content hash changes.
 func (s *State) indexSessions(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in indexSessions", "recover", r)
+		}
+	}()
 	if s.store == nil {
 		return
 	}
@@ -311,11 +316,13 @@ func (s *State) pollLoop(ctx context.Context) {
 
 	for {
 		interval := pollInterval(liveCount)
+		timer := time.NewTimer(interval)
 
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-time.After(interval):
+		case <-timer.C:
 			changed := false
 			for sourceID, adapter := range s.adapters {
 				ts, err := adapter.LastModified(ctx)
@@ -485,7 +492,11 @@ func (s *State) GetSources() []ingest.Source {
 	if s.store == nil {
 		return nil
 	}
-	sources, _ := s.store.ListSources()
+	sources, err := s.store.ListSources()
+	if err != nil {
+		slog.Error("failed to list sources", "error", err)
+		return nil
+	}
 	return sources
 }
 
@@ -1081,6 +1092,11 @@ func handleShutdown(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in shutdown handler", "recover", r)
+				}
+			}()
 			time.Sleep(100 * time.Millisecond)
 			state.shutdownCh <- struct{}{}
 		}()
@@ -1091,6 +1107,11 @@ func handleRestart(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in restart handler", "recover", r)
+				}
+			}()
 			time.Sleep(100 * time.Millisecond)
 			state.restartCh <- ""
 		}()
