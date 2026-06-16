@@ -1056,12 +1056,7 @@ function BashToolDiff({ tool }: { tool: ToolCall }) {
         <span className="text-gh-text truncate" title={description || command}>
           {description || command}
         </span>
-        {exitCode != null && (
-          <span className={`shrink-0 ml-auto tabular-nums ${success ? "text-emerald-400" : "text-red-400"}`}>
-            Exit {exitCode}
-          </span>
-        )}
-        {truncated && <span className="shrink-0 text-gh-text-secondary/60">truncated</span>}
+        {truncated && <span className="shrink-0 ml-auto text-gh-text-secondary/60">truncated</span>}
       </button>
       {expanded && (
         <>
@@ -1145,9 +1140,7 @@ function ReadToolDiff({ tool }: { tool: ToolCall }) {
         >
           <path d="M6 4l4 4-4 4" />
         </svg>
-        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
-        </svg>
+        <span className="shrink-0 text-gh-text-secondary/70 font-medium">read:</span>
         <span className="font-medium text-gh-text truncate" title={filePath}>
           {filePath}
         </span>
@@ -1396,7 +1389,18 @@ function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModal?: (co
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M1.5 2.75A1.75 1.75 0 0 1 3.25 1h9.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 12.75 15h-9.5A1.75 1.75 0 0 1 1.5 13.25V2.75Z" />
         </svg>
-        <span className="font-medium text-gh-text truncate">{description || "Sub-task"}</span>
+        <span
+          className={`font-medium text-gh-text truncate ${tool.output && onOpenModal ? "cursor-pointer hover:text-accent" : ""}`}
+          title={description || "Sub-task"}
+          onClick={(e) => {
+            if (tool.output && onOpenModal) {
+              e.stopPropagation();
+              onOpenModal(tool.output, description);
+            }
+          }}
+        >
+          {description || "Sub-task"}
+        </span>
         {agent && <span className="text-gh-text-secondary/70">{agent}</span>}
         {totalCount > 0 && (
           <span className="text-gh-text-secondary/70">
@@ -1404,18 +1408,6 @@ function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModal?: (co
           </span>
         )}
         <div className="ml-auto flex items-center gap-2 shrink-0">
-          {tool.output && onOpenModal && (
-            <button
-              type="button"
-              className="text-accent hover:text-accent-secondary cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenModal(tool.output!, description);
-              }}
-            >
-              View result →
-            </button>
-          )}
           {childSessionId && (
             <button
               type="button"
