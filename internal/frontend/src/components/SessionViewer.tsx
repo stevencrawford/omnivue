@@ -7,7 +7,10 @@ import {
   clearSessionName,
 } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
-import { getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
+import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
+import { File, FileDiff, WorkerPoolContextProvider } from "@pierre/diffs/react";
+import { parseDiffFromFile } from "@pierre/diffs";
+import { workerFactory } from "../utils/workerFactory";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 import { DiffView } from "./DiffView";
@@ -504,15 +507,38 @@ function ConversationView({
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
-        {grouped.length === 0 ? (
-          <p className="text-center text-xs text-gh-text-secondary py-8">
-            Agent work appears here as tools run and responses stream in.
-          </p>
-        ) : (
-          grouped.map((msg) => (
-            <MessageBlock key={msg.id} message={msg} onOpenModal={onOpenModal} />
-          ))
-        )}
+        <WorkerPoolContextProvider
+          poolOptions={{ workerFactory }}
+          highlighterOptions={{
+            theme: { light: "github-light", dark: "github-dark" },
+            langs: [
+              "typescript",
+              "javascript",
+              "tsx",
+              "jsx",
+              "css",
+              "html",
+              "json",
+              "markdown",
+              "go",
+              "python",
+              "rust",
+              "shellscript",
+              "yaml",
+              "sql",
+            ],
+          }}
+        >
+          {grouped.length === 0 ? (
+            <p className="text-center text-xs text-gh-text-secondary py-8">
+              Agent work appears here as tools run and responses stream in.
+            </p>
+          ) : (
+            grouped.map((msg) => (
+              <MessageBlock key={msg.id} message={msg} onOpenModal={onOpenModal} />
+            ))
+          )}
+        </WorkerPoolContextProvider>
       </div>
 
       {/* Divider between messages and pinned bar */}
@@ -633,6 +659,12 @@ function MessageBlock({
     if (!message.content?.trim()) return null;
     return <div className="sess-system-notice whitespace-pre-wrap">{message.content}</div>;
   }
+  if (message.role === "assistant") {
+    const taskComplete = (message.toolCalls ?? []).find((t) => t.name === "task_complete");
+    if (taskComplete) {
+      return <TaskCompleteMessageView tool={taskComplete} />;
+    }
+  }
   return <AssistantMessageView message={message} onOpenModal={onOpenModal} />;
 }
 
@@ -649,12 +681,12 @@ function UserTurnView({
 
   return (
     <div className="sess-user-turn">
-      <div className="sess-user-turn-label">Follow-up</div>
+      <div className="sess-user-turn-label">USER-REQUEST</div>
       <MarkdownContent
         content={display}
         className="markdown-body--wide"
-        onOpenModal={() => onOpenModal?.(content, "Follow-up")}
-        modalTitle="Follow-up"
+        onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
+        modalTitle="USER-REQUEST"
       />
       {isLong && (
         <button
@@ -799,6 +831,148 @@ function UserPromptBubble({
   );
 }
 
+// --- Task Complete message rendering ---
+
+function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
+  let summary = "";
+  try {
+    const parsed = JSON.parse(tool.input);
+    summary = parsed.summary || "";
+  } catch {
+    /* ignore */
+  }
+
+  return (
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3">
+      <div className="px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <svg className="size-4 text-emerald-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm3.36 4.76-4.25 4.5a.75.75 0 0 1-1.08.02L3.97 8.6a.75.75 0 0 1 1.06-1.06l1.7 1.7 3.72-3.94a.75.75 0 1 1 1.1 1.04Z" />
+          </svg>
+          <span className="font-semibold text-[11px] text-emerald-400">Task Complete</span>
+        </div>
+        {summary && (
+          <div className="mt-1.5">
+            <MarkdownContent content={summary} className="markdown-body--wide" />
+          </div>
+        )}
+      </div>
+      {tool.output && (
+        <div className="border-t border-emerald-500/20">
+          <MarkdownContent
+            content={tool.output}
+            expandable
+            defaultExpanded
+            className="markdown-body--wide"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Edit tool diff rendering ---
+
+interface EditInput {
+  path?: string;
+  filePath?: string;
+  file_path?: string;
+  old_str?: string;
+  new_str?: string;
+  view_range?: [number, number];
+}
+
+function detectLanguage(filePath: string): string {
+  const ext = filePath.split(".").pop()?.toLowerCase() || "";
+  const langMap: Record<string, string> = {
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "jsx",
+    json: "json",
+    md: "markdown",
+    css: "css",
+    html: "html",
+    go: "go",
+    py: "python",
+    rs: "rust",
+    rb: "ruby",
+    java: "java",
+    yml: "yaml",
+    yaml: "yaml",
+    toml: "toml",
+    sh: "shellscript",
+    bash: "shellscript",
+    sql: "sql",
+    graphql: "graphql",
+    vue: "vue",
+    svelte: "svelte",
+    c: "c",
+    cpp: "cpp",
+    h: "c",
+  };
+  return langMap[ext] || "";
+}
+
+function EditToolDiff({ tool }: { tool: ToolCall }) {
+  let input: EditInput = {};
+  try {
+    input = JSON.parse(tool.input);
+  } catch {
+    /* ignore */
+  }
+
+  const filePath = input.filePath || input.file_path || input.path || "";
+  const oldStr = input.old_str || "";
+  const newStr = input.new_str || "";
+  const viewRange = input.view_range;
+  const lang = detectLanguage(filePath);
+
+  // Additions: view_range present with no old_str
+  const isAddition = viewRange != null && !oldStr;
+
+  let fileDiffMetadata: ReturnType<typeof parseDiffFromFile> | null = null;
+  if (!isAddition && oldStr && newStr) {
+    try {
+      fileDiffMetadata = parseDiffFromFile(
+        { name: filePath, contents: oldStr, lang },
+        { name: filePath, contents: newStr, lang },
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const baseOptions = {
+    disableLineNumbers: false,
+    theme: { light: "github-light" as const, dark: "github-dark" as const },
+  };
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 text-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
+        </svg>
+        <span className="font-medium text-gh-text truncate">{filePath}</span>
+        {viewRange && (
+          <span className="shrink-0 text-gh-text-secondary/70">
+            :{viewRange[0]}-{viewRange[1]}
+          </span>
+        )}
+      </div>
+      {fileDiffMetadata ? (
+        <FileDiff
+          fileDiff={fileDiffMetadata}
+          options={{ ...baseOptions, diffStyle: "split" as const }}
+        />
+      ) : isAddition && newStr ? (
+        <File file={{ name: filePath, contents: newStr, lang }} options={baseOptions} />
+      ) : null}
+    </div>
+  );
+}
+
 // --- Tool call rendering ---
 
 const TOOL_CALL_VISIBLE_CAP = 10;
@@ -906,6 +1080,12 @@ function ToolCallRow({
         )}
       </div>
     );
+  }
+
+  // Special rendering for edit tools
+  const isEdit = tool.name === "edit" || effectiveToolKind(tool) === "edit";
+  if (isEdit && compact) {
+    return <EditToolDiff tool={tool} />;
   }
 
   const rowClass = compact

@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@pierre/diffs": "^1.2.11",
     "@tiptap/extension-code-block-lowlight": "^3.24.0",
     "@tiptap/extension-link": "^3.24.0",
     "@tiptap/extension-table": "^3.24.0",
