@@ -1108,6 +1108,419 @@ function trimBashOutput(output: string): string {
   return output;
 }
 
+// --- Read tool rendering ---
+
+interface ReadInput {
+  filePath?: string;
+  file_path?: string;
+  path?: string;
+  offset?: number;
+  limit?: number;
+}
+
+function ReadToolDiff({ tool }: { tool: ToolCall }) {
+  let input: ReadInput = {};
+  try {
+    input = JSON.parse(tool.input);
+  } catch {
+    /* ignore */
+  }
+
+  const filePath = input.filePath || input.file_path || input.path || "";
+  const isPartialRead = (input.offset ?? 0) > 0 || (input.limit ?? 0) > 0;
+
+  let truncated = false;
+  try {
+    const meta = JSON.parse(tool.metadata || "{}");
+    truncated = !!meta.truncated;
+  } catch {
+    /* ignore */
+  }
+
+  const content = tool.output || "";
+  // Strip <file> wrappers and leading line numbers from OpenCode output
+  const cleanContent = content
+    .replace(/^<file>\n?/, "")
+    .replace(/\n<\/file>\s*$/, "")
+    .replace(/^[0-9]{5}\| ?/gm, "");
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
+        </svg>
+        <span className="font-medium text-gh-text truncate" title={filePath}>
+          {filePath}
+        </span>
+        {isPartialRead && (
+          <span className="shrink-0 text-gh-text-secondary/70">
+            :{input.offset ?? 1}-{(input.offset ?? 0) + (input.limit ?? 0)}
+          </span>
+        )}
+        {truncated && <span className="shrink-0 text-gh-text-secondary/60">file truncated</span>}
+      </div>
+      {cleanContent && (
+        <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all max-h-80 overflow-y-auto">
+          {cleanContent}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+// --- Grep tool rendering ---
+
+interface GrepInput {
+  pattern?: string;
+  query?: string;
+  path?: string;
+  include?: string;
+}
+
+function GrepToolDiff({ tool }: { tool: ToolCall }) {
+  let input: GrepInput = {};
+  try {
+    input = JSON.parse(tool.input);
+  } catch {
+    /* ignore */
+  }
+
+  let matchCount = 0;
+  let truncated = false;
+  try {
+    const meta = JSON.parse(tool.metadata || "{}");
+    matchCount = meta.matches ?? 0;
+    truncated = !!meta.truncated;
+  } catch {
+    /* ignore */
+  }
+
+  const pattern = input.pattern || input.query || "";
+  const results = tool.output || "";
+  const maxLines = 200;
+  const lines = results.split("\n");
+  const displayLines = lines.length > maxLines ? lines.slice(0, maxLines) : lines;
+  const overLimit = lines.length > maxLines;
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8.75 1.5a.75.75 0 0 0-1.5 0v5.25H2a.75.75 0 0 0 0 1.5h5.25v5.25a.75.75 0 0 0 1.5 0V8.25H14a.75.75 0 0 0 0-1.5H8.75V1.5Z" />
+        </svg>
+        <span className="font-medium text-gh-text truncate" title={pattern}>
+          {pattern.length > 60 ? pattern.slice(0, 60) + "…" : pattern}
+        </span>
+        {matchCount > 0 && (
+          <span className="shrink-0">
+            {matchCount} match{matchCount === 1 ? "" : "es"}
+          </span>
+        )}
+        {truncated && <span className="shrink-0 text-gh-text-secondary/60">truncated</span>}
+      </div>
+      {displayLines.length > 0 && (
+        <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+          {displayLines.join("\n")}
+          {overLimit && `\n\n... (${lines.length - maxLines} more lines)`}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+// --- Glob tool rendering ---
+
+interface GlobInput {
+  pattern?: string;
+}
+
+function GlobToolDiff({ tool }: { tool: ToolCall }) {
+  let input: GlobInput = {};
+  try {
+    input = JSON.parse(tool.input);
+  } catch {
+    /* ignore */
+  }
+
+  let count = 0;
+  try {
+    const meta = JSON.parse(tool.metadata || "{}");
+    count = meta.count ?? 0;
+  } catch {
+    /* ignore */
+  }
+
+  const pattern = input.pattern || "";
+  const output = tool.output || "";
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Z" />
+        </svg>
+        <span className="font-medium text-gh-text truncate" title={pattern}>
+          {pattern.length > 60 ? pattern.slice(0, 60) + "…" : pattern}
+        </span>
+        {count > 0 && (
+          <span className="shrink-0">
+            {count} file{count === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      {output && (
+        <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+          {output}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+// --- Todowrite tool rendering ---
+
+interface TodoItem {
+  content: string;
+  status: string;
+  priority: string;
+  id: string;
+}
+
+interface TodowriteInput {
+  todos: TodoItem[];
+}
+
+function TodoWriteToolDiff({ tool }: { tool: ToolCall }) {
+  let todos: TodoItem[] = [];
+  try {
+    const parsed: TodowriteInput = JSON.parse(tool.input);
+    todos = parsed.todos || [];
+  } catch {
+    /* ignore */
+  }
+
+  if (todos.length === 0) return null;
+
+  const completed = todos.filter((t) => t.status === "completed").length;
+  const inProgress = todos.filter((t) => t.status === "in_progress").length;
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5ZM6.5 5.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75ZM5 5.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm0 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
+        </svg>
+        <span className="font-medium text-gh-text">Plan</span>
+        <span className="text-gh-text-secondary/70">
+          {completed}/{todos.length} done
+        </span>
+        {inProgress > 0 && <span className="text-amber-400">{inProgress} in progress</span>}
+      </div>
+      <div className="px-3 py-2 space-y-0.5">
+        {todos.map((todo) => (
+          <div key={todo.id} className="flex items-start gap-2 py-0.5">
+            <span className="mt-0.5 shrink-0">
+              {todo.status === "completed" ? (
+                <svg className="size-3.5 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm3.36 4.76-4.25 4.5a.75.75 0 0 1-1.08.02L3.97 8.6a.75.75 0 0 1 1.06-1.06l1.7 1.7 3.72-3.94a.75.75 0 1 1 1.1 1.04Z" />
+                </svg>
+              ) : todo.status === "in_progress" ? (
+                <svg className="size-3.5 text-amber-400" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z" />
+                  <circle cx="8" cy="8" r="3.25" fill="currentColor" />
+                </svg>
+              ) : (
+                <svg
+                  className="size-3.5 text-gh-text-secondary/50"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
+                  <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z" />
+                </svg>
+              )}
+            </span>
+            <span
+              className={`text-[11px] leading-relaxed ${
+                todo.status === "completed"
+                  ? "text-gh-text-secondary/60 line-through"
+                  : "text-gh-text"
+              }`}
+            >
+              {todo.content}
+            </span>
+            {todo.priority === "high" && todo.status !== "completed" && (
+              <span className="shrink-0 text-[10px] font-medium text-red-400 bg-red-500/10 px-1 rounded">
+                high
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Task tool rendering ---
+
+interface TaskInput {
+  description?: string;
+  subagent_type?: string;
+}
+
+function TaskToolDiff({ tool }: { tool: ToolCall }) {
+  let input: TaskInput = {};
+  let childSessionId: string | null = null;
+  let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
+  try {
+    input = JSON.parse(tool.input);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const meta = JSON.parse(tool.metadata || "{}");
+    childSessionId = meta.sessionId || null;
+    summary = meta.summary || null;
+  } catch {
+    /* ignore */
+  }
+
+  const { navigateToSession } = useSessionNav();
+  const description = input.description || "";
+  const agent = input.subagent_type || "";
+
+  const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
+  const totalCount = summary?.length ?? 0;
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M1.5 2.75A1.75 1.75 0 0 1 3.25 1h9.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 12.75 15h-9.5A1.75 1.75 0 0 1 1.5 13.25V2.75Z" />
+        </svg>
+        <span className="font-medium text-gh-text truncate">{description || "Sub-task"}</span>
+        {agent && <span className="text-gh-text-secondary/70">{agent}</span>}
+        {totalCount > 0 && (
+          <span className="text-gh-text-secondary/70">
+            {completedCount}/{totalCount} steps
+          </span>
+        )}
+        {childSessionId && (
+          <button
+            type="button"
+            className="ml-auto shrink-0 text-accent hover:text-accent-secondary cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToSession(childSessionId!);
+            }}
+          >
+            View session →
+          </button>
+        )}
+      </div>
+      {tool.output && (
+        <div className="px-3 py-2">
+          <pre className="text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+            {tool.output.length > 2000 ? tool.output.slice(0, 2000) + "\n\n…" : tool.output}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Question tool rendering ---
+
+interface QuestionItem {
+  question: string;
+  header?: string;
+  options?: Array<{ label: string; description?: string }>;
+}
+
+interface QuestionInput {
+  questions: QuestionItem[];
+}
+
+function QuestionToolDiff({ tool }: { tool: ToolCall }) {
+  let questions: QuestionItem[] = [];
+  try {
+    const parsed: QuestionInput = JSON.parse(tool.input);
+    questions = parsed.questions || [];
+  } catch {
+    /* ignore */
+  }
+
+  if (questions.length === 0) {
+    // Fallback: treat the whole input as a question text
+    const text = tool.input
+      ?.replace(/^\{?"(?:question|text|prompt)":\s*"/, "")
+      .replace(/"\}$/, "")
+      .slice(0, 120);
+    if (!text) return null;
+    return (
+      <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+        <div className="px-3 py-2 text-[11px] text-gh-text">{text}</div>
+        {tool.output && (
+          <div className="border-t border-accent-border px-3 py-1.5 text-[11px] text-emerald-400">
+            → {tool.output}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const q = questions[0];
+
+  return (
+    <div className="border border-accent-border rounded-lg overflow-hidden mx-4 mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 11.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm.75-7.25a1.75 1.75 0 0 0-1.75 1.75.75.75 0 0 0 1.5 0 .25.25 0 0 1 .5 0c0 .375-.108.555-.46.928l-.09.095C6.36 7.946 6 8.462 6 9.5a.75.75 0 0 0 1.5 0c0-.375.108-.555.46-.928l.09-.095C8.64 8.054 9 7.538 9 6.5a1.75 1.75 0 0 0-1.25-1.75Z" />
+        </svg>
+        <span className="font-medium text-gh-text truncate">{q.header || q.question}</span>
+      </div>
+      <div className="px-3 py-2">
+        {q.question && q.header !== q.question && (
+          <p className="text-[11px] text-gh-text mb-2">{q.question}</p>
+        )}
+        {q.options && q.options.length > 0 && (
+          <div className="space-y-1">
+            {q.options.map((opt, i) => {
+              const chosen =
+                tool.output &&
+                (tool.output.toLowerCase().includes(opt.label.toLowerCase()) ||
+                  tool.output.toLowerCase().includes(`option ${i + 1}`));
+              return (
+                <div
+                  key={i}
+                  className={`px-2.5 py-1.5 rounded text-[11px] border ${
+                    chosen
+                      ? "border-accent-border bg-accent-muted text-accent"
+                      : "border-gh-border bg-gh-bg-secondary/30 text-gh-text-secondary"
+                  }`}
+                >
+                  <span className="font-medium">{opt.label}</span>
+                  {opt.description && (
+                    <span className="ml-1 text-gh-text-secondary/70">— {opt.description}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {tool.output && (
+          <div className="mt-2 border-t border-accent-border pt-2 text-[11px] text-emerald-400 flex items-center gap-1">
+            <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Z" />
+            </svg>
+            <span>User answered: {tool.output}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- Tool call rendering ---
 
 const TOOL_CALL_VISIBLE_CAP = 10;
@@ -1165,22 +1578,11 @@ function ToolCallRow({
   const { navigateToSession } = useSessionNav();
   const completed = tool.status === "completed";
   const statusColor = completed ? "text-emerald-400" : "text-amber-400";
+  const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
 
-  const isTask = tool.name === "task";
-  const isTaskComplete = tool.name === "task_complete";
-  let childSessionId: string | null = null;
-  if (isTask && tool.metadata) {
-    try {
-      const meta = JSON.parse(tool.metadata);
-      childSessionId = meta.sessionId || null;
-    } catch {
-      /* ignore */
-    }
-  }
-
   // Special rendering for task_complete
-  if (isTaskComplete && !compact) {
+  if (tool.name === "task_complete" && !compact) {
     let taskSummary = "";
     try {
       const parsed = JSON.parse(tool.input);
@@ -1217,17 +1619,38 @@ function ToolCallRow({
     );
   }
 
-  // Special rendering for edit/write tools (Copilot + OpenCode)
-  const isFileEdit =
-    tool.name === "edit" || tool.name === "write" || effectiveToolKind(tool) === "edit";
-  if (isFileEdit && compact) {
-    return <EditToolDiff tool={tool} />;
+  // Compact-mode special renderers dispatch by kind
+  if (compact) {
+    switch (kind) {
+      case "bash":
+        return <BashToolDiff tool={tool} />;
+      case "edit":
+      case "write":
+        return <EditToolDiff tool={tool} />;
+      case "read":
+        return <ReadToolDiff tool={tool} />;
+      case "grep":
+        return <GrepToolDiff tool={tool} />;
+      case "glob":
+        return <GlobToolDiff tool={tool} />;
+      case "todowrite":
+        return <TodoWriteToolDiff tool={tool} />;
+      case "task":
+        return <TaskToolDiff tool={tool} />;
+      case "question":
+        return <QuestionToolDiff tool={tool} />;
+    }
   }
 
-  // Special rendering for bash tools
-  const isBash = tool.name === "bash" || effectiveToolKind(tool) === "bash";
-  if (isBash && compact) {
-    return <BashToolDiff tool={tool} />;
+  // Extract child session ID for task tools (non-compact)
+  let childSessionId: string | null = null;
+  if (kind === "task" && tool.metadata) {
+    try {
+      const meta = JSON.parse(tool.metadata);
+      childSessionId = meta.sessionId || null;
+    } catch {
+      /* ignore */
+    }
   }
 
   const rowClass = compact
@@ -1265,7 +1688,7 @@ function ToolCallRow({
             </span>
           ) : null}
         </button>
-        {isTask && childSessionId && (
+        {kind === "task" && childSessionId && (
           <button
             type="button"
             className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:text-accent-secondary hover:bg-gh-bg-hover cursor-pointer transition-colors"
