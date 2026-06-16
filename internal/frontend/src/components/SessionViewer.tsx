@@ -1654,9 +1654,7 @@ function ToolCallRow({
     }
   }
 
-  const rowClass = compact
-    ? "sess-tool-compact-row"
-    : "flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors";
+  const rowClass = "flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors";
 
   const wrapperClass = "border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
 
