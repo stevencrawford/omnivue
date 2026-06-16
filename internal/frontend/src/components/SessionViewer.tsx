@@ -918,6 +918,8 @@ function detectLanguage(filePath: string): string {
 }
 
 function EditToolDiff({ tool }: { tool: ToolCall }) {
+  const [expanded, setExpanded] = useState(false);
+  const MAX_LINES = 20;
   let input: EditInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -957,6 +959,12 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
   };
 
   const displayContent = newStr || content;
+  const totalLines = displayContent ? displayContent.split("\n").length : 0;
+  const isOverLimit = totalLines > MAX_LINES;
+  const truncatedContent =
+    !expanded && isOverLimit
+      ? displayContent.split("\n").slice(0, MAX_LINES).join("\n")
+      : displayContent;
 
   return (
     <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
@@ -972,13 +980,26 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
         )}
       </div>
       {fileDiffMetadata ? (
-        <FileDiff
-          fileDiff={fileDiffMetadata}
-          options={{ ...baseOptions, diffStyle: "split" as const }}
-        />
+        <div className={!expanded && isOverLimit ? "max-h-[440px] overflow-hidden" : ""}>
+          <FileDiff
+            fileDiff={fileDiffMetadata}
+            options={{ ...baseOptions, diffStyle: "split" as const }}
+          />
+        </div>
       ) : isAddition && displayContent ? (
-        <File file={{ name: filePath, contents: displayContent, lang }} options={baseOptions} />
+        <File file={{ name: filePath, contents: truncatedContent, lang }} options={baseOptions} />
       ) : null}
+      {isOverLimit && (
+        <div className="text-center border-t border-accent-border">
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="text-[11px] font-medium text-accent hover:underline py-2"
+          >
+            {expanded ? "Show less" : `Show more (${totalLines} lines)`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
