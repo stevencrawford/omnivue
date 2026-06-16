@@ -20,18 +20,23 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   },
 };
 
-function sanitizeSnippet(snippet: string): string {
-  const parts: string[] = [];
-  let lastIndex = 0;
-  const tagRe = /<\/?mark>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = tagRe.exec(snippet)) !== null) {
-    parts.push(snippet.slice(lastIndex, match.index).replace(/<[^>]*>/g, ""));
-    parts.push(match[0]);
-    lastIndex = tagRe.lastIndex;
+function renderSnippet(snippet: string): React.ReactNode[] {
+  const doc = new DOMParser().parseFromString(snippet, "text/html");
+  const parts: React.ReactNode[] = [];
+  let key = 0;
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ALL, null);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent || "");
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element;
+      if (el.tagName.toLowerCase() === "mark") {
+        parts.push(<mark key={key++}>{el.textContent || ""}</mark>);
+      }
+    }
   }
-  parts.push(snippet.slice(lastIndex).replace(/<[^>]*>/g, ""));
-  return parts.join("");
+  return parts;
 }
 
 type Section = {
@@ -203,10 +208,9 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                             </span>
                           )}
                         </div>
-                        <div
-                          className="text-xs text-gh-text line-clamp-2 search-result"
-                          dangerouslySetInnerHTML={{ __html: sanitizeSnippet(r.snippet) }}
-                        />
+                        <div className="text-xs text-gh-text line-clamp-2 search-result">
+                          {renderSnippet(r.snippet)}
+                        </div>
                       </button>
                     );
                   })}
