@@ -1075,6 +1075,7 @@ interface ReadInput {
 }
 
 function ReadToolDiff({ tool }: { tool: ToolCall }) {
+  const [expanded, setExpanded] = useState(false);
   let input: ReadInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -1094,7 +1095,6 @@ function ReadToolDiff({ tool }: { tool: ToolCall }) {
   }
 
   const content = tool.output || "";
-  // Strip <file> wrappers and leading line numbers from OpenCode output
   const cleanContent = content
     .replace(/^<file>\n?/, "")
     .replace(/\n<\/file>\s*$/, "")
@@ -1102,7 +1102,18 @@ function ReadToolDiff({ tool }: { tool: ToolCall }) {
 
   return (
     <div className="overflow-hidden mb-3">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <svg
+          className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M6 4l4 4-4 4" />
+        </svg>
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
         </svg>
@@ -1115,8 +1126,8 @@ function ReadToolDiff({ tool }: { tool: ToolCall }) {
           </span>
         )}
         {truncated && <span className="shrink-0 text-gh-text-secondary/60">file truncated</span>}
-      </div>
-      {cleanContent && (
+      </button>
+      {expanded && cleanContent && (
         <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all max-h-80 overflow-y-auto">
           {cleanContent}
         </pre>
