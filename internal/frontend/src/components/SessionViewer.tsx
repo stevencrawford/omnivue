@@ -1556,6 +1556,9 @@ function ExitPlanModeToolDiff({ tool }: { tool: ToolCall }) {
 
   return (
     <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
+      <div className="px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+        <span className="font-medium text-gh-text">Proposed Plan</span>
+      </div>
       {summary && (
         <div className="px-3 py-2">
           <MarkdownContent content={summary} className="markdown-body--wide" />
