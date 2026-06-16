@@ -959,7 +959,7 @@ function EditToolDiff({ tool }: { tool: ToolCall }) {
   const displayContent = newStr || content;
 
   return (
-    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mx-4 mb-3">
+    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <svg className="size-3.5 text-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
@@ -1040,22 +1040,14 @@ function BashToolDiff({ tool }: { tool: ToolCall }) {
     <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
       <button
         type="button"
-        className="flex items-center gap-2 w-full px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+        className={`flex items-center gap-2 w-full px-3 py-1.5 ${expanded ? "border-b border-accent-border " : ""}bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
         onClick={() => setExpanded(!expanded)}
       >
-        <svg
-          className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M6 4l4 4-4 4" />
-        </svg>
         <span className={`shrink-0 font-bold ${success ? "text-emerald-400" : "text-red-400"}`}>
-          {success ? "✓" : "✗"}
+          {success ? "\u2713" : "\u2717"}
         </span>
-        <span className="text-gh-text truncate" title={description || command}>
-          {description || command}
-        </span>
+        {description && <span className="text-gh-text/70 truncate">{description}</span>}
+        <span className="text-gh-text shrink-0 font-mono">$ {command}</span>
         {truncated && <span className="shrink-0 ml-auto text-gh-text-secondary/60">truncated</span>}
       </button>
       {expanded && (
@@ -1130,16 +1122,9 @@ function ReadToolDiff({ tool }: { tool: ToolCall }) {
     <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
       <button
         type="button"
-        className="flex items-center gap-2 w-full px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+        className={`flex items-center gap-2 w-full px-3 py-1.5 ${expanded ? "border-b border-accent-border " : ""}bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
         onClick={() => setExpanded(!expanded)}
       >
-        <svg
-          className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M6 4l4 4-4 4" />
-        </svg>
         <span className="shrink-0 text-gh-text-secondary/70 font-medium">read:</span>
         <span className="font-medium text-gh-text truncate" title={filePath}>
           {filePath}
