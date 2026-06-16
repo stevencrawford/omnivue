@@ -14,6 +14,7 @@ import { workerFactory } from "../utils/workerFactory";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 import { DiffView } from "./DiffView";
+import { PlanView } from "./PlanView";
 import { ScratchEditor } from "./ScratchEditor";
 import { useSessionNav } from "../hooks/useNav";
 
@@ -36,7 +37,7 @@ function groupMessages(messages: Message[]): Message[] {
   return result;
 }
 
-export type Tab = "session" | "diff" | `scratch:${string}`;
+export type Tab = "session" | "diff" | "plan" | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
@@ -49,7 +50,7 @@ interface SessionViewerProps {
   onNewScratchFile?: () => void;
 }
 
-const MAIN_TABS: { tab: "session" | "diff"; label: string; icon: ReactNode }[] = [
+const MAIN_TABS: { tab: "session" | "diff" | "plan"; label: string; icon: ReactNode }[] = [
   {
     tab: "session",
     label: "Session",
@@ -65,6 +66,15 @@ const MAIN_TABS: { tab: "session" | "diff"; label: string; icon: ReactNode }[] =
     icon: (
       <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
         <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
+      </svg>
+    ),
+  },
+  {
+    tab: "plan",
+    label: "Plan",
+    icon: (
+      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5ZM6.5 5.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75ZM5 5.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm0 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
       </svg>
     ),
   },
@@ -144,6 +154,12 @@ export function SessionViewer({
       return (
         <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
           <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
+        </svg>
+      );
+    if (tab === "plan")
+      return (
+        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5ZM6.5 5.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75ZM5 5.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm0 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
         </svg>
       );
     if (tab.startsWith("scratch:"))
@@ -242,6 +258,11 @@ export function SessionViewer({
       {activeTab === "diff" && (
         <div className="flex-1 overflow-y-auto">
           <DiffView sessionId={session.id} />
+        </div>
+      )}
+      {activeTab === "plan" && (
+        <div className="flex-1 overflow-y-auto">
+          <PlanView sessionId={session.id} />
         </div>
       )}
       {isScratchTab(activeTab) &&

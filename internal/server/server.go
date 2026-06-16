@@ -700,7 +700,14 @@ func handleGetMessages(state *State) http.HandlerFunc {
 
 func handleGetPlan(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "plan endpoint removed", http.StatusNotFound)
+		id := r.PathValue("id")
+		plan, err := state.GetPlan(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(plan)
 	}
 }
 
