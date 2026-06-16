@@ -1541,6 +1541,38 @@ function QuestionToolDiff({ tool }: { tool: ToolCall }) {
   );
 }
 
+// --- Exit Plan Mode tool rendering ---
+
+function ExitPlanModeToolDiff({ tool }: { tool: ToolCall }) {
+  let summary = "";
+  try {
+    const parsed = JSON.parse(tool.input);
+    summary = parsed.summary || "";
+  } catch {
+    /* ignore */
+  }
+
+  const feedback = tool.output || "";
+
+  return (
+    <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
+      {summary && (
+        <div className="px-3 py-2">
+          <MarkdownContent content={summary} className="markdown-body--wide" />
+        </div>
+      )}
+      {feedback && (
+        <div className="border-t border-accent-border px-3 py-2">
+          <div className="text-[11px] font-semibold text-gh-text-secondary mb-1">USER-FEEDBACK</div>
+          <div className="text-[11px] text-gh-text pl-2 border-l-2 border-gh-border whitespace-pre-wrap leading-relaxed">
+            {feedback}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Tool call rendering ---
 
 const TOOL_CALL_VISIBLE_CAP = 10;
@@ -1663,6 +1695,8 @@ function ToolCallRow({
         return <TaskToolDiff tool={tool} onOpenModal={onOpenModal} />;
       case "question":
         return <QuestionToolDiff tool={tool} />;
+      case "exit_plan_mode":
+        return <ExitPlanModeToolDiff tool={tool} />;
     }
   }
 
