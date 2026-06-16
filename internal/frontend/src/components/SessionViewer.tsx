@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Session, Message, ToolCall } from "../hooks/useApi";
+import type { Session, Message, ToolCall, StepEvent } from "../hooks/useApi";
 import {
   fetchMessages,
   fetchResumeCommand,
@@ -731,6 +731,43 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
+function StepBlock({ event }: { event: StepEvent }) {
+  if (event.step === "start") {
+    return (
+      <div className="flex items-center gap-1.5 mb-2 text-[11px] text-gh-text-secondary">
+        <svg className="size-3 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 2.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-11Z" />
+        </svg>
+        <span>Step started</span>
+        {event.snapshot && (
+          <code className="text-[10px] font-mono text-gh-text-secondary/60">
+            {event.snapshot.slice(0, 7)}
+          </code>
+        )}
+      </div>
+    );
+  }
+
+  const tokens = event.tokens;
+  const hasTokens = tokens && (tokens.input > 0 || tokens.output > 0);
+  return (
+    <div className="flex items-center gap-1.5 mb-2 text-[11px] text-gh-text-secondary">
+      <svg className="size-3 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm3.36 4.76-4.25 4.5a.75.75 0 0 1-1.08.02L3.97 8.6a.75.75 0 0 1 1.06-1.06l1.7 1.7 3.72-3.94a.75.75 0 1 1 1.1 1.04Z" />
+      </svg>
+      <span>Step finished{event.reason ? ` (${event.reason})` : ""}</span>
+      {event.cost && event.cost > 0 && (
+        <span className="tabular-nums">${event.cost.toFixed(4)}</span>
+      )}
+      {hasTokens && (
+        <span className="tabular-nums text-gh-text-secondary/60">
+          {((tokens!.input + tokens!.output) / 1000).toFixed(0)}k tokens
+        </span>
+      )}
+    </div>
+  );
+}
+
 function AssistantMessageView({
   message,
   onOpenModal,
@@ -742,7 +779,8 @@ function AssistantMessageView({
   const text = (message.content || "").trim();
   const reasoning = message.reasoning || "";
   const tools = message.toolCalls ?? [];
-  if (!text && !reasoning && tools.length === 0) return null;
+  const events = message.stepEvents ?? [];
+  if (!text && !reasoning && tools.length === 0 && events.length === 0) return null;
   const showText = shouldShowStepContent(text, tools);
   if (!showText && !reasoning && tools.length === 0) return null;
 
@@ -754,6 +792,13 @@ function AssistantMessageView({
         </span>
       )}
       <ThinkingBlock reasoning={reasoning} />
+      {events.length > 0 && (
+        <div className="mb-2">
+          {events.map((ev, i) => (
+            <StepBlock key={i} event={ev} />
+          ))}
+        </div>
+      )}
       {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} />}
       {tools.length > 0 && (
         <div className={showText ? "mt-2" : ""}>

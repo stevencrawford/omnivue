@@ -35,12 +35,29 @@ export interface Source {
   createdAt: string;
 }
 
+export interface StepEvent {
+  step: "start" | "finish";
+  snapshot?: string;
+  reason?: string;
+  cost?: number;
+  tokens?: StepTokens;
+}
+
+export interface StepTokens {
+  input: number;
+  output: number;
+  reasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
 export interface Message {
   id: string;
   role: string;
   content: string;
   reasoning?: string;
   toolCalls?: ToolCall[];
+  stepEvents?: StepEvent[];
   timestamp: string;
   model?: string;
   agent?: string;

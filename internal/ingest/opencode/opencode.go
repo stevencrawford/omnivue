@@ -197,7 +197,31 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 			} else {
 				msg.Reasoning += "\n" + p.Text
 			}
-		case "tool":
+		case "step-start":
+					msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
+						Step:     "start",
+						Snapshot: p.Snapshot,
+					})
+				case "step-finish":
+					se := ingest.StepEvent{
+						Step:     "finish",
+						Snapshot: p.Snapshot,
+						Reason:   p.Reason,
+						Cost:     p.Cost,
+					}
+					if p.Tokens != nil {
+						se.Tokens = ingest.StepTokens{
+							Input:    p.Tokens.Input,
+							Output:   p.Tokens.Output,
+							Reasoning: p.Tokens.Reasoning,
+						}
+						if p.Tokens.Cache != nil {
+							se.Tokens.CacheRead = p.Tokens.Cache.Read
+							se.Tokens.CacheWrite = p.Tokens.Cache.Write
+						}
+					}
+					msg.StepEvents = append(msg.StepEvents, se)
+				case "tool":
 					tc := ingest.ToolCall{
 						ID:     p.CallID,
 						Name:   p.Tool,
@@ -470,11 +494,27 @@ type messageData struct {
 }
 
 type partData struct {
-	Type   string    `json:"type"`
-	Text   string    `json:"text"`
-	Tool   string    `json:"tool"`
-	CallID string    `json:"callID"`
-	State  partState `json:"state"`
+	Type     string       `json:"type"`
+	Text     string       `json:"text"`
+	Tool     string       `json:"tool"`
+	CallID   string       `json:"callID"`
+	State    partState    `json:"state"`
+	Snapshot string       `json:"snapshot,omitempty"`
+	Reason   string       `json:"reason,omitempty"`
+	Cost     float64      `json:"cost,omitempty"`
+	Tokens   *stepTokens  `json:"tokens,omitempty"`
+}
+
+type stepTokens struct {
+	Input   int              `json:"input"`
+	Output  int              `json:"output"`
+	Reasoning int            `json:"reasoning"`
+	Cache   *stepCacheTokens `json:"cache,omitempty"`
+}
+
+type stepCacheTokens struct {
+	Read  int `json:"read"`
+	Write int `json:"write"`
 }
 
 type partState struct {
