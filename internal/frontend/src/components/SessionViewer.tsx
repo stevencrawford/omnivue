@@ -992,6 +992,24 @@ interface BashMetadata {
   truncated?: boolean;
 }
 
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-gh-bg-secondary border border-accent-border text-gh-text-secondary hover:text-gh-text"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
 function BashToolDiff({ tool }: { tool: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
   let command = "";
@@ -1047,14 +1065,16 @@ function BashToolDiff({ tool }: { tool: ToolCall }) {
       </button>
       {expanded && (
         <>
-          <div className="px-3 py-2 bg-gh-bg-secondary/30">
+          <div className="relative group px-3 py-2 bg-gh-bg-secondary/30">
+            <CopyBtn text={command} />
             <pre className="text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all">
               <span className="text-accent-secondary">$ </span>
               {command}
             </pre>
           </div>
           {stdout && (
-            <div className="border-t border-accent-border">
+            <div className="relative group border-t border-accent-border">
+              <CopyBtn text={stdout} />
               <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
                 {trimBashOutput(stdout)}
               </pre>
