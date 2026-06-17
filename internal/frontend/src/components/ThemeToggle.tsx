@@ -1,29 +1,14 @@
-import { useEffect, useState } from "react";
-
-type Theme = "light" | "dark";
-
-function getInitialTheme(): Theme {
-  const stored = localStorage.getItem("sess-theme");
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+import { useTheme } from "../hooks/useTheme";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("sess-theme", theme);
-  }, [theme]);
-
-  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <button
       type="button"
       className="sess-icon-btn"
-      onClick={toggle}
-      aria-label="Dark mode"
+      onClick={toggleTheme}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       aria-pressed={theme === "dark"}
       title="Toggle theme"
     >
