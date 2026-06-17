@@ -107,6 +107,15 @@ export function ConversationView({
   const tail = messages.slice(1);
   const grouped = useMemo(() => groupMessages(tail), [tail]);
 
+  const systemReminders = useMemo(
+    () => messages.filter((m) => m.role === "system" && m.metadata?.type === "system_reminder"),
+    [messages],
+  );
+  const messagesWithoutReminders = useMemo(
+    () => grouped.filter((m) => m.role !== "system" || m.metadata?.type !== "system_reminder"),
+    [grouped],
+  );
+
   // Scroll to focused step when focusStepIndex is provided
   useEffect(() => {
     if (focusStepIndex === undefined || !scrollRef.current) return;
@@ -210,12 +219,24 @@ export function ConversationView({
             ],
           }}
         >
-          {grouped.length === 0 ? (
+          {systemReminders.length > 0 && (
+            <div className="px-4 pb-2">
+              {systemReminders.map((msg) => (
+                <SystemReminderView
+                  key={msg.id}
+                  content={msg.content}
+                  fileName={msg.metadata?.file || "AGENTS.md"}
+                  onOpenModal={onOpenModal}
+                />
+              ))}
+            </div>
+          )}
+          {messagesWithoutReminders.length === 0 ? (
             <p className="text-center text-xs text-gh-text-secondary py-8">
               Agent work appears here as tools run and responses stream in.
             </p>
           ) : (
-            grouped.map((msg, idx) => (
+            messagesWithoutReminders.map((msg, idx) => (
               <div key={msg.id} data-message-index={idx}>
                 <MessageBlock message={msg} onOpenModal={onOpenModal} />
               </div>
@@ -370,25 +391,18 @@ function MessageBlock({
 }
 
 function extractInlineBlocks(content: string) {
-  const blocks: Array<
-    | { type: "skill-context"; content: string; fileName?: string }
-    | { type: "system_reminder"; content: string }
-  > = [];
+  const blocks: Array<{
+    type: "skill-context";
+    content: string;
+    fileName?: string;
+  }> = [];
 
   let remaining = content;
 
   remaining = remaining.replace(
-    /<skill-context(?:\s+file="([^"]*)")?\s*>([\s\S]*?)<\/skill-context>\n?/g,
-    (_match, file, inner) => {
-      blocks.push({ type: "skill-context", content: inner.trim(), fileName: file || undefined });
-      return "";
-    },
-  );
-
-  remaining = remaining.replace(
-    /<system_reminder>([\s\S]*?)<\/system_reminder>\n?/g,
-    (_match, inner) => {
-      blocks.push({ type: "system_reminder", content: inner.trim() });
+    /<skill-context(?:\s+(?:file|name)="([^"]*)")?\s*>([\s\S]*?)<\/skill-context>\n?/g,
+    (_match, fileOrName, inner) => {
+      blocks.push({ type: "skill-context", content: inner.trim(), fileName: fileOrName || undefined });
       return "";
     },
   );
@@ -410,7 +424,7 @@ function CollapsibleBlock({
   className?: string;
   onOpenModal?: (content: string, title?: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const lines = content.split("\n");
   const isLong = lines.length > 20;
   const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
@@ -493,15 +507,17 @@ function UserTurnView({
     );
   }
 
+  const isSkillOnly = blocks.length > 0 && !remaining;
+
   return (
     <div className="sess-user-turn">
-      <div className="sess-user-turn-label">USER-REQUEST</div>
+      <div className="sess-user-turn-label">{isSkillOnly ? `SKILL: ${blocks[0].fileName || "Context"}` : "USER-REQUEST"}</div>
       {blocks.map((block, i) =>
         block.type === "skill-context" ? (
           <CollapsibleBlock
             key={i}
             content={block.content}
-            label={block.fileName || "SKILL"}
+            label={block.fileName || "Context"}
             icon={
               <svg className="size-4 text-sky-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
@@ -510,20 +526,7 @@ function UserTurnView({
             className="border-sky-500/30 bg-sky-500/[0.03]"
             onOpenModal={onOpenModal}
           />
-        ) : (
-          <CollapsibleBlock
-            key={i}
-            content={block.content}
-            label="AGENTS.MD"
-            icon={
-              <svg className="size-4 text-amber-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
-              </svg>
-            }
-            className="border-amber-500/30 bg-amber-500/[0.03]"
-            onOpenModal={onOpenModal}
-          />
-        ),
+        ) : null,
       )}
       {remaining && (
         <MarkdownContent
