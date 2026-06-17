@@ -106,7 +106,7 @@ func TestStore_SearchIndex(t *testing.T) {
 	}
 
 	// Search
-	results, err := s.Search("authentication", 10)
+	results, err := s.Search("authentication", 10, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestStore_SearchIndex(t *testing.T) {
 	}
 
 	// Search across sessions
-	results, err = s.Search("auth*", 10)
+	results, err = s.Search("auth*", 10, "")
 	if err != nil {
 		t.Fatal(err)
 	}

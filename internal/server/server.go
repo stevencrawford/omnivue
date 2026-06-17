@@ -541,11 +541,11 @@ func (s *State) GetResumeCommand(ctx context.Context, sessionID string) (string,
 }
 
 // Search performs full-text search across indexed session content.
-func (s *State) Search(query string, limit int) ([]store.SearchResult, error) {
+func (s *State) Search(query string, limit int, sessionID string) ([]store.SearchResult, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("store not available")
 	}
-	return s.store.Search(query, limit)
+	return s.store.Search(query, limit, sessionID)
 }
 
 // SetSessionName overrides the display name for a session.
@@ -947,7 +947,8 @@ func handleSearch(state *State) http.HandlerFunc {
 				limit = parsed
 			}
 		}
-		results, err := state.Search(q, limit)
+		sessionID := r.URL.Query().Get("session_id")
+		results, err := state.Search(q, limit, sessionID)
 		if err != nil {
 			// FTS5 syntax errors should return empty results, not 500
 			slog.Warn("search error", "query", q, "error", err)

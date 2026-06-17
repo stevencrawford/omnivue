@@ -411,24 +411,44 @@ func (s *Store) GetIndexState(sessionID string) (string, error) {
 }
 
 // Search performs a full-text search across indexed session content.
-func (s *Store) Search(query string, limit int) ([]SearchResult, error) {
+func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.Query(`
-		SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, '')
-		FROM search_index
-		WHERE search_index MATCH ?
-		ORDER BY
-			CASE chunk_type
-				WHEN 'name' THEN 0
-				WHEN 'plan' THEN 1
-				WHEN 'messages' THEN 2
-				ELSE 3
-			END,
-			rank
-		LIMIT ?
-	`, query, limit)
+	var rows *sql.Rows
+	var err error
+	if sessionID != "" {
+		rows, err = s.db.Query(`
+			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, '')
+			FROM search_index
+			WHERE search_index MATCH ?
+			  AND session_id = ?
+			ORDER BY
+				CASE chunk_type
+					WHEN 'name' THEN 0
+					WHEN 'plan' THEN 1
+					WHEN 'messages' THEN 2
+					ELSE 3
+				END,
+				rank
+			LIMIT ?
+		`, query, sessionID, limit)
+	} else {
+		rows, err = s.db.Query(`
+			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, '')
+			FROM search_index
+			WHERE search_index MATCH ?
+			ORDER BY
+				CASE chunk_type
+					WHEN 'name' THEN 0
+					WHEN 'plan' THEN 1
+					WHEN 'messages' THEN 2
+					ELSE 3
+				END,
+				rank
+			LIMIT ?
+		`, query, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
