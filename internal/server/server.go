@@ -487,6 +487,25 @@ func (s *State) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFi
 	return adapter.GetDiffs(ctx, sessionID)
 }
 
+// GetEdits returns raw edit tool call data for a session.
+func (s *State) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	s.mu.RLock()
+	var sourceID string
+	for _, sess := range s.sessions {
+		if sess.ID == sessionID {
+			sourceID = sess.SourceID
+			break
+		}
+	}
+	adapter := s.adapters[sourceID]
+	s.mu.RUnlock()
+
+	if adapter == nil {
+		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	}
+	return adapter.GetEdits(ctx, sessionID)
+}
+
 // GetSources returns configured sources from the store.
 func (s *State) GetSources() []ingest.Source {
 	if s.store == nil {
@@ -627,6 +646,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/edits", handleGetEdits(state))
 	mux.HandleFunc("PUT /_/api/sessions/{id}/name", handleSetSessionName(state))
 	mux.HandleFunc("DELETE /_/api/sessions/{id}/name", handleClearSessionName(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/scratch", handleListScratchFiles(state))
@@ -735,6 +755,22 @@ func handleGetDiffs(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(diffs)
+	}
+}
+
+func handleGetEdits(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		edits, err := state.GetEdits(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if edits == nil {
+			edits = []ingest.FileEdit{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(edits)
 	}
 }
 

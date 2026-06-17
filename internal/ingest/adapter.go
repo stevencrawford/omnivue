@@ -30,6 +30,9 @@ type Adapter interface {
 	// GetDiffs returns the file diffs for a session.
 	GetDiffs(ctx context.Context, sessionID string) ([]DiffFile, error)
 
+	// GetEdits returns the raw edit/write tool call data for a session.
+	GetEdits(ctx context.Context, sessionID string) ([]FileEdit, error)
+
 	// ResumeCommand returns the command string to resume a session.
 	ResumeCommand(session *Session) string
 

@@ -53,6 +53,7 @@ func (m *mockAdapter) GetSession(ctx context.Context, id string) (*ingest.Sessio
 func (m *mockAdapter) GetMessages(context.Context, string) ([]ingest.Message, error) { return m.messages, nil }
 func (m *mockAdapter) GetPlan(context.Context, string) (*ingest.Plan, error)         { return nil, nil }
 func (m *mockAdapter) GetDiffs(context.Context, string) ([]ingest.DiffFile, error)    { return nil, nil }
+func (m *mockAdapter) GetEdits(context.Context, string) ([]ingest.FileEdit, error)   { return nil, nil }
 func (m *mockAdapter) ResumeCommand(*ingest.Session) string                          { return "echo resume" }
 func (m *mockAdapter) LastModified(context.Context) (int64, error)                   { return 0, nil }
 func (m *mockAdapter) Close() error                                                  { return nil }

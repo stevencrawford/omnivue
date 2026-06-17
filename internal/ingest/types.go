@@ -116,6 +116,17 @@ type Plan struct {
 	Source   string `json:"source"` // "file" (read from disk), "synthesized" (generated from structured data)
 }
 
+// FileEdit represents a single edit/write tool call within a session.
+type FileEdit struct {
+	FilePath  string    `json:"filePath"`
+	ToolName  string    `json:"toolName"` // "edit" or "write"
+	OldStr    string    `json:"oldStr,omitempty"`
+	NewStr    string    `json:"newStr,omitempty"`
+	Content   string    `json:"content,omitempty"`
+	ViewRange []int     `json:"viewRange,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // DiffFile represents a changed file in a session.
 type DiffFile struct {
 	Path      string `json:"path"`
