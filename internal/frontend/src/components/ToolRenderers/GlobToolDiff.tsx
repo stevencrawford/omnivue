@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ToolCall } from "../../hooks/useApi";
 
 interface GlobInput {
@@ -5,6 +6,7 @@ interface GlobInput {
 }
 
 export function GlobToolDiff({ tool }: { tool: ToolCall }) {
+  const [expanded, setExpanded] = useState(false);
   let input: GlobInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -24,21 +26,32 @@ export function GlobToolDiff({ tool }: { tool: ToolCall }) {
   const output = tool.output || "";
 
   return (
-    <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
-        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Z" />
+    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
+      <button
+        type="button"
+        className={`flex items-center gap-2 w-full px-3 py-1.5 ${
+          expanded ? "border-b border-accent-border" : ""
+        } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <svg
+          className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M6 4l4 4-4 4" />
         </svg>
-        <span className="font-medium text-gh-text truncate" title={pattern}>
+        <span className="text-gh-text-secondary/70 font-medium shrink-0">glob:</span>
+        <span className="font-medium text-gh-text truncate min-w-0" title={pattern}>
           {pattern.length > 60 ? pattern.slice(0, 60) + "…" : pattern}
         </span>
         {count > 0 && (
-          <span className="shrink-0">
+          <span className="shrink-0 text-gh-text-secondary">
             {count} file{count === 1 ? "" : "s"}
           </span>
         )}
-      </div>
-      {output && (
+      </button>
+      {expanded && output && (
         <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
           {output}
         </pre>

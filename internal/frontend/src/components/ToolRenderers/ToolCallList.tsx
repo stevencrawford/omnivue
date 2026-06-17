@@ -4,6 +4,7 @@ import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { useSessionNav } from "../../hooks/useNav";
 import { BashToolDiff } from "./BashToolDiff";
 import { EditToolDiff } from "./EditToolDiff";
+import { EditCompactToolDiff } from "./EditCompactToolDiff";
 import { ReadToolDiff } from "./ReadToolDiff";
 import { GrepToolDiff } from "./GrepToolDiff";
 import { GlobToolDiff } from "./GlobToolDiff";
@@ -149,6 +150,7 @@ export function ToolCallRow({
       case "bash":
         return <BashToolDiff tool={tool} />;
       case "edit":
+        return <EditCompactToolDiff tool={tool} />;
       case "write":
         return <EditToolDiff tool={tool} />;
       case "read":
