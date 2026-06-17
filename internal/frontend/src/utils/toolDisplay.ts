@@ -40,7 +40,10 @@ export function effectiveToolKind(tool: ToolCall): string {
     extractJSONField(input, "filePath") ||
     extractJSONField(input, "file_path") ||
     extractJSONField(input, "path");
-  if (fp) return "edit";
+  if (fp) {
+    if (extractJSONField(input, "offset") || extractJSONField(input, "limit")) return "read";
+    return "edit";
+  }
   if (extractJSONField(input, "pattern") || extractJSONField(input, "query")) return "grep";
   const inner =
     extractJSONField(input, "tool") ||
