@@ -276,6 +276,25 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 				// Find and update the tool call in previous messages
 				updateToolCallResult(&messages, data)
 			}
+
+		case "system_reminder":
+			var data systemReminderData
+			if json.Unmarshal(event.Data, &data) == nil {
+				fileName := "AGENTS.md"
+				if data.File != "" {
+					fileName = data.File
+				}
+				messages = append(messages, ingest.Message{
+					ID:        event.ID,
+					Role:      "system",
+					Content:   data.Content,
+					Timestamp: parseTime(event.Timestamp),
+					Metadata: map[string]string{
+						"type": "system_reminder",
+						"file": fileName,
+					},
+				})
+			}
 		}
 	}
 
@@ -530,4 +549,9 @@ type toolCompleteData struct {
 		Content         string `json:"content"`
 		DetailedContent string `json:"detailedContent"`
 	} `json:"result"`
+}
+
+type systemReminderData struct {
+	Content string `json:"content"`
+	File    string `json:"file"`
 }

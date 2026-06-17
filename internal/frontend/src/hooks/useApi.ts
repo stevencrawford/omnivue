@@ -63,6 +63,7 @@ export interface Message {
   agent?: string;
   tokensInput?: number;
   tokensOutput?: number;
+  metadata?: Record<string, string>;
 }
 
 export interface ToolCall {

@@ -87,6 +87,9 @@ type Message struct {
 	// Step events (step-start/step-finish markers)
 	StepEvents []StepEvent `json:"stepEvents,omitempty"`
 
+	// Arbitrary metadata key-value pairs (e.g., system_reminder file name)
+	Metadata map[string]string `json:"metadata,omitempty"`
+
 	// Token usage for this message
 	TokensInput  int `json:"tokensInput,omitempty"`
 	TokensOutput int `json:"tokensOutput,omitempty"`
