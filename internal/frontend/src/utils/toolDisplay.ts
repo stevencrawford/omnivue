@@ -31,6 +31,10 @@ export function effectiveToolKind(tool: ToolCall): string {
     case "websearch":
     case "codesearch":
       return tool.name;
+    case "view":
+      return "read";
+    case "create":
+      return "write";
   }
 
   const input = tool.input;
