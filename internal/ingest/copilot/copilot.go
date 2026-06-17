@@ -326,6 +326,118 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 	}
 }
 
+// toolEditArgs mirrors the actual arguments in Copilot file edit/create tool requests.
+type toolEditArgs struct {
+	Path    string `json:"path"`
+	OldStr  string `json:"old_str"`
+	NewStr  string `json:"new_str"`
+	FileText string `json:"file_text"`
+}
+
+// GetEdits extracts file edits from assistant.message tool requests in events.jsonl.
+// It looks for "edit" tools (with path/old_str/new_str) and "create" tools (with path/file_text).
+func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return nil, nil
+	}
+	defer f.Close()
+
+	var edits []ingest.FileEdit
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
+
+	for scanner.Scan() {
+		var event eventEnvelope
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			continue
+		}
+
+		if event.Type != "assistant.message" {
+			continue
+		}
+
+		var data assistantMessageData
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			continue
+		}
+
+		for _, req := range data.ToolRequests {
+			var args toolEditArgs
+			if err := json.Unmarshal(req.Arguments, &args); err != nil {
+				continue
+			}
+
+			ts := parseTime(event.Timestamp)
+
+			switch req.Name {
+			case "create":
+				if args.Path == "" {
+					continue
+				}
+				edits = append(edits, ingest.FileEdit{
+					FilePath:  args.Path,
+					ToolName:  "write",
+					Content:   args.FileText,
+					Timestamp: ts,
+				})
+			case "edit":
+				if args.Path == "" && args.OldStr == "" && args.NewStr == "" {
+					continue
+				}
+				edits = append(edits, ingest.FileEdit{
+					FilePath:  args.Path,
+					ToolName:  "edit",
+					OldStr:    args.OldStr,
+					NewStr:    args.NewStr,
+					Timestamp: ts,
+				})
+			}
+		}
+	}
+
+	return edits, scanner.Err()
+}
+
+func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT file_path, tool_name
+		FROM session_files
+		WHERE session_id = ?
+		ORDER BY first_seen_at ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying session files: %w", err)
+	}
+	defer rows.Close()
+
+	var diffs []ingest.DiffFile
+	for rows.Next() {
+		var filePath, toolName sql.NullString
+		if err := rows.Scan(&filePath, &toolName); err != nil {
+			continue
+		}
+
+		status := "modified"
+		if toolName.Valid {
+			switch toolName.String {
+			case "create":
+				status = "added"
+			case "delete":
+				status = "deleted"
+			}
+		}
+
+		diffs = append(diffs, ingest.DiffFile{
+			Path:   filePath.String,
+			Status: status,
+		})
+	}
+
+	return diffs, rows.Err()
+}
+
 func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	// Try to read plan.md from the session-state directory
 	planPath := filepath.Join(a.basePath, "session-state", sessionID, "plan.md")
@@ -378,102 +490,6 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 		Markdown: md,
 		Source:   "synthesized",
 	}, nil
-}
-
-// copilotEditArgs mirrors the arguments in Copilot file edit tool calls.
-type copilotEditArgs struct {
-	FilePath    string `json:"file_path"`
-	OldString   string `json:"old_string"`
-	NewString   string `json:"new_string"`
-	FileContent string `json:"file_content"`
-}
-
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
-	f, err := os.Open(eventsPath)
-	if err != nil {
-		return nil, nil
-	}
-	defer f.Close()
-
-	var edits []ingest.FileEdit
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
-
-	for scanner.Scan() {
-		var event eventEnvelope
-		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-			continue
-		}
-
-		if event.Type != "tool.execution_complete" {
-			continue
-		}
-
-		var data toolCompleteData
-		if err := json.Unmarshal(event.Data, &data); err != nil {
-			continue
-		}
-
-		var args copilotEditArgs
-		// Try to parse result content as JSON with file edit data
-		if data.Result.Content != "" {
-			if err := json.Unmarshal([]byte(data.Result.Content), &args); err == nil && args.FilePath != "" {
-				edits = append(edits, ingest.FileEdit{
-					FilePath:  args.FilePath,
-					ToolName:  "edit",
-					OldStr:    args.OldString,
-					NewStr:    args.NewString,
-					Content:   args.FileContent,
-					Timestamp: parseTime(event.Timestamp),
-				})
-				continue
-			}
-		}
-
-		// Also try to find edits from assistant.message tool requests
-		// (fallback when result content doesn't have structured data)
-	}
-
-	return edits, scanner.Err()
-}
-
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT file_path, tool_name
-		FROM session_files
-		WHERE session_id = ?
-		ORDER BY first_seen_at ASC
-	`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("querying session files: %w", err)
-	}
-	defer rows.Close()
-
-	var diffs []ingest.DiffFile
-	for rows.Next() {
-		var filePath, toolName sql.NullString
-		if err := rows.Scan(&filePath, &toolName); err != nil {
-			continue
-		}
-
-		status := "modified"
-		if toolName.Valid {
-			switch toolName.String {
-			case "create":
-				status = "added"
-			case "delete":
-				status = "deleted"
-			}
-		}
-
-		diffs = append(diffs, ingest.DiffFile{
-			Path:   filePath.String,
-			Status: status,
-		})
-	}
-
-	return diffs, rows.Err()
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {

@@ -74,7 +74,7 @@ func TestAdapter_GetSession(t *testing.T) {
 	if session.ID != sessions[0].ID {
 		t.Errorf("expected session ID %s, got %s", sessions[0].ID, session.ID)
 	}
-	t.Logf("Session: %q (dir: %s)", session.Title, session.Directory)
+	t.Logf("Session: %q (dir: %s, files: %d, msgs: %d)", session.Title, session.Directory, session.DiffFiles, session.MessageCount)
 }
 
 func TestAdapter_GetMessages(t *testing.T) {
@@ -90,7 +90,6 @@ func TestAdapter_GetMessages(t *testing.T) {
 		t.Skip("no sessions available")
 	}
 
-	// Find a session that has turns
 	var sessionID string
 	for _, s := range sessions {
 		if s.Title != "" && s.Title != filepath.Base(s.Directory) {
@@ -133,7 +132,6 @@ func TestAdapter_GetPlan(t *testing.T) {
 		t.Skip("no sessions available")
 	}
 
-	// Try to find a session with a plan
 	for _, s := range sessions {
 		plan, err := adapter.GetPlan(context.Background(), s.ID)
 		if err != nil {
@@ -152,6 +150,38 @@ func TestAdapter_GetPlan(t *testing.T) {
 	t.Log("No sessions with plans found")
 }
 
+func TestAdapter_GetEdits(t *testing.T) {
+	path := getCopilotPath(t)
+	adapter, err := copilot.New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	sessions, err := adapter.ListSessions(context.Background())
+	if err != nil || len(sessions) == 0 {
+		t.Skip("no sessions available")
+	}
+
+	for _, s := range sessions {
+		edits, err := adapter.GetEdits(context.Background(), s.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(edits) > 0 {
+			t.Logf("Session %s has %d file edits", s.ID, len(edits))
+			for i, e := range edits {
+				if i >= 5 {
+					break
+				}
+				t.Logf("  [%s] %s (oldLen=%d, newLen=%d)", e.ToolName, e.FilePath, len(e.OldStr), len(e.NewStr))
+			}
+			return
+		}
+	}
+	t.Log("No sessions with file edits found")
+}
+
 func TestAdapter_GetDiffs(t *testing.T) {
 	path := getCopilotPath(t)
 	adapter, err := copilot.New(path)
@@ -165,7 +195,6 @@ func TestAdapter_GetDiffs(t *testing.T) {
 		t.Skip("no sessions available")
 	}
 
-	// Try to find a session with file changes
 	for _, s := range sessions {
 		diffs, err := adapter.GetDiffs(context.Background(), s.ID)
 		if err != nil {
