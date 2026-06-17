@@ -580,7 +580,7 @@ function AssistantMessageView({
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
   const reasoning = message.reasoning || "";
-  const tools = message.toolCalls ?? [];
+  const tools = (message.toolCalls ?? []).filter((t) => t.name !== "report_intent");
   if (!text && !reasoning && tools.length === 0) return null;
   const showText = shouldShowStepContent(text, tools);
   if (!showText && !reasoning && tools.length === 0) return null;
