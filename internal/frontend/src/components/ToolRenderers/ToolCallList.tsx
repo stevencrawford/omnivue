@@ -165,6 +165,8 @@ export function ToolCallRow({
         return <QuestionToolDiff tool={tool} />;
       case "exit_plan_mode":
         return <ExitPlanModeToolDiff tool={tool} onOpenModal={onOpenModal} />;
+      default:
+        return <DefaultToolDiff tool={tool} />;
     }
   }
 
@@ -224,6 +226,40 @@ export function ToolCallRow({
       </div>
       {expanded && (
         <div className="border-t border-gh-border px-3 py-2 space-y-2 bg-gh-bg-secondary/50">
+          {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
+          {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DefaultToolDiff({ tool }: { tool: ToolCall }) {
+  const [expanded, setExpanded] = useState(false);
+  const kind = effectiveToolKind(tool);
+  const summary = getToolSummary(tool);
+
+  return (
+    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
+      <button
+        type="button"
+        className={`flex items-center gap-2 w-full px-3 py-1.5 ${
+          expanded ? "border-b border-accent-border" : ""
+        } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <svg
+          className={`size-3 text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M6 4l4 4-4 4" />
+        </svg>
+        <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
+        <span className="font-medium text-gh-text truncate min-w-0">{summary}</span>
+      </button>
+      {expanded && (
+        <div className="px-3 py-2 space-y-2">
           {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
           {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
         </div>
