@@ -186,6 +186,24 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   };
 }
 
+function flattenDirectoryChains(nodes: FileTreeNode[]): void {
+  for (const node of nodes) {
+    if (node.isDirectory) {
+      flattenDirectoryChains(node.children);
+
+      while (node.children.length === 1 && node.children[0].isDirectory) {
+        const child = node.children[0];
+        node.name = node.name + "/" + child.name;
+        node.fullPath = child.fullPath;
+        node.children = child.children;
+        for (const c of node.children) {
+          c.depth = node.depth + 1;
+        }
+      }
+    }
+  }
+}
+
 function buildFileTree(diffs: MergedFileDiff[]): FileTreeNode[] {
   const root: FileTreeNode[] = [];
 
@@ -230,6 +248,7 @@ function buildFileTree(diffs: MergedFileDiff[]): FileTreeNode[] {
   }
 
   sortNodes(root);
+  flattenDirectoryChains(root);
   return root;
 }
 
@@ -369,7 +388,7 @@ function DirectoryNode({
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
           <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
         </svg>
-        <span className="font-medium truncate">{node.name}</span>
+        <span className="font-medium truncate">{node.name}/</span>
         <span className="text-[10px] text-gh-text-secondary/60">({fileCount})</span>
       </button>
       {expanded && (
