@@ -76,10 +76,14 @@ export function ConversationView({
 
   useEffect(() => {
     if (messages.length > prevLengthRef.current && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const saved = scrollPositions.get(session.id);
+      const isInitialLoad = prevLengthRef.current === 0;
+      if (!(isInitialLoad && saved !== undefined)) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
     }
     prevLengthRef.current = messages.length;
-  }, [messages.length]);
+  }, [messages.length, session.id, scrollPositions]);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   useEffect(() => {
