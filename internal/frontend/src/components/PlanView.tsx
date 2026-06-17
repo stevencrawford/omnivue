@@ -50,10 +50,8 @@ export function PlanView({ sessionId }: PlanViewProps) {
   }
 
   return (
-    <div className="p-6">
-      <div className="bg-surface-elevated border border-gh-border rounded-xl p-4">
-        <MarkdownContent content={plan.markdown} className="markdown-body--wide" />
-      </div>
+    <div className="px-6 py-5">
+      <MarkdownContent content={plan.markdown} className="markdown-body--wide" />
     </div>
   );
 }
