@@ -6,6 +6,7 @@ import { fetchEdits } from "../hooks/useApi";
 
 interface DiffViewProps {
   sessionId: string;
+  sessionDirectory?: string;
 }
 
 interface MergedFileDiff {
@@ -389,7 +390,16 @@ function DirectoryNode({
   );
 }
 
-export function DiffView({ sessionId }: DiffViewProps) {
+function relativizePath(filePath: string, directory: string | undefined): string {
+  if (!directory) return filePath;
+  const dir = directory.endsWith("/") ? directory : directory + "/";
+  if (filePath.startsWith(dir)) {
+    return filePath.slice(dir.length);
+  }
+  return filePath;
+}
+
+export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -426,9 +436,10 @@ export function DiffView({ sessionId }: DiffViewProps) {
     const grouped = new Map<string, FileEdit[]>();
     for (const edit of edits) {
       if (!edit.filePath) continue;
-      const list = grouped.get(edit.filePath) || [];
-      list.push(edit);
-      grouped.set(edit.filePath, list);
+      const relPath = relativizePath(edit.filePath, sessionDirectory);
+      const list = grouped.get(relPath) || [];
+      list.push({ ...edit, filePath: relPath });
+      grouped.set(relPath, list);
     }
 
     const result: MergedFileDiff[] = [];
@@ -436,7 +447,7 @@ export function DiffView({ sessionId }: DiffViewProps) {
       result.push(mergeFileEdits(filePath, fileEdits));
     }
     return result;
-  }, [edits]);
+  }, [edits, sessionDirectory]);
 
   const tree = useMemo(() => buildFileTree(mergedDiffs), [mergedDiffs]);
 

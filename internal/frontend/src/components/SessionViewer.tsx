@@ -223,7 +223,7 @@ export function SessionViewer({
       )}
       {activeTab === "diff" && (
         <div className="flex-1 overflow-y-auto">
-          <DiffView sessionId={session.id} />
+          <DiffView sessionId={session.id} sessionDirectory={session.directory} />
         </div>
       )}
       {activeTab === "plan" && (
