@@ -104,6 +104,16 @@ export interface DiffFile {
   patch?: string;
 }
 
+export interface FileEdit {
+  filePath: string;
+  toolName: string;
+  oldStr?: string;
+  newStr?: string;
+  content?: string;
+  viewRange?: [number, number];
+  timestamp: string;
+}
+
 export interface SearchResult {
   sessionId: string;
   sourceId: string;
@@ -151,6 +161,12 @@ export async function fetchPlan(sessionId: string): Promise<Plan> {
 export async function fetchDiffs(sessionId: string): Promise<DiffFile[]> {
   const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/diffs`);
   if (!res.ok) throw new Error("Failed to fetch diffs");
+  return res.json();
+}
+
+export async function fetchEdits(sessionId: string): Promise<FileEdit[]> {
+  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/edits`);
+  if (!res.ok) throw new Error("Failed to fetch edits");
   return res.json();
 }
 
