@@ -246,11 +246,6 @@ function getFileName(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-function getDirPath(path: string): string {
-  const lastSlash = path.lastIndexOf("/");
-  return lastSlash === -1 ? "" : path.slice(0, lastSlash);
-}
-
 function FileTreeFileRow({
   diff,
   selected,
@@ -264,7 +259,6 @@ function FileTreeFileRow({
 }) {
   const statusConfig = computeFileStatus(diff);
   const fileName = getFileName(diff.path);
-  const dirPath = getDirPath(diff.path);
 
   return (
     <button
@@ -279,7 +273,6 @@ function FileTreeFileRow({
         {statusConfig.letter}
       </span>
       <span className="text-xs font-mono truncate min-w-0">
-        {dirPath && <span className="text-gh-text-secondary">{dirPath}/</span>}
         <span className="text-gh-text font-medium">{fileName}</span>
       </span>
       {(diff.additions > 0 || diff.deletions > 0) && (
@@ -579,7 +572,7 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
                 options={{
                   theme: { light: "github-light", dark: "github-dark" },
                   diffStyle: "unified",
-                  disableFileHeader: true,
+                  disableFileHeader: false,
                 }}
               />
             </div>
