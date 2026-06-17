@@ -361,6 +361,7 @@ export function App() {
             {activeSession ? (
               <ErrorBoundary>
                 <SessionViewer
+                  key={activeSession.id}
                   session={activeSession}
                   liveChangedIds={liveChangedIds}
                   activeTab={activeTab}

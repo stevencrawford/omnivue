@@ -224,11 +224,9 @@ export function SessionViewer({
           focusStepIndex={focusStepIndex}
         />
       )}
-      {activeTab === "diff" && (
-        <div className="flex-1 overflow-y-auto">
-          <DiffView sessionId={session.id} sessionDirectory={session.directory} />
-        </div>
-      )}
+      <div className={activeTab === "diff" ? "flex-1 overflow-y-auto" : "hidden"}>
+        <DiffView sessionId={session.id} sessionDirectory={session.directory} />
+      </div>
       {activeTab === "plan" && (
         <div className="flex-1 overflow-y-auto">
           <PlanView sessionId={session.id} />
