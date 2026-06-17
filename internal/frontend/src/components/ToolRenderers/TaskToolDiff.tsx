@@ -31,13 +31,13 @@ export function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModa
   const totalCount = summary?.length ?? 0;
 
   return (
-    <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
+    <div className="border border-violet-500/30 rounded-lg bg-violet-500/[0.03] overflow-hidden mb-3">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-violet-500/20 bg-violet-500/[0.04] text-[11px] font-mono text-violet-400">
         <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1.5 2.75A1.75 1.75 0 0 1 3.25 1h9.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 12.75 15h-9.5A1.75 1.75 0 0 1 1.5 13.25V2.75Z" />
+          <path d="M6.5 1.5A1.5 1.5 0 0 1 8 0h0a1.5 1.5 0 0 1 1.5 1.5V3h1.75A2.75 2.75 0 0 1 14 5.75v4.5A2.75 2.75 0 0 1 11.25 13H4.75A2.75 2.75 0 0 1 2 10.25v-4.5A2.75 2.75 0 0 1 4.75 3h1.75V1.5ZM4.75 4.5c-.69 0-1.25.56-1.25 1.25v4.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25v-4.5c0-.69-.56-1.25-1.25-1.25H4.75ZM5 7.5a.5.5 0 1 0 0 1h.5a.5.5 0 0 0 0-1H5Zm5.5.5a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 0 1h-.5a.5.5 0 0 1-.5-.5Zm-4 2a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
         </svg>
         <span
-          className={`font-medium text-gh-text truncate ${tool.output && onOpenModal ? "cursor-pointer hover:text-accent" : ""}`}
+          className={`font-medium text-violet-300 truncate ${tool.output && onOpenModal ? "cursor-pointer hover:text-violet-200" : ""}`}
           title={description || "Sub-task"}
           onClick={(e) => {
             if (tool.output && onOpenModal) {
@@ -48,9 +48,9 @@ export function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModa
         >
           {description || "Sub-task"}
         </span>
-        {agent && <span className="text-gh-text-secondary/70">{agent}</span>}
+        {agent && <span className="text-violet-400/70">{agent}</span>}
         {totalCount > 0 && (
-          <span className="text-gh-text-secondary/70">
+          <span className="text-violet-400/70">
             {completedCount}/{totalCount} steps
           </span>
         )}
@@ -58,7 +58,7 @@ export function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModa
           {childSessionId && (
             <button
               type="button"
-              className="text-accent hover:text-accent-secondary cursor-pointer"
+              className="text-violet-400 hover:text-violet-300 cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
                 navigateToSession(childSessionId!);

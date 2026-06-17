@@ -180,9 +180,12 @@ export function ToolCallRow({
     }
   }
 
+  const isTask = kind === "task";
   const rowClass = "flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors";
 
-  const wrapperClass = "border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
+  const wrapperClass = isTask
+    ? "border border-violet-500/30 rounded-lg overflow-hidden mb-3 bg-violet-500/[0.03]"
+    : "border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
 
   return (
     <div className={wrapperClass}>
@@ -200,7 +203,7 @@ export function ToolCallRow({
           <span className={`text-[11px] ${statusColor} font-bold shrink-0`}>
             {completed ? "\u2713" : "\u2022"}
           </span>
-          <span className="font-mono text-[11px] truncate flex-1 min-w-0 text-gh-text">
+          <span className={`font-mono text-[11px] truncate flex-1 min-w-0 ${isTask ? "text-violet-300" : "text-gh-text"}`}>
             {summary}
           </span>
           {!compact && tool.duration && tool.duration > 0 ? (
@@ -211,10 +214,10 @@ export function ToolCallRow({
             </span>
           ) : null}
         </button>
-        {kind === "task" && childSessionId && (
+        {isTask && childSessionId && (
           <button
             type="button"
-            className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:text-accent-secondary hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 cursor-pointer transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               navigateToSession(childSessionId);
@@ -225,7 +228,7 @@ export function ToolCallRow({
         )}
       </div>
       {expanded && (
-        <div className="border-t border-gh-border px-3 py-2 space-y-2 bg-gh-bg-secondary/50">
+        <div className={`border-t ${isTask ? "border-violet-500/20" : "border-gh-border"} px-3 py-2 space-y-2 bg-gh-bg-secondary/50`}>
           {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
           {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
         </div>
