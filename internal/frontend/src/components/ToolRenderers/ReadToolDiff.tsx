@@ -61,6 +61,10 @@ export function ReadToolDiff({ tool }: { tool: ToolCall }) {
   const cleanContent = content
     .replace(/^<file>\n?/, "")
     .replace(/\n<\/file>\s*$/, "")
+    .replace(/^<path>.*<\/path>\n?/gm, "")
+    .replace(/^<type>.*<\/type>\n?/gm, "")
+    .replace(/^<content>\n?/gm, "")
+    .replace(/\n<\/content>\s*$/gm, "")
     .replace(/^[0-9]{5}\| ?/gm, "");
 
   const baseName = filePath.split("/").pop() || filePath;
