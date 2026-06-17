@@ -3,7 +3,6 @@ import { PatchDiff } from "@pierre/diffs/react";
 import { parseDiffFromFile } from "@pierre/diffs";
 import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
-import { useTheme } from "../hooks/useTheme";
 
 interface DiffViewProps {
   sessionId: string;
@@ -16,6 +15,7 @@ interface MergedFileDiff {
   additions: number;
   deletions: number;
   patch: string;
+  perHunkPatches: string[];
 }
 
 interface ExtractedHunk {
@@ -155,11 +155,15 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   }
 
   let patch = "";
+  const perHunkPatches: string[] = [];
   if (merged.length > 0) {
-    patch = `--- a/${filePath}\n+++ b/${filePath}\n`;
+    const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
     for (const hunk of merged) {
+      const hunkPatch = header + hunk.lines.join("\n") + "\n";
       patch += hunk.lines.join("\n") + "\n";
+      perHunkPatches.push(hunkPatch);
     }
+    patch = header + patch;
   }
 
   return {
@@ -168,6 +172,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
     additions: totalAdditions,
     deletions: totalDeletions,
     patch,
+    perHunkPatches,
   };
 }
 
@@ -398,7 +403,6 @@ function relativizePath(filePath: string, directory: string | undefined): string
 }
 
 export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
-  const { theme } = useTheme();
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -572,16 +576,18 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
         {/* Right: Diff view */}
         <div className="flex-1 overflow-y-auto min-w-0">
           {selectedDiff && selectedDiff.patch ? (
-            <div className="p-4">
-              <PatchDiff
-                key={theme}
-                patch={selectedDiff.patch}
-                options={{
-                  theme: { light: "github-light", dark: "github-dark" },
-                  diffStyle: "unified",
-                  disableFileHeader: false,
-                }}
-              />
+            <div className="p-4 space-y-3">
+              {selectedDiff.perHunkPatches.map((hunkPatch, i) => (
+                <PatchDiff
+                  key={i}
+                  patch={hunkPatch}
+                  options={{
+                    theme: { light: "github-light", dark: "github-dark" },
+                    diffStyle: "unified",
+                    disableFileHeader: false,
+                  }}
+                />
+              ))}
             </div>
           ) : selectedDiff ? (
             <div className="flex items-center justify-center h-full text-sm text-gh-text-secondary">
