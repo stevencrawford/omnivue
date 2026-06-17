@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
@@ -89,6 +89,15 @@ export function ConversationView({
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Re-check scroll position after messages render (e.g. initial load, tab switch)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      setShowScrollTop(el.scrollTop > 200);
+    });
+  }, [messages.length]);
 
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -360,11 +369,45 @@ function MessageBlock({
   return <AssistantMessageView message={message} onOpenModal={onOpenModal} />;
 }
 
-function UserTurnView({
+function extractInlineBlocks(content: string) {
+  const blocks: Array<
+    | { type: "skill-context"; content: string; fileName?: string }
+    | { type: "system_reminder"; content: string }
+  > = [];
+
+  let remaining = content;
+
+  remaining = remaining.replace(
+    /<skill-context(?:\s+file="([^"]*)")?\s*>([\s\S]*?)<\/skill-context>\n?/g,
+    (_match, file, inner) => {
+      blocks.push({ type: "skill-context", content: inner.trim(), fileName: file || undefined });
+      return "";
+    },
+  );
+
+  remaining = remaining.replace(
+    /<system_reminder>([\s\S]*?)<\/system_reminder>\n?/g,
+    (_match, inner) => {
+      blocks.push({ type: "system_reminder", content: inner.trim() });
+      return "";
+    },
+  );
+
+  remaining = remaining.trim();
+  return { blocks, remaining };
+}
+
+function CollapsibleBlock({
   content,
+  label,
+  icon,
+  className,
   onOpenModal,
 }: {
   content: string;
+  label: string;
+  icon: ReactNode;
+  className?: string;
   onOpenModal?: (content: string, title?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -373,21 +416,26 @@ function UserTurnView({
   const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
 
   return (
-    <div className="sess-user-turn">
-      <div className="sess-user-turn-label">USER-REQUEST</div>
-      <div className="relative">
-        {!expanded && isLong && (
-          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg)] to-transparent z-10 pointer-events-none" />
-        )}
-        <MarkdownContent
-          content={display}
-          className="markdown-body--wide"
-          onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
-          modalTitle="USER-REQUEST"
-        />
+    <div className={`border rounded-lg overflow-hidden mb-3 ${className || ""}`}>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-inherit">
+        {icon}
+        <span className="font-semibold text-[11px]">{label}</span>
+      </div>
+      <div className="px-3 py-2">
+        <div className="relative">
+          {!expanded && isLong && (
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
+          )}
+          <MarkdownContent
+            content={display}
+            className="markdown-body--wide"
+            onOpenModal={onOpenModal ? () => onOpenModal(content, label) : undefined}
+            modalTitle={label}
+          />
+        </div>
       </div>
       {isLong && (
-        <div className="flex justify-center mt-1">
+        <div className="flex justify-center border-t border-inherit">
           <button
             type="button"
             className="sess-tool-more"
@@ -396,6 +444,94 @@ function UserTurnView({
             {expanded ? "Show less" : "Show more"}
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+function UserTurnView({
+  content,
+  onOpenModal,
+}: {
+  content: string;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
+  const { blocks, remaining } = extractInlineBlocks(content);
+  const [expanded, setExpanded] = useState(true);
+
+  if (blocks.length === 0) {
+    const lines = content.split("\n");
+    const isLong = lines.length > 20;
+    const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
+
+    return (
+      <div className="sess-user-turn">
+        <div className="sess-user-turn-label">USER-REQUEST</div>
+        <div className="relative">
+          {!expanded && isLong && (
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg)] to-transparent z-10 pointer-events-none" />
+          )}
+          <MarkdownContent
+            content={display}
+            className="markdown-body--wide"
+            onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
+            modalTitle="USER-REQUEST"
+          />
+        </div>
+        {isLong && (
+          <div className="flex justify-center mt-1">
+            <button
+              type="button"
+              className="sess-tool-more"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="sess-user-turn">
+      <div className="sess-user-turn-label">USER-REQUEST</div>
+      {blocks.map((block, i) =>
+        block.type === "skill-context" ? (
+          <CollapsibleBlock
+            key={i}
+            content={block.content}
+            label={block.fileName || "SKILL"}
+            icon={
+              <svg className="size-4 text-sky-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
+              </svg>
+            }
+            className="border-sky-500/30 bg-sky-500/[0.03]"
+            onOpenModal={onOpenModal}
+          />
+        ) : (
+          <CollapsibleBlock
+            key={i}
+            content={block.content}
+            label="AGENTS.MD"
+            icon={
+              <svg className="size-4 text-amber-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
+              </svg>
+            }
+            className="border-amber-500/30 bg-amber-500/[0.03]"
+            onOpenModal={onOpenModal}
+          />
+        ),
+      )}
+      {remaining && (
+        <MarkdownContent
+          content={remaining}
+          className="markdown-body--wide"
+          onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
+          modalTitle="USER-REQUEST"
+        />
       )}
     </div>
   );
