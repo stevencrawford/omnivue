@@ -12,7 +12,6 @@ import {
 import {
   sessionTitle,
   sessionMetaParts,
-  SessionStatusDot,
   relativeTime,
 } from "../utils/sessionUtils";
 
@@ -426,7 +425,6 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0 pr-6">
-          <SessionStatusDot isNew={false} />
           <span
             className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
           >

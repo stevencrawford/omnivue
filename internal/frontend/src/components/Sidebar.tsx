@@ -5,7 +5,6 @@ import type { TreeNode, SortMode } from "../utils/buildTree";
 import {
   sessionTitle,
   sessionMetaParts,
-  SessionStatusDot,
   relativeTime,
 } from "../utils/sessionUtils";
 import { FolderPanel } from "./FolderPanel";
@@ -18,7 +17,6 @@ interface SidebarProps {
   onScratchFileSelect?: (sessionId: string, fileId: string) => void;
   onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
   onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
-  newSessionIds: Set<string>;
   scratchFiles?: ScratchFile[];
 }
 
@@ -70,7 +68,6 @@ export function Sidebar({
   onScratchFileSelect,
   onDeleteScratchFile,
   onRenameScratchFile,
-  newSessionIds,
   scratchFiles = [],
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
@@ -300,7 +297,6 @@ export function Sidebar({
                 onRenameScratchFile={onRenameScratchFile}
                 expandedParentId={expandedParentId}
                 onExpandParent={setExpandedParentId}
-                newSessionIds={newSessionIds}
                 scratchFilesBySession={scratchFilesBySession}
               />
             ))}
@@ -327,7 +323,6 @@ function RepoNode({
   onRenameScratchFile,
   expandedParentId,
   onExpandParent,
-  newSessionIds,
   scratchFilesBySession,
 }: {
   node: TreeNode;
@@ -340,7 +335,6 @@ function RepoNode({
   onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
-  newSessionIds: Set<string>;
   scratchFilesBySession: Map<string, ScratchFile[]>;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
@@ -373,7 +367,6 @@ function RepoNode({
                 onSelect={() => onSessionSelect(session.id)}
                 expandedParentId={expandedParentId}
                 onExpandParent={onExpandParent}
-                newSessionIds={newSessionIds}
                 scratchFiles={sessionScratchFiles}
                 onScratchFileSelect={onScratchFileSelect}
                 onDeleteScratchFile={onDeleteScratchFile}
@@ -395,7 +388,6 @@ function SessionRow({
   onSelect,
   expandedParentId,
   onExpandParent,
-  newSessionIds,
   scratchFiles = [],
   onScratchFileSelect,
   onDeleteScratchFile,
@@ -408,7 +400,6 @@ function SessionRow({
   onSelect: () => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
-  newSessionIds: Set<string>;
   scratchFiles?: ScratchFile[];
   onScratchFileSelect?: (sessionId: string, fileId: string) => void;
   onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
@@ -451,10 +442,6 @@ function SessionRow({
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
-          <SessionStatusDot
-            isNew={newSessionIds.has(session.id)}
-            isLive={session.status === "active"}
-          />
           <span
             className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
           >

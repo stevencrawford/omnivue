@@ -6,7 +6,6 @@ import { SearchPanel } from "./components/SearchPanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
-import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
 import type { Session } from "./hooks/useApi";
@@ -177,12 +176,6 @@ export function App() {
   }, [activeSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
-  const { newSessionIds, markSessionSeen } = useNewSessions(sessions);
-  const liveCount = useMemo(() => sessions.filter((s) => s.status === "active").length, [sessions]);
-
-  useEffect(() => {
-    if (activeSession) markSessionSeen(activeSession);
-  }, [activeSession, markSessionSeen]);
 
   const scratchFileMap = useMemo(() => {
     const map: Record<string, { title: string }> = {};
@@ -196,13 +189,9 @@ export function App() {
     (sessionId: string) => {
       setActiveSessionId(sessionId);
       setFocusStepIndex(undefined);
-      const session = sessions.find((s) => s.id === sessionId);
-      if (session) {
-        markSessionSeen(session);
-        setActiveTab("session");
-      }
+      setActiveTab("session");
     },
-    [sessions, markSessionSeen],
+    [],
   );
 
   const handleNewScratchFile = useCallback(async () => {
@@ -270,10 +259,8 @@ export function App() {
     (sessionId: string) => {
       setActiveSessionId(sessionId);
       setSearchOpen(false);
-      const session = sessions.find((s) => s.id === sessionId);
-      if (session) markSessionSeen(session);
     },
-    [sessions, markSessionSeen],
+    [],
   );
 
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
@@ -310,12 +297,6 @@ export function App() {
           <div className="flex items-baseline gap-2 min-w-0">
             <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
           </div>
-          {liveCount > 0 && (
-            <span
-              className="sess-live-dot shrink-0"
-              title={`${liveCount} live session${liveCount === 1 ? "" : "s"}`}
-            />
-          )}
         </div>
 
         <button type="button" className="sess-search-trigger" onClick={() => setSearchOpen(true)}>
@@ -352,7 +333,6 @@ export function App() {
                 onScratchFileSelect={handleOpenScratchFile}
                 onDeleteScratchFile={handleDeleteScratchFile}
                 onRenameScratchFile={handleRenameScratchFile}
-                newSessionIds={newSessionIds}
                 scratchFiles={scratchFiles}
               />
             </ErrorBoundary>

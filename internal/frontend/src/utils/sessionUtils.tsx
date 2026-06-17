@@ -40,14 +40,4 @@ export function sessionMetaParts(session: Session): string[] {
   return parts;
 }
 
-export function SessionStatusDot({ isNew, isLive }: { isNew: boolean; isLive?: boolean }) {
-  if (isLive) {
-    return <span className="sess-live-dot shrink-0" title="Live" />;
-  }
-  if (isNew) {
-    return <span className="sess-session-dot sess-session-dot--new" title="New or updated" />;
-  }
-  return null;
-}
-
 export { relativeTime };
