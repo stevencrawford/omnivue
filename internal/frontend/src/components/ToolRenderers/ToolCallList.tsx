@@ -4,7 +4,6 @@ import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { useSessionNav } from "../../hooks/useNav";
 import { BashToolDiff } from "./BashToolDiff";
 import { EditToolDiff } from "./EditToolDiff";
-import { ReadToolDiff } from "./ReadToolDiff";
 import { GrepToolDiff } from "./GrepToolDiff";
 import { GlobToolDiff } from "./GlobToolDiff";
 import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
@@ -76,6 +75,7 @@ export function ToolCallRow({
 
   if (tool.name === "task_complete" && !compact) {
     let taskSummary = "";
+    const [copied, setCopied] = useState(false);
     try {
       const parsed = JSON.parse(tool.input);
       taskSummary = parsed.summary || "";
@@ -83,8 +83,18 @@ export function ToolCallRow({
       /* ignore */
     }
 
+    const handleCopy = async () => {
+      try {
+        await navigator.clipboard.writeText(taskSummary);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        /* ignore */
+      }
+    };
+
     return (
-      <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03]">
+      <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] relative group">
         <div className="px-3 py-2.5">
           <div className="flex items-center gap-2">
             <svg
@@ -111,6 +121,24 @@ export function ToolCallRow({
             </div>
           </div>
         )}
+        {taskSummary && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="absolute top-2 right-2 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
+            title="Copy summary"
+          >
+            {copied ? (
+              <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+              </svg>
+            ) : (
+              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
+              </svg>
+            )}
+          </button>
+        )}
       </div>
     );
   }
@@ -122,8 +150,6 @@ export function ToolCallRow({
       case "edit":
       case "write":
         return <EditToolDiff tool={tool} />;
-      case "read":
-        return <ReadToolDiff tool={tool} />;
       case "grep":
         return <GrepToolDiff tool={tool} />;
       case "glob":
@@ -135,7 +161,7 @@ export function ToolCallRow({
       case "question":
         return <QuestionToolDiff tool={tool} />;
       case "exit_plan_mode":
-        return <ExitPlanModeToolDiff tool={tool} />;
+        return <ExitPlanModeToolDiff tool={tool} onOpenModal={onOpenModal} />;
     }
   }
 
