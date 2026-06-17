@@ -33,12 +33,14 @@ export function ConversationView({
   loading,
   onOpenModal,
   focusStepIndex,
+  searchHighlightQuery,
 }: {
   messages: Message[];
   session: Session;
   loading: boolean;
   onOpenModal?: (content: string, title?: string) => void;
   focusStepIndex?: number;
+  searchHighlightQuery?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
@@ -135,6 +137,24 @@ export function ConversationView({
       }
     }
   }, [focusStepIndex, grouped.length]);
+
+  // Scroll to and highlight first message matching search highlight query
+  useEffect(() => {
+    if (!searchHighlightQuery || !scrollRef.current || messagesWithoutReminders.length === 0) return;
+    const q = searchHighlightQuery.toLowerCase();
+    const container = scrollRef.current;
+    const msgElements = container.querySelectorAll('[data-message-index]');
+    for (const el of msgElements) {
+      const idx = parseInt(el.getAttribute('data-message-index') || '', 10);
+      const msg = messagesWithoutReminders[idx];
+      if (msg && (msg.content || '').toLowerCase().includes(q)) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('sess-message-highlight');
+        setTimeout(() => el.classList.remove('sess-message-highlight'), 2000);
+        break;
+      }
+    }
+  }, [searchHighlightQuery, messagesWithoutReminders.length]);
 
   const handleResume = async () => {
     try {

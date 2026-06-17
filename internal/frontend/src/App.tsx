@@ -28,6 +28,9 @@ export function App() {
   const [scratchFiles, setScratchFiles] = useState<ScratchFile[]>([]);
   const [openScratchTabs, setOpenScratchTabs] = useState<string[]>([]);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchSessionScope, setSearchSessionScope] = useState<string | null>(null);
+  const [searchHighlightQuery, setSearchHighlightQuery] = useState<string | null>(null);
   const scrollPositions = useRef(new Map<string, number>());
 
   const saveScrollPosition = useCallback((id: string, pos: number) => {
@@ -65,7 +68,12 @@ export function App() {
 
       if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
         e.preventDefault();
-        setSearchOpen((v) => !v);
+        setSearchOpen((v) => {
+          if (!v) {
+            setSearchSessionScope(activeSessionId);
+          }
+          return !v;
+        });
         return;
       }
       if (e.key === "Escape" && searchOpen) {
@@ -91,6 +99,7 @@ export function App() {
       if (!isInput && !e.metaKey && !e.ctrlKey) {
         if (e.key === "j" || e.key === "ArrowDown") {
           e.preventDefault();
+          setSearchHighlightQuery(null);
           setActiveSessionId((prev) => {
             const idx = sessions.findIndex((s) => s.id === prev);
             if (idx < sessions.length - 1) return sessions[idx + 1].id;
@@ -100,6 +109,7 @@ export function App() {
         }
         if (e.key === "k" || e.key === "ArrowUp") {
           e.preventDefault();
+          setSearchHighlightQuery(null);
           setActiveSessionId((prev) => {
             const idx = sessions.findIndex((s) => s.id === prev);
             if (idx > 0) return sessions[idx - 1].id;
@@ -190,6 +200,7 @@ export function App() {
       setActiveSessionId(sessionId);
       setFocusStepIndex(undefined);
       setActiveTab("session");
+      setSearchHighlightQuery(null);
     },
     [],
   );
@@ -256,8 +267,10 @@ export function App() {
   }, []);
 
   const handleSearchSelect = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, chunkType: string, query: string) => {
       setActiveSessionId(sessionId);
+      setActiveTab(chunkType === "plan" ? "plan" : "session");
+      setSearchHighlightQuery(query || null);
       setSearchOpen(false);
     },
     [],
@@ -313,7 +326,19 @@ export function App() {
       </header>
 
       {searchOpen && (
-        <SearchPanel onSelectSession={handleSearchSelect} onClose={() => setSearchOpen(false)} />
+        <SearchPanel
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onSelectSession={handleSearchSelect}
+          onClose={() => setSearchOpen(false)}
+          searchScope={searchSessionScope}
+          searchScopeName={(() => {
+            if (!searchSessionScope) return null;
+            const s = sessions.find((s) => s.id === searchSessionScope);
+            return s?.title || s?.repository || null;
+          })()}
+          onClearScope={() => setSearchSessionScope(null)}
+        />
       )}
 
       <SessionNavContext.Provider
@@ -351,6 +376,7 @@ export function App() {
                   onCloseScratchTab={handleCloseScratchTab}
                   onNewScratchFile={handleNewScratchFile}
                   focusStepIndex={focusStepIndex}
+                  searchHighlightQuery={searchHighlightQuery}
                 />
               </ErrorBoundary>
             ) : (

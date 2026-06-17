@@ -4,8 +4,13 @@ import { fetchSearch } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
 
 interface SearchPanelProps {
-  onSelectSession: (sessionId: string) => void;
+  query: string;
+  onQueryChange: (q: string) => void;
+  onSelectSession: (sessionId: string, chunkType: string, query: string) => void;
   onClose: () => void;
+  searchScope: string | null;
+  searchScopeName: string | null;
+  onClearScope: () => void;
 }
 
 const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
@@ -47,8 +52,15 @@ type Section = {
   globalStartIndex: number;
 };
 
-export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
-  const [query, setQuery] = useState("");
+export function SearchPanel({
+  query,
+  onQueryChange,
+  onSelectSession,
+  onClose,
+  searchScope,
+  searchScopeName,
+  onClearScope,
+}: SearchPanelProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -91,7 +103,7 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
     }
     setLoading(true);
     try {
-      const data = await fetchSearch(q.trim());
+      const data = await fetchSearch(q.trim(), 50, searchScope ?? undefined);
       setResults(data);
     } catch (err) {
       console.error("Search failed:", err);
@@ -99,11 +111,11 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchScope]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setQuery(val);
+    onQueryChange(val);
     setSelectedIndex(0);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(val), 300);
@@ -125,8 +137,14 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
       return;
     }
     if (e.key === "Enter" && results[selectedIndex]) {
-      onSelectSession(results[selectedIndex].sessionId);
+      onSelectSession(results[selectedIndex].sessionId, results[selectedIndex].chunkType, query);
     }
+  };
+
+  const handleClearQuery = () => {
+    onQueryChange("");
+    setResults([]);
+    inputRef.current?.focus();
   };
 
   return (
@@ -134,27 +152,44 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
       <div className="search-overlay-backdrop" onClick={onClose} />
       <div className="search-overlay">
         <div className="search-overlay-panel">
-          <div className="flex items-center gap-2 px-3 py-3 border-b border-gh-border">
+          <div className="flex items-center gap-1.5 px-3 py-3 border-b border-gh-border">
             <svg className="size-4 text-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
               <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
             </svg>
+            {searchScope && searchScopeName && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border shrink-0">
+                <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M1.5 2.75A1.75 1.75 0 0 1 3.25 1h2.5c.52 0 .99.226 1.312.586l.96 1.064H12.5A1.75 1.75 0 0 1 14.25 4.5v8.75A1.75 1.75 0 0 1 12.5 15h-9.25A1.75 1.75 0 0 1 1.5 13.25V2.75Z" />
+                </svg>
+                {searchScopeName}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClearScope();
+                  }}
+                  className="ml-0.5 p-0.5 rounded hover:bg-accent/20 cursor-pointer"
+                >
+                  <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+                  </svg>
+                </button>
+              </span>
+            )}
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder="Search sessions, messages, plans..."
-              className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none"
+              placeholder={searchScope ? "Search in current session..." : "Search sessions, messages, plans..."}
+              className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
             />
             {query && (
               <button
                 type="button"
-                onClick={() => {
-                  setQuery("");
-                  setResults([]);
-                }}
-                className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
+                onClick={handleClearQuery}
+                className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded shrink-0"
               >
                 <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
@@ -194,7 +229,7 @@ export function SearchPanel({ onSelectSession, onClose }: SearchPanelProps) {
                             ? "search-result--selected text-gh-text"
                             : "hover:bg-gh-bg-hover text-gh-text-secondary"
                         }`}
-                        onClick={() => onSelectSession(r.sessionId)}
+                        onClick={() => onSelectSession(r.sessionId, r.chunkType, query)}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           {r.repository && (

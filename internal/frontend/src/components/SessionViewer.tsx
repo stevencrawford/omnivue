@@ -21,6 +21,7 @@ interface SessionViewerProps {
   onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
   focusStepIndex?: number;
+  searchHighlightQuery?: string | null;
 }
 
 const MAIN_TABS: { tab: "session" | "diff" | "plan"; label: string; icon: ReactNode }[] = [
@@ -63,6 +64,7 @@ export function SessionViewer({
   onCloseScratchTab,
   onNewScratchFile,
   focusStepIndex,
+  searchHighlightQuery,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -222,6 +224,7 @@ export function SessionViewer({
           loading={loading}
           onOpenModal={(content, title) => setMarkdownModal({ content, title })}
           focusStepIndex={focusStepIndex}
+          searchHighlightQuery={searchHighlightQuery ?? undefined}
         />
       )}
       <div className={activeTab === "diff" ? "flex-1 overflow-y-auto" : "hidden"}>
