@@ -404,6 +404,15 @@ body {
   color: var(--color-gh-text);
 }
 
+.sess-message-highlight {
+  animation: sess-highlight-fade 2s ease-out;
+}
+
+@keyframes sess-highlight-fade {
+  0% { background-color: color-mix(in srgb, var(--color-accent) 15%, transparent); }
+  100% { background-color: transparent; }
+}
+
 @keyframes sess-pulse {
   0%,
   100% {

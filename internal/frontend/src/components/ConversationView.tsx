@@ -32,11 +32,13 @@ export function ConversationView({
   session,
   loading,
   onOpenModal,
+  focusStepIndex,
 }: {
   messages: Message[];
   session: Session;
   loading: boolean;
   onOpenModal?: (content: string, title?: string) => void;
+  focusStepIndex?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
@@ -95,6 +97,22 @@ export function ConversationView({
   const firstMessage = messages[0];
   const tail = messages.slice(1);
   const grouped = useMemo(() => groupMessages(tail), [tail]);
+
+  // Scroll to focused step when focusStepIndex is provided
+  useEffect(() => {
+    if (focusStepIndex === undefined || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const msgElements = container.querySelectorAll('[data-message-index]');
+    for (const el of msgElements) {
+      const idx = parseInt(el.getAttribute('data-message-index') || '', 10);
+      if (idx === focusStepIndex) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('sess-message-highlight');
+        setTimeout(() => el.classList.remove('sess-message-highlight'), 2000);
+        break;
+      }
+    }
+  }, [focusStepIndex, grouped.length]);
 
   const handleResume = async () => {
     try {
@@ -188,8 +206,10 @@ export function ConversationView({
               Agent work appears here as tools run and responses stream in.
             </p>
           ) : (
-            grouped.map((msg) => (
-              <MessageBlock key={msg.id} message={msg} onOpenModal={onOpenModal} />
+            grouped.map((msg, idx) => (
+              <div key={msg.id} data-message-index={idx}>
+                <MessageBlock message={msg} onOpenModal={onOpenModal} />
+              </div>
             ))
           )}
         </WorkerPoolContextProvider>
@@ -314,10 +334,21 @@ function MessageBlock({
   onOpenModal?: (content: string, title?: string) => void;
 }) {
   if (message.role === "user") {
+    if (!message.content?.trim()) return null;
     return <UserTurnView content={message.content} onOpenModal={onOpenModal} />;
   }
   if (message.role === "system") {
     if (!message.content?.trim()) return null;
+    const isReminder = message.metadata?.type === "system_reminder";
+    if (isReminder) {
+      return (
+        <SystemReminderView
+          content={message.content}
+          fileName={message.metadata?.file || "AGENTS.md"}
+          onOpenModal={onOpenModal}
+        />
+      );
+    }
     return <div className="sess-system-notice whitespace-pre-wrap">{message.content}</div>;
   }
   if (message.role === "assistant") {
@@ -337,26 +368,34 @@ function UserTurnView({
   onOpenModal?: (content: string, title?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const isLong = content.length > 2000;
-  const display = !expanded && isLong ? content.slice(0, 2000) + "…" : content;
+  const lines = content.split("\n");
+  const isLong = lines.length > 20;
+  const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
 
   return (
     <div className="sess-user-turn">
       <div className="sess-user-turn-label">USER-REQUEST</div>
-      <MarkdownContent
-        content={display}
-        className="markdown-body--wide"
-        onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
-        modalTitle="USER-REQUEST"
-      />
+      <div className="relative">
+        {!expanded && isLong && (
+          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg)] to-transparent z-10 pointer-events-none" />
+        )}
+        <MarkdownContent
+          content={display}
+          className="markdown-body--wide"
+          onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
+          modalTitle="USER-REQUEST"
+        />
+      </div>
       {isLong && (
-        <button
-          type="button"
-          className="mt-1 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
+        <div className="flex justify-center mt-1">
+          <button
+            type="button"
+            className="sess-tool-more"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -490,8 +529,59 @@ function UserPromptBubble({
   );
 }
 
+function SystemReminderView({
+  content,
+  fileName,
+  onOpenModal,
+}: {
+  content: string;
+  fileName: string;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const lines = content.split("\n");
+  const isLong = lines.length > 20;
+  const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
+
+  return (
+    <div className="border border-amber-500/30 rounded-lg bg-amber-500/[0.03] mx-4 mb-3 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-500/20">
+        <svg className="size-4 text-amber-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
+        </svg>
+        <span className="font-semibold text-[11px] text-amber-400 uppercase">{fileName}</span>
+      </div>
+      <div className="px-3 py-2">
+        <div className="relative">
+          {!expanded && isLong && (
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
+          )}
+          <MarkdownContent
+            content={display}
+            className="markdown-body--wide"
+            onOpenModal={onOpenModal ? () => onOpenModal(content, fileName) : undefined}
+            modalTitle={fileName}
+          />
+        </div>
+      </div>
+      {isLong && (
+        <div className="flex justify-center border-t border-amber-500/10">
+          <button
+            type="button"
+            className="sess-tool-more"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   let summary = "";
+  const [copied, setCopied] = useState(false);
   try {
     const parsed = JSON.parse(tool.input);
     summary = parsed.summary || "";
@@ -499,8 +589,18 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
     /* ignore */
   }
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3">
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3 relative group">
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <svg className="size-4 text-emerald-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
@@ -514,6 +614,24 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
           </div>
         )}
       </div>
+      {summary && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="absolute top-2 right-2 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
+          title="Copy summary"
+        >
+          {copied ? (
+            <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+            </svg>
+          ) : (
+            <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
+            </svg>
+          )}
+        </button>
+      )}
     </div>
   );
 }

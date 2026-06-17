@@ -20,6 +20,7 @@ interface SessionViewerProps {
   scratchFileMap: Record<string, { title: string }>;
   onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
+  focusStepIndex?: number;
 }
 
 const MAIN_TABS: { tab: "session" | "diff" | "plan"; label: string; icon: ReactNode }[] = [
@@ -61,6 +62,7 @@ export function SessionViewer({
   scratchFileMap,
   onCloseScratchTab,
   onNewScratchFile,
+  focusStepIndex,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -219,6 +221,7 @@ export function SessionViewer({
           session={session}
           loading={loading}
           onOpenModal={(content, title) => setMarkdownModal({ content, title })}
+          focusStepIndex={focusStepIndex}
         />
       )}
       {activeTab === "diff" && (
