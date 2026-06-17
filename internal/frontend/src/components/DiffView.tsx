@@ -143,22 +143,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
 
   allHunks.sort((a, b) => a.deletionStart - b.deletionStart);
 
-  const merged: ExtractedHunk[] = [];
-  for (const hunk of allHunks) {
-    if (merged.length === 0) {
-      merged.push({ ...hunk });
-      continue;
-    }
-    const prev = merged[merged.length - 1];
-    const prevEnd = prev.deletionStart + prev.deletionCount;
-    if (hunk.deletionStart <= prevEnd) {
-      prev.deletionCount = Math.max(prev.deletionCount, hunk.deletionCount);
-      prev.additionCount = Math.max(prev.additionCount, hunk.additionCount);
-      prev.lines.push(...hunk.lines.slice(1));
-    } else {
-      merged.push({ ...hunk });
-    }
-  }
+  const merged = allHunks;
 
   let totalAdditions = 0;
   let totalDeletions = 0;
