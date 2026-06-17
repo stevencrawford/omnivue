@@ -3,6 +3,7 @@ import { PatchDiff } from "@pierre/diffs/react";
 import { parseDiffFromFile } from "@pierre/diffs";
 import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
+import { useTheme } from "../hooks/useTheme";
 
 interface DiffViewProps {
   sessionId: string;
@@ -393,6 +394,7 @@ function relativizePath(filePath: string, directory: string | undefined): string
 }
 
 export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
+  const { theme } = useTheme();
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -568,6 +570,7 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
           {selectedDiff && selectedDiff.patch ? (
             <div className="p-4">
               <PatchDiff
+                key={theme}
                 patch={selectedDiff.patch}
                 options={{
                   theme: { light: "github-light", dark: "github-dark" },

@@ -8,6 +8,7 @@ import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { useNewSessions } from "./hooks/useNewSessions";
 import { SessionNavContext } from "./hooks/useNav";
+import { ThemeProvider } from "./hooks/useTheme";
 import type { Session } from "./hooks/useApi";
 import {
   fetchSessions,
@@ -21,6 +22,7 @@ import { fetchAllScratchFiles } from "./hooks/useApi";
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [focusStepIndex, setFocusStepIndex] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("session");
@@ -123,11 +125,56 @@ export function App() {
     },
   });
 
+  // URL hash deep-linking
   useEffect(() => {
-    if (activeSessionId === null && sessions.length > 0) {
+    const hash = window.location.hash;
+    const match = hash.match(/^#\/session\/([^/]+)(?:\/step\/(\d+))?/);
+    if (match) {
+      const id = decodeURIComponent(match[1]);
+      if (sessions.some((s) => s.id === id)) {
+        setActiveSessionId(id);
+        if (match[2]) setFocusStepIndex(parseInt(match[2], 10));
+      }
+    } else if (activeSessionId === null && sessions.length > 0) {
       setActiveSessionId(sessions[0].id);
     }
-  }, [sessions, activeSessionId]);
+  }, [sessions, activeSessionId === null]);
+
+  // Sync activeSessionId to URL hash
+  useEffect(() => {
+    if (activeSessionId) {
+      const hash = `#/session/${encodeURIComponent(activeSessionId)}`;
+      history.replaceState(null, "", hash);
+    }
+  }, [activeSessionId]);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash;
+      const match = hash.match(/^#\/session\/([^/]+)(?:\/step\/(\d+))?/);
+      if (match) {
+        const id = decodeURIComponent(match[1]);
+        if (sessions.some((s) => s.id === id)) {
+          setActiveSessionId(id);
+          if (match[2]) setFocusStepIndex(parseInt(match[2], 10));
+          else setFocusStepIndex(undefined);
+        }
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [sessions]);
+
+  // Clear focusStepIndex when activeSessionId changes (except on initial hash parse)
+  const isInitialHashRef = useRef(true);
+  useEffect(() => {
+    if (isInitialHashRef.current) {
+      isInitialHashRef.current = false;
+      return;
+    }
+    setFocusStepIndex(undefined);
+  }, [activeSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
   const { newSessionIds, markSessionSeen } = useNewSessions(sessions);
@@ -148,6 +195,7 @@ export function App() {
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
+      setFocusStepIndex(undefined);
       const session = sessions.find((s) => s.id === sessionId);
       if (session) {
         markSessionSeen(session);
@@ -231,6 +279,7 @@ export function App() {
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
   return (
+    <ThemeProvider>
     <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
       <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-gh-header-border">
         <div className="flex items-center gap-3 min-w-0">
@@ -320,6 +369,7 @@ export function App() {
                   scratchFileMap={scratchFileMap}
                   onCloseScratchTab={handleCloseScratchTab}
                   onNewScratchFile={handleNewScratchFile}
+                  focusStepIndex={focusStepIndex}
                 />
               </ErrorBoundary>
             ) : (
@@ -353,5 +403,6 @@ export function App() {
         </div>
       </SessionNavContext.Provider>
     </div>
+    </ThemeProvider>
   );
 }
