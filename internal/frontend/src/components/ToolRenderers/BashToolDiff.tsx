@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ToolCall } from "../../hooks/useApi";
 
 interface BashMetadata {
@@ -10,6 +10,14 @@ interface BashMetadata {
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   return (
     <button
       type="button"
@@ -17,7 +25,7 @@ function CopyBtn({ text }: { text: string }) {
         e.stopPropagation();
         await navigator.clipboard.writeText(text);
         setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
       }}
       className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-gh-bg-secondary border border-accent-border text-gh-text-secondary hover:text-gh-text"
     >

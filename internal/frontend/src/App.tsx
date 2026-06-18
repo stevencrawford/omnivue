@@ -36,9 +36,15 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollPositions = useRef(new Map<string, number>());
+  const SCROLL_POSITION_CAP = 100;
 
   const saveScrollPosition = useCallback((id: string, pos: number) => {
-    scrollPositions.current.set(id, pos);
+    const map = scrollPositions.current;
+    if (map.size >= SCROLL_POSITION_CAP && !map.has(id)) {
+      const firstKey = map.keys().next().value;
+      if (firstKey !== undefined) map.delete(firstKey);
+    }
+    map.set(id, pos);
   }, []);
 
   const loadSessions = useCallback(async () => {

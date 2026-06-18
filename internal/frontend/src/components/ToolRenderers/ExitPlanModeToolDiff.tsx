@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ToolCall } from "../../hooks/useApi";
 import { MarkdownContent } from "../MarkdownContent";
 
@@ -11,6 +11,14 @@ export function ExitPlanModeToolDiff({
 }) {
   let summary = "";
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   try {
     const parsed = JSON.parse(tool.input);
     summary = parsed.summary || "";
@@ -24,7 +32,7 @@ export function ExitPlanModeToolDiff({
     try {
       await navigator.clipboard.writeText(summary);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       /* ignore */
     }
