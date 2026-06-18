@@ -26,6 +26,7 @@ function shortModel(model: string): string {
 function agentLabel(agent: string): string {
   if (agent === "opencode") return "OpenCode";
   if (agent === "copilot") return "Copilot";
+  if (agent === "cursor") return "Cursor";
   return agent;
 }
 
