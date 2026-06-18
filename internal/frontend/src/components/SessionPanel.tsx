@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session, ScratchFile } from "../hooks/useApi";
-import { buildTree } from "../utils/buildTree";
+import { buildTree, formatCost } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
@@ -21,6 +21,9 @@ interface SessionPanelProps {
 
 const COLLAPSED_KEY = "sess-sidebar-collapsed";
 const SORT_KEY = "sess-sidebar-sort";
+const DISPLAY_KEY = "sess-sidebar-display";
+
+type DisplayMode = "condensed" | "verbose";
 
 function getInitialCollapsed(): Set<string> {
   try {
@@ -40,6 +43,16 @@ function getInitialSort(): SortMode {
     /* noop */
   }
   return "recent";
+}
+
+function getInitialDisplay(): DisplayMode {
+  try {
+    const stored = localStorage.getItem(DISPLAY_KEY);
+    if (stored === "condensed" || stored === "verbose") return stored;
+  } catch {
+    /* noop */
+  }
+  return "condensed";
 }
 
 const SORT_LABELS: Record<SortMode, string> = {
@@ -62,6 +75,18 @@ export function SessionPanel({
   const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialDisplay);
+  const toggleDisplayMode = useCallback(() => {
+    setDisplayMode((prev) => {
+      const next = prev === "condensed" ? "verbose" : "condensed";
+      try {
+        localStorage.setItem(DISPLAY_KEY, next);
+      } catch {
+        /* noop */
+      }
+      return next;
+    });
+  }, []);
   const [expandedParentId, setExpandedParentId] = useState<string | null>(() => {
     if (!activeSessionId) return null;
     const session = sessions.find((s) => s.id === activeSessionId);
@@ -214,6 +239,12 @@ export function SessionPanel({
               </div>
             )}
           </div>
+          <IconBtn
+            title={displayMode === "condensed" ? "Verbose view" : "Condensed view"}
+            onClick={toggleDisplayMode}
+          >
+            {displayMode === "condensed" ? <VerboseIcon /> : <CondensedIcon />}
+          </IconBtn>
         </div>
       </div>
 
@@ -279,6 +310,7 @@ export function SessionPanel({
                 onExpandParent={setExpandedParentId}
                 scratchFilesBySession={scratchFilesBySession}
                 onContextMenu={handleContextMenu}
+                displayMode={displayMode}
               />
             ))}
           </div>
@@ -412,6 +444,7 @@ function RepoNode({
   onExpandParent,
   scratchFilesBySession,
   onContextMenu,
+  displayMode,
 }: {
   node: TreeNode;
   collapsed: Set<string>;
@@ -425,6 +458,7 @@ function RepoNode({
   onExpandParent: (id: string) => void;
   scratchFilesBySession: Map<string, ScratchFile[]>;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
+  displayMode: DisplayMode;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
 
@@ -461,6 +495,7 @@ function RepoNode({
                 onDeleteScratchFile={onDeleteScratchFile}
                 onRenameScratchFile={onRenameScratchFile}
                 onContextMenu={onContextMenu}
+                displayMode={displayMode}
               />
             );
           })}
@@ -485,6 +520,7 @@ function SessionRow({
   onDeleteScratchFile,
   onRenameScratchFile,
   onContextMenu,
+  displayMode,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -498,6 +534,7 @@ function SessionRow({
   onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
   onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
+  displayMode: DisplayMode;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
@@ -556,6 +593,7 @@ function SessionRow({
             {sessionMetaParts(session).join(" · ")}
           </p>
         )}
+        {displayMode === "verbose" && <VerboseStats session={session} />}
       </button>
       {subCount > 0 && subsVisible && (
         <div className="ml-2 mt-px mb-1 space-y-px border-l border-gh-border/60">
@@ -697,6 +735,55 @@ function SessionRow({
   );
 }
 
+// ─── VerboseStats ────────────────────────────────────────────────
+
+function VerboseStats({ session }: { session: Session }) {
+  const totalTokens = session.tokensInput + session.tokensOutput;
+  const parts: ReactNode[] = [];
+
+  if (totalTokens > 0) {
+    parts.push(
+      <span key="tokens" title="Tokens">
+        {(totalTokens / 1000).toFixed(0)}k tok
+      </span>,
+    );
+  }
+  if (session.cost > 0) {
+    parts.push(
+      <span key="cost" title="Cost">
+        {formatCost(session.cost)}
+      </span>,
+    );
+  }
+  if (session.messageCount > 0) {
+    parts.push(
+      <span key="msgs" title="Messages">
+        {session.messageCount} msgs
+      </span>,
+    );
+  }
+  if (session.diffFiles > 0) {
+    parts.push(
+      <span key="files" title="Files changed">
+        {session.diffFiles}f <span className="text-green-500">+{session.diffAdditions}</span>
+        <span className="text-red-500">-{session.diffDeletions}</span>
+      </span>,
+    );
+  }
+
+  if (parts.length === 0) return null;
+
+  return (
+    <p className="sess-parent-session-meta truncate mt-0.5">
+      {parts.flatMap((part, i) =>
+        i === 0
+          ? [part]
+          : [<span key={`dot-${i}`} className="mx-1">·</span>, part],
+      )}
+    </p>
+  );
+}
+
 // ─── Small SVG icons ──────────────────────────────────────────────
 
 function Chevron({ open, className = "size-3" }: { open: boolean; className?: string }) {
@@ -752,6 +839,24 @@ function SortIcon() {
   return (
     <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
       <path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75ZM4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8Zm2.75 4.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
+    </svg>
+  );
+}
+
+/** Compact line-spacing icon (Word-style single spacing) */
+function CondensedIcon() {
+  return (
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M1.5 3.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
+    </svg>
+  );
+}
+
+/** Expanded line-spacing icon (Word-style double spacing) */
+function VerboseIcon() {
+  return (
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M1.5 2.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
     </svg>
   );
 }
