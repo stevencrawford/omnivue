@@ -777,6 +777,14 @@ function SystemReminderView({
 function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   let summary = "";
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   try {
     const parsed = JSON.parse(tool.input);
     summary = parsed.summary || "";
@@ -788,7 +796,7 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
     try {
       await navigator.clipboard.writeText(summary);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       /* ignore */
     }

@@ -233,9 +233,11 @@ export function SessionViewer({
           searchHighlightQuery={searchHighlightQuery ?? undefined}
         />
       )}
-      <div className={activeTab === "diff" ? "flex-1 overflow-y-auto" : "hidden"}>
-        <DiffView sessionId={session.id} sessionDirectory={session.directory} refreshKey={refreshKey} />
-      </div>
+      {activeTab === "diff" && (
+        <div className="flex-1 overflow-y-auto">
+          <DiffView sessionId={session.id} sessionDirectory={session.directory} refreshKey={refreshKey} />
+        </div>
+      )}
       {activeTab === "plan" && (
         <div className="flex-1 overflow-y-auto">
           <PlanView sessionId={session.id} refreshKey={refreshKey} />
