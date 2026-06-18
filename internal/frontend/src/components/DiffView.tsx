@@ -7,6 +7,7 @@ import { fetchEdits } from "../hooks/useApi";
 interface DiffViewProps {
   sessionId: string;
   sessionDirectory?: string;
+  refreshKey: number;
 }
 
 interface MergedFileDiff {
@@ -423,7 +424,7 @@ function relativizePath(filePath: string, directory: string | undefined): string
   return filePath;
 }
 
-export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
+export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewProps) {
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -450,7 +451,7 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, refreshKey]);
 
   useEffect(() => {
     load();

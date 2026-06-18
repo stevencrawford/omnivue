@@ -74,6 +74,7 @@ export function SessionViewer({
   const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
     null,
   );
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -93,13 +94,13 @@ export function SessionViewer({
   }, [loadMessages]);
 
   useEffect(() => {
-    if (activeTab !== "session") return;
     if (!liveChangedIds.has(session.id)) return;
     const handle = setTimeout(() => {
       loadMessages();
+      setRefreshKey((k) => k + 1);
     }, 300);
     return () => clearTimeout(handle);
-  }, [liveChangedIds, session.id, activeTab, loadMessages]);
+  }, [liveChangedIds, session.id, loadMessages]);
 
   const messageCount = useMemo(() => {
     const user = messages.filter((m) => m.role === "user").length;
@@ -233,11 +234,11 @@ export function SessionViewer({
         />
       )}
       <div className={activeTab === "diff" ? "flex-1 overflow-y-auto" : "hidden"}>
-        <DiffView sessionId={session.id} sessionDirectory={session.directory} />
+        <DiffView sessionId={session.id} sessionDirectory={session.directory} refreshKey={refreshKey} />
       </div>
       {activeTab === "plan" && (
         <div className="flex-1 overflow-y-auto">
-          <PlanView sessionId={session.id} />
+          <PlanView sessionId={session.id} refreshKey={refreshKey} />
         </div>
       )}
       {isScratchTab(activeTab) &&

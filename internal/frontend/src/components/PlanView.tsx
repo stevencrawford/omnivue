@@ -5,9 +5,10 @@ import { MarkdownContent } from "./MarkdownContent";
 
 interface PlanViewProps {
   sessionId: string;
+  refreshKey: number;
 }
 
-export function PlanView({ sessionId }: PlanViewProps) {
+export function PlanView({ sessionId, refreshKey }: PlanViewProps) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +22,7 @@ export function PlanView({ sessionId }: PlanViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, refreshKey]);
 
   useEffect(() => {
     load();
