@@ -569,7 +569,7 @@ function SessionRow({
   };
 
   const handleClick = () => {
-    if (subCount > 0 || scratchFiles.length > 0) onExpandParent(session.id);
+    onExpandParent(session.id);
     onSelect();
   };
 
