@@ -1,8 +1,14 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
@@ -78,6 +84,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// If a sess server is running, add via API so it picks up immediately
+	addr := net.JoinHostPort(strings.Trim(bind, "[]"), strconv.Itoa(port))
+	if result, err := probeServer(addr, probeTimeoutFast); err == nil {
+		return addViaAPI(result.client, addr, path, string(agentType), label)
+	}
+
+	// No server running, write directly to store
 	s, err := store.New()
 	if err != nil {
 		return fmt.Errorf("failed to open sess database: %w", err)
@@ -98,5 +111,28 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "sess: added %s source at %s\n", label, path)
+	return nil
+}
+
+func addViaAPI(client *http.Client, addr, path, agentType, label string) error {
+	body := map[string]any{
+		"path":      path,
+		"agentType": agentType,
+		"label":     label,
+		"enabled":   true,
+	}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(body); err != nil {
+		return fmt.Errorf("failed to encode request: %w", err)
+	}
+	resp, err := client.Post(fmt.Sprintf("http://%s/_/api/sources", addr), "application/json", &buf)
+	if err != nil {
+		return fmt.Errorf("failed to contact running server: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("server returned %s", resp.Status)
+	}
+	fmt.Fprintf(os.Stderr, "sess: added %s source at %s (live)\n", label, path)
 	return nil
 }

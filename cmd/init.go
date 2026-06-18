@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +25,7 @@ which sources to add for monitoring.
 Known locations:
   ~/.local/share/opencode   (OpenCode)
   ~/.copilot                (GitHub Copilot)
+  ~/.cursor                 (Cursor)
 
 Sources are saved to the sess database and will be loaded automatically
 on subsequent launches.`,
@@ -46,11 +49,20 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stderr, "sess: found %d source(s):\n\n", len(discovered))
 
-	s, err := store.New()
-	if err != nil {
-		return fmt.Errorf("failed to open sess database: %w", err)
+	// Check if a sess server is already running (for live add)
+	addr := net.JoinHostPort(strings.Trim(bind, "[]"), strconv.Itoa(port))
+	result, probeErr := probeServer(addr, probeTimeoutFast)
+	serverRunning := probeErr == nil
+
+	var st *store.Store
+	if !serverRunning {
+		var err error
+		st, err = store.New()
+		if err != nil {
+			return fmt.Errorf("failed to open sess database: %w", err)
+		}
+		defer st.Close()
 	}
-	defer s.Close()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	var added int
@@ -73,18 +85,24 @@ func runInit(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		src := ingest.Source{
-			ID:        generateSourceID(d.Path),
-			Path:      d.Path,
-			AgentType: d.AgentType,
-			Label:     d.Label,
-			Enabled:   true,
-			CreatedAt: time.Now(),
-		}
-
-		if err := s.AddSource(src); err != nil {
-			fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
-			continue
+		if serverRunning {
+			if err := addViaAPI(result.client, addr, d.Path, string(d.AgentType), d.Label); err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+		} else {
+			src := ingest.Source{
+				ID:        generateSourceID(d.Path),
+				Path:      d.Path,
+				AgentType: d.AgentType,
+				Label:     d.Label,
+				Enabled:   true,
+				CreatedAt: time.Now(),
+			}
+			if err := st.AddSource(src); err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
 		}
 
 		added++
@@ -92,7 +110,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	if added > 0 {
-		fmt.Fprintf(os.Stderr, "sess: configured %d source(s). Run 'sess' to start.\n", added)
+		if serverRunning {
+			fmt.Fprintf(os.Stderr, "sess: configured %d source(s) on running server\n", added)
+		} else {
+			fmt.Fprintf(os.Stderr, "sess: configured %d source(s). Run 'sess' to start.\n", added)
+		}
 	} else {
 		fmt.Fprintln(os.Stderr, "sess: no sources added. Use 'sess add <path>' to add manually.")
 	}
