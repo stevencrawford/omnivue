@@ -3,6 +3,7 @@ import { PatchDiff } from "@pierre/diffs/react";
 import { parseDiffFromFile } from "@pierre/diffs";
 import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
+import { trimTrailingNewline } from "../utils/trimTrailingNewline";
 
 interface DiffViewProps {
   sessionId: string;
@@ -65,17 +66,17 @@ function extractHunks(
       for (const content of hunk.hunkContent) {
         if (content.type === "context") {
           for (let i = 0; i < content.lines; i++) {
-            lines.push(" " + delLines[delIdx]);
+            lines.push(" " + trimTrailingNewline(delLines[delIdx]));
             delIdx++;
             addIdx++;
           }
         } else {
           for (let i = 0; i < content.deletions; i++) {
-            lines.push("-" + delLines[delIdx]);
+            lines.push("-" + trimTrailingNewline(delLines[delIdx]));
             delIdx++;
           }
           for (let i = 0; i < content.additions; i++) {
-            lines.push("+" + addLines[addIdx]);
+            lines.push("+" + trimTrailingNewline(addLines[addIdx]));
             addIdx++;
           }
         }
@@ -439,6 +440,16 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
   });
   const treeWidthRef = useRef(treeWidth);
   treeWidthRef.current = treeWidth;
+  const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const [type, handler] of resizeListeners.current) {
+        document.removeEventListener(type, handler);
+      }
+      resizeListeners.current = [];
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -506,6 +517,11 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    for (const [type, handler] of resizeListeners.current) {
+      document.removeEventListener(type, handler);
+    }
+    resizeListeners.current = [];
+
     const startX = e.clientX;
     const startWidth = treeWidthRef.current;
 
@@ -517,6 +533,7 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
     const handleMouseUp = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      resizeListeners.current = [];
       try {
         localStorage.setItem(DIFF_TREE_WIDTH_KEY, String(treeWidthRef.current));
       } catch {
@@ -526,6 +543,7 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+    resizeListeners.current = [["mousemove", handleMouseMove as EventListener], ["mouseup", handleMouseUp as EventListener]];
   }, []);
 
   if (loading) {
