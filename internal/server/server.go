@@ -506,6 +506,87 @@ func (s *State) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEd
 	return adapter.GetEdits(ctx, sessionID)
 }
 
+// AddSource adds a new source, creates its adapter (if enabled), and triggers a refresh.
+func (s *State) AddSource(ctx context.Context, src ingest.Source) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	if err := s.store.AddSource(src); err != nil {
+		return err
+	}
+	if src.Enabled {
+		adapter, err := createAdapter(src)
+		if err != nil {
+			slog.Warn("failed to create adapter for new source", "source", src.Path, "error", err)
+		} else {
+			s.mu.Lock()
+			s.adapters[src.ID] = adapter
+			s.mu.Unlock()
+		}
+	}
+	s.refreshSessions(ctx)
+	go s.indexSessions(ctx)
+	s.sendEvent(sseEvent{Name: "update"})
+	return nil
+}
+
+// RemoveSource removes a source by ID, closes its adapter, and triggers a refresh.
+func (s *State) RemoveSource(ctx context.Context, id string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	s.mu.Lock()
+	if adapter, ok := s.adapters[id]; ok {
+		adapter.Close()
+		delete(s.adapters, id)
+	}
+	s.mu.Unlock()
+	if err := s.store.RemoveSource(id); err != nil {
+		return err
+	}
+	s.refreshSessions(ctx)
+	s.sendEvent(sseEvent{Name: "update"})
+	return nil
+}
+
+// UpdateSource updates a source and re-creates its adapter if needed.
+func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label string, enabled bool) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	// Close existing adapter
+	s.mu.Lock()
+	if adapter, ok := s.adapters[id]; ok {
+		adapter.Close()
+		delete(s.adapters, id)
+	}
+	s.mu.Unlock()
+
+	if err := s.store.UpdateSource(id, path, agentType, label, enabled); err != nil {
+		return err
+	}
+
+	// Re-create adapter if enabled
+	if enabled {
+		src, err := s.store.GetSource(id)
+		if err != nil {
+			return fmt.Errorf("failed to get updated source: %w", err)
+		}
+		adapter, err := createAdapter(*src)
+		if err != nil {
+			slog.Warn("failed to create adapter for updated source", "source", src.Path, "error", err)
+		} else {
+			s.mu.Lock()
+			s.adapters[id] = adapter
+			s.mu.Unlock()
+		}
+	}
+	s.refreshSessions(ctx)
+	go s.indexSessions(ctx)
+	s.sendEvent(sseEvent{Name: "update"})
+	return nil
+}
+
 // GetSources returns configured sources from the store.
 func (s *State) GetSources() []ingest.Source {
 	if s.store == nil {
@@ -546,6 +627,22 @@ func (s *State) Search(query string, limit int, sessionID string) ([]store.Searc
 		return nil, fmt.Errorf("store not available")
 	}
 	return s.store.Search(query, limit, sessionID)
+}
+
+// GetConfig returns all config key-value pairs.
+func (s *State) GetConfig() (map[string]string, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return s.store.GetAllConfig()
+}
+
+// SetConfig upserts a config key-value pair.
+func (s *State) SetConfig(key, value string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.SetConfig(key, value)
 }
 
 // SetSessionName overrides the display name for a session.
@@ -641,6 +738,11 @@ func NewHandler(state *State) http.Handler {
 	// API routes
 	mux.HandleFunc("GET /_/api/status", handleStatus(state))
 	mux.HandleFunc("GET /_/api/sources", handleSources(state))
+	mux.HandleFunc("POST /_/api/sources", handleAddSource(state))
+	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(state))
+	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(state))
+	mux.HandleFunc("GET /_/api/config", handleGetConfig(state))
+	mux.HandleFunc("PUT /_/api/config", handleSetConfig(state))
 	mux.HandleFunc("GET /_/api/sessions", handleSessions(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}", handleGetSession(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(state))
@@ -692,6 +794,121 @@ func handleSources(state *State) http.HandlerFunc {
 		sources := state.GetSources()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sources)
+	}
+}
+
+func handleAddSource(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Path      string `json:"path"`
+			AgentType string `json:"agentType"`
+			Label     string `json:"label"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Path == "" {
+			http.Error(w, "path is required", http.StatusBadRequest)
+			return
+		}
+		if body.AgentType == "" {
+			body.AgentType = string(ingest.AgentOpenCode)
+		}
+		// Generate source ID from path (same scheme as CLI)
+		h := sha256.Sum256([]byte(body.Path))
+		id := hex.EncodeToString(h[:])[:12]
+
+		src := ingest.Source{
+			ID:        id,
+			Path:      body.Path,
+			AgentType: ingest.AgentType(body.AgentType),
+			Label:     body.Label,
+			Enabled:   body.Enabled,
+			CreatedAt: time.Now(),
+		}
+		if err := state.AddSource(r.Context(), src); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(src)
+	}
+}
+
+func handleRemoveSource(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := state.RemoveSource(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleUpdateSource(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		var body struct {
+			Path      string `json:"path"`
+			AgentType string `json:"agentType"`
+			Label     string `json:"label"`
+			Enabled   bool   `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Path == "" {
+			http.Error(w, "path is required", http.StatusBadRequest)
+			return
+		}
+		if err := state.UpdateSource(r.Context(), id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleGetConfig(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg, err := state.GetConfig()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if cfg == nil {
+			cfg = make(map[string]string)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cfg)
+	}
+}
+
+func handleSetConfig(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Key == "" {
+			http.Error(w, "key is required", http.StatusBadRequest)
+			return
+		}
+		if err := state.SetConfig(body.Key, body.Value); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 

@@ -98,6 +98,71 @@ func (s *Store) RemoveSource(id string) error {
 	return err
 }
 
+// UpdateSource updates a source's path, agent_type, label, and enabled status.
+func (s *Store) UpdateSource(id, path, agentType, label string, enabled bool) error {
+	_, err := s.db.Exec(`
+		UPDATE sources SET path = ?, agent_type = ?, label = ?, enabled = ?
+		WHERE id = ?
+	`, path, agentType, label, enabled, id)
+	return err
+}
+
+// GetSource returns a single source by ID.
+func (s *Store) GetSource(id string) (*ingest.Source, error) {
+	var src ingest.Source
+	var agentType string
+	var createdAt string
+	err := s.db.QueryRow(
+		`SELECT id, path, agent_type, label, enabled, created_at FROM sources WHERE id = ?`, id,
+	).Scan(&src.ID, &src.Path, &agentType, &src.Label, &src.Enabled, &createdAt)
+	if err != nil {
+		return nil, err
+	}
+	src.AgentType = ingest.AgentType(agentType)
+	src.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	return &src, nil
+}
+
+// --- Config CRUD ---
+
+// GetConfig returns a config value by key. Returns empty string if not set.
+func (s *Store) GetConfig(key string) (string, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM config WHERE key = ?`, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// SetConfig upserts a config key-value pair.
+func (s *Store) SetConfig(key, value string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO config (key, value) VALUES (?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`, key, value)
+	return err
+}
+
+// GetAllConfig returns all config key-value pairs.
+func (s *Store) GetAllConfig() (map[string]string, error) {
+	rows, err := s.db.Query(`SELECT key, value FROM config`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cfg := make(map[string]string)
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+		cfg[key] = value
+	}
+	return cfg, rows.Err()
+}
+
 // --- Folder CRUD ---
 
 // Folder represents a user-defined folder.
@@ -536,6 +601,11 @@ func (s *Store) migrate() error {
 			content TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS config (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
 		);
 	`)
 
