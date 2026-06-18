@@ -67,8 +67,11 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
   const isWrite = tool.name === "write" && !!content;
   const isAddition = (viewRange != null && !oldStr) || isWrite;
 
+  // Skip expensive diff computation for very large files — just show the new content.
+  const skipDiff = (oldStr && oldStr.length > 20000) || (newStr && newStr.length > 20000);
+
   let fileDiffMetadata: ReturnType<typeof parseDiffFromFile> | null = null;
-  if (!isAddition && oldStr && newStr) {
+  if (!isAddition && oldStr && newStr && !skipDiff) {
     try {
       fileDiffMetadata = parseDiffFromFile(
         { name: filePath, contents: oldStr, lang },
@@ -110,10 +113,10 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
         <div className={!expanded && isOverLimit ? "max-h-[440px] overflow-hidden" : ""}>
           <FileDiff
             fileDiff={fileDiffMetadata}
-            options={{ ...baseOptions, diffStyle: "split" as const }}
+            options={{ ...baseOptions, diffStyle: "unified" as const }}
           />
         </div>
-      ) : isAddition && displayContent ? (
+      ) : displayContent ? (
         <File file={{ name: filePath, contents: truncatedContent, lang }} options={baseOptions} />
       ) : null}
       {isOverLimit && (

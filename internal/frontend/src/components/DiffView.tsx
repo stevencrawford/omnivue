@@ -476,10 +476,11 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
 
   const tree = useMemo(() => buildFileTree(mergedDiffs), [mergedDiffs]);
 
-  const selectedDiff = useMemo(
-    () => mergedDiffs.find((d) => d.path === selectedPath),
-    [mergedDiffs, selectedPath],
-  );
+  const selectedDiff = useMemo(() => {
+    const normalizePath = (p: string) => p.replace(/^\/+/, "");
+    const normSelected = normalizePath(selectedPath);
+    return mergedDiffs.find((d) => normalizePath(d.path) === normSelected);
+  }, [mergedDiffs, selectedPath]);
 
   useEffect(() => {
     if (!selectedPath && mergedDiffs.length > 0) {

@@ -223,7 +223,7 @@ export function ConversationView({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden mb-3 relative">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden py-3">
         <WorkerPoolContextProvider
           poolOptions={{ workerFactory }}
           highlighterOptions={{

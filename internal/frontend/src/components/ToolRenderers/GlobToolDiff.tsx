@@ -24,6 +24,9 @@ export function GlobToolDiff({ tool }: { tool: ToolCall }) {
 
   const pattern = input.pattern || "";
   const output = tool.output || "";
+  if (!count && output) {
+    count = output.split("\n").filter(Boolean).length;
+  }
 
   return (
     <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">

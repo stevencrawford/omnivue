@@ -250,54 +250,184 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 }
 
 func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	messages, err := a.GetMessages(ctx, sessionID)
+	msgs, err := a.GetMessages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
 	var edits []ingest.FileEdit
-	for _, m := range messages {
+	for _, m := range msgs {
 		for _, tc := range m.ToolCalls {
-			if tc.Name != "edit_file_v2" && tc.Name != "edit" && tc.Name != "write" {
+			if tc.Name != "edit" && tc.Name != "write" {
 				continue
 			}
-			var p struct {
-				RelativeWorkspacePath string `json:"relativeWorkspacePath"`
-				StreamingContent      string `json:"streamingContent"`
-				FilePath             string `json:"filePath"`
-				OldStr               string `json:"oldStr"`
-				OldString            string `json:"oldString"`
-				NewStr               string `json:"newStr"`
-				Content              string `json:"content"`
-			}
-			if err := json.Unmarshal([]byte(tc.Input), &p); err != nil {
-				continue
-			}
-			fp := p.FilePath
+			fp, oldStr, newStr := a.parseEditContent(ctx, tc)
 			if fp == "" {
-				fp = p.RelativeWorkspacePath
+				continue
 			}
-			oldStr := p.OldStr
-			if oldStr == "" {
-				oldStr = p.OldString
-			}
-			content := p.Content
-			if content == "" {
-				content = p.NewStr
-			}
-			if content == "" {
-				content = p.StreamingContent
+			content := newStr
+			if oldStr != "" {
+				content = "" // prefer oldStr+newStr pair for diff rendering
 			}
 			edits = append(edits, ingest.FileEdit{
 				FilePath: fp,
 				ToolName: tc.Name,
 				OldStr:   oldStr,
-				NewStr:   p.NewStr,
+				NewStr:   newStr,
 				Content:  content,
 			})
 		}
 	}
 	return edits, nil
+}
+
+// parseEditContent extracts file path and old/new content from a tool call,
+// handling Cursor's various edit formats:
+//   - inline content fields (contents, streamingContent, content, newStr)
+//   - content-ID references (beforeContentId/afterContentId in output)
+//   - output-embedded diff chunks
+func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (filePath, oldStr, newStr string) {
+	var input struct {
+		RelativeWorkspacePath string `json:"relativeWorkspacePath"`
+		FilePath             string `json:"filePath"`
+		Contents             string `json:"contents"`
+		Content              string `json:"content"`
+		NewStr               string `json:"newStr"`
+		StreamingContent     string `json:"streamingContent"`
+		OldStr               string `json:"oldStr"`
+		OldString            string `json:"oldString"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return
+	}
+
+	filePath = input.FilePath
+	if filePath == "" {
+		filePath = input.RelativeWorkspacePath
+	}
+	if filePath == "" {
+		return
+	}
+
+	oldStr = input.OldStr
+	if oldStr == "" {
+		oldStr = input.OldString
+	}
+
+	newStr = input.NewStr
+	if newStr == "" {
+		newStr = input.StreamingContent
+	}
+	if newStr == "" {
+		newStr = input.Content
+	}
+	if newStr == "" {
+		newStr = input.Contents
+	}
+
+	// If the output contains content-ID references (Cursor stores file content
+	// in the KV table keyed by hash), look up the actual content. The output
+	// may also embed pre-computed unified diff chunks.
+	var output struct {
+		BeforeContentID string `json:"beforeContentId"`
+		AfterContentID  string `json:"afterContentId"`
+		Diff            *struct {
+			Chunks []struct {
+				DiffString string `json:"diffString"`
+			} `json:"chunks"`
+		} `json:"diff"`
+		Contents string `json:"contents"`
+	}
+	if err := json.Unmarshal([]byte(tc.Output), &output); err == nil {
+		if output.BeforeContentID != "" {
+			if c := a.readContentBlock(ctx, output.BeforeContentID); c != "" {
+				oldStr = truncateContent(c)
+			}
+		}
+		if output.AfterContentID != "" {
+			if c := a.readContentBlock(ctx, output.AfterContentID); c != "" {
+				newStr = truncateContent(c)
+			}
+		}
+		if newStr == "" && output.Contents != "" {
+			newStr = output.Contents
+		}
+	}
+
+	return
+}
+
+// maxContentBytes caps the size of content injected into tool call input/output
+// fields. Large file blobs blow up the API payload and crash the browser.
+const maxContentBytes = 2000
+
+// truncateContent returns content truncated to maxContentBytes, appending a
+// notice if truncated. This keeps API payloads manageable while still providing
+// enough context for diff rendering.
+func truncateContent(s string) string {
+	if len(s) <= maxContentBytes {
+		return s
+	}
+	// Truncate at the last newline within the limit so we don't break mid-line.
+	end := strings.LastIndex(s[:maxContentBytes], "\n")
+	if end < 0 {
+		end = maxContentBytes
+	}
+	return s[:end] + "\n… (truncated)"
+}
+
+// readContentBlock looks up a composer.content.<hash> key in the KV store.
+// The contentID may or may not include the "composer.content." prefix.
+func (a *Adapter) readContentBlock(ctx context.Context, contentID string) string {
+	key := contentID
+	if !strings.HasPrefix(key, "composer.content.") {
+		key = "composer.content." + key
+	}
+	var value []byte
+	err := a.db.QueryRowContext(ctx,
+		`SELECT value FROM cursorDiskKV WHERE key = ?`, key).Scan(&value)
+	if err != nil {
+		return ""
+	}
+	return string(value)
+}
+
+// enrichToolCall resolves content-ID references in the tool call's output and
+// populates the input with the actual file content. This ensures the Session
+// tab's EditToolDiff component sees oldStr/newStr instead of cloudAgentEdit.
+func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
+	if tc.Name != "edit" {
+		return
+	}
+	var output struct {
+		BeforeContentID string `json:"beforeContentId"`
+		AfterContentID  string `json:"afterContentId"`
+	}
+	if err := json.Unmarshal([]byte(tc.Output), &output); err != nil {
+		return
+	}
+	if output.AfterContentID == "" && output.BeforeContentID == "" {
+		return
+	}
+	var input map[string]any
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return
+	}
+	if after := a.readContentBlock(ctx, output.AfterContentID); after != "" {
+		if _, exists := input["newString"]; !exists {
+			input["newString"] = truncateContent(after)
+			delete(input, "noCodeblock")
+			delete(input, "cloudAgentEdit")
+		}
+	}
+	if before := a.readContentBlock(ctx, output.BeforeContentID); before != "" {
+		if _, exists := input["oldString"]; !exists {
+			input["oldString"] = truncateContent(before)
+		}
+	}
+	if out, err := json.Marshal(input); err == nil {
+		tc.Input = string(out)
+	}
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
@@ -553,6 +683,11 @@ func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) 
 			return nil
 		}
 		messages = parseTranscriptJSONL(path)
+		for i := range messages {
+			for j := range messages[i].ToolCalls {
+				a.enrichToolCall(ctx, &messages[i].ToolCalls[j])
+			}
+		}
 		return filepath.SkipAll
 	})
 
@@ -683,6 +818,7 @@ func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]i
 				Status: mapToolStatus(bd.ToolFormerData.Status),
 			}
 			normalizeToolCall(&tc)
+			a.enrichToolCall(ctx, &tc)
 			msg.ToolCalls = append(msg.ToolCalls, tc)
 		}
 
@@ -757,41 +893,180 @@ func mapToolStatus(s string) string {
 	}
 }
 
+// extractJSONString parses raw as JSON and returns the value of the given key
+// if it is a string. Returns raw unchanged on any failure.
+func extractJSONString(raw, key string) string {
+	if !json.Valid([]byte(raw)) {
+		return raw
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return raw
+	}
+	if s, ok := m[key].(string); ok {
+		return s
+	}
+	return raw
+}
+
+// formatGlobOutput parses Cursor's glob output JSON and returns a
+// newline-separated list of file paths suitable for the frontend.
+// Returns "" if the JSON doesn't match the expected format.
+func formatGlobOutput(raw string) string {
+	var resp struct {
+		Directories []struct {
+			AbsPath string `json:"absPath"`
+			Files   []struct {
+				RelPath string `json:"relPath"`
+			} `json:"files"`
+		} `json:"directories"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return ""
+	}
+	var lines []string
+	for _, dir := range resp.Directories {
+		for _, f := range dir.Files {
+			p := f.RelPath
+			if dir.AbsPath != "" && !strings.HasPrefix(p, "/") {
+				p = dir.AbsPath + "/" + p
+			}
+			lines = append(lines, p)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// extractBashOutput parses Cursor's run_terminal output JSON and returns the
+// text output plus whether the command was rejected (non-zero exit).
+func extractBashOutput(raw string) (text string, rejected bool) {
+	var resp struct {
+		Output   string `json:"output"`
+		Rejected bool   `json:"rejected"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return raw, false
+	}
+	return resp.Output, resp.Rejected
+}
+
 // normalizeToolCall maps Cursor-native tool call names and field names to the
 // standard conventions expected by the frontend's tool renderers.
-//
-// Cursor's edit_file_v2 uses relativeWorkspacePath + streamingContent instead
-// of the conventional filePath + newStr/oldString expected by EditToolDiff.
 func normalizeToolCall(tc *ingest.ToolCall) {
-	if tc.Name != "edit_file_v2" {
+	switch tc.Name {
+	case "edit_file_v2":
+		tc.Name = "edit"
+	case "read_file_v2":
+		tc.Name = "read"
+	case "glob_file_search":
+		tc.Name = "glob"
+	case "ripgrep_raw_search":
+		tc.Name = "grep"
+	case "run_terminal_command_v2":
+		tc.Name = "bash"
+	case "delete_file":
+		tc.Name = "delete"
+	default:
 		return
 	}
-	tc.Name = "edit"
 
-	var p map[string]interface{}
+	var p map[string]any
 	if err := json.Unmarshal([]byte(tc.Input), &p); err != nil {
 		return
 	}
 
-	if v, ok := p["relativeWorkspacePath"]; ok {
-		if _, exists := p["filePath"]; !exists {
-			p["filePath"] = v
+	switch tc.Name {
+	case "read":
+		if v, ok := p["targetFile"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "targetFile")
 		}
-		delete(p, "relativeWorkspacePath")
-	}
+		if v, ok := p["effectiveUri"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "effectiveUri")
+		}
+		if v, ok := p["relativeWorkspacePath"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "relativeWorkspacePath")
+		}
+		delete(p, "charsLimit")
+		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
+		tc.Output = extractJSONString(tc.Output, "contents")
 
-	if v, ok := p["streamingContent"]; ok {
-		if _, exists := p["newStr"]; !exists {
-			p["newStr"] = v
+	case "edit":
+		if v, ok := p["relativeWorkspacePath"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "relativeWorkspacePath")
 		}
-		delete(p, "streamingContent")
-	}
+		if v, ok := p["contents"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "contents")
+		}
+		if v, ok := p["streamingContent"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "streamingContent")
+		}
+		if v, ok := p["newStr"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "newStr")
+		}
+		if v, ok := p["oldStr"]; ok {
+			if _, exists := p["oldString"]; !exists {
+				p["oldString"] = v
+			}
+			delete(p, "oldStr")
+		}
 
-	if v, ok := p["oldStr"]; ok {
-		if _, exists := p["oldString"]; !exists {
-			p["oldString"] = v
+	case "grep":
+		if v, ok := p["pattern"]; ok {
+			if _, exists := p["query"]; !exists {
+				p["query"] = v
+			}
+			delete(p, "pattern")
 		}
-		delete(p, "oldStr")
+
+	case "glob":
+		if v, ok := p["globPattern"]; ok {
+			if _, exists := p["pattern"]; !exists {
+				p["pattern"] = v
+			}
+			delete(p, "globPattern")
+		}
+		if v, ok := p["targetDirectory"]; ok {
+			if _, exists := p["directory"]; !exists {
+				p["directory"] = v
+			}
+			delete(p, "targetDirectory")
+		}
+		// Cursor glob output: {"directories":[{"absPath":"...","files":[{"relPath":"..."}]}]}
+		// → newline-separated file paths
+		if out := formatGlobOutput(tc.Output); out != "" {
+			tc.Output = out
+		}
+
+	case "bash":
+		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
+		// Extract the text and surface exit status in Metadata
+		if text, rejected := extractBashOutput(tc.Output); rejected {
+			tc.Output = text
+			tc.Metadata = `{"exit":1}`
+		} else if text != "" {
+			tc.Output = text
+		}
 	}
 
 	if out, err := json.Marshal(p); err == nil {
