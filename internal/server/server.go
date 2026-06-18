@@ -17,6 +17,7 @@ import (
 
 	"github.com/stevencrawford/sess/internal/ingest"
 	"github.com/stevencrawford/sess/internal/ingest/copilot"
+	"github.com/stevencrawford/sess/internal/ingest/cursor"
 	"github.com/stevencrawford/sess/internal/ingest/opencode"
 	"github.com/stevencrawford/sess/internal/static"
 	"github.com/stevencrawford/sess/internal/store"
@@ -99,6 +100,8 @@ func createAdapter(src ingest.Source) (ingest.Adapter, error) {
 		return opencode.New(src.Path)
 	case ingest.AgentCopilot:
 		return copilot.New(src.Path)
+	case ingest.AgentCursor:
+		return cursor.New(src.Path)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %s", src.AgentType)
 	}

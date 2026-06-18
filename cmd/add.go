@@ -24,7 +24,7 @@ By default, sess will auto-detect the agent type. Use --type to force.`,
 }
 
 func init() {
-	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot)")
+	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor)")
 	rootCmd.AddCommand(addCmd)
 }
 
@@ -56,8 +56,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			label = "OpenCode"
 		case ingest.AgentCopilot:
 			label = "GitHub Copilot"
+		case ingest.AgentCursor:
+			label = "Cursor"
 		default:
-			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot)", addSourceType)
+			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor)", addSourceType)
 		}
 	} else {
 		// Auto-detect
@@ -72,7 +74,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot)", path)
+			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor)", path)
 		}
 	}
 

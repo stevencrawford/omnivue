@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Session } from "../hooks/useApi";
 import { setSessionName, clearSessionName } from "../hooks/useApi";
 
-export function SessionHeader({ session }: { session: Session }) {
+export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPrivacy?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [displayTitle, setDisplayTitle] = useState(session.title);
@@ -99,6 +99,7 @@ export function SessionHeader({ session }: { session: Session }) {
           </>
         )}
         <span className={`${badgeClass} shrink-0`}>{session.agent}</span>
+        {hasPrivacy && <span className="sess-privacy-badge shrink-0">Privacy mode</span>}
         <span
           className="text-[11px] font-mono text-gh-text-secondary ml-auto truncate max-w-[40%]"
           title={session.directory}

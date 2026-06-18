@@ -8,6 +8,7 @@ type AgentType string
 const (
 	AgentOpenCode AgentType = "opencode"
 	AgentCopilot  AgentType = "copilot"
+	AgentCursor   AgentType = "cursor"
 )
 
 // Source represents a configured session data source.

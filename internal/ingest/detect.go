@@ -13,6 +13,7 @@ var KnownPaths = []struct {
 }{
 	{"~/.local/share/opencode", AgentOpenCode, "OpenCode"},
 	{"~/.copilot", AgentCopilot, "GitHub Copilot"},
+	{"~/.cursor", AgentCursor, "Cursor"},
 }
 
 // AutoDiscover scans known paths for AI agent session sources.
@@ -32,6 +33,10 @@ func AutoDiscover() []DiscoveredSource {
 			}
 		case AgentCopilot:
 			if d := detectCopilot(path); d != nil {
+				discovered = append(discovered, *d)
+			}
+		case AgentCursor:
+			if d := detectCursor(path); d != nil {
 				discovered = append(discovered, *d)
 			}
 		}
@@ -75,6 +80,52 @@ func expandHome(path string) string {
 		return filepath.Join(home, path[2:])
 	}
 	return path
+}
+
+func detectCursor(path string) *DiscoveredSource {
+	dbPath := findCursorDB(path)
+	if dbPath != "" {
+		return &DiscoveredSource{
+			Path:      dbPath,
+			AgentType: AgentCursor,
+			Label:     "Cursor",
+		}
+	}
+	return nil
+}
+
+// findCursorDB resolves the Cursor state.vscdb path from any known entry point:
+// - Direct path to state.vscdb
+// - globalStorage directory
+// - Cursor config directory (~/.cursor)
+// - macOS App Support path (~/Library/Application Support/Cursor)
+// - Linux App Support path (~/.config/Cursor)
+func findCursorDB(entry string) string {
+	candidates := []string{
+		entry,
+		filepath.Join(entry, "state.vscdb"),
+		filepath.Join(entry, "User", "globalStorage", "state.vscdb"),
+	}
+	home, err := os.UserHomeDir()
+	if err == nil {
+		candidates = append(candidates,
+			filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"),
+			filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb"),
+		)
+	}
+	for _, c := range candidates {
+		if pathExists(c) {
+			// If it's a directory, append state.vscdb
+			if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+				c = filepath.Join(c, "state.vscdb")
+				if !pathExists(c) {
+					continue
+				}
+			}
+			return c
+		}
+	}
+	return ""
 }
 
 func pathExists(path string) bool {

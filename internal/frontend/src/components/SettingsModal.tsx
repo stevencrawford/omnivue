@@ -10,7 +10,7 @@ const AGENT_TYPES = [
   { value: "copilot", label: "Copilot", disabled: false, defaultPath: "~/.copilot" },
   { value: "claude", label: "Claude Code", disabled: true, defaultPath: "~/.claude" },
   { value: "codex", label: "Codex", disabled: true, defaultPath: "~/.codex" },
-  { value: "cursor", label: "Cursor", disabled: true, defaultPath: "~/.cursor" },
+  { value: "cursor", label: "Cursor", disabled: false, defaultPath: "~/.cursor" },
   { value: "pi", label: "Pi", disabled: true, defaultPath: "~/.pi" },
 ];
 

@@ -107,6 +107,11 @@ export function SessionViewer({
     return { user, assistant, total: messages.length };
   }, [messages]);
 
+  const hasPrivacy = useMemo(
+    () => messages.some((m) => m.metadata?.privacy === "true"),
+    [messages],
+  );
+
   useEffect(() => {
     if (activeTab.startsWith("scratch:") && !openScratchTabs.includes(activeTab.slice(8))) {
       setActiveTab("session");
@@ -152,7 +157,7 @@ export function SessionViewer({
 
   return (
     <div className="flex flex-col h-full">
-      <SessionHeader session={session} />
+      <SessionHeader session={session} hasPrivacy={hasPrivacy} />
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-gh-border shrink-0 overflow-x-auto">
