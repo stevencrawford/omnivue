@@ -22,6 +22,26 @@ interface ProjectPanelProps {
 
 type FolderSort = "name" | "count";
 
+const EXPANDED_KEY = "sess-project-folders-expanded";
+
+function getInitialExpanded(): Set<string> {
+  try {
+    const stored = localStorage.getItem(EXPANDED_KEY);
+    if (stored) return new Set(JSON.parse(stored));
+  } catch {
+    /* noop */
+  }
+  return new Set();
+}
+
+function saveExpanded(next: Set<string>) {
+  try {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify([...next]));
+  } catch {
+    /* noop */
+  }
+}
+
 export function ProjectPanel({
   sessions,
   activeSessionId,
@@ -30,18 +50,21 @@ export function ProjectPanel({
 }: ProjectPanelProps) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
-  const [expandedFolder, setExpandedFolder] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(getInitialExpanded);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [assigningFolder, setAssigningFolder] = useState<string | null>(null);
   const [folderSort, setFolderSort] = useState<FolderSort>("name");
-  const [allCollapsed, setAllCollapsed] = useState(false);
   const [folderSortOpen, setFolderSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    saveExpanded(expandedFolders);
+  }, [expandedFolders]);
+
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
     x: number;
@@ -112,7 +135,11 @@ export function ProjectPanel({
   const handleDelete = async (id: string) => {
     try {
       await deleteFolder(id);
-      if (expandedFolder === id) setExpandedFolder(null);
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       loadFolders();
     } catch (err) {
       console.error("Failed to delete folder:", err);
@@ -120,11 +147,15 @@ export function ProjectPanel({
   };
 
   const toggleExpand = async (id: string) => {
-    if (expandedFolder === id) {
-      setExpandedFolder(null);
-      return;
-    }
-    setExpandedFolder(id);
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
     try {
       const ids = await fetchFolderSessions(id);
       setFolderSessions((prev) => ({ ...prev, [id]: ids }));
@@ -132,6 +163,19 @@ export function ProjectPanel({
       console.error("Failed to load folder sessions:", err);
     }
   };
+
+  const expandAll = useCallback(() => {
+    setExpandedFolders(new Set(folders.map((f) => f.id)));
+    folders.forEach((f) => {
+      fetchFolderSessions(f.id).then((ids) => {
+        setFolderSessions((prev) => ({ ...prev, [f.id]: ids }));
+      }).catch(() => {});
+    });
+  }, [folders]);
+
+  const collapseAll = useCallback(() => {
+    setExpandedFolders(new Set());
+  }, []);
 
   const handleDrop = async (folderId: string, sessionId: string) => {
     try {
@@ -183,24 +227,32 @@ export function ProjectPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 shrink-0">
+      <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-gh-text-secondary">
           Projects
         </span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
-            onClick={() => setAllCollapsed((v) => !v)}
+            onClick={() => {
+              const allExpanded = folders.length > 0 && folders.every((f) => expandedFolders.has(f.id));
+              if (allExpanded) collapseAll();
+              else expandAll();
+            }}
             className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
-            title={allCollapsed ? "Expand all" : "Collapse all"}
+            title={
+              folders.length > 0 && folders.every((f) => expandedFolders.has(f.id))
+                ? "Collapse all"
+                : "Expand all"
+            }
           >
-            {allCollapsed ? (
+            {folders.length > 0 && folders.every((f) => expandedFolders.has(f.id)) ? (
               <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
+                <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
               </svg>
             ) : (
               <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
+                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
               </svg>
             )}
           </button>
@@ -252,7 +304,7 @@ export function ProjectPanel({
 
       {/* Create new folder */}
       {creating && (
-        <div className="px-3 pb-1">
+        <div className="px-1.5 pb-1">
           <input
             ref={inputRef}
             type="text"
@@ -275,7 +327,7 @@ export function ProjectPanel({
       )}
 
       {/* Folder list */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
+      <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {sortedFolders.length === 0 && !creating && (
           <div className="text-[11px] text-gh-text-secondary px-1 py-2">No folders yet</div>
         )}
@@ -306,16 +358,12 @@ export function ProjectPanel({
               ) : (
                 <button
                   type="button"
-                  className={`flex items-center gap-1.5 flex-1 text-xs cursor-pointer truncate transition-colors ${
-                    allCollapsed && expandedFolder !== folder.id
-                      ? "text-gh-text-secondary"
-                      : "text-gh-text-secondary hover:text-gh-text"
-                  }`}
-                  onClick={() => !allCollapsed && toggleExpand(folder.id)}
+                  className={`flex items-center gap-1.5 flex-1 text-xs cursor-pointer truncate transition-colors text-gh-text-secondary hover:text-gh-text`}
+                  onClick={() => toggleExpand(folder.id)}
                 >
                   <svg
                     className={`size-2.5 transition-transform shrink-0 ${
-                      !allCollapsed && expandedFolder === folder.id ? "rotate-90" : ""
+                      expandedFolders.has(folder.id) ? "rotate-90" : ""
                     }`}
                     viewBox="0 0 16 16"
                     fill="currentColor"
@@ -383,7 +431,7 @@ export function ProjectPanel({
               />
             )}
 
-            {!allCollapsed && expandedFolder === folder.id && folderSessions[folder.id] && (
+            {expandedFolders.has(folder.id) && folderSessions[folder.id] && (
               <div>
                 {folderSessions[folder.id].length === 0 ? (
                   <div className="text-[11px] text-gh-text-secondary px-3 py-1">Empty</div>
