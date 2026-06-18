@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -161,10 +162,21 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 }
 
 func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	// Bubble messages contain full content plus tool calls. Prefer them when
+	// available, and only fall back to the transcript summary (which omits
+	// tool calls) when no bubble data exists.
+	if msgs, err := a.readBubbleMessages(ctx, sessionID); err == nil {
+		if len(msgs) > 0 {
+			return msgs, nil
+		}
+	} else {
+		// Log the error but continue to try transcript fallback
+		slog.Warn("cursor: bubble messages unavailable", "session", sessionID, "error", err)
+	}
 	if msgs := a.readTranscriptMessages(ctx, sessionID); len(msgs) > 0 {
 		return msgs, nil
 	}
-	return a.readBubbleMessages(ctx, sessionID)
+	return nil, nil
 }
 
 func (a *Adapter) GetPlan(_ context.Context, _ string) (*ingest.Plan, error) {
