@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
+import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchPanel } from "./components/SearchPanel";
+import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
@@ -31,6 +33,8 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchSessionScope, setSearchSessionScope] = useState<string | null>(null);
   const [searchHighlightQuery, setSearchHighlightQuery] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<Section>("sessions");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollPositions = useRef(new Map<string, number>());
 
   const saveScrollPosition = useCallback((id: string, pos: number) => {
@@ -359,6 +363,9 @@ export function App() {
                 onDeleteScratchFile={handleDeleteScratchFile}
                 onRenameScratchFile={handleRenameScratchFile}
                 scratchFiles={scratchFiles}
+                activeSection={activeSection}
+                onSectionChange={setActiveSection}
+                onSettingsOpen={() => setSettingsOpen(true)}
               />
             </ErrorBoundary>
           )}
@@ -409,6 +416,11 @@ export function App() {
           </main>
         </div>
       </SessionNavContext.Provider>
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
     </ThemeProvider>
   );
