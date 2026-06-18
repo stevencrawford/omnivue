@@ -507,7 +507,7 @@ function RepoNode({
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="w-full text-left text-[11px] text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
+              className="w-full text-center text-[11px] text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
             >
               +{node.children.length - VISIBLE_LIMIT} more
             </button>
