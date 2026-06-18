@@ -203,7 +203,6 @@ body {
 .sess-session-active {
   background: var(--color-accent-muted) !important;
   color: var(--color-gh-text) !important;
-  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
 .sess-empty-state {
