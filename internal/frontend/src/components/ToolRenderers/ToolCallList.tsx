@@ -11,8 +11,9 @@ import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
 import { TaskToolDiff } from "./TaskToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
+import { DeleteToolDiff } from "./DeleteToolDiff";
 
-const TOOL_CALL_VISIBLE_CAP = 10;
+const TOOL_CALL_VISIBLE_CAP = 5;
 
 export function ToolCallList({
   toolCalls,
@@ -157,6 +158,8 @@ export function ToolCallRow({
         return <GrepToolDiff tool={tool} />;
       case "glob":
         return <GlobToolDiff tool={tool} />;
+      case "delete":
+        return <DeleteToolDiff tool={tool} />;
       case "todowrite":
         return <TodoWriteToolDiff tool={tool} />;
       case "task":

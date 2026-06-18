@@ -30,6 +30,7 @@ export function effectiveToolKind(tool: ToolCall): string {
     case "webfetch":
     case "websearch":
     case "codesearch":
+    case "delete":
       return tool.name;
     case "view":
       return "read";
@@ -75,11 +76,12 @@ export function getToolSummary(tool: ToolCall, agent?: string): string {
   const kind = effectiveToolKind(tool);
   const input = tool.input;
 
-  if (kind === "edit" || kind === "write" || kind === "read") {
+  if (kind === "edit" || kind === "write" || kind === "read" || kind === "delete") {
     const fp =
       extractJSONField(input, "filePath") ||
       extractJSONField(input, "file_path") ||
       extractJSONField(input, "path") ||
+      extractJSONField(input, "relativeWorkspacePath") ||
       "";
     if (fp) {
       const base = fp.split("/").pop() || fp;
