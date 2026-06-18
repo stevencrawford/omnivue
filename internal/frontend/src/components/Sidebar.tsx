@@ -99,7 +99,7 @@ export function Sidebar({
         className="flex-1 flex flex-col overflow-hidden bg-gh-bg-sidebar"
         style={{ width: `${panelWidth}px` }}
       >
-        {activeSection === "sessions" && (
+        <div className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "sessions" ? "hidden" : ""}`}>
           <SessionPanel
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -110,15 +110,15 @@ export function Sidebar({
             scratchFiles={scratchFiles}
             showToast={showToast}
           />
-        )}
-        {activeSection === "projects" && (
+        </div>
+        <div className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "projects" ? "hidden" : ""}`}>
           <ProjectPanel
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
             showToast={showToast}
           />
-        )}
+        </div>
       </div>
       <Toast key={toastKey} message={toastMsg} visible={toastVisible} onHide={hideToast} />
       <div
