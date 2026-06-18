@@ -1,21 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Trash2, Plus, Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
-import { fetchSources, addSource, removeSource, fetchConfig, setConfig } from "../hooks/useApi";
+import { fetchSources, addSource, removeSource, setConfig } from "../hooks/useApi";
 import type { Source } from "../hooks/useApi";
 import { useTheme } from "../hooks/useTheme";
 
-type SortMode = "recent" | "name" | "agent";
-
-const SORT_LABELS: Record<SortMode, string> = {
-  recent: "Recent",
-  name: "Name",
-  agent: "Agent",
-};
-
 const AGENT_TYPES = [
-  { value: "opencode", label: "OpenCode" },
-  { value: "copilot", label: "Copilot" },
+  { value: "opencode", label: "OpenCode", disabled: false, defaultPath: "~/.local/share/opencode" },
+  { value: "copilot", label: "Copilot", disabled: false, defaultPath: "~/.copilot" },
+  { value: "claude", label: "Claude Code", disabled: true, defaultPath: "~/.claude" },
+  { value: "codex", label: "Codex", disabled: true, defaultPath: "~/.codex" },
+  { value: "cursor", label: "Cursor", disabled: true, defaultPath: "~/.cursor" },
+  { value: "pi", label: "Pi", disabled: true, defaultPath: "~/.pi" },
 ];
 
 interface SettingsModalProps {
@@ -35,8 +31,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const { theme, setTheme } = useTheme();
-  const [defaultSort, setDefaultSort] = useState<SortMode>("recent");
-  const [savingSort, setSavingSort] = useState(false);
 
   const loadSources = useCallback(async () => {
     setSourcesLoading(true);
@@ -51,25 +45,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, []);
 
-  const loadConfig = useCallback(async () => {
-    try {
-      const cfg = await fetchConfig();
-      if (cfg.defaultSort === "name" || cfg.defaultSort === "agent") {
-        setDefaultSort(cfg.defaultSort as SortMode);
-      }
-    } catch {
-      // Config loading is non-critical
-    }
-  }, []);
-
   useEffect(() => {
     if (isOpen) {
       loadSources();
-      loadConfig();
       setAddingPath("");
       setAddingType("opencode");
     }
-  }, [isOpen, loadSources, loadConfig]);
+  }, [isOpen, loadSources]);
 
   const handleAdd = async () => {
     const path = addingPath.trim();
@@ -104,18 +86,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       await setConfig("theme", t);
     } catch {
       // Non-critical
-    }
-  };
-
-  const handleSortChange = async (mode: SortMode) => {
-    setDefaultSort(mode);
-    setSavingSort(true);
-    try {
-      await setConfig("defaultSort", mode);
-    } catch {
-      // Non-critical
-    } finally {
-      setSavingSort(false);
     }
   };
 
@@ -177,8 +147,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAdd();
               }}
-              placeholder="/path/to/agent/data"
-              className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)] font-mono"
+              placeholder={AGENT_TYPES.find((at) => at.value === addingType)?.defaultPath ?? "/path/to/agent/data"}
+              className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px var(--color-glow)] font-mono"
             />
             <select
               value={addingType}
@@ -186,7 +156,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               className="text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text outline-none focus:border-accent cursor-pointer"
             >
               {AGENT_TYPES.map((at) => (
-                <option key={at.value} value={at.value}>
+                <option key={at.value} value={at.value} disabled={at.disabled}>
                   {at.label}
                 </option>
               ))}
@@ -225,29 +195,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {t}
               </button>
             ))}
-          </div>
-        </div>
-
-        <hr className="border-gh-border" />
-
-        {/* Default Sort */}
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-2">
-            Default Session Sort
-          </h3>
-          <div className="flex items-center gap-2">
-            <select
-              value={defaultSort}
-              onChange={(e) => handleSortChange(e.target.value as SortMode)}
-              className="text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text outline-none focus:border-accent cursor-pointer"
-            >
-              {(["recent", "name", "agent"] as SortMode[]).map((mode) => (
-                <option key={mode} value={mode}>
-                  {SORT_LABELS[mode]}
-                </option>
-              ))}
-            </select>
-            {savingSort && <Loader2 className="size-3 text-gh-text-secondary animate-spin" />}
           </div>
         </div>
 
