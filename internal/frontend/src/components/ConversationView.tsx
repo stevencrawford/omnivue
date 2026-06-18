@@ -60,15 +60,6 @@ export function ConversationView({
   const { scrollPositions, saveScrollPosition } = useSessionNav();
 
   useEffect(() => {
-    if (scrollRef.current) {
-      const saved = scrollPositions.get(session.id);
-      if (saved !== undefined && prevLengthRef.current === 0) {
-        scrollRef.current.scrollTop = saved;
-      }
-    }
-  }, [messages.length, session.id, scrollPositions]);
-
-  useEffect(() => {
     return () => {
       if (scrollRef.current) {
         saveScrollPosition(session.id, scrollRef.current.scrollTop);
@@ -77,11 +68,22 @@ export function ConversationView({
   }, [session.id, saveScrollPosition]);
 
   useEffect(() => {
-    if (messages.length > prevLengthRef.current && scrollRef.current) {
+    if (scrollRef.current) {
       const saved = scrollPositions.get(session.id);
       const isInitialLoad = prevLengthRef.current === 0;
-      if (!(isInitialLoad && saved !== undefined)) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+
+      if (isInitialLoad) {
+        if (saved !== undefined) {
+          scrollRef.current.scrollTop = saved;
+        } else {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      } else if (messages.length > prevLengthRef.current) {
+        const el = scrollRef.current;
+        const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        if (nearBottom) {
+          el.scrollTop = el.scrollHeight;
+        }
       }
     }
     prevLengthRef.current = messages.length;
