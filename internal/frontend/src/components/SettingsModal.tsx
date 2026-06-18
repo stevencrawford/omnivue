@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Trash2, Plus, Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
-import {
-  fetchSources,
-  addSource,
-  removeSource,
-  fetchConfig,
-  setConfig,
-} from "../hooks/useApi";
+import { fetchSources, addSource, removeSource, fetchConfig, setConfig } from "../hooks/useApi";
 import type { Source } from "../hooks/useApi";
 import { useTheme } from "../hooks/useTheme";
 
@@ -203,11 +197,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               onClick={handleAdd}
               className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-accent-border bg-accent-muted text-accent hover:bg-accent/20"
             >
-              {adding ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Plus className="size-3" />
-              )}
+              {adding ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />}
               Add
             </button>
           </div>

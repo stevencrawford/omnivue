@@ -19,10 +19,7 @@ export function getDistinctValues(
   return Array.from(values).sort();
 }
 
-export function filterSessions(
-  sessions: Session[],
-  filters: SessionFilters,
-): Session[] {
+export function filterSessions(sessions: Session[], filters: SessionFilters): Session[] {
   const hasFilters = Object.values(filters).some((v) => v !== null);
   if (!hasFilters) return sessions;
 

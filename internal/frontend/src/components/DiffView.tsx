@@ -97,13 +97,31 @@ function extractHunks(
 function detectLanguage(filePath: string): string {
   const ext = filePath.split(".").pop()?.toLowerCase() || "";
   const langMap: Record<string, string> = {
-    ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
-    json: "json", md: "markdown", css: "css", html: "html",
-    go: "go", py: "python", rs: "rust", rb: "ruby",
-    java: "java", yml: "yaml", yaml: "yaml", toml: "toml",
-    sh: "shellscript", bash: "shellscript", sql: "sql",
-    graphql: "graphql", vue: "vue", svelte: "svelte",
-    c: "c", cpp: "cpp", h: "c",
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "jsx",
+    json: "json",
+    md: "markdown",
+    css: "css",
+    html: "html",
+    go: "go",
+    py: "python",
+    rs: "rust",
+    rb: "ruby",
+    java: "java",
+    yml: "yaml",
+    yaml: "yaml",
+    toml: "toml",
+    sh: "shellscript",
+    bash: "shellscript",
+    sql: "sql",
+    graphql: "graphql",
+    vue: "vue",
+    svelte: "svelte",
+    c: "c",
+    cpp: "cpp",
+    h: "c",
   };
   return langMap[ext] || "";
 }
@@ -245,9 +263,12 @@ function buildFileTree(diffs: MergedFileDiff[]): FileTreeNode[] {
 function computeFileStatus(diff?: MergedFileDiff): { letter: string; color: string } {
   if (!diff) return { letter: "", color: "" };
   switch (diff.status) {
-    case "added": return { letter: "A", color: "text-green-500" };
-    case "deleted": return { letter: "D", color: "text-red-500" };
-    default: return { letter: "M", color: "text-yellow-500" };
+    case "added":
+      return { letter: "A", color: "text-green-500" };
+    case "deleted":
+      return { letter: "D", color: "text-red-500" };
+    default:
+      return { letter: "M", color: "text-yellow-500" };
   }
 }
 
@@ -466,7 +487,11 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
   }, [mergedDiffs, selectedPath]);
 
   const stats = useMemo(() => {
-    let additions = 0, deletions = 0, added = 0, modified = 0, deleted = 0;
+    let additions = 0,
+      deletions = 0,
+      added = 0,
+      modified = 0,
+      deleted = 0;
     for (const d of mergedDiffs) {
       additions += d.additions;
       deletions += d.deletions;
@@ -512,10 +537,10 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
 
   if (mergedDiffs.length === 0) {
     return (
-      <div className="sess-empty-state p-8">
+      <div className="sess-empty-state p-8 h-full">
         <div className="sess-empty-icon">
           <svg className="size-5" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2Z" />
+            <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
           </svg>
         </div>
         <p className="text-sm text-gh-text-secondary">No file changes in this session</p>
@@ -533,9 +558,7 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
         {stats.additions > 0 && (
           <span className="text-green-500 font-mono">+{stats.additions}</span>
         )}
-        {stats.deletions > 0 && (
-          <span className="text-red-500 font-mono">-{stats.deletions}</span>
-        )}
+        {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
         <div className="ml-auto flex items-center gap-1.5 text-[11px] text-gh-text-secondary">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
@@ -558,11 +581,7 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
           className="overflow-y-auto overflow-x-hidden shrink-0 border-r border-gh-border"
           style={{ width: treeWidth }}
         >
-          <FileTree
-            nodes={tree}
-            selectedPath={selectedPath}
-            onSelect={setSelectedPath}
-          />
+          <FileTree nodes={tree} selectedPath={selectedPath} onSelect={setSelectedPath} />
         </div>
 
         {/* Resizable divider */}
@@ -596,7 +615,11 @@ export function DiffView({ sessionId, sessionDirectory }: DiffViewProps) {
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-gh-text-secondary">
               <div className="text-center">
-                <svg className="size-8 mx-auto mb-2 opacity-40" viewBox="0 0 16 16" fill="currentColor">
+                <svg
+                  className="size-8 mx-auto mb-2 opacity-40"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
                   <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2Z" />
                 </svg>
                 Select a file to view its changes

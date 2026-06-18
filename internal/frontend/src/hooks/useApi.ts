@@ -253,7 +253,11 @@ export async function fetchStatus(): Promise<StatusInfo> {
   return res.json();
 }
 
-export async function fetchSearch(query: string, limit = 50, sessionId?: string): Promise<SearchResult[]> {
+export async function fetchSearch(
+  query: string,
+  limit = 50,
+  sessionId?: string,
+): Promise<SearchResult[]> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (sessionId) params.set("session_id", sessionId);
   const res = await fetch(`/_/api/search?${params}`);

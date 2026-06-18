@@ -199,15 +199,12 @@ export function App() {
     return map;
   }, [scratchFiles]);
 
-  const handleSessionSelect = useCallback(
-    (sessionId: string) => {
-      setActiveSessionId(sessionId);
-      setFocusStepIndex(undefined);
-      setActiveTab("session");
-      setSearchHighlightQuery(null);
-    },
-    [],
-  );
+  const handleSessionSelect = useCallback((sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setFocusStepIndex(undefined);
+    setActiveTab("session");
+    setSearchHighlightQuery(null);
+  }, []);
 
   const handleNewScratchFile = useCallback(async () => {
     if (!activeSessionId) return;
@@ -270,158 +267,152 @@ export function App() {
     setActiveTab(`scratch:${fileId}`);
   }, []);
 
-  const handleSearchSelect = useCallback(
-    (sessionId: string, chunkType: string, query: string) => {
-      setActiveSessionId(sessionId);
-      setActiveTab(chunkType === "plan" ? "plan" : "session");
-      setSearchHighlightQuery(query || null);
-      setSearchOpen(false);
-    },
-    [],
-  );
+  const handleSearchSelect = useCallback((sessionId: string, chunkType: string, query: string) => {
+    setActiveSessionId(sessionId);
+    setActiveTab(chunkType === "plan" ? "plan" : "session");
+    setSearchHighlightQuery(query || null);
+    setSearchOpen(false);
+  }, []);
 
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
   return (
     <ThemeProvider>
-    <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
-      <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-gh-header-border">
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            type="button"
-            className="sess-icon-btn shrink-0"
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="Toggle sidebar"
-            aria-expanded={sidebarOpen}
-            title="Toggle sidebar"
-          >
-            <svg
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
+      <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
+        <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-gh-header-border">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              className="sess-icon-btn shrink-0"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label="Toggle sidebar"
+              aria-expanded={sidebarOpen}
+              title="Toggle sidebar"
             >
-              <rect x="2" y="3" width="20" height="18" rx="2" />
-              <line x1="9" y1="3" x2="9" y2="21" />
-              {sidebarOpen ? (
-                <polyline points="6,10 4,12 6,14" />
-              ) : (
-                <polyline points="5,10 7,12 5,14" />
-              )}
-            </svg>
-          </button>
-          <div className="flex items-baseline gap-2 min-w-0">
-            <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
+              <svg
+                className="size-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                viewBox="0 0 24 24"
+              >
+                <rect x="2" y="3" width="20" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+                {sidebarOpen ? (
+                  <polyline points="6,10 4,12 6,14" />
+                ) : (
+                  <polyline points="5,10 7,12 5,14" />
+                )}
+              </svg>
+            </button>
+            <div className="flex items-baseline gap-2 min-w-0">
+              <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
+            </div>
           </div>
-        </div>
 
-        <button type="button" className="sess-search-trigger" onClick={() => setSearchOpen(true)}>
-          <svg className="size-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
-          </svg>
-          <span className="flex-1 text-left">Search sessions...</span>
-          <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}P</span>
-        </button>
+          <button type="button" className="sess-search-trigger" onClick={() => setSearchOpen(true)}>
+            <svg className="size-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
+            </svg>
+            <span className="flex-1 text-left">Search sessions...</span>
+            <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}P</span>
+          </button>
 
-        <div className="flex items-center justify-end gap-2">
-          <ThemeToggle />
-        </div>
-      </header>
+          <div className="flex items-center justify-end gap-2">
+            <ThemeToggle />
+          </div>
+        </header>
 
-      {searchOpen && (
-        <SearchPanel
-          query={searchQuery}
-          onQueryChange={setSearchQuery}
-          onSelectSession={handleSearchSelect}
-          onClose={() => setSearchOpen(false)}
-          searchScope={searchSessionScope}
-          searchScopeName={(() => {
-            if (!searchSessionScope) return null;
-            const s = sessions.find((s) => s.id === searchSessionScope);
-            return s?.title || s?.repository || null;
-          })()}
-          onClearScope={() => setSearchSessionScope(null)}
-        />
-      )}
+        {searchOpen && (
+          <SearchPanel
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            onSelectSession={handleSearchSelect}
+            onClose={() => setSearchOpen(false)}
+            searchScope={searchSessionScope}
+            searchScopeName={(() => {
+              if (!searchSessionScope) return null;
+              const s = sessions.find((s) => s.id === searchSessionScope);
+              return s?.title || s?.repository || null;
+            })()}
+            onClearScope={() => setSearchSessionScope(null)}
+          />
+        )}
 
-      <SessionNavContext.Provider
-        value={{
-          navigateToSession: handleSessionSelect,
-          scrollPositions: scrollPositions.current,
-          saveScrollPosition,
-        }}
-      >
-        <div className="flex flex-1 overflow-hidden">
-          {sidebarOpen && (
-            <ErrorBoundary>
-              <Sidebar
-                sessions={sessions}
-                activeSessionId={activeSessionId}
-                onSessionSelect={handleSessionSelect}
-                onScratchFileSelect={handleOpenScratchFile}
-                onDeleteScratchFile={handleDeleteScratchFile}
-                onRenameScratchFile={handleRenameScratchFile}
-                scratchFiles={scratchFiles}
-                activeSection={activeSection}
-                onSectionChange={setActiveSection}
-                onSettingsOpen={() => setSettingsOpen(true)}
-              />
-            </ErrorBoundary>
-          )}
-          <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
-            {activeSession ? (
+        <SessionNavContext.Provider
+          value={{
+            navigateToSession: handleSessionSelect,
+            scrollPositions: scrollPositions.current,
+            saveScrollPosition,
+          }}
+        >
+          <div className="flex flex-1 overflow-hidden">
+            {sidebarOpen && (
               <ErrorBoundary>
-                <SessionViewer
-                  key={activeSession.id}
-                  session={activeSession}
-                  liveChangedIds={liveChangedIds}
-                  activeTab={activeTab}
-                  onTabChange={setActiveTab}
-                  openScratchTabs={openScratchTabs}
-                  scratchFileMap={scratchFileMap}
-                  onCloseScratchTab={handleCloseScratchTab}
-                  onNewScratchFile={handleNewScratchFile}
-                  focusStepIndex={focusStepIndex}
-                  searchHighlightQuery={searchHighlightQuery}
+                <Sidebar
+                  sessions={sessions}
+                  activeSessionId={activeSessionId}
+                  onSessionSelect={handleSessionSelect}
+                  onScratchFileSelect={handleOpenScratchFile}
+                  onDeleteScratchFile={handleDeleteScratchFile}
+                  onRenameScratchFile={handleRenameScratchFile}
+                  scratchFiles={scratchFiles}
+                  activeSection={activeSection}
+                  onSectionChange={setActiveSection}
+                  onSettingsOpen={() => setSettingsOpen(true)}
                 />
               </ErrorBoundary>
-            ) : (
-              <div className="sess-empty-state flex-1 h-full">
-                <div className="sess-empty-icon">
-                  <svg
-                    className="size-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                </div>
-                <p className="text-sm font-medium text-gh-text">
-                  {sessions.length === 0 ? "No sessions yet" : "Select a session"}
-                </p>
-                <p className="text-xs text-gh-text-secondary max-w-xs">
-                  {sessions.length === 0
-                    ? "Run sess init to discover OpenCode, Copilot, and other agent sources."
-                    : "Pick a session from the sidebar to view conversation, plan, and diffs."}
-                </p>
-              </div>
             )}
-          </main>
-        </div>
-      </SessionNavContext.Provider>
+            <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
+              {activeSession ? (
+                <ErrorBoundary>
+                  <SessionViewer
+                    key={activeSession.id}
+                    session={activeSession}
+                    liveChangedIds={liveChangedIds}
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    openScratchTabs={openScratchTabs}
+                    scratchFileMap={scratchFileMap}
+                    onCloseScratchTab={handleCloseScratchTab}
+                    onNewScratchFile={handleNewScratchFile}
+                    focusStepIndex={focusStepIndex}
+                    searchHighlightQuery={searchHighlightQuery}
+                  />
+                </ErrorBoundary>
+              ) : (
+                <div className="sess-empty-state flex-1 h-full">
+                  <div className="sess-empty-icon">
+                    <svg
+                      className="size-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gh-text">
+                    {sessions.length === 0 ? "No sessions yet" : "Select a session"}
+                  </p>
+                  <p className="text-xs text-gh-text-secondary max-w-xs">
+                    {sessions.length === 0
+                      ? "Run sess init to discover OpenCode, Copilot, and other agent sources."
+                      : "Pick a session from the sidebar to view conversation, plan, and diffs."}
+                  </p>
+                </div>
+              )}
+            </main>
+          </div>
+        </SessionNavContext.Provider>
 
-      <SettingsModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
-    </div>
+        <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </div>
     </ThemeProvider>
   );
 }

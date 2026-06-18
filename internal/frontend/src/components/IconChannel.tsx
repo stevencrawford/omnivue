@@ -1,9 +1,4 @@
-import {
-  MessageSquareText,
-  Folder,
-  Bookmark,
-  Settings,
-} from "lucide-react";
+import { MessageSquareText, Folder, Bookmark, Settings } from "lucide-react";
 
 export type Section = "sessions" | "projects" | "bookmarks";
 
@@ -13,7 +8,12 @@ interface IconChannelProps {
   onSettingsOpen: () => void;
 }
 
-const sections: { id: Section; label: string; Icon: typeof MessageSquareText; disabled?: boolean }[] = [
+const sections: {
+  id: Section;
+  label: string;
+  Icon: typeof MessageSquareText;
+  disabled?: boolean;
+}[] = [
   { id: "sessions", label: "Sessions", Icon: MessageSquareText },
   { id: "projects", label: "Projects", Icon: Folder },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark, disabled: true },

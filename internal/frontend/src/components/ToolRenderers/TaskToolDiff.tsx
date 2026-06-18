@@ -6,7 +6,13 @@ interface TaskInput {
   subagent_type?: string;
 }
 
-export function TaskToolDiff({ tool, onOpenModal }: { tool: ToolCall; onOpenModal?: (content: string, title?: string) => void }) {
+export function TaskToolDiff({
+  tool,
+  onOpenModal,
+}: {
+  tool: ToolCall;
+  onOpenModal?: (content: string, title?: string) => void;
+}) {
   let input: TaskInput = {};
   let childSessionId: string | null = null;
   let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;

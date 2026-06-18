@@ -9,11 +9,7 @@ import {
   assignSessionToFolder,
   unassignSessionFromFolder,
 } from "../hooks/useApi";
-import {
-  sessionTitle,
-  sessionMetaParts,
-  relativeTime,
-} from "../utils/sessionUtils";
+import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 
 interface FolderPanelProps {
   sessions: Session[];

@@ -128,13 +128,13 @@ export function ConversationView({
   useEffect(() => {
     if (focusStepIndex === undefined || !scrollRef.current) return;
     const container = scrollRef.current;
-    const msgElements = container.querySelectorAll('[data-message-index]');
+    const msgElements = container.querySelectorAll("[data-message-index]");
     for (const el of msgElements) {
-      const idx = parseInt(el.getAttribute('data-message-index') || '', 10);
+      const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
       if (idx === focusStepIndex) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('sess-message-highlight');
-        setTimeout(() => el.classList.remove('sess-message-highlight'), 2000);
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("sess-message-highlight");
+        setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
         break;
       }
     }
@@ -142,17 +142,18 @@ export function ConversationView({
 
   // Scroll to and highlight first message matching search highlight query
   useEffect(() => {
-    if (!searchHighlightQuery || !scrollRef.current || messagesWithoutReminders.length === 0) return;
+    if (!searchHighlightQuery || !scrollRef.current || messagesWithoutReminders.length === 0)
+      return;
     const q = searchHighlightQuery.toLowerCase();
     const container = scrollRef.current;
-    const msgElements = container.querySelectorAll('[data-message-index]');
+    const msgElements = container.querySelectorAll("[data-message-index]");
     for (const el of msgElements) {
-      const idx = parseInt(el.getAttribute('data-message-index') || '', 10);
+      const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
       const msg = messagesWithoutReminders[idx];
-      if (msg && (msg.content || '').toLowerCase().includes(q)) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('sess-message-highlight');
-        setTimeout(() => el.classList.remove('sess-message-highlight'), 2000);
+      if (msg && (msg.content || "").toLowerCase().includes(q)) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("sess-message-highlight");
+        setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
         break;
       }
     }
@@ -428,7 +429,11 @@ function extractInlineBlocks(content: string) {
   remaining = remaining.replace(
     /<skill-context(?:\s+(?:file|name)="([^"]*)")?\s*>([\s\S]*?)<\/skill-context>\n?/g,
     (_match, fileOrName, inner) => {
-      blocks.push({ type: "skill-context", content: inner.trim(), fileName: fileOrName || undefined });
+      blocks.push({
+        type: "skill-context",
+        content: inner.trim(),
+        fileName: fileOrName || undefined,
+      });
       return "";
     },
   );
@@ -476,11 +481,7 @@ function CollapsibleBlock({
       </div>
       {isLong && (
         <div className="flex justify-center border-t border-inherit">
-          <button
-            type="button"
-            className="sess-tool-more"
-            onClick={() => setExpanded(!expanded)}
-          >
+          <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
             {expanded ? "Show less" : "Show more"}
           </button>
         </div>
@@ -520,11 +521,7 @@ function UserTurnView({
         </div>
         {isLong && (
           <div className="flex justify-center mt-1">
-            <button
-              type="button"
-              className="sess-tool-more"
-              onClick={() => setExpanded(!expanded)}
-            >
+            <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
               {expanded ? "Show less" : "Show more"}
             </button>
           </div>
@@ -537,7 +534,9 @@ function UserTurnView({
 
   return (
     <div className="sess-user-turn">
-      <div className="sess-user-turn-label">{isSkillOnly ? `SKILL: ${blocks[0].fileName || "Context"}` : "USER-REQUEST"}</div>
+      <div className="sess-user-turn-label">
+        {isSkillOnly ? `SKILL: ${blocks[0].fileName || "Context"}` : "USER-REQUEST"}
+      </div>
       {blocks.map((block, i) =>
         block.type === "skill-context" ? (
           <CollapsibleBlock
@@ -731,11 +730,7 @@ function SystemReminderView({
       </div>
       {isLong && (
         <div className="flex justify-center border-t border-amber-500/10">
-          <button
-            type="button"
-            className="sess-tool-more"
-            onClick={() => setExpanded(!expanded)}
-          >
+          <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
             {expanded ? "Show less" : "Show more"}
           </button>
         </div>

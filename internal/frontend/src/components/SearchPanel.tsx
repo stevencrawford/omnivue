@@ -96,22 +96,25 @@ export function SearchPanel({
     inputRef.current?.focus();
   }, []);
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await fetchSearch(q.trim(), 50, searchScope ?? undefined);
-      setResults(data);
-    } catch (err) {
-      console.error("Search failed:", err);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchScope]);
+  const doSearch = useCallback(
+    async (q: string) => {
+      if (!q.trim()) {
+        setResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const data = await fetchSearch(q.trim(), 50, searchScope ?? undefined);
+        setResults(data);
+      } catch (err) {
+        console.error("Search failed:", err);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchScope],
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -182,7 +185,9 @@ export function SearchPanel({
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder={searchScope ? "Search in current session..." : "Search sessions, messages, plans..."}
+              placeholder={
+                searchScope ? "Search in current session..." : "Search sessions, messages, plans..."
+              }
               className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
             />
             {query && (
