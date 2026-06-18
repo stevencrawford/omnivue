@@ -200,6 +200,53 @@ export async function fetchSources(): Promise<Source[]> {
   return res.json();
 }
 
+export async function addSource(
+  path: string,
+  agentType: string,
+  label?: string,
+  enabled?: boolean,
+): Promise<Source> {
+  const res = await fetch("/_/api/sources", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, agentType, label, enabled: enabled ?? true }),
+  });
+  if (!res.ok) throw new Error("Failed to add source");
+  return res.json();
+}
+
+export async function removeSource(id: string): Promise<void> {
+  const res = await fetch(`/_/api/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to remove source");
+}
+
+export async function updateSource(
+  id: string,
+  data: { path?: string; agentType?: string; label?: string; enabled?: boolean },
+): Promise<void> {
+  const res = await fetch(`/_/api/sources/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update source");
+}
+
+export async function fetchConfig(): Promise<Record<string, string>> {
+  const res = await fetch("/_/api/config");
+  if (!res.ok) throw new Error("Failed to fetch config");
+  return res.json();
+}
+
+export async function setConfig(key: string, value: string): Promise<void> {
+  const res = await fetch("/_/api/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+  if (!res.ok) throw new Error("Failed to set config");
+}
+
 export async function fetchStatus(): Promise<StatusInfo> {
   const res = await fetch("/_/api/status");
   if (!res.ok) throw new Error("Failed to fetch status");
