@@ -461,6 +461,10 @@ function RepoNode({
   displayMode: DisplayMode;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
+  const [showAll, setShowAll] = useState(false);
+  const VISIBLE_LIMIT = 15;
+  const visible = showAll ? node.children : node.children.slice(0, VISIBLE_LIMIT);
+  const hasMore = node.children.length > VISIBLE_LIMIT;
 
   return (
     <div>
@@ -476,7 +480,7 @@ function RepoNode({
       </button>
       {!isCollapsed && (
         <div className="space-y-px mt-px">
-          {node.children.map((child) => {
+          {visible.map((child) => {
             const session = child.session;
             if (!session) return null;
             const sessionScratchFiles = scratchFilesBySession.get(session.id) || [];
@@ -499,6 +503,15 @@ function RepoNode({
               />
             );
           })}
+          {hasMore && !showAll && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="w-full text-left text-[11px] text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
+            >
+              +{node.children.length - VISIBLE_LIMIT} more
+            </button>
+          )}
         </div>
       )}
     </div>
