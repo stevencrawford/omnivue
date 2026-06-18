@@ -35,6 +35,8 @@ export function effectiveToolKind(tool: ToolCall): string {
       return "read";
     case "create":
       return "write";
+    case "edit_file_v2":
+      return "edit";
   }
 
   const input = tool.input;
