@@ -58,6 +58,16 @@ export function ConversationView({
   const [isPinnedResizing, setIsPinnedResizing] = useState(false);
   const totalTokens = session.tokensInput + session.tokensOutput;
   const { scrollPositions, saveScrollPosition } = useSessionNav();
+  const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const [type, handler] of resizeListeners.current) {
+        document.removeEventListener(type, handler);
+      }
+      resizeListeners.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -124,6 +134,15 @@ export function ConversationView({
     [grouped],
   );
 
+  const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const t of highlightTimers.current) clearTimeout(t);
+      highlightTimers.current = [];
+    };
+  }, []);
+
   // Scroll to focused step when focusStepIndex is provided
   useEffect(() => {
     if (focusStepIndex === undefined || !scrollRef.current) return;
@@ -134,7 +153,8 @@ export function ConversationView({
       if (idx === focusStepIndex) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("sess-message-highlight");
-        setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+        const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+        highlightTimers.current.push(timer);
         break;
       }
     }
@@ -153,18 +173,27 @@ export function ConversationView({
       if (msg && (msg.content || "").toLowerCase().includes(q)) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("sess-message-highlight");
-        setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+        const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+        highlightTimers.current.push(timer);
         break;
       }
     }
   }, [searchHighlightQuery, messagesWithoutReminders.length]);
+
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const handleResume = async () => {
     try {
       const cmd = await fetchResumeCommand(session.id);
       await navigator.clipboard.writeText(cmd);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       /* ignore */
     }
@@ -172,6 +201,10 @@ export function ConversationView({
 
   const handlePinnedResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
+    for (const [type, handler] of resizeListeners.current) {
+      document.removeEventListener(type, handler);
+    }
+    resizeListeners.current = [];
     setIsPinnedResizing(true);
     const startY = e.clientY;
     const startHeight = pinnedHeight;
@@ -185,6 +218,7 @@ export function ConversationView({
       setIsPinnedResizing(false);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      resizeListeners.current = [];
       const finalHeight = Math.max(60, Math.min(600, startHeight + (startY - ev.clientY)));
       try {
         localStorage.setItem("sess-pinned-height", String(finalHeight));
@@ -195,6 +229,7 @@ export function ConversationView({
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+    resizeListeners.current = [["mousemove", handleMouseMove as EventListener], ["mouseup", handleMouseUp as EventListener]];
   };
 
   if (loading) {

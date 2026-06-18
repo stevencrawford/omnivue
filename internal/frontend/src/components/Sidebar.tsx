@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session, ScratchFile } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
@@ -48,6 +48,16 @@ export function Sidebar({
   const [toastMsg, setToastMsg] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
   const [toastKey, setToastKey] = useState(0);
+  const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const [type, handler] of resizeListeners.current) {
+        document.removeEventListener(type, handler);
+      }
+      resizeListeners.current = [];
+    };
+  }, []);
 
   const showToast = useCallback((message: string) => {
     setToastMsg(message);
@@ -61,6 +71,10 @@ export function Sidebar({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    for (const [type, handler] of resizeListeners.current) {
+      document.removeEventListener(type, handler);
+    }
+    resizeListeners.current = [];
     setIsResizing(true);
     const startX = e.clientX;
     const startWidth = width;
@@ -74,6 +88,7 @@ export function Sidebar({
       setIsResizing(false);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      resizeListeners.current = [];
       const finalWidth = Math.max(220, Math.min(600, startWidth + (ev.clientX - startX)));
       try {
         localStorage.setItem(SIDEBAR_WIDTH_KEY, String(finalWidth));
@@ -84,6 +99,7 @@ export function Sidebar({
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+    resizeListeners.current = [["mousemove", handleMouseMove as EventListener], ["mouseup", handleMouseUp as EventListener]];
   };
 
   const panelWidth = Math.max(172, width - 48);
