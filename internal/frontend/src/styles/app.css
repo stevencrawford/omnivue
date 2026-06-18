@@ -83,6 +83,23 @@ body {
     radial-gradient(ellipse 60% 40% at 100% 50%, rgba(8, 145, 178, 0.04), transparent);
 }
 
+/* ─── Toast animation ──────────────────────────────────────────── */
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
+}
+
 /* ─── Utilities ─────────────────────────────────────────────────── */
 
 .sess-gradient-text {
@@ -380,8 +397,12 @@ body {
 }
 
 @keyframes sess-highlight-fade {
-  0% { background-color: color-mix(in srgb, var(--color-accent) 15%, transparent); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 /* ─── Markdown layout helpers ───────────────────────────────────── */

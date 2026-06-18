@@ -9,21 +9,25 @@ import {
   assignSessionToFolder,
   unassignSessionFromFolder,
 } from "../hooks/useApi";
-import {
-  sessionTitle,
-  sessionMetaParts,
-  relativeTime,
-} from "../utils/sessionUtils";
+import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
+import { ContextMenu } from "./ContextMenu";
+import { AddToProjectDialog } from "./AddToProjectDialog";
 
 interface ProjectPanelProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
+  showToast: (msg: string) => void;
 }
 
 type FolderSort = "name" | "count";
 
-export function ProjectPanel({ sessions, activeSessionId, onSessionSelect }: ProjectPanelProps) {
+export function ProjectPanel({
+  sessions,
+  activeSessionId,
+  onSessionSelect,
+  showToast,
+}: ProjectPanelProps) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
   const [expandedFolder, setExpandedFolder] = useState<string | null>(null);
@@ -38,6 +42,18 @@ export function ProjectPanel({ sessions, activeSessionId, onSessionSelect }: Pro
   const sortRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    sessionId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
+
+  const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ sessionId, x: e.clientX, y: e.clientY });
+  }, []);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -382,6 +398,7 @@ export function ProjectPanel({ sessions, activeSessionId, onSessionSelect }: Pro
                         isActive={sid === activeSessionId}
                         onSelect={() => onSessionSelect(sid)}
                         onRemove={() => handleUnassign(folder.id, sid)}
+                        onContextMenu={handleContextMenu}
                       />
                     );
                   })
@@ -391,6 +408,36 @@ export function ProjectPanel({ sessions, activeSessionId, onSessionSelect }: Pro
           </div>
         ))}
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: "Add to Project",
+              icon: (
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
+                </svg>
+              ),
+              onClick: () => {
+                setAddToProjectSessionId(contextMenu.sessionId);
+              },
+            },
+          ]}
+        />
+      )}
+
+      {addToProjectSessionId && (
+        <AddToProjectDialog
+          isOpen={!!addToProjectSessionId}
+          sessionId={addToProjectSessionId}
+          sessionTitle={sessions.find((s) => s.id === addToProjectSessionId)?.title || ""}
+          onClose={() => setAddToProjectSessionId(null)}
+          onAssigned={(name) => showToast(`Added to ${name}`)}
+        />
+      )}
     </div>
   );
 }
@@ -402,9 +449,16 @@ interface FolderSessionRowProps {
   isActive: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
 }
 
-function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessionRowProps) {
+function FolderSessionRow({
+  session,
+  isActive,
+  onSelect,
+  onRemove,
+  onContextMenu,
+}: FolderSessionRowProps) {
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
     e.dataTransfer.effectAllowed = "copy";
@@ -417,6 +471,7 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
         draggable
         onDragStart={handleDragStart}
         onClick={onSelect}
+        onContextMenu={(e) => onContextMenu(session.id, e)}
         title={session.directory || session.repository}
         className={`session-draggable sess-parent-session w-full text-left transition-all ${
           isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"

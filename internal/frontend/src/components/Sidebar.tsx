@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Session, ScratchFile } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
 import { ProjectPanel } from "./ProjectPanel";
+import { Toast } from "./Toast";
 
 interface SidebarProps {
   sessions: Session[];
@@ -44,6 +45,19 @@ export function Sidebar({
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastKey, setToastKey] = useState(0);
+
+  const showToast = useCallback((message: string) => {
+    setToastMsg(message);
+    setToastVisible(true);
+    setToastKey((k) => k + 1);
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToastVisible(false);
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -94,6 +108,7 @@ export function Sidebar({
             onDeleteScratchFile={onDeleteScratchFile}
             onRenameScratchFile={onRenameScratchFile}
             scratchFiles={scratchFiles}
+            showToast={showToast}
           />
         )}
         {activeSection === "projects" && (
@@ -101,9 +116,11 @@ export function Sidebar({
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
+            showToast={showToast}
           />
         )}
       </div>
+      <Toast key={toastKey} message={toastMsg} visible={toastVisible} onHide={hideToast} />
       <div
         className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
         onMouseDown={handleMouseDown}

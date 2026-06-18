@@ -5,6 +5,8 @@ import type { TreeNode, SortMode } from "../utils/buildTree";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
 import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
+import { ContextMenu } from "./ContextMenu";
+import { AddToProjectDialog } from "./AddToProjectDialog";
 
 interface SessionPanelProps {
   sessions: Session[];
@@ -14,6 +16,7 @@ interface SessionPanelProps {
   onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
   onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   scratchFiles?: ScratchFile[];
+  showToast: (msg: string) => void;
 }
 
 const COLLAPSED_KEY = "sess-sidebar-collapsed";
@@ -53,6 +56,7 @@ export function SessionPanel({
   onDeleteScratchFile,
   onRenameScratchFile,
   scratchFiles = [],
+  showToast,
 }: SessionPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
   const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
@@ -63,6 +67,18 @@ export function SessionPanel({
     const session = sessions.find((s) => s.id === activeSessionId);
     return session?.parentId || null;
   });
+  const [contextMenu, setContextMenu] = useState<{
+    sessionId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
+
+  const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ sessionId, x: e.clientX, y: e.clientY });
+  }, []);
 
   const [filters, setFilters] = useState<SessionFilters>({
     agent: null,
@@ -78,10 +94,7 @@ export function SessionPanel({
     if (parentId) setExpandedParentId(parentId);
   }, [activeSessionId, sessions]);
 
-  const filteredSessions = useMemo(
-    () => filterSessions(sessions, filters),
-    [sessions, filters],
-  );
+  const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
 
   const tree = useMemo(() => buildTree(filteredSessions, sortMode), [filteredSessions, sortMode]);
 
@@ -142,18 +155,15 @@ export function SessionPanel({
     saveCollapsed(new Set());
   }, [saveCollapsed]);
 
-  const setSort = useCallback(
-    (mode: SortMode) => {
-      setSortMode(mode);
-      setSortOpen(false);
-      try {
-        localStorage.setItem(SORT_KEY, mode);
-      } catch {
-        /* noop */
-      }
-    },
-    [],
-  );
+  const setSort = useCallback((mode: SortMode) => {
+    setSortMode(mode);
+    setSortOpen(false);
+    try {
+      localStorage.setItem(SORT_KEY, mode);
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -268,11 +278,42 @@ export function SessionPanel({
                 expandedParentId={expandedParentId}
                 onExpandParent={setExpandedParentId}
                 scratchFilesBySession={scratchFilesBySession}
+                onContextMenu={handleContextMenu}
               />
             ))}
           </div>
         )}
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: "Add to Project",
+              icon: (
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
+                </svg>
+              ),
+              onClick: () => {
+                setAddToProjectSessionId(contextMenu.sessionId);
+              },
+            },
+          ]}
+        />
+      )}
+
+      {addToProjectSessionId && (
+        <AddToProjectDialog
+          isOpen={!!addToProjectSessionId}
+          sessionId={addToProjectSessionId}
+          sessionTitle={sessions.find((s) => s.id === addToProjectSessionId)?.title || ""}
+          onClose={() => setAddToProjectSessionId(null)}
+          onAssigned={(name) => showToast(`Added to ${name}`)}
+        />
+      )}
     </div>
   );
 }
@@ -370,6 +411,7 @@ function RepoNode({
   expandedParentId,
   onExpandParent,
   scratchFilesBySession,
+  onContextMenu,
 }: {
   node: TreeNode;
   collapsed: Set<string>;
@@ -382,6 +424,7 @@ function RepoNode({
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
   scratchFilesBySession: Map<string, ScratchFile[]>;
+  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
 
@@ -417,6 +460,7 @@ function RepoNode({
                 onScratchFileSelect={onScratchFileSelect}
                 onDeleteScratchFile={onDeleteScratchFile}
                 onRenameScratchFile={onRenameScratchFile}
+                onContextMenu={onContextMenu}
               />
             );
           })}
@@ -440,6 +484,7 @@ function SessionRow({
   onScratchFileSelect,
   onDeleteScratchFile,
   onRenameScratchFile,
+  onContextMenu,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -452,6 +497,7 @@ function SessionRow({
   onScratchFileSelect?: (sessionId: string, fileId: string) => void;
   onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
   onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
+  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
@@ -484,6 +530,7 @@ function SessionRow({
         draggable
         onDragStart={handleDragStart}
         onClick={handleClick}
+        onContextMenu={(e) => onContextMenu(session.id, e)}
         title={session.directory || session.repository}
         className={`session-draggable sess-parent-session w-full text-left transition-all ${
           isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
@@ -526,6 +573,7 @@ function SessionRow({
                   e.dataTransfer.effectAllowed = "copy";
                 }}
                 onClick={() => navigateToSession(session.id)}
+                onContextMenu={(e) => onContextMenu(session.id, e)}
                 title={session.directory || session.title}
                 className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
                   subActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
