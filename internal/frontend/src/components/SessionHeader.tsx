@@ -50,12 +50,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
     if (e.key === "Escape") setEditing(false);
   };
 
-  const badgeClass =
-    session.agent === "opencode"
-      ? "sess-agent-badge sess-agent-badge--opencode"
-      : session.agent === "copilot"
-        ? "sess-agent-badge sess-agent-badge--copilot"
-        : "sess-agent-badge bg-gh-bg-hover text-gh-text-secondary";
+  const badgeClass = `sess-agent-badge sess-agent-badge--${session.agent}`;
 
   return (
     <div className="px-4 py-3 border-b border-gh-border shrink-0">

@@ -349,6 +349,28 @@ body {
   background: rgba(8, 145, 178, 0.1);
 }
 
+.sess-agent-badge--cursor {
+  background: rgba(74, 222, 128, 0.12);
+  color: #86efac;
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+[data-theme="light"] .sess-agent-badge--cursor {
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.sess-agent-badge--pi {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+[data-theme="light"] .sess-agent-badge--pi {
+  color: #a16207;
+  background: rgba(202, 138, 4, 0.1);
+}
+
 .sess-privacy-badge {
   font-size: 0.5625rem;
   font-weight: 700;
