@@ -12,6 +12,12 @@ Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `sess` repurp
 
 Requires Go 1.26+ and [pnpm](https://pnpm.io/). Node.js version is managed via `pnpm.executionEnv.nodeVersion` in `internal/frontend/package.json`.
 
+After making changes to any files under `internal/frontend/`, run the following to ensure consistent formatting:
+
+```
+cd internal/frontend && pnpm run fmt
+```
+
 ```bash
 # Full build (frontend + Go binary, with ldflags)
 make build
