@@ -54,8 +54,6 @@ function extractHunks(
   }
 }
 
-
-
 function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   const allHunks: ExtractedHunk[] = [];
   let isNew = false;
@@ -319,7 +317,10 @@ function DirectoryNode({
         style={{ paddingLeft: 8 + depth * 16 }}
         onClick={() => setExpanded(!expanded)}
       >
-        <ChevronRight size={12} className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} />
+        <ChevronRight
+          size={12}
+          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
         <Folder size={14} className="shrink-0" />
         <span className="font-medium truncate">{node.name}/</span>
         <span className="text-[10px] text-gh-text-secondary/60">({fileCount})</span>
@@ -345,7 +346,12 @@ function relativizePath(filePath: string, directory: string | undefined): string
   return filePath;
 }
 
-export function DiffView({ sessionId, sessionDirectory, refreshKey, searchHighlightQuery }: DiffViewProps) {
+export function DiffView({
+  sessionId,
+  sessionDirectory,
+  refreshKey,
+  searchHighlightQuery,
+}: DiffViewProps) {
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -424,9 +430,7 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey, searchHighli
     if (!searchHighlightQuery || mergedDiffs.length === 0) return;
     const q = searchHighlightQuery.toLowerCase();
     const match = mergedDiffs.find(
-      (d) =>
-        d.path.toLowerCase().includes(q) ||
-        d.patch.toLowerCase().includes(q),
+      (d) => d.path.toLowerCase().includes(q) || d.patch.toLowerCase().includes(q),
     );
     if (match) {
       setSelectedPath(match.path);
@@ -552,11 +556,7 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey, searchHighli
           {selectedDiff && selectedDiff.patch ? (
             <div className="p-4 space-y-3">
               {selectedDiff.perHunkPatches.map((hunkPatch, i) => (
-                <PatchRenderer
-                  key={i}
-                  patch={hunkPatch}
-                  lang={detectLanguage(selectedDiff.path)}
-                />
+                <PatchRenderer key={i} patch={hunkPatch} lang={detectLanguage(selectedDiff.path)} />
               ))}
             </div>
           ) : selectedDiff ? (

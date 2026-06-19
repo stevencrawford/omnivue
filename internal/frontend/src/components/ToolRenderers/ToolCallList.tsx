@@ -198,10 +198,17 @@ export function ToolCallRow({
       <div className="flex items-center w-full">
         <button type="button" className={rowClass} onClick={() => setExpanded(!expanded)}>
           {!compact && (
-            <ChevronRight size={12} className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`} />
+            <ChevronRight
+              size={12}
+              className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+            />
           )}
           <span className={`text-[11px] ${statusColor} font-bold shrink-0`}>
-            {completed ? <Check size={11} className="text-emerald-400 shrink-0" /> : <Circle size={11} className="text-gh-text-secondary/40 shrink-0" />}
+            {completed ? (
+              <Check size={11} className="text-emerald-400 shrink-0" />
+            ) : (
+              <Circle size={11} className="text-gh-text-secondary/40 shrink-0" />
+            )}
           </span>
           <span
             className={`font-mono text-[11px] truncate flex-1 min-w-0 ${isTask ? "text-violet-300" : "text-gh-text"}`}
@@ -256,7 +263,10 @@ function DefaultToolDiff({ tool }: { tool: ToolCall }) {
         } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
         onClick={() => setExpanded(!expanded)}
       >
-        <ChevronRight size={12} className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`} />
+        <ChevronRight
+          size={12}
+          className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+        />
         <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
         <span className="font-medium text-gh-text truncate min-w-0">{summary}</span>
       </button>
@@ -310,7 +320,10 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
               className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
               title={expanded ? "Collapse" : "Expand"}
             >
-              <ChevronRight size={12} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+              <ChevronRight
+                size={12}
+                className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+              />
             </button>
           )}
           <button

@@ -62,7 +62,10 @@ export function computeDiff(oldContent: string, newContent: string): DiffHunk[] 
     let j = i;
 
     while (j < allLines.length) {
-      if (allLines[j].type !== "ctx") { j++; continue; }
+      if (allLines[j].type !== "ctx") {
+        j++;
+        continue;
+      }
       let nextChange = j;
       while (nextChange < allLines.length && allLines[nextChange].type === "ctx") nextChange++;
       if (nextChange >= allLines.length) break;
@@ -77,9 +80,9 @@ export function computeDiff(oldContent: string, newContent: string): DiffHunk[] 
     const hunkEndIdx = Math.min(allLines.length, j + CONTEXT);
     const hunkSlice = allLines.slice(hunkStartIdx, hunkEndIdx);
 
-    const first = hunkSlice.find(l => l.type !== "ctx") ?? hunkSlice[0];
-    const deletionStart = first.type !== "add" ? (first.oldLine || 1) : 0;
-    const additionStart = first.type !== "del" ? (first.newLine || 1) : 0;
+    const first = hunkSlice.find((l) => l.type !== "ctx") ?? hunkSlice[0];
+    const deletionStart = first.type !== "add" ? first.oldLine || 1 : 0;
+    const additionStart = first.type !== "del" ? first.newLine || 1 : 0;
 
     const lineStrings: string[] = [];
     let oldCount = 0;

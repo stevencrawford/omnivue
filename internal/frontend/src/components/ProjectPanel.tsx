@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Minus, ArrowUpDown, ChevronRight, Folder as FolderIcon, Pencil, Trash2, X } from "lucide-react";
+import {
+  Plus,
+  Minus,
+  ArrowUpDown,
+  ChevronRight,
+  Folder as FolderIcon,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Folder, Session } from "../hooks/useApi";
 import {
   fetchFolders,
@@ -250,7 +259,11 @@ export function ProjectPanel({
                 : "Expand all"
             }
           >
-            {folders.length > 0 && folders.every((f) => expandedFolders.has(f.id)) ? <Minus size={14} /> : <Plus size={14} />}
+            {folders.length > 0 && folders.every((f) => expandedFolders.has(f.id)) ? (
+              <Minus size={14} />
+            ) : (
+              <Plus size={14} />
+            )}
           </button>
           <div className="relative" ref={sortRef}>
             <button
@@ -445,9 +458,7 @@ export function ProjectPanel({
           items={[
             {
               label: "Add to Project",
-              icon: (
-                <FolderIcon size={14} />
-              ),
+              icon: <FolderIcon size={14} />,
               onClick: () => {
                 setAddToProjectSessionId(contextMenu.sessionId);
               },

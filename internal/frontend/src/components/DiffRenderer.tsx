@@ -15,7 +15,8 @@ function hastChildrenToReact(children: HastNode[] | undefined): ReactNode[] {
   return (children ?? []).map((child, i) => {
     if (child.type === "text") return child.value as ReactNode;
     if (child.type === "element" && child.tagName) {
-      const className = (child.properties?.className as string[] | undefined)?.join(" ") || undefined;
+      const className =
+        (child.properties?.className as string[] | undefined)?.join(" ") || undefined;
       return (
         <span key={i} className={className}>
           {hastChildrenToReact(child.children)}
@@ -73,13 +74,7 @@ export function FileRenderer({
   );
 }
 
-export function PatchRenderer({
-  patch,
-  lang,
-}: {
-  patch: string;
-  lang?: string;
-}) {
+export function PatchRenderer({ patch, lang }: { patch: string; lang?: string }) {
   const lines = patch.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 

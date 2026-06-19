@@ -38,7 +38,10 @@ export function MarkdownContent({
             className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
             title={expanded ? "Collapse" : "Expand"}
           >
-            <ChevronRight size={12} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+            <ChevronRight
+              size={12}
+              className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+            />
           </button>
           <button
             type="button"

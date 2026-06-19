@@ -526,37 +526,73 @@ body {
 }
 
 /* hljs token colors for diff view (ayu-inspired, theme-agnostic) */
-[data-theme="light"] .diff-file-view .hljs { color: #5c6166; }
+[data-theme="light"] .diff-file-view .hljs {
+  color: #5c6166;
+}
 [data-theme="light"] .diff-file-view .hljs-comment,
-[data-theme="light"] .diff-file-view .hljs-quote { color: #ab9d2f; font-style: italic; }
+[data-theme="light"] .diff-file-view .hljs-quote {
+  color: #ab9d2f;
+  font-style: italic;
+}
 [data-theme="light"] .diff-file-view .hljs-keyword,
-[data-theme="light"] .diff-file-view .hljs-selector-tag { color: #ff9940; }
-[data-theme="light"] .diff-file-view .hljs-string { color: #86b300; }
+[data-theme="light"] .diff-file-view .hljs-selector-tag {
+  color: #ff9940;
+}
+[data-theme="light"] .diff-file-view .hljs-string {
+  color: #86b300;
+}
 [data-theme="light"] .diff-file-view .hljs-number,
-[data-theme="light"] .diff-file-view .hljs-literal { color: #a37acc; }
+[data-theme="light"] .diff-file-view .hljs-literal {
+  color: #a37acc;
+}
 [data-theme="light"] .diff-file-view .hljs-built_in,
-[data-theme="light"] .diff-file-view .hljs-type { color: #399ee6; }
+[data-theme="light"] .diff-file-view .hljs-type {
+  color: #399ee6;
+}
 [data-theme="light"] .diff-file-view .hljs-title,
 [data-theme="light"] .diff-file-view .hljs-section,
-[data-theme="light"] .diff-file-view .hljs-name { color: #399ee6; }
+[data-theme="light"] .diff-file-view .hljs-name {
+  color: #399ee6;
+}
 
-[data-theme="dark"] .diff-file-view .hljs { color: #bfbdb6; }
+[data-theme="dark"] .diff-file-view .hljs {
+  color: #bfbdb6;
+}
 [data-theme="dark"] .diff-file-view .hljs-comment,
-[data-theme="dark"] .diff-file-view .hljs-quote { color: #acb0be; font-style: italic; }
+[data-theme="dark"] .diff-file-view .hljs-quote {
+  color: #acb0be;
+  font-style: italic;
+}
 [data-theme="dark"] .diff-file-view .hljs-keyword,
-[data-theme="dark"] .diff-file-view .hljs-selector-tag { color: #ffad66; }
-[data-theme="dark"] .diff-file-view .hljs-string { color: #aad94c; }
+[data-theme="dark"] .diff-file-view .hljs-selector-tag {
+  color: #ffad66;
+}
+[data-theme="dark"] .diff-file-view .hljs-string {
+  color: #aad94c;
+}
 [data-theme="dark"] .diff-file-view .hljs-number,
-[data-theme="dark"] .diff-file-view .hljs-literal { color: #dfbfff; }
+[data-theme="dark"] .diff-file-view .hljs-literal {
+  color: #dfbfff;
+}
 [data-theme="dark"] .diff-file-view .hljs-built_in,
-[data-theme="dark"] .diff-file-view .hljs-type { color: #39bae6; }
+[data-theme="dark"] .diff-file-view .hljs-type {
+  color: #39bae6;
+}
 [data-theme="dark"] .diff-file-view .hljs-title,
 [data-theme="dark"] .diff-file-view .hljs-section,
-[data-theme="dark"] .diff-file-view .hljs-name { color: #39bae6; }
+[data-theme="dark"] .diff-file-view .hljs-name {
+  color: #39bae6;
+}
 [data-theme="dark"] .diff-file-view .hljs-attr,
-[data-theme="dark"] .diff-file-view .hljs-attribute { color: #ffb454; }
-[data-theme="dark"] .diff-file-view .hljs-meta { color: #ffd580; }
-[data-theme="dark"] .diff-file-view .hljs-deletion { color: #f26d6d; }
+[data-theme="dark"] .diff-file-view .hljs-attribute {
+  color: #ffb454;
+}
+[data-theme="dark"] .diff-file-view .hljs-meta {
+  color: #ffd580;
+}
+[data-theme="dark"] .diff-file-view .hljs-deletion {
+  color: #f26d6d;
+}
 
 /* ─── Markdown layout helpers ───────────────────────────────────── */
 

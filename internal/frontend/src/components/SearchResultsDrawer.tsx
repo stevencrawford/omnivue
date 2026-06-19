@@ -108,9 +108,7 @@ export function SearchResultsDrawer({
                 )}
               </span>
             )}
-            <span className="text-sm font-medium text-gh-text truncate">
-              {query}
-            </span>
+            <span className="text-sm font-medium text-gh-text truncate">{query}</span>
             <span className="text-[11px] text-gh-text-secondary tabular-nums shrink-0">
               ({results.length})
             </span>

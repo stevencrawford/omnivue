@@ -38,8 +38,6 @@ export function TaskToolDiff({
   const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
   const totalCount = summary?.length ?? 0;
 
-
-
   return (
     <div className="border border-violet-500/30 rounded-lg bg-violet-500/[0.03] overflow-hidden mb-3 group">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-violet-500/20 bg-violet-500/[0.04] text-[11px] font-mono text-violet-400">
@@ -73,7 +71,9 @@ export function TaskToolDiff({
                 navigateToSession(childSessionId!);
               }}
             >
-              <span className="inline-flex items-center gap-1">View session <ArrowRight size={11} /></span>
+              <span className="inline-flex items-center gap-1">
+                View session <ArrowRight size={11} />
+              </span>
             </button>
           )}
         </div>

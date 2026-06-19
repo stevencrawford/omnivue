@@ -12,8 +12,6 @@ interface QuestionInput {
   questions: QuestionItem[];
 }
 
-
-
 export function QuestionToolDiff({ tool }: { tool: ToolCall }) {
   let questions: QuestionItem[] = [];
   try {

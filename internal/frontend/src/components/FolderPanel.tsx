@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Minus, ArrowUpDown, ChevronRight, Folder as FolderIcon, Pencil, Trash2, X } from "lucide-react";
+import {
+  Plus,
+  Minus,
+  ArrowUpDown,
+  ChevronRight,
+  Folder as FolderIcon,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Folder, Session } from "../hooks/useApi";
 import {
   fetchFolders,

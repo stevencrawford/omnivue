@@ -10,8 +10,6 @@ interface BashMetadata {
   truncated?: boolean;
 }
 
-
-
 function trimBashOutput(output: string): string {
   const lines = output.split("\n");
   const maxLines = 200;

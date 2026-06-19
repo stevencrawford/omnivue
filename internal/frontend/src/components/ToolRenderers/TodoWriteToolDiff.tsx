@@ -13,8 +13,6 @@ interface TodowriteInput {
   todos: TodoItem[];
 }
 
-
-
 export function TodoWriteToolDiff({ tool }: { tool: ToolCall }) {
   let todos: TodoItem[] = [];
   try {

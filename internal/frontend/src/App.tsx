@@ -302,17 +302,20 @@ export function App() {
     setDrawerOpen(false);
   }, []);
 
-  const handleSearchOpenDrawer = useCallback(async (q: string) => {
-    try {
-      const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined);
-      setDrawerQuery(q);
-      setDrawerResults(data || []);
-      setDrawerOpen(true);
-      setSearchOpen(false);
-    } catch {
-      setDrawerResults([]);
-    }
-  }, [searchSessionScope]);
+  const handleSearchOpenDrawer = useCallback(
+    async (q: string) => {
+      try {
+        const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined);
+        setDrawerQuery(q);
+        setDrawerResults(data || []);
+        setDrawerOpen(true);
+        setSearchOpen(false);
+      } catch {
+        setDrawerResults([]);
+      }
+    },
+    [searchSessionScope],
+  );
 
   const handleDrawerClose = useCallback(() => {
     setDrawerOpen(false);
@@ -322,11 +325,13 @@ export function App() {
   const handleDrawerClearScope = useCallback(() => {
     setSearchSessionScope(null);
     if (drawerQuery.trim()) {
-      fetchSearch(drawerQuery.trim(), 100).then((data) => {
-        setDrawerResults(data || []);
-      }).catch(() => {
-        setDrawerResults([]);
-      });
+      fetchSearch(drawerQuery.trim(), 100)
+        .then((data) => {
+          setDrawerResults(data || []);
+        })
+        .catch(() => {
+          setDrawerResults([]);
+        });
     }
   }, [drawerQuery]);
 

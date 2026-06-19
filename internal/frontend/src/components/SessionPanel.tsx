@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, File, Pencil, Trash2, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
+import {
+  ChevronRight,
+  Folder,
+  File,
+  Pencil,
+  Trash2,
+  Plus,
+  Minus,
+  ArrowUpDown,
+  ArrowRight,
+} from "lucide-react";
 import type { Session, ScratchFile } from "../hooks/useApi";
 import { buildTree, formatCost } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
