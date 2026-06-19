@@ -127,6 +127,17 @@ Implement `LastModified` to return the latest modification timestamp across all 
       `SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
   ```
 
+### Pi (`internal/ingest/pi/`)
+
+- **Sources**: Single source — `~/.pi/agent/sessions/*.jsonl` (JSONL files)
+- **Session data**: Each `.jsonl` file is a session, starting with a session header line (`"session"` type) followed by event lines
+- **Events**: `model_change`, `thinking_level_change`, `message` (user/assistant), `toolResult`
+- **Messages**: Assistant messages may contain `text`, `thinking` (reasoning), and `toolCall` content parts
+- **Tool calls**: Parsed from JSON but not normalized to standard names (pass-through)
+- **Plans/Diffs**: Not supported — returns `(nil, nil)`
+- **Resume**: `cd /path && pi --session <id>`
+- **Key pattern**: Parse JSONL files with scanner, read first line as session header, subsequent lines as events:
+
 ## Tool Call Normalization
 
 Different agents use different naming conventions for tool calls. The frontend expects standard names. The normalization happens at two levels:
@@ -316,3 +327,4 @@ Return the CLI command the user would run to resume the session. Examples:
 - OpenCode: `cd /path && opencode --resume <id>`
 - Copilot: `cd /path && copilot --session <id>`
 - Cursor: `cd /path && cursor --composer <id>`
+- Pi: `cd /path && pi --session <id>`

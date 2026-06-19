@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is sess
 
-`sess` is a CLI tool that watches AI coding agent sessions (OpenCode, GitHub Copilot, Cursor) and presents them in a browser UI for easy browsing, searching, and management. It runs a Go HTTP server that embeds a React SPA as a single binary. The Go module is `github.com/stevencrawford/sess`.
+`sess` is a CLI tool that watches AI coding agent sessions (OpenCode, GitHub Copilot, Cursor, Pi) and presents them in a browser UI for easy browsing, searching, and management. It runs a Go HTTP server that embeds a React SPA as a single binary. The Go module is `github.com/stevencrawford/sess`.
 
 Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `sess` repurposes the architecture for AI session management.
 
@@ -19,13 +19,14 @@ make build
 # Run in foreground (dev mode)
 ./sess --foreground --port 16275
 
-# Initialize sources (auto-discovers OpenCode, Copilot, Cursor)
+# Initialize sources (auto-discovers OpenCode, Copilot, Cursor, Pi)
 ./sess init
 
 # Add a source manually
 ./sess add ~/.local/share/opencode
 ./sess add ~/.copilot --type copilot
 ./sess add ~/.cursor --type cursor
+./sess add ~/.pi/agent/sessions --type pi
 
 # Frontend code generation only (called by make build via go generate)
 make generate
@@ -55,7 +56,7 @@ make lint
 ### Subcommands
 
 - `sess init` — Discover and configure AI agent session sources interactively
-- `sess add <path> [--type opencode|copilot|cursor]` — Manually add a session source
+- `sess add <path> [--type opencode|copilot|cursor|pi]` — Manually add a session source
 
 ## Architecture
 
@@ -71,6 +72,7 @@ make lint
   - `opencode/opencode.go` — OpenCode adapter: reads `opencode.db` (SQLite, read-only)
   - `copilot/copilot.go` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
   - `cursor/cursor.go` — Cursor adapter: reads `state.vscdb` (SQLite KV) + `agent-transcripts` JSONL + `ai-code-tracking.db` (read-only)
+  - `pi/pi.go` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
 - `internal/store/store.go` — Manages `$XDG_STATE_HOME/sess/sess.db`: sources, folders, FTS5 search index, scratch files, config, session name overrides
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, adaptive polling (5s live / 30s idle)
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
@@ -85,7 +87,7 @@ make lint
 - **Read-only agent data**: We NEVER write to agent databases. All SQLite connections use `?mode=ro`. The `OpenReadOnlyDB()` helper enforces this with a write-attempt assertion.
 - **Single instance**: CLI probes `/_/api/status`. If server running, just opens browser.
 - **Unified session model**: Adapters normalize agent-specific formats to common `Session`/`Message` types.
-- **Auto-discovery**: `sess init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`).
+- **Auto-discovery**: `sess init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`).
 - **Live-reload via SSE**: Adaptive polling (5s when active sessions, 30s when idle) detects new/changed sessions, sends `update` events to frontend.
 - **Persistent search**: FTS5 in `sess.db` indexes all session content incrementally (content-hash dedup).
 - **User folders**: Stored in `sess.db` (not filesystem) — virtual organization of sessions (nested, color-coded).
@@ -175,6 +177,7 @@ make lint
 | Cursor | `~/.cursor/state.vscdb` | SQLite KV | Composer sessions, bubble messages, tool calls |
 | Cursor transcripts | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL | Agentic session transcripts |
 | Cursor tracking | `~/.cursor/ai-code-tracking.db` | SQLite | Conversation summaries, model, cost, tokens |
+| Pi | `~/.pi/agent/sessions/` | JSONL | Sessions, messages, tool calls, reasoning |
 
 ## Phase Status
 
@@ -188,3 +191,4 @@ make lint
 - [x] Phase 7: Cursor adapter (COMPLETE)
 - [x] Phase 8: Scratch notes + session rename (COMPLETE)
 - [x] Phase 9: Settings UI + keyboard shortcuts + deep linking (COMPLETE)
+- [x] Phase 10: Pi adapter (COMPLETE)

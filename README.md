@@ -1,10 +1,10 @@
 # sess
 
-**sess** is a CLI tool that watches AI coding agent sessions — [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), and [Cursor](https://cursor.com) — and presents them in a browser UI for easy browsing, searching, and management. A Go HTTP server embeds a React SPA as a single binary.
+**sess** is a CLI tool that watches AI coding agent sessions — [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), and [Pi](https://pi.ai) — and presents them in a browser UI for easy browsing, searching, and management. A Go HTTP server embeds a React SPA as a single binary.
 
 ## Features
 
-- **Multi-agent support** — OpenCode, Copilot, and Cursor out of the box; extensible via the `Adapter` interface
+- **Multi-agent support** — OpenCode, Copilot, Cursor, and Pi out of the box; extensible via the `Adapter` interface
 - **Browser UI** — Tabbed session viewer with conversation, plan, and diff views
 - **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle)
 - **Full-text search** — FTS5 index across all session content, scoped or global
@@ -22,7 +22,7 @@
 ## Quick Start
 
 ```console
-# Initialize sources (auto-discovers OpenCode, Copilot, Cursor)
+# Initialize sources (auto-discovers OpenCode, Copilot, Cursor, Pi)
 $ sess init
 
 # Start the server (opens browser automatically)
@@ -35,6 +35,7 @@ $ sess --foreground --port 16275
 $ sess add ~/.local/share/opencode
 $ sess add ~/.copilot --type copilot
 $ sess add ~/.cursor --type cursor
+$ sess add ~/.pi/agent/sessions --type pi
 ```
 
 ## Installation
@@ -56,7 +57,7 @@ Download from the [releases page](https://github.com/stevencrawford/sess/release
 ```console
 $ sess [flags]
 $ sess init
-$ sess add <path> [--type opencode|copilot|cursor]
+$ sess add <path> [--type opencode|copilot|cursor|pi]
 ```
 
 | Flag | Short | Default | Description |
@@ -87,12 +88,13 @@ $ sess add <path> [--type opencode|copilot|cursor]
                     │  adaptive polling  │
                     └────────┬───────────┘
                              │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-┌───────▼────────┐ ┌────────▼──────┐ ┌───────────▼────┐
-│ OpenCode       │ │ Copilot       │ │ Cursor         │
-│ adapter        │ │ adapter       │ │ adapter        │
-└────────────────┘ └───────────────┘ └────────────────┘
+         │                    │                    │
+         │                    │                    │
+         │                    │                    │
+ ┌───────▼────────┐ ┌────────▼──────┐ ┌───────────▼────┐ ┌──────────▼─────┐
+ │ OpenCode       │ │ Copilot       │ │ Cursor         │ │ Pi             │
+ │ adapter        │ │ adapter       │ │ adapter        │ │ adapter        │
+ └────────────────┘ └───────────────┘ └────────────────┘ └────────────────┘
         │                    │                    │
         └────────────────────┼────────────────────┘
                              │

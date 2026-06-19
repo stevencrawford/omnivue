@@ -15,6 +15,7 @@ Adapters are the pluggable interface between sess and AI coding agent data store
 | Cursor | `internal/ingest/cursor/` | `~/.cursor/state.vscdb` | SQLite KV (composer sessions, bubbles, tool calls) |
 | | | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL (agentic session transcripts) |
 | | | `~/.cursor/ai-code-tracking.db` | SQLite (summaries, model, cost, tokens) |
+| Pi | `internal/ingest/pi/` | `~/.pi/agent/sessions/*.jsonl` | JSONL (sessions, messages, tool calls, reasoning) |
 
 ## Adapter interface
 

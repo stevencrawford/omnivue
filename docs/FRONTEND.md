@@ -99,7 +99,7 @@ Features auto-save, tabbed interface, and file management (create/rename/delete)
 Browser-based source management:
 - View/add/remove session sources
 - Theme toggle (light/dark)
-- Placeholder for future agent types (Claude Code, Codex, Pi)
+- Placeholder for future agent types (Claude Code, Codex)
 
 ### Other UI
 
