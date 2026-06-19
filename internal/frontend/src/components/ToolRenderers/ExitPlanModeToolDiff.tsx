@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
 import type { ToolCall } from "../../hooks/useApi";
 import { MarkdownContent } from "../MarkdownContent";
+import { useCopy } from "../../hooks/useCopy";
 
 export function ExitPlanModeToolDiff({
   tool,
@@ -10,14 +10,6 @@ export function ExitPlanModeToolDiff({
   onOpenModal?: (content: string, title?: string) => void;
 }) {
   let summary = "";
-  const [copied, setCopied] = useState(false);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    };
-  }, []);
 
   try {
     const parsed = JSON.parse(tool.input);
@@ -27,16 +19,7 @@ export function ExitPlanModeToolDiff({
   }
 
   const feedback = tool.output || "";
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(summary);
-      setCopied(true);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  };
+  const { copied, copy } = useCopy(2000);
 
   return (
     <div className="border border-amber-500/30 rounded-lg bg-amber-500/[0.03] overflow-hidden mb-3 relative group">
@@ -58,7 +41,10 @@ export function ExitPlanModeToolDiff({
       {summary && (
         <button
           type="button"
-          onClick={handleCopy}
+          onClick={(e) => {
+            e.stopPropagation();
+            copy(summary);
+          }}
           className="absolute top-1 right-1 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
           title="Copy plan"
         >

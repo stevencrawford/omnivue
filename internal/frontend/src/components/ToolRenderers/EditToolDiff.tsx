@@ -3,6 +3,7 @@ import type { ToolCall } from "../../hooks/useApi";
 import { detectLanguage } from "../../utils/detectLanguage";
 import { computeDiff } from "../../utils/diff";
 import { PatchRenderer, FileRenderer } from "../DiffRenderer";
+import { useCopy } from "../../hooks/useCopy";
 
 interface EditInput {
   path?: string;
@@ -53,7 +54,7 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
       const hunks = computeDiff(oldStr, newStr);
       if (hunks.length > 0) {
         const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
-        diffPatch = header + hunks.flatMap(h => h.lines).join("\n") + "\n";
+        diffPatch = header + hunks.flatMap((h) => h.lines).join("\n") + "\n";
       }
     } catch {
       /* ignore */
@@ -61,6 +62,33 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
   }
 
   const showFile = !diffPatch && !!displayContent;
+
+  const contentToCopy = diffPatch || displayContent;
+
+  function ExpandedCopyBtn() {
+    const { copied, copy } = useCopy(1500);
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          copy(contentToCopy);
+        }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated z-10"
+        title="Copy"
+      >
+        {copied ? (
+          <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+          </svg>
+        ) : (
+          <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
+          </svg>
+        )}
+      </button>
+    );
+  }
 
   return (
     <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
@@ -76,11 +104,19 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
         )}
       </div>
       {diffPatch ? (
-        <div className={!expanded && isOverLimit ? "max-h-[440px] overflow-hidden" : ""}>
+        <div
+          className={
+            "relative group " + (!expanded && isOverLimit ? "max-h-[440px] overflow-hidden" : "")
+          }
+        >
+          <ExpandedCopyBtn />
           <PatchRenderer patch={diffPatch} lang={lang} />
         </div>
       ) : showFile ? (
-        <FileRenderer content={truncatedContent} lang={lang} />
+        <div className="relative group">
+          <ExpandedCopyBtn />
+          <FileRenderer content={truncatedContent} lang={lang} />
+        </div>
       ) : null}
       {isOverLimit && (
         <div className="text-center border-t border-accent-border">

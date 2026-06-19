@@ -7,6 +7,7 @@ import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../uti
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
 import { useSessionNav } from "../hooks/useNav";
+import { useCopy } from "../hooks/useCopy";
 
 const MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
@@ -428,28 +429,28 @@ export function ConversationView({
       <div className="flex-1 relative min-h-0">
         <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden py-3">
           {systemReminders.length > 0 && (
-              <div className="px-4 pb-2">
-                {systemReminders.map((msg) => (
-                  <SystemReminderView
-                    key={msg.id}
-                    content={msg.content}
-                    fileName={msg.metadata?.file || "AGENTS.md"}
-                    onOpenModal={onOpenModal}
-                  />
-                ))}
+            <div className="px-4 pb-2">
+              {systemReminders.map((msg) => (
+                <SystemReminderView
+                  key={msg.id}
+                  content={msg.content}
+                  fileName={msg.metadata?.file || "AGENTS.md"}
+                  onOpenModal={onOpenModal}
+                />
+              ))}
+            </div>
+          )}
+          {messagesWithoutReminders.length === 0 ? (
+            <p className="text-center text-xs text-gh-text-secondary py-8">
+              Agent work appears here as tools run and responses stream in.
+            </p>
+          ) : (
+            messagesWithoutReminders.map((msg, idx) => (
+              <div key={msg.id} data-marker-id={`msg-${idx}`} data-message-index={idx}>
+                <MessageBlock message={msg} onOpenModal={onOpenModal} />
               </div>
-            )}
-            {messagesWithoutReminders.length === 0 ? (
-              <p className="text-center text-xs text-gh-text-secondary py-8">
-                Agent work appears here as tools run and responses stream in.
-              </p>
-            ) : (
-              messagesWithoutReminders.map((msg, idx) => (
-                <div key={msg.id} data-marker-id={`msg-${idx}`} data-message-index={idx}>
-                  <MessageBlock message={msg} onOpenModal={onOpenModal} />
-                </div>
-              ))
-            )}
+            ))
+          )}
         </div>
 
         {showScrollBottom && (
@@ -481,8 +482,10 @@ export function ConversationView({
         )}
 
         {markers.length > 0 && (
-          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "48px" }}>
-            <div className={`absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 ${markerFilterOpen ? 'w-12' : 'w-3 group-hover:w-12'}`}>
+          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "28px" }}>
+            <div
+              className={`absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 ${markerFilterOpen ? "w-12" : "w-3 group-hover:w-12"}`}
+            >
               <div className="relative h-full w-full">
                 {/* Filter toggle */}
                 <div ref={filterRef} className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
@@ -549,9 +552,9 @@ export function ConversationView({
                     const pos = markerPositions[m.id];
                     if (pos === undefined) return null;
                     return (
-                        <div
-                          key={m.id}
-                          className={`absolute cursor-pointer transition-all pointer-events-auto ${markerFilterOpen ? 'left-0 -translate-x-0 w-full h-0.5 rounded-none opacity-100' : 'left-1/2 -translate-x-1/2 w-1.5 h-1 rounded-full opacity-30 group-hover:left-0 group-hover:-translate-x-0 group-hover:w-full group-hover:h-0.5 group-hover:rounded-none group-hover:opacity-100'} hover:opacity-100 hover:[&>div]:block`}
+                      <div
+                        key={m.id}
+                        className={`absolute cursor-pointer transition-all pointer-events-auto ${markerFilterOpen ? "left-0 -translate-x-0 w-full h-0.5 rounded-none opacity-100" : "left-1/2 -translate-x-1/2 w-1.5 h-1 rounded-full opacity-30 group-hover:left-0 group-hover:-translate-x-0 group-hover:w-full group-hover:h-0.5 group-hover:rounded-none group-hover:opacity-100"} hover:opacity-100 hover:[&>div]:block`}
                         style={{
                           top: `${Math.max(0, Math.min(100, pos))}%`,
                           backgroundColor: m.color,
@@ -1032,14 +1035,7 @@ function SystemReminderView({
 
 function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   let summary = "";
-  const [copied, setCopied] = useState(false);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    };
-  }, []);
+  const { copied, copy } = useCopy(2000);
 
   try {
     const parsed = JSON.parse(tool.input);
@@ -1047,16 +1043,6 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   } catch {
     /* ignore */
   }
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(summary);
-      setCopied(true);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  };
 
   return (
     <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3 relative group">
@@ -1076,7 +1062,7 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
       {summary && (
         <button
           type="button"
-          onClick={handleCopy}
+          onClick={() => copy(summary)}
           className="absolute top-2 right-2 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
           title="Copy summary"
         >
