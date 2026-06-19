@@ -147,7 +147,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAdd();
               }}
-              placeholder={AGENT_TYPES.find((at) => at.value === addingType)?.defaultPath ?? "/path/to/agent/data"}
+              placeholder={
+                AGENT_TYPES.find((at) => at.value === addingType)?.defaultPath ??
+                "/path/to/agent/data"
+              }
               className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px var(--color-glow)] font-mono"
             />
             <select

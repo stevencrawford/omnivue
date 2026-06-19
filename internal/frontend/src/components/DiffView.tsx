@@ -543,7 +543,10 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-    resizeListeners.current = [["mousemove", handleMouseMove as EventListener], ["mouseup", handleMouseUp as EventListener]];
+    resizeListeners.current = [
+      ["mousemove", handleMouseMove as EventListener],
+      ["mouseup", handleMouseUp as EventListener],
+    ];
   }, []);
 
   if (loading) {

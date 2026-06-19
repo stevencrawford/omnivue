@@ -791,7 +791,12 @@ function VerboseStats({ session }: { session: Session }) {
       {parts.flatMap((part, i) =>
         i === 0
           ? [part]
-          : [<span key={`dot-${i}`} className="mx-1">·</span>, part],
+          : [
+              <span key={`dot-${i}`} className="mx-1">
+                ·
+              </span>,
+              part,
+            ],
       )}
     </p>
   );

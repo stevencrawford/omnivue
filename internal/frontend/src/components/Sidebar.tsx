@@ -99,7 +99,10 @@ export function Sidebar({
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-    resizeListeners.current = [["mousemove", handleMouseMove as EventListener], ["mouseup", handleMouseUp as EventListener]];
+    resizeListeners.current = [
+      ["mousemove", handleMouseMove as EventListener],
+      ["mouseup", handleMouseUp as EventListener],
+    ];
   };
 
   const panelWidth = Math.max(172, width - 48);
@@ -115,7 +118,9 @@ export function Sidebar({
         className="flex-1 flex flex-col overflow-hidden bg-gh-bg-sidebar"
         style={{ width: `${panelWidth}px` }}
       >
-        <div className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "sessions" ? "hidden" : ""}`}>
+        <div
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "sessions" ? "hidden" : ""}`}
+        >
           <SessionPanel
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -127,7 +132,9 @@ export function Sidebar({
             showToast={showToast}
           />
         </div>
-        <div className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "projects" ? "hidden" : ""}`}>
+        <div
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "projects" ? "hidden" : ""}`}
+        >
           <ProjectPanel
             sessions={sessions}
             activeSessionId={activeSessionId}

@@ -167,9 +167,11 @@ export function ProjectPanel({
   const expandAll = useCallback(() => {
     setExpandedFolders(new Set(folders.map((f) => f.id)));
     folders.forEach((f) => {
-      fetchFolderSessions(f.id).then((ids) => {
-        setFolderSessions((prev) => ({ ...prev, [f.id]: ids }));
-      }).catch(() => {});
+      fetchFolderSessions(f.id)
+        .then((ids) => {
+          setFolderSessions((prev) => ({ ...prev, [f.id]: ids }));
+        })
+        .catch(() => {});
     });
   }, [folders]);
 
@@ -235,7 +237,8 @@ export function ProjectPanel({
           <button
             type="button"
             onClick={() => {
-              const allExpanded = folders.length > 0 && folders.every((f) => expandedFolders.has(f.id));
+              const allExpanded =
+                folders.length > 0 && folders.every((f) => expandedFolders.has(f.id));
               if (allExpanded) collapseAll();
               else expandAll();
             }}
