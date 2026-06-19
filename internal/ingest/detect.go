@@ -14,6 +14,7 @@ var KnownPaths = []struct {
 	{"~/.local/share/opencode", AgentOpenCode, "OpenCode"},
 	{"~/.copilot", AgentCopilot, "GitHub Copilot"},
 	{"~/.cursor", AgentCursor, "Cursor"},
+	{"~/.pi/agent/sessions", AgentPi, "Pi"},
 }
 
 // AutoDiscover scans known paths for AI agent session sources.
@@ -37,6 +38,10 @@ func AutoDiscover() []DiscoveredSource {
 			}
 		case AgentCursor:
 			if d := detectCursor(path); d != nil {
+				discovered = append(discovered, *d)
+			}
+		case AgentPi:
+			if d := detectPi(path); d != nil {
 				discovered = append(discovered, *d)
 			}
 		}
@@ -126,6 +131,30 @@ func findCursorDB(entry string) string {
 		}
 	}
 	return ""
+}
+
+func detectPi(path string) *DiscoveredSource {
+	if !pathExists(path) {
+		return nil
+	}
+	var found bool
+	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil || found {
+			return err
+		}
+		if !d.IsDir() && filepath.Ext(d.Name()) == ".jsonl" {
+			found = true
+		}
+		return nil
+	})
+	if !found {
+		return nil
+	}
+	return &DiscoveredSource{
+		Path:      path,
+		AgentType: AgentPi,
+		Label:     "Pi",
+	}
 }
 
 func pathExists(path string) bool {

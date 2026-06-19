@@ -26,6 +26,7 @@ Known locations:
   ~/.local/share/opencode   (OpenCode)
   ~/.copilot                (GitHub Copilot)
   ~/.cursor                 (Cursor)
+  ~/.pi/agent/sessions      (Pi)
 
 Sources are saved to the sess database and will be loaded automatically
 on subsequent launches.`,

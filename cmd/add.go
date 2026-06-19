@@ -64,8 +64,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			label = "GitHub Copilot"
 		case ingest.AgentCursor:
 			label = "Cursor"
+		case ingest.AgentPi:
+			label = "Pi"
 		default:
-			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor)", addSourceType)
+			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor, pi)", addSourceType)
 		}
 	} else {
 		// Auto-detect
@@ -80,7 +82,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor)", path)
+			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor, pi)", path)
 		}
 	}
 
