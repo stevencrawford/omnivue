@@ -2,11 +2,13 @@ package copilot_test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stevencrawford/sess/internal/ingest/copilot"
+	_ "modernc.org/sqlite"
 )
 
 func getCopilotPath(t *testing.T) string {
@@ -16,8 +18,18 @@ func getCopilotPath(t *testing.T) string {
 		t.Skip("cannot determine home directory")
 	}
 	path := filepath.Join(home, ".copilot")
-	if _, err := os.Stat(filepath.Join(path, "session-store.db")); err != nil {
+	dbPath := filepath.Join(path, "session-store.db")
+	if _, err := os.Stat(dbPath); err != nil {
 		t.Skip("Copilot database not found, skipping integration test")
+	}
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	if err != nil {
+		t.Skip("cannot open Copilot database:", err)
+	}
+	defer db.Close()
+	var tableName string
+	if err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").Scan(&tableName); err != nil {
+		t.Skip("Copilot database has no sessions table, skipping integration test")
 	}
 	return path
 }
