@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Folder as FolderIcon, Plus, Loader } from "lucide-react";
 import { Modal } from "./Modal";
 import { fetchFolders, createFolder, assignSessionToFolder } from "../hooks/useApi";
 import type { Folder } from "../hooks/useApi";
@@ -113,23 +114,9 @@ export function AddToProjectDialog({
                 onClick={() => handleAssign(folder)}
                 className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer disabled:opacity-40 rounded transition-colors"
               >
-                <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-                </svg>
+                <FolderIcon size={14} className="shrink-0" />
                 <span className="truncate flex-1">{folder.name}</span>
-                {assigning === folder.id && (
-                  <svg
-                    className="size-3 animate-spin shrink-0"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm0 10.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"
-                      opacity="0.3"
-                    />
-                    <path d="M8 2a6 6 0 0 1 5.22 3.1l-1.33.74A4.5 4.5 0 0 0 8 3.5Z" />
-                  </svg>
-                )}
+                {assigning === folder.id && <Loader size={12} className="animate-spin shrink-0" />}
               </button>
             ))
           )}
@@ -141,9 +128,7 @@ export function AddToProjectDialog({
             onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 text-xs text-accent hover:text-accent/80 cursor-pointer transition-colors"
           >
-            <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-            </svg>
+            <Plus size={12} />
             New project
           </button>
         ) : (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Plus, Minus, ArrowUpDown, ChevronRight, Folder as FolderIcon, Pencil, Trash2, X } from "lucide-react";
 import type { Folder, Session } from "../hooks/useApi";
 import {
   fetchFolders,
@@ -175,15 +176,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
             title={allCollapsed ? "Expand all" : "Collapse all"}
           >
-            {allCollapsed ? (
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-              </svg>
-            ) : (
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
-              </svg>
-            )}
+            {allCollapsed ? <Plus size={14} /> : <Minus size={14} />}
           </button>
           <div className="relative" ref={sortRef}>
             <button
@@ -192,9 +185,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
               title="Sort folders"
             >
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75ZM4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8Zm2.75 4.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
-              </svg>
+              <ArrowUpDown size={14} />
             </button>
             {folderSortOpen && (
               <div className="absolute left-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
@@ -224,9 +215,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
             title="New folder"
           >
-            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-            </svg>
+            <Plus size={14} />
           </button>
         </div>
       </div>
@@ -293,18 +282,13 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                 }`}
                 onClick={() => !allCollapsed && toggleExpand(folder.id)}
               >
-                <svg
-                  className={`size-2.5 transition-transform ${
+                <ChevronRight
+                  size={10}
+                  className={`transition-transform ${
                     !allCollapsed && expandedFolder === folder.id ? "rotate-90" : ""
                   }`}
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                >
-                  <path d="M6 4l4 4-4 4" />
-                </svg>
-                <svg className="size-3 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-                </svg>
+                />
+                <FolderIcon size={12} className="shrink-0" />
                 <span className="truncate">{folder.name}</span>
                 {folderSessions[folder.id] && (
                   <span className="text-[11px] text-gh-text-secondary ml-auto">
@@ -324,9 +308,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
                   title="Add session"
                 >
-                  <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-                  </svg>
+                  <Plus size={12} />
                 </button>
                 <button
                   type="button"
@@ -337,9 +319,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
                   title="Rename"
                 >
-                  <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z" />
-                  </svg>
+                  <Pencil size={12} />
                 </button>
                 <button
                   type="button"
@@ -347,9 +327,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   className="text-gh-text-secondary hover:text-red-400 cursor-pointer p-0.5"
                   title="Delete"
                 >
-                  <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.75 1.75 0 0 1 10.595 15H5.405a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15Z" />
-                  </svg>
+                  <Trash2 size={12} />
                 </button>
               </div>
             )}
@@ -445,9 +423,7 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
         }}
         title="Remove from folder"
       >
-        <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-        </svg>
+        <X size={10} />
       </button>
     </div>
   );

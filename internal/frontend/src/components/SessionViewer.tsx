@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CirclePlus, FileText, ListTodo, File, X, Plus, FilePlus, Check, Copy } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
@@ -26,33 +27,9 @@ interface SessionViewerProps {
 }
 
 const MAIN_TABS: { tab: "session" | "diff" | "plan"; label: string; icon: ReactNode }[] = [
-  {
-    tab: "session",
-    label: "Session",
-    icon: (
-      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
-      </svg>
-    ),
-  },
-  {
-    tab: "diff",
-    label: "Diff",
-    icon: (
-      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
-      </svg>
-    ),
-  },
-  {
-    tab: "plan",
-    label: "Plan",
-    icon: (
-      <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5ZM6.5 5.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75ZM5 5.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm0 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
-      </svg>
-    ),
-  },
+  { tab: "session", label: "Session", icon: <CirclePlus size={14} /> },
+  { tab: "diff", label: "Diff", icon: <FileText size={14} /> },
+  { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
 ];
 
 export function SessionViewer({
@@ -122,30 +99,10 @@ export function SessionViewer({
   }, [activeTab, openScratchTabs]);
 
   const tabIcon = (tab: Tab): ReactNode => {
-    if (tab === "session")
-      return (
-        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
-        </svg>
-      );
-    if (tab === "diff")
-      return (
-        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
-        </svg>
-      );
-    if (tab === "plan")
-      return (
-        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25h-8.5ZM6.5 5.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75ZM5 5.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm0 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
-        </svg>
-      );
-    if (tab.startsWith("scratch:"))
-      return (
-        <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
-        </svg>
-      );
+    if (tab === "session") return <CirclePlus size={14} />;
+    if (tab === "diff") return <FileText size={14} />;
+    if (tab === "plan") return <ListTodo size={14} />;
+    if (tab.startsWith("scratch:")) return <File size={14} />;
     return null;
   };
 
@@ -200,9 +157,7 @@ export function SessionViewer({
                   onCloseScratchTab(fid);
                 }}
               >
-                <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-                </svg>
+                <X size={12} />
               </span>
             </button>
           );
@@ -216,9 +171,7 @@ export function SessionViewer({
               className="sess-tab-pill text-gh-text-secondary hover:text-gh-text shrink-0"
               title="New file"
             >
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-              </svg>
+              <Plus size={14} />
             </button>
           </>
         )}
@@ -293,9 +246,7 @@ export function SessionViewer({
             }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gh-text hover:bg-gh-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
           >
-            <svg className="size-5 shrink-0 text-accent" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 2.75C2 1.784 2.784 1 3.75 1h5.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v6.25c0 .966-.784 1.75-1.75 1.75h-8.5A1.75 1.75 0 0 1 2 12.25V2.75Zm8.5 3.5v-1.5a.25.25 0 0 0-.25-.25h-5.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h.5v-4.25c0-.966.784-1.75 1.75-1.75h3.5v-.25Zm.75 0h-3.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h4.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25Z" />
-            </svg>
+            <FilePlus size={20} className="shrink-0 text-accent" />
             <div className="flex flex-col">
               <span className="font-medium">Markdown</span>
               <span className="text-[11px] text-gh-text-secondary">.md — Rich text file</span>
@@ -317,15 +268,7 @@ function ModalMarkdownWrapper({ content }: { content: string }) {
         className="absolute top-0 right-0 z-10 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
         title="Copy"
       >
-        {copied ? (
-          <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-          </svg>
-        ) : (
-          <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
-          </svg>
-        )}
+        {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
       </button>
       <MarkdownContent content={content} className="markdown-body--wide" />
     </div>

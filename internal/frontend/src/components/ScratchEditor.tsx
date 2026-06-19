@@ -11,6 +11,7 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
+import { Minimize2, Maximize2, X } from "lucide-react";
 import { getScratchFile, updateScratchFile } from "../hooks/useApi";
 
 marked.use({ gfm: true, breaks: true });
@@ -397,15 +398,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
             className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
-            {isFullscreen ? (
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M1.5 2a.5.5 0 0 1 .5-.5h3.5a.75.75 0 0 1 0 1.5H3.5v1.5a.75.75 0 0 1-1.5 0V2Zm13.75-.5a.5.5 0 0 1 .5.5v3.5a.75.75 0 0 1-1.5 0V3.5h-1.5a.75.75 0 0 1 0-1.5h2.5ZM14.75 14a.5.5 0 0 1-.5.5h-3.5a.75.75 0 0 1 0-1.5h1.5v-1.5a.75.75 0 0 1 1.5 0V14ZM2 14.5a.5.5 0 0 1-.5-.5v-3.5a.75.75 0 0 1 1.5 0v1.5h1.5a.75.75 0 0 1 0 1.5H2Z" />
-              </svg>
-            ) : (
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M1.5 2.5a1 1 0 0 1 1-1h3.5a.75.75 0 0 1 0 1.5H3.5v1.5a1 1 0 0 1-2 0v-2ZM1.5 13.5a1 1 0 0 0 1 1h3.5a.75.75 0 0 0 0-1.5H3.5v-1.5a1 1 0 0 0-2 0v2ZM14.5 2.5a1 1 0 0 0-1-1H10a.75.75 0 0 0 0 1.5h1.5v1.5a1 1 0 0 0 2 0v-2ZM14.5 13.5a1 1 0 0 1-1 1H10a.75.75 0 0 1 0-1.5h1.5v-1.5a1 1 0 0 1 2 0v2Z" />
-              </svg>
-            )}
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
           <button
             type="button"
@@ -413,9 +406,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
             className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
             title="Close"
           >
-            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-            </svg>
+            <X size={14} />
           </button>
         </div>
       </div>

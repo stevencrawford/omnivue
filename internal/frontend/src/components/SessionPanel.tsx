@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, Folder, File, Pencil, Trash2, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
 import type { Session, ScratchFile } from "../hooks/useApi";
 import { buildTree, formatCost } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
@@ -214,11 +215,11 @@ export function SessionPanel({
             title={allCollapsed ? "Expand all repos" : "Collapse all repos"}
             onClick={allCollapsed ? expandAll : collapseAll}
           >
-            {allCollapsed ? <PlusIcon /> : <MinusIcon />}
+            {allCollapsed ? <Plus size={14} /> : <Minus size={14} />}
           </IconBtn>
           <div className="relative" ref={sortRef}>
             <IconBtn title="Sort" onClick={() => setSortOpen((v) => !v)}>
-              <SortIcon />
+              <ArrowUpDown size={14} />
             </IconBtn>
             {sortOpen && (
               <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
@@ -243,7 +244,15 @@ export function SessionPanel({
             title={displayMode === "condensed" ? "Verbose view" : "Condensed view"}
             onClick={toggleDisplayMode}
           >
-            {displayMode === "condensed" ? <VerboseIcon /> : <CondensedIcon />}
+            {displayMode === "condensed" ? (
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 3.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
+              </svg>
+            ) : (
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 2.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
+              </svg>
+            )}
           </IconBtn>
         </div>
       </div>
@@ -324,11 +333,7 @@ export function SessionPanel({
           items={[
             {
               label: "Add to Project",
-              icon: (
-                <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-                </svg>
-              ),
+              icon: <Folder size={14} />,
               onClick: () => {
                 setAddToProjectSessionId(contextMenu.sessionId);
               },
@@ -474,7 +479,10 @@ function RepoNode({
         onClick={() => onToggleCollapse(node.fullPath)}
         title={node.fullPath}
       >
-        <Chevron open={!isCollapsed} />
+        <ChevronRight
+          size={12}
+          className={`shrink-0 transition-transform text-gh-text-secondary ${!isCollapsed ? "rotate-90" : ""}`}
+        />
         <span className="truncate flex-1 text-left">{node.name}</span>
         <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
       </button>
@@ -594,7 +602,7 @@ function SessionRow({
           </span>
           {(subCount > 0 || scratchFiles.length > 0) && !subsVisible && (
             <span className="shrink-0 text-[11px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
-              {subCount > 0 ? subCount : "✎"}
+              {subCount > 0 ? subCount : <Pencil size={11} className="inline" />}
             </span>
           )}
           <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
@@ -630,7 +638,7 @@ function SessionRow({
                   subActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
                 }`}
               >
-                <span className="text-[11px] text-accent/80 shrink-0">&rarr;</span>
+                <ArrowRight size={11} className="text-accent/80 shrink-0" />
                 <span className="text-[11px] truncate flex-1">
                   {session.subAgent ? (
                     <span className="text-gh-text-secondary">{session.subAgent}: </span>
@@ -691,13 +699,7 @@ function SessionRow({
                     className="flex-1 flex items-center gap-1.5 pl-1 py-0.5 text-left min-w-0"
                     title={sf.title}
                   >
-                    <svg
-                      className="size-3 text-gh-text-secondary shrink-0"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                    >
-                      <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25V1.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 9 3.25V1.5H3.75Z" />
-                    </svg>
+                    <File size={12} className="text-gh-text-secondary shrink-0" />
                     <span className="text-[11px] truncate flex-1 text-gh-text-secondary">
                       {sf.title}
                     </span>
@@ -717,9 +719,7 @@ function SessionRow({
                         className="shrink-0 p-1 text-gh-text-secondary hover:text-accent cursor-pointer"
                         title="Rename"
                       >
-                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L3.745 8.815a.25.25 0 0 0-.063.109l-.579 2.027 2.027-.579a.25.25 0 0 0 .109-.063l8.273-8.273a.25.25 0 0 0 0-.354l-1.086-1.086Z" />
-                        </svg>
+                        <Pencil size={12} />
                       </button>
                     )}
                     {onDeleteScratchFile && (
@@ -732,9 +732,7 @@ function SessionRow({
                         className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 cursor-pointer"
                         title="Delete scratch file"
                       >
-                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5h-.272l-.98 9.8a1.75 1.75 0 0 1-1.738 1.56H5.74a1.75 1.75 0 0 1-1.738-1.56l-.98-9.8H3A.75.75 0 0 1 3 3h2.25V1.75A1.75 1.75 0 0 1 7 0h2a1.75 1.75 0 0 1 1.75 1.75ZM5.26 14.5a.25.25 0 0 1-.248-.223l-.96-9.61h8.896l-.96 9.61a.25.25 0 0 1-.248.223H5.26Z" />
-                        </svg>
+                        <Trash2 size={12} />
                       </button>
                     )}
                   </div>
@@ -804,18 +802,6 @@ function VerboseStats({ session }: { session: Session }) {
 
 // ─── Small SVG icons ──────────────────────────────────────────────
 
-function Chevron({ open, className = "size-3" }: { open: boolean; className?: string }) {
-  return (
-    <svg
-      className={`${className} shrink-0 transition-transform text-gh-text-secondary ${open ? "rotate-90" : ""}`}
-      viewBox="0 0 16 16"
-      fill="currentColor"
-    >
-      <path d="M6 4l4 4-4 4" />
-    </svg>
-  );
-}
-
 function IconBtn({
   children,
   onClick,
@@ -834,47 +820,5 @@ function IconBtn({
     >
       {children}
     </button>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-    </svg>
-  );
-}
-
-function MinusIcon() {
-  return (
-    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
-    </svg>
-  );
-}
-
-function SortIcon() {
-  return (
-    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M1.5 2.75a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75ZM4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8Zm2.75 4.25a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z" />
-    </svg>
-  );
-}
-
-/** Compact line-spacing icon (Word-style single spacing) */
-function CondensedIcon() {
-  return (
-    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M1.5 3.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
-    </svg>
-  );
-}
-
-/** Expanded line-spacing icon (Word-style double spacing) */
-function VerboseIcon() {
-  return (
-    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M1.5 2.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
-    </svg>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { Search, Folder, X } from "lucide-react";
 import type { SearchResult } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
 import { renderSnippet } from "../utils/searchUtils";
@@ -88,14 +89,10 @@ export function SearchResultsDrawer({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gh-border shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <svg className="size-4 text-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
-            </svg>
+            <Search size={16} className="text-accent shrink-0" />
             {searchScopeName && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border shrink-0">
-                <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M1.5 2.75A1.75 1.75 0 0 1 3.25 1h2.5c.52 0 .99.226 1.312.586l.96 1.064H12.5A1.75 1.75 0 0 1 14.25 4.5v8.75A1.75 1.75 0 0 1 12.5 15h-9.25A1.75 1.75 0 0 1 1.5 13.25V2.75Z" />
-                </svg>
+                <Folder size={12} />
                 {searchScopeName}
                 {onClearScope && (
                   <button
@@ -106,9 +103,7 @@ export function SearchResultsDrawer({
                     }}
                     className="ml-0.5 p-0.5 rounded hover:bg-accent/20 cursor-pointer"
                   >
-                    <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-                    </svg>
+                    <X size={12} />
                   </button>
                 )}
               </span>
@@ -126,9 +121,7 @@ export function SearchResultsDrawer({
             className="shrink-0 text-gh-text-secondary hover:text-gh-text cursor-pointer p-1 rounded transition-colors"
             aria-label="Close search results"
           >
-            <svg className="size-4" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-            </svg>
+            <X size={16} />
           </button>
         </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { setSessionName, clearSessionName } from "../hooks/useApi";
 
@@ -91,9 +92,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
                 className="shrink-0 text-gh-text-secondary hover:text-accent cursor-pointer p-0.5 rounded transition-colors"
                 title="Rename session"
               >
-                <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L3.745 8.815a.25.25 0 0 0-.063.109l-.579 2.027 2.027-.579a.25.25 0 0 0 .109-.063l8.273-8.273a.25.25 0 0 0 0-.354l-1.086-1.086Z" />
-                </svg>
+                <Pencil size={14} />
               </button>
             )}
           </>

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CirclePlus, ChevronDown, ChevronUp, Filter, ChevronRight, User, Check, Copy, Info, TriangleAlert, CircleCheckBig } from "lucide-react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
@@ -414,9 +415,7 @@ export function ConversationView({
     return (
       <div className="sess-empty-state flex-1">
         <div className="sess-empty-icon">
-          <svg className="size-5" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.75 6.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6.5v3.5a.75.75 0 0 1-1.5 0V6.5Z" />
-          </svg>
+          <CirclePlus size={20} />
         </div>
         <p className="text-sm text-gh-text-secondary">No messages in this session</p>
       </div>
@@ -461,9 +460,7 @@ export function ConversationView({
               className="pointer-events-auto size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
               title="Scroll to bottom"
             >
-              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 2.25a.75.75 0 0 1 .75.75v8.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-5 5a.75.75 0 0 1-1.06 0l-5-5a.75.75 0 0 1 1.06-1.06l3.72 3.72V3a.75.75 0 0 1 .75-.75Z" />
-              </svg>
+              <ChevronDown size={14} />
             </button>
           </div>
         )}
@@ -475,9 +472,7 @@ export function ConversationView({
             className="absolute top-2 right-14 z-20 size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
             title="Scroll to top"
           >
-            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 13.75a.75.75 0 0 1-.75-.75V4.81L3.53 8.53a.75.75 0 0 1-1.06-1.06l5-5a.75.75 0 0 1 1.06 0l5 5a.75.75 0 0 1-1.06 1.06L8.75 4.81V13c0 .414-.336.75-.75.75Z" />
-            </svg>
+            <ChevronUp size={14} />
           </button>
         )}
 
@@ -496,9 +491,7 @@ export function ConversationView({
                       className="size-4 flex items-center justify-center rounded text-gh-text-secondary/50 hover:text-gh-text hover:bg-gh-bg-hover transition-colors cursor-pointer"
                       title="Filter markers"
                     >
-                      <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M1.5 2.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.197.508L9.75 8.464V13a.75.75 0 0 1-.375.65l-2.5 1.5a.75.75 0 0 1-1.125-.65V8.464L1.697 4.258A.75.75 0 0 1 1.5 3.75v-1.5Z" />
-                      </svg>
+                      <Filter size={12} />
                     </button>
                     {markerFilterOpen && (
                       <div className="absolute right-full top-0 mr-2 z-50 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl min-w-36 max-h-60 overflow-y-auto">
@@ -597,20 +590,11 @@ export function ConversationView({
           className="flex items-center gap-2 w-full px-4 py-2 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
           onClick={() => setPinnedExpanded((v) => !v)}
         >
-          <svg
-            className={`size-3 text-gh-text-secondary transition-transform ${pinnedExpanded ? "rotate-90" : ""}`}
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
-            <path d="M6 4l4 4-4 4" />
-          </svg>
-          <svg
-            className="size-4 text-accent-secondary shrink-0"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-          >
-            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm5 6a5 5 0 0 0-10 0h10Z" />
-          </svg>
+          <ChevronRight
+            size={12}
+            className={`text-gh-text-secondary transition-transform ${pinnedExpanded ? "rotate-90" : ""}`}
+          />
+          <User size={16} className="text-accent-secondary shrink-0" />
           <span className="text-xs font-semibold text-gh-text">Initial Prompt</span>
           {session.model && (
             <span className="text-[11px] px-1.5 py-0.5 rounded bg-gh-bg-hover text-gh-text-secondary font-mono">
@@ -648,21 +632,17 @@ export function ConversationView({
             }`}
             title="Copy resume command"
           >
-            {copied ? (
-              <>
-                <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-                </svg>
-                Copied
-              </>
-            ) : (
-              <>
-                <svg className="size-2.5" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
-                </svg>
-                Resume
-              </>
-            )}
+              {copied ? (
+                <>
+                  <Check size={10} className="text-emerald-400" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy size={10} />
+                  Resume
+                </>
+              )}
           </button>
         </button>
         {pinnedExpanded && (
@@ -838,9 +818,7 @@ function UserTurnView({
             content={block.content}
             label={block.fileName || "Context"}
             icon={
-              <svg className="size-4 text-sky-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
-              </svg>
+              <Info size={16} className="text-sky-400 shrink-0" />
             }
             className="border-sky-500/30 bg-sky-500/[0.03]"
             onOpenModal={onOpenModal}
@@ -869,13 +847,10 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
         className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
-        <svg
-          className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="none"
-        >
-          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        </svg>
+        <ChevronRight
+          size={14}
+          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
         {expanded ? "Hide thinking" : "Show thinking"}
       </button>
       {expanded && (
@@ -1004,9 +979,7 @@ function SystemReminderView({
   return (
     <div className="border border-amber-500/30 rounded-lg bg-amber-500/[0.03] mx-4 mb-3 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-500/20">
-        <svg className="size-4 text-amber-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5.5a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0v-3Zm1 7.25a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
-        </svg>
+        <TriangleAlert size={16} className="text-amber-400 shrink-0" />
         <span className="font-semibold text-[11px] text-amber-400 uppercase">{fileName}</span>
       </div>
       <div className="px-3 py-2">
@@ -1048,9 +1021,7 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
     <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3 relative group">
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <svg className="size-4 text-emerald-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm3.36 4.76-4.25 4.5a.75.75 0 0 1-1.08.02L3.97 8.6a.75.75 0 0 1 1.06-1.06l1.7 1.7 3.72-3.94a.75.75 0 1 1 1.1 1.04Z" />
-          </svg>
+          <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
           <span className="font-semibold text-[11px] text-emerald-400">Task Complete</span>
         </div>
         {summary && (
@@ -1066,15 +1037,7 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
           className="absolute top-2 right-2 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
           title="Copy summary"
         >
-          {copied ? (
-            <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-            </svg>
-          ) : (
-            <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
-            </svg>
-          )}
+          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
         </button>
       )}
     </div>

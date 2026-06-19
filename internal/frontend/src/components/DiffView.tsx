@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Folder, File } from "lucide-react";
 import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
 import { computeDiff } from "../utils/diff";
@@ -318,16 +319,8 @@ function DirectoryNode({
         style={{ paddingLeft: 8 + depth * 16 }}
         onClick={() => setExpanded(!expanded)}
       >
-        <svg
-          className={`size-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M6 4l4 4-4 4" />
-        </svg>
-        <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-        </svg>
+        <ChevronRight size={12} className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} />
+        <Folder size={14} className="shrink-0" />
         <span className="font-medium truncate">{node.name}/</span>
         <span className="text-[10px] text-gh-text-secondary/60">({fileCount})</span>
       </button>
@@ -503,9 +496,7 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey, searchHighli
     return (
       <div className="sess-empty-state p-8 h-full">
         <div className="sess-empty-icon">
-          <svg className="size-5" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2ZM3.5 1.75a.25.25 0 0 0-.25.25v12c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V2a.25.25 0 0 0-.25-.25h-9ZM5 5.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 5.75Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 8.75Z" />
-          </svg>
+          <File size={20} />
         </div>
         <p className="text-sm text-gh-text-secondary">No file changes in this session</p>
       </div>
@@ -575,13 +566,7 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey, searchHighli
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-gh-text-secondary">
               <div className="text-center">
-                <svg
-                  className="size-8 mx-auto mb-2 opacity-40"
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                >
-                  <path d="M1.75 2A1.75 1.75 0 0 1 3.5.25h9A1.75 1.75 0 0 1 14.25 2v12A1.75 1.75 0 0 1 12.5 15.75h-9A1.75 1.75 0 0 1 1.75 14V2Z" />
-                </svg>
+                <File size={32} className="mx-auto mb-2 opacity-40" />
                 Select a file to view its changes
               </div>
             </div>
