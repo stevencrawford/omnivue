@@ -1,23 +1,28 @@
 # sess
 
-**sess** is a CLI tool that watches AI coding agent sessions — currently [OpenCode](https://opencode.ai) and [GitHub Copilot](https://github.com/features/copilot) — and presents them in a browser UI for easy browsing, searching, and management. A Go HTTP server embeds a React SPA as a single binary.
+**sess** is a CLI tool that watches AI coding agent sessions — [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), and [Cursor](https://cursor.com) — and presents them in a browser UI for easy browsing, searching, and management. A Go HTTP server embeds a React SPA as a single binary.
 
 ## Features
 
-- **Multi-agent support** — OpenCode and Copilot out of the box; extensible via the `Adapter` interface
+- **Multi-agent support** — OpenCode, Copilot, and Cursor out of the box; extensible via the `Adapter` interface
 - **Browser UI** — Tabbed session viewer with conversation, plan, and diff views
-- **Live updates** — SSE-based polling (30s) detects new and changed sessions automatically
-- **Full-text search** — FTS5 index across all session content (messages, plans, diffs)
-- **User folders** — Virtual organization of sessions stored in `sess.db`
-- **Resume sessions** — One-click copy of the CLI command to resume a session
-- **Read-only access** — Never writes to agent databases (enforced at the driver level)
-- **Single binary** — Go backend + embedded React SPA, zero runtime dependencies
+- **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle)
+- **Full-text search** — FTS5 index across all session content, scoped or global
+- **User folders** — Virtual organization with nesting, color, and icon support
+- **Scratch notes** — Per-session markdown notes with rich text or code editor
+- **Session renaming** — Override display names from the sidebar
+- **Settings UI** — Add/remove session sources from the browser
+- **Resume sessions** — One-click copy of the CLI command to resume
+- **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘P` search
+- **Deep linking** — Shareable URLs `#/session/{id}/step/{n}`
+- **Read-only access** — Never writes to agent databases (enforced at driver level)
+- **Single binary** — Go + embedded React SPA, zero runtime dependencies
 - **Light/dark theme** — GitHub-style theme with persistent preference
 
 ## Quick Start
 
 ```console
-# Initialize sources (auto-discovers OpenCode, Copilot)
+# Initialize sources (auto-discovers OpenCode, Copilot, Cursor)
 $ sess init
 
 # Start the server (opens browser automatically)
@@ -29,6 +34,7 @@ $ sess --foreground --port 16275
 # Add a source manually
 $ sess add ~/.local/share/opencode
 $ sess add ~/.copilot --type copilot
+$ sess add ~/.cursor --type cursor
 ```
 
 ## Installation
@@ -50,10 +56,8 @@ Download from the [releases page](https://github.com/stevencrawford/sess/release
 ```console
 $ sess [flags]
 $ sess init
-$ sess add <path> [--type opencode|copilot]
+$ sess add <path> [--type opencode|copilot|cursor]
 ```
-
-### Flags
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
@@ -67,138 +71,50 @@ $ sess add <path> [--type opencode|copilot]
 | `--restart` | | | Restart the running server |
 | `--json` | | | Output structured data as JSON |
 
-### Subcommands
+### Lifecycle
 
-- **`init`** — Discover and configure AI agent session sources interactively
-- **`add <path>`** — Manually add a session source (`--type opencode` or `--type copilot`)
-
-### Single-instance behavior
-
-`sess` probes `/_/api/status` on startup. If a server is already running, it opens the browser and exits — no duplicate server is started.
-
-### Session management
-
-```console
-# Show running servers
-$ sess --status
-
-# Shut down the server on the default port
-$ sess --shutdown
-
-# Restart the server
-$ sess --restart
-```
+`sess` probes `/_/api/status` on startup. If a server is already running, it opens the browser and exits — no duplicate server is started. Use `--status`, `--shutdown`, and `--restart` to manage running instances.
 
 ## Architecture
 
 ```
                     ┌────────────────────┐
                     │   Browser (SPA)    │
-                    │  React 19 + TS     │
                     └────────┬───────────┘
                              │ HTTP / SSE
                     ┌────────▼───────────┐
                     │   Go HTTP Server   │
-                    │  (internal/server) │
+                    │  adaptive polling  │
                     └────────┬───────────┘
                              │
-              ┌──────────────┼──────────────┐
-              │              │              │
-    ┌─────────▼──────┐ ┌────▼─────┐ ┌──────▼─────┐
-    │  ingest/opencode│ │ingest/   │ │  store/    │
-    │  (SQLite, RO)   │ │copilot   │ │ (sess.db)  │
-    │                 │ │(SQLite,  │ │ FTS5,      │
-    │                 │ │ JSONL)   │ │ folders)   │
-    └─────────────────┘ └──────────┘ └────────────┘
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+┌───────▼────────┐ ┌────────▼──────┐ ┌───────────▼────┐
+│ OpenCode       │ │ Copilot       │ │ Cursor         │
+│ adapter        │ │ adapter       │ │ adapter        │
+└────────────────┘ └───────────────┘ └────────────────┘
+        │                    │                    │
+        └────────────────────┼────────────────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  sess.db       │
+                    │ FTS5, folders, │
+                    │ scratch, config│
+                    └─────────────────┘
 ```
 
-### Key packages
+The backend normalizes agent-specific session data into a unified model via the `Adapter` interface. See [docs/ADAPTERS.md](docs/ADAPTERS.md) for implementing new adapters and [docs/API.md](docs/API.md) for the full HTTP API reference.
 
-| Package | Purpose |
-|---------|---------|
-| `cmd/` | CLI entry point (Cobra), single-instance detection, server lifecycle |
-| `internal/ingest/` | Core ingest layer: `Adapter` interface, type definitions, auto-detection |
-| `internal/ingest/opencode/` | OpenCode adapter — reads `opencode.db` (SQLite, read-only) |
-| `internal/ingest/copilot/` | Copilot adapter — reads `session-store.db` + `events.jsonl` |
-| `internal/store/` | Manages `$XDG_STATE_HOME/sess/sess.db`: sources, folders, FTS5 index |
-| `internal/server/` | HTTP server, session state, SSE, 30s polling for changes |
-| `internal/frontend/` | Vite + React 19 + TypeScript + Tailwind CSS v4 SPA |
-| `internal/static/` | `go:generate` + `go:embed` for frontend build output |
-| `internal/logfile/` | Rotating JSON logging to `$XDG_STATE_HOME/sess/log/` |
-| `internal/xdg/` | XDG Base Directory path helper |
-| `version/` | Version and revision constants |
+## Keyboard shortcuts
 
-### Design principles
-
-- **Read-only agent data** — All SQLite connections use `?mode=ro`. The `OpenReadOnlyDB()` helper verifies read-only mode at open time.
-- **Unified session model** — Adapters normalize agent-specific formats to common `Session`/`Message` types.
-- **Auto-discovery** — `sess init` scans known paths (`~/.local/share/opencode`, `~/.copilot`).
-- **Live-reload via SSE** — Background polling detects new/changed sessions and pushes updates to the frontend.
-- **Persistent search** — FTS5 in `sess.db` indexes all session content incrementally.
-- **Virtual folders** — Session organization is stored in `sess.db`, not the filesystem.
-
-## Adding a new agent adapter
-
-Implement the `ingest.Adapter` interface:
-
-```go
-type Adapter interface {
-    Type() AgentType
-    Detect(path string) bool
-    ListSessions(ctx context.Context) ([]Session, error)
-    GetSession(ctx context.Context, id string) (*Session, error)
-    GetMessages(ctx context.Context, sessionID string) ([]Message, error)
-    GetPlan(ctx context.Context, sessionID string) (*Plan, error)
-    GetDiffs(ctx context.Context, sessionID string) ([]DiffFile, error)
-    ResumeCommand(session *Session) string
-    LastModified(ctx context.Context) (int64, error)
-    Close() error
-}
-```
-
-See `internal/ingest/opencode/` and `internal/ingest/copilot/` for reference implementations.
-
-## API endpoints
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/_/api/status` | Server status (version, PID, source/session counts) |
-| GET | `/_/api/sources` | List configured sources |
-| GET | `/_/api/sessions` | List all sessions |
-| GET | `/_/api/sessions/{id}` | Get session details |
-| GET | `/_/api/sessions/{id}/messages` | Get session messages with tool calls |
-| GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |
-| GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
-| GET | `/_/api/sessions/{id}/resume` | Get CLI command to resume the session |
-| GET | `/_/api/search?q=<query>&limit=<n>` | Full-text search across session content |
-| GET | `/_/api/folders` | List all folders |
-| POST | `/_/api/folders` | Create a new folder |
-| PATCH | `/_/api/folders/{id}` | Update folder (name, color, icon) |
-| DELETE | `/_/api/folders/{id}` | Delete a folder |
-| GET | `/_/api/folders/{id}/sessions` | List session IDs in a folder |
-| POST | `/_/api/folders/{id}/sessions/{sid}` | Assign a session to a folder |
-| DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
-| POST | `/_/api/shutdown` | Shutdown server |
-| POST | `/_/api/restart` | Restart server |
-| GET | `/_/events` | SSE event stream (update, session-changed) |
-
-## Frontend
-
-- **Framework**: React 19 + TypeScript + Tailwind CSS v4
-- **Key components**: `SessionViewer` (tabbed detail), `Sidebar` (resizable session tree), `MarkdownContent`, `PlanView`, `DiffView`, `ThemeToggle`
-- **State**: SSE-powered live updates via `useSSE` hook
-- **Build**: Vite 8, `go:embed` into the Go binary
-
-## Data sources
-
-| Agent | Location | Format | Data |
-|-------|----------|--------|------|
-| OpenCode | `~/.local/share/opencode/opencode.db` | SQLite | Sessions, messages, parts, todos, diffs, tokens, costs |
-| OpenCode snapshots | `~/.local/share/opencode/snapshot/` | Git bare repos | File-level rewind |
-| Copilot | `~/.copilot/session-store.db` | SQLite | Sessions, turns, checkpoints, FTS index |
-| Copilot events | `~/.copilot/session-state/<uuid>/events.jsonl` | JSONL | Full conversation + tool calls |
-| Copilot plans | `~/.copilot/session-state/<uuid>/checkpoints/` | Markdown | Implementation plans |
-| Copilot snapshots | `~/.copilot/session-state/<uuid>/rewind-snapshots/` | JSON + raw files | File backups |
+| Key | Action |
+|-----|--------|
+| `j` / `ArrowDown` | Select next session |
+| `k` / `ArrowUp` | Select previous session |
+| `⌘1` / `Ctrl+1` | Conversation tab |
+| `⌘2` / `Ctrl+2` | Diff tab |
+| `⌘P` / `Ctrl+P` | Open search |
+| `Escape` | Close search / results |
 
 ## Build from source
 
@@ -209,6 +125,12 @@ $ make test         # Run all tests (frontend + Go)
 $ make lint         # Run all linters
 $ go test ./...     # Run Go tests only
 ```
+
+## Learn more
+
+- [API reference](docs/API.md) — All HTTP endpoints
+- [Adapters](docs/ADAPTERS.md) — Data sources, implementing new agent adapters
+- [Frontend](docs/FRONTEND.md) — Component catalog, hooks, dependencies
 
 ## License
 
