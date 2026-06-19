@@ -8,7 +8,7 @@ Only the latest release is supported with security updates.
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please use [GitHub Private Vulnerability Reporting](https://github.com/k1LoW/mo/security/advisories/new) to submit a report.
+Instead, please use [GitHub Private Vulnerability Reporting](https://github.com/stevencrawford/sess/security/advisories/new) to submit a report.
 
 You should receive a response within 7 days. If the vulnerability is confirmed, a fix will be released as soon as possible.
 
