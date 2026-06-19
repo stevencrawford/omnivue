@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.1.0 - 2026-06-01
+## [0.1.0] - 2026-06-01
 
-Initial release of sess. Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer) and repurposed for AI coding agent session management.
+Initial release of **sess** — forked from [mo](https://github.com/k1LoW/mo) v1.5.5 by Ken'ichiro Oyama (k1LoW) and completely repurposed from a Markdown viewer to an AI session manager.
 
 ### Features
 
