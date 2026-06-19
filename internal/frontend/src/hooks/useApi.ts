@@ -117,6 +117,7 @@ export interface FileEdit {
 
 export interface SearchResult {
   sessionId: string;
+  sessionName?: string;
   sourceId: string;
   chunkType: string;
   repository: string;

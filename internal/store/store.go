@@ -532,12 +532,13 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 
 // SearchResult represents a search hit.
 type SearchResult struct {
-	SessionID  string `json:"sessionId"`
-	SourceID   string `json:"sourceId"`
-	ChunkType  string `json:"chunkType"`
-	Repository string `json:"repository"`
-	Snippet    string `json:"snippet"`
-	UpdatedAt  string `json:"updatedAt"`
+	SessionID   string `json:"sessionId"`
+	SessionName string `json:"sessionName"`
+	SourceID    string `json:"sourceId"`
+	ChunkType   string `json:"chunkType"`
+	Repository  string `json:"repository"`
+	Snippet     string `json:"snippet"`
+	UpdatedAt   string `json:"updatedAt"`
 }
 
 // migrate runs database migrations.

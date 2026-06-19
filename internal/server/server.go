@@ -629,7 +629,23 @@ func (s *State) Search(query string, limit int, sessionID string) ([]store.Searc
 	if s.store == nil {
 		return nil, fmt.Errorf("store not available")
 	}
-	return s.store.Search(query, limit, sessionID)
+	results, err := s.store.Search(query, limit, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	// Enrich results with session title
+	s.mu.RLock()
+	sessionTitles := make(map[string]string, len(s.sessions))
+	for _, sess := range s.sessions {
+		sessionTitles[sess.ID] = sess.Title
+	}
+	s.mu.RUnlock()
+	for i := range results {
+		if title, ok := sessionTitles[results[i].SessionID]; ok {
+			results[i].SessionName = title
+		}
+	}
+	return results, nil
 }
 
 // GetConfig returns all config key-value pairs.
