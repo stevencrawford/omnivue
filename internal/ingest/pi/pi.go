@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -358,32 +359,46 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 		return parsed[i].Timestamp.Before(parsed[j].Timestamp)
 	})
 
-	// Second pass: merge toolResult output into the corresponding ToolCall.Output
-	// and filter out toolResult messages.
+	// Pass 1: Index all tool calls by ID and collect toolResult messages separately.
+	// This avoids the out-of-order edge case where a toolResult appears before its
+	// corresponding toolCall in the sorted message list.
 	toolCallsByID := make(map[string]*ingest.ToolCall)
-	var messages []ingest.Message
+	var toolResults []ingest.Message
 	for _, msg := range parsed {
 		if msg.Role == "assistant" {
 			for i := range msg.ToolCalls {
 				tc := &msg.ToolCalls[i]
 				toolCallsByID[tc.ID] = tc
 			}
-			messages = append(messages, msg)
-			continue
 		}
 		if msg.Role == "toolResult" {
-			tcID, _ := msg.Metadata["toolCallId"]
-			if tcID != "" {
-				if tc, ok := toolCallsByID[tcID]; ok {
-					tc.Output = msg.Content
-					if envIsError, ok := msg.Metadata["isError"]; ok {
-						if tc.Metadata == "" {
-							tc.Metadata = `{"isError":` + envIsError + `}`
-						}
-					}
-				}
+			toolResults = append(toolResults, msg)
+		}
+	}
+
+	// Pass 2: Merge toolResult output into the corresponding ToolCall.Output.
+	for _, tr := range toolResults {
+		tcID, _ := tr.Metadata["toolCallId"]
+		if tcID == "" {
+			continue
+		}
+		tc, ok := toolCallsByID[tcID]
+		if !ok {
+			log.Printf("pi adapter: orphaned toolResult for toolCallId=%s (no matching tool call found)", tcID)
+			continue
+		}
+		tc.Output = tr.Content
+		if envIsError, ok := tr.Metadata["isError"]; ok {
+			if tc.Metadata == "" {
+				tc.Metadata = `{"isError":` + envIsError + `}`
 			}
-			// Skip toolResult messages; output is now inline in ToolCall.Output
+		}
+	}
+
+	// Pass 3: Build final message list, filtering out toolResult messages.
+	var messages []ingest.Message
+	for _, msg := range parsed {
+		if msg.Role == "toolResult" {
 			continue
 		}
 		messages = append(messages, msg)
@@ -496,12 +511,14 @@ func parseAssistantContent(raw json.RawMessage) (text string, toolCalls []ingest
 			if p.Arguments != nil {
 				input = string(p.Arguments)
 			}
-			toolCalls = append(toolCalls, ingest.ToolCall{
+			tc := ingest.ToolCall{
 				ID:     p.ToolCallID,
 				Name:   p.Name,
 				Input:  input,
 				Status: "completed",
-			})
+			}
+			normalizeToolCall(&tc)
+			toolCalls = append(toolCalls, tc)
 		}
 	}
 
@@ -572,6 +589,156 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 
 func (a *Adapter) Close() error {
 	return nil
+}
+
+// normalizeToolCall maps Pi-native tool call names and field names to the
+// standard conventions expected by the frontend's tool renderers.
+func normalizeToolCall(tc *ingest.ToolCall) {
+	switch tc.Name {
+	case "read_file", "read_files", "view_file":
+		tc.Name = "read"
+	case "write_file", "create_file", "new_file":
+		tc.Name = "write"
+	case "edit_file", "edit_file_content", "modify_file", "apply_diff", "replace_text":
+		tc.Name = "edit"
+	case "delete_file", "remove_file":
+		tc.Name = "delete"
+	case "run_command", "execute_command", "shell", "run_terminal":
+		tc.Name = "bash"
+	case "search_files", "grep_search", "find_text", "search_text":
+		tc.Name = "grep"
+	case "list_files", "list_directory", "find_file":
+		tc.Name = "glob"
+	case "ask_question", "ask_user", "prompt_user":
+		tc.Name = "question"
+	case "fetch_url", "http_request", "make_request", "web_fetch":
+		tc.Name = "webfetch"
+	case "web_search", "search_web", "search_internet":
+		tc.Name = "websearch"
+	default:
+		// Unrecognized name — leave as-is; frontend's effectiveToolKind() 
+		// may still infer the kind from input field presence.
+		return
+	}
+
+	if tc.Input == "" {
+		return
+	}
+
+	var p map[string]any
+	if err := json.Unmarshal([]byte(tc.Input), &p); err != nil {
+		return
+	}
+
+	// Normalize field names within the input JSON to match frontend conventions.
+	switch tc.Name {
+	case "read":
+		// Pi may use "path", "file", "file_path" for the file path
+		if v, ok := p["file"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "file")
+		}
+		if v, ok := p["path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "path")
+		}
+		// Pi read output format: {"content":"...","filePath":"..."}
+		if content := extractJSONString(tc.Output, "content"); content != "" {
+			tc.Output = content
+		}
+
+	case "edit", "write":
+		if v, ok := p["file"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "file")
+		}
+		if v, ok := p["path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "path")
+		}
+		if v, ok := p["file_path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "file_path")
+		}
+		// Pi may use "new_content", "content", "updated_content" for new string
+		if v, ok := p["new_content"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "new_content")
+		}
+		if v, ok := p["updated_content"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "updated_content")
+		}
+		// Pi may use "old_content" for old string
+		if v, ok := p["old_content"]; ok {
+			if _, exists := p["oldString"]; !exists {
+				p["oldString"] = v
+			}
+			delete(p, "old_content")
+		}
+
+	case "bash":
+		// Pi bash output: {"stdout":"...","stderr":"...","exitCode":N}
+		if stdout := extractJSONString(tc.Output, "stdout"); stdout != "" {
+			if stderr := extractJSONString(tc.Output, "stderr"); stderr != "" {
+				tc.Output = stdout + "\n" + stderr
+			} else {
+				tc.Output = stdout
+			}
+		}
+		if exitCode := extractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
+			tc.Metadata = `{"exit":` + exitCode + `}`
+		}
+
+	case "grep":
+		if v, ok := p["pattern"]; ok {
+			if _, exists := p["query"]; !exists {
+				p["query"] = v
+			}
+			delete(p, "pattern")
+		}
+
+	case "glob":
+		// Pi glob uses standard "pattern" and "directory" fields
+	}
+
+	if out, err := json.Marshal(p); err == nil {
+		tc.Input = string(out)
+	}
+}
+
+// extractJSONString extracts a string value from a JSON field, returning empty
+// if the field is missing, not a string, or if the input is not valid JSON.
+func extractJSONString(jsonStr, field string) string {
+	if jsonStr == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		return ""
+	}
+	v, ok := m[field]
+	if !ok {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }
 
 // --- Helpers ---
