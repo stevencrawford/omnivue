@@ -3,6 +3,7 @@ import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
+import { useCopy } from "../hooks/useCopy";
 import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
 import { ScratchEditor } from "./ScratchEditor";
@@ -246,7 +247,11 @@ export function SessionViewer({
       )}
       {activeTab === "plan" && (
         <div className="flex-1 overflow-y-auto">
-          <PlanView sessionId={session.id} refreshKey={refreshKey} searchHighlightQuery={searchHighlightQuery} />
+          <PlanView
+            sessionId={session.id}
+            refreshKey={refreshKey}
+            searchHighlightQuery={searchHighlightQuery}
+          />
         </div>
       )}
       {isScratchTab(activeTab) &&
@@ -269,9 +274,7 @@ export function SessionViewer({
         title={markdownModal?.title}
         size="xl"
       >
-        {markdownModal && (
-          <MarkdownContent content={markdownModal.content} className="markdown-body--wide" />
-        )}
+        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
       </Modal>
 
       {/* Create file dialog */}
@@ -300,6 +303,31 @@ export function SessionViewer({
           </button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function ModalMarkdownWrapper({ content }: { content: string }) {
+  const { copied, copy } = useCopy(2000);
+  return (
+    <div className="relative group">
+      <button
+        type="button"
+        onClick={() => copy(content)}
+        className="absolute top-0 right-0 z-10 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
+        title="Copy"
+      >
+        {copied ? (
+          <svg className="size-3 text-emerald-400" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+          </svg>
+        ) : (
+          <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1 2.75C1 1.784 1.784 1 2.75 1h6.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v7.25c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 0 1 4.25 13.25v-1.5h-1.5A1.75 1.75 0 0 1 1 10V2.75Zm8.5 0a.25.25 0 0 0-.25-.25h-6.5a.25.25 0 0 0-.25.25V10c0 .138.112.25.25.25h1.5V5.75c0-.966.784-1.75 1.75-1.75h3.5V2.75Zm-3 3a.25.25 0 0 0-.25.25v7.25c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25h-6.5Z" />
+          </svg>
+        )}
+      </button>
+      <MarkdownContent content={content} className="markdown-body--wide" />
     </div>
   );
 }
