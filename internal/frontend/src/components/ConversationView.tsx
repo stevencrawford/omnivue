@@ -2,12 +2,66 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
-import { shouldShowStepContent } from "../utils/toolDisplay";
+import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { workerFactory } from "../utils/workerFactory";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
 import { useSessionNav } from "../hooks/useNav";
+
+const MARKER_COLORS: Record<string, string> = {
+  "user-request": "#58a6ff",
+  edit: "#22c55e",
+  read: "#06b6d4",
+  bash: "#eab308",
+  "task-complete": "#10b981",
+  plan: "#a855f7",
+  question: "#f97316",
+  search: "#8b5cf6",
+  web: "#ec4899",
+  todowrite: "#f59e0b",
+  delete: "#ef4444",
+  "assistant-text": "#8b949e",
+  "sub-agent": "#f472b6",
+  tool: "#6b7280",
+};
+
+const MARKER_DISPLAY_LABELS: Record<string, string> = {
+  "user-request": "User requests",
+  edit: "Edits",
+  read: "Reads",
+  bash: "Shell",
+  "task-complete": "Task complete",
+  plan: "Plans",
+  question: "Questions",
+  search: "Search",
+  web: "Web",
+  todowrite: "Todo",
+  delete: "Deletes",
+  "assistant-text": "Assistant Message",
+  "sub-agent": "Sub-agent",
+  tool: "Other",
+};
+
+function markerDisplayType(kind: string): string {
+  if (
+    kind === "user-request" ||
+    kind === "assistant-text" ||
+    kind === "bash" ||
+    kind === "read" ||
+    kind === "question" ||
+    kind === "todowrite" ||
+    kind === "delete"
+  )
+    return kind;
+  if (kind === "edit" || kind === "write") return "edit";
+  if (kind === "task_complete" || kind === "task-complete") return "task-complete";
+  if (kind === "task") return "sub-agent";
+  if (kind === "exit_plan_mode") return "plan";
+  if (kind === "grep" || kind === "glob" || kind === "codesearch") return "search";
+  if (kind === "webfetch" || kind === "websearch") return "web";
+  return "tool";
+}
 
 function groupMessages(messages: Message[]): Message[] {
   const result: Message[] = [];
@@ -100,10 +154,14 @@ export function ConversationView({
   }, [messages.length, session.id, scrollPositions]);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const onScroll = () => setShowScrollTop(el.scrollTop > 200);
+    const onScroll = () => {
+      setShowScrollTop(el.scrollTop > 200);
+      setShowScrollBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
+    };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
@@ -114,12 +172,31 @@ export function ConversationView({
     if (!el) return;
     requestAnimationFrame(() => {
       setShowScrollTop(el.scrollTop > 200);
+      setShowScrollBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
     });
   }, [messages.length]);
 
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const scrollToBottom = () => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
+
+  const [markerPositions, setMarkerPositions] = useState<Record<string, number>>({});
+  const [markerFilterOpen, setMarkerFilterOpen] = useState(false);
+  const [hiddenMarkerTypes, setHiddenMarkerTypes] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("sess-marker-filters");
+      if (stored) return new Set(JSON.parse(stored));
+    } catch {}
+    return new Set();
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sess-marker-filters", JSON.stringify([...hiddenMarkerTypes]));
+  }, [hiddenMarkerTypes]);
 
   const firstMessage = messages[0];
   const tail = messages.slice(1);
@@ -133,6 +210,77 @@ export function ConversationView({
     () => grouped.filter((m) => m.role !== "system" || m.metadata?.type !== "system_reminder"),
     [grouped],
   );
+
+  const markers = useMemo(() => {
+    const result: Array<{
+      id: string;
+      type: string;
+      summary: string;
+      color: string;
+      label: string;
+    }> = [];
+    messagesWithoutReminders.forEach((msg, idx) => {
+      if (msg.role === "user") {
+        result.push({
+          id: `msg-${idx}`,
+          type: "user-request",
+          summary: msg.content?.slice(0, 120) || "",
+          color: MARKER_COLORS["user-request"],
+          label: MARKER_DISPLAY_LABELS["user-request"],
+        });
+        return;
+      }
+      if (msg.role === "assistant") {
+        const tools = (msg.toolCalls ?? []).filter((t) => t.name !== "report_intent");
+        if (tools.length > 0) {
+          const priority = [
+            "task_complete",
+            "task",
+            "edit",
+            "write",
+            "read",
+            "bash",
+            "exit_plan_mode",
+            "question",
+            "grep",
+            "glob",
+            "codesearch",
+            "webfetch",
+            "websearch",
+            "todowrite",
+            "delete",
+          ];
+          const toolKinds = tools.map((t) => effectiveToolKind(t));
+          let dominantKind = "tool";
+          for (const p of priority) {
+            if (toolKinds.includes(p)) {
+              dominantKind = p;
+              break;
+            }
+          }
+          const domToolIdx = toolKinds.indexOf(dominantKind);
+          const domTool = domToolIdx >= 0 ? tools[domToolIdx] : tools[0];
+          const displayType = markerDisplayType(dominantKind);
+          result.push({
+            id: `msg-${idx}`,
+            type: displayType,
+            summary: getToolSummary(domTool, msg.agent),
+            color: MARKER_COLORS[displayType] || MARKER_COLORS["tool"],
+            label: MARKER_DISPLAY_LABELS[displayType] || MARKER_DISPLAY_LABELS["tool"],
+          });
+        } else if (msg.content?.trim()) {
+          result.push({
+            id: `msg-${idx}`,
+            type: "assistant-text",
+            summary: msg.content.slice(0, 120),
+            color: MARKER_COLORS["assistant-text"],
+            label: MARKER_DISPLAY_LABELS["assistant-text"],
+          });
+        }
+      }
+    });
+    return result;
+  }, [messagesWithoutReminders]);
 
   const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -179,6 +327,20 @@ export function ConversationView({
       }
     }
   }, [searchHighlightQuery, messagesWithoutReminders.length]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const positions: Record<string, number> = {};
+    const total = container.scrollHeight || 1;
+    const els = container.querySelectorAll("[data-marker-id]");
+    els.forEach((el) => {
+      const id = el.getAttribute("data-marker-id");
+      if (!id) return;
+      positions[id] = ((el as HTMLElement).offsetTop / total) * 100;
+    });
+    setMarkerPositions(positions);
+  }, [messagesWithoutReminders.length]);
 
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -229,7 +391,10 @@ export function ConversationView({
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-    resizeListeners.current = [["mousemove", handleMouseMove as EventListener], ["mouseup", handleMouseUp as EventListener]];
+    resizeListeners.current = [
+      ["mousemove", handleMouseMove as EventListener],
+      ["mouseup", handleMouseUp as EventListener],
+    ];
   };
 
   if (loading) {
@@ -257,54 +422,173 @@ export function ConversationView({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden mb-3 relative">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden py-3">
-        <WorkerPoolContextProvider
-          poolOptions={{ workerFactory }}
-          highlighterOptions={{
-            theme: { light: "github-light", dark: "github-dark" },
-            langs: [
-              "typescript",
-              "javascript",
-              "tsx",
-              "jsx",
-              "css",
-              "html",
-              "json",
-              "markdown",
-              "go",
-              "python",
-              "rust",
-              "shellscript",
-              "yaml",
-              "sql",
-            ],
-          }}
-        >
-          {systemReminders.length > 0 && (
-            <div className="px-4 pb-2">
-              {systemReminders.map((msg) => (
-                <SystemReminderView
-                  key={msg.id}
-                  content={msg.content}
-                  fileName={msg.metadata?.file || "AGENTS.md"}
-                  onOpenModal={onOpenModal}
-                />
-              ))}
-            </div>
-          )}
-          {messagesWithoutReminders.length === 0 ? (
-            <p className="text-center text-xs text-gh-text-secondary py-8">
-              Agent work appears here as tools run and responses stream in.
-            </p>
-          ) : (
-            messagesWithoutReminders.map((msg, idx) => (
-              <div key={msg.id} data-message-index={idx}>
-                <MessageBlock message={msg} onOpenModal={onOpenModal} />
+    <div className="flex-1 flex flex-col overflow-hidden mb-3">
+      {/* Scroll area wrapper */}
+      <div className="flex-1 relative min-h-0">
+        <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden py-3">
+          <WorkerPoolContextProvider
+            poolOptions={{ workerFactory }}
+            highlighterOptions={{
+              theme: { light: "github-light", dark: "github-dark" },
+              langs: [
+                "typescript",
+                "javascript",
+                "tsx",
+                "jsx",
+                "css",
+                "html",
+                "json",
+                "markdown",
+                "go",
+                "python",
+                "rust",
+                "shellscript",
+                "yaml",
+                "sql",
+              ],
+            }}
+          >
+            {systemReminders.length > 0 && (
+              <div className="px-4 pb-2">
+                {systemReminders.map((msg) => (
+                  <SystemReminderView
+                    key={msg.id}
+                    content={msg.content}
+                    fileName={msg.metadata?.file || "AGENTS.md"}
+                    onOpenModal={onOpenModal}
+                  />
+                ))}
               </div>
-            ))
-          )}
-        </WorkerPoolContextProvider>
+            )}
+            {messagesWithoutReminders.length === 0 ? (
+              <p className="text-center text-xs text-gh-text-secondary py-8">
+                Agent work appears here as tools run and responses stream in.
+              </p>
+            ) : (
+              messagesWithoutReminders.map((msg, idx) => (
+                <div key={msg.id} data-marker-id={`msg-${idx}`} data-message-index={idx}>
+                  <MessageBlock message={msg} onOpenModal={onOpenModal} />
+                </div>
+              ))
+            )}
+          </WorkerPoolContextProvider>
+        </div>
+
+        {showScrollBottom && (
+          <div className="absolute bottom-0 right-14 z-20 pb-3 pointer-events-none">
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="pointer-events-auto size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+              title="Scroll to bottom"
+            >
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 2.25a.75.75 0 0 1 .75.75v8.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-5 5a.75.75 0 0 1-1.06 0l-5-5a.75.75 0 0 1 1.06-1.06l3.72 3.72V3a.75.75 0 0 1 .75-.75Z" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {showScrollTop && (
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="absolute top-2 right-14 z-20 size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+            title="Scroll to top"
+          >
+            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 13.75a.75.75 0 0 1-.75-.75V4.81L3.53 8.53a.75.75 0 0 1-1.06-1.06l5-5a.75.75 0 0 1 1.06 0l5 5a.75.75 0 0 1-1.06 1.06L8.75 4.81V13c0 .414-.336.75-.75.75Z" />
+            </svg>
+          </button>
+        )}
+
+        {markers.length > 0 && (
+          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "48px" }}>
+            <div className="absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 w-3 group-hover:w-12">
+              <div className="relative h-full w-full">
+                {/* Filter toggle */}
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
+                  <div className="relative pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={() => setMarkerFilterOpen((v) => !v)}
+                      className="size-4 flex items-center justify-center rounded text-gh-text-secondary/50 hover:text-gh-text hover:bg-gh-bg-hover transition-colors cursor-pointer"
+                      title="Filter markers"
+                    >
+                      <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M1.5 2.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.197.508L9.75 8.464V13a.75.75 0 0 1-.375.65l-2.5 1.5a.75.75 0 0 1-1.125-.65V8.464L1.697 4.258A.75.75 0 0 1 1.5 3.75v-1.5Z" />
+                      </svg>
+                    </button>
+                    {markerFilterOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setMarkerFilterOpen(false)}
+                        />
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl py-1.5 min-w-36 max-h-60 overflow-y-auto">
+                          {Object.entries(MARKER_DISPLAY_LABELS).map(([type, label]) => (
+                            <label
+                              key={type}
+                              className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-gh-bg-hover transition-colors whitespace-nowrap"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!hiddenMarkerTypes.has(type)}
+                                onChange={() => {
+                                  setHiddenMarkerTypes((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(type)) next.delete(type);
+                                    else next.add(type);
+                                    return next;
+                                  });
+                                }}
+                                className="accent-accent"
+                              />
+                              <span
+                                className="w-2 h-2 rounded-sm shrink-0"
+                                style={{ backgroundColor: MARKER_COLORS[type] }}
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Marker dots */}
+                {markers
+                  .filter((m) => !hiddenMarkerTypes.has(m.type))
+                  .map((m) => {
+                    const pos = markerPositions[m.id];
+                    if (pos === undefined) return null;
+                    return (
+                      <div
+                        key={m.id}
+                        className="absolute cursor-pointer transition-all pointer-events-auto left-1/2 -translate-x-1/2 w-1.5 h-1 rounded-full opacity-30 group-hover:left-0 group-hover:-translate-x-0 group-hover:w-full group-hover:h-0.5 group-hover:rounded-none group-hover:opacity-100 hover:opacity-100 hover:[&>div]:block"
+                        style={{
+                          top: `${Math.max(0, Math.min(100, pos))}%`,
+                          backgroundColor: m.color,
+                        }}
+                        onClick={() => {
+                          const el = scrollRef.current?.querySelector(`[data-marker-id="${m.id}"]`);
+                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                      >
+                        <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden bg-gh-bg-secondary border border-gh-border rounded-md px-2 py-1 text-xs whitespace-nowrap z-30 shadow-lg pointer-events-none">
+                          <div className="font-medium text-[10px] uppercase tracking-wider opacity-60">
+                            {m.label}
+                          </div>
+                          <div className="text-gh-text truncate max-w-56">{m.summary}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div
@@ -401,19 +685,6 @@ export function ConversationView({
           </div>
         )}
       </div>
-
-      {showScrollTop && (
-        <button
-          type="button"
-          onClick={scrollToTop}
-          className="absolute top-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
-          title="Scroll to top"
-        >
-          <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 13.75a.75.75 0 0 1-.75-.75V4.81L3.53 8.53a.75.75 0 0 1-1.06-1.06l5-5a.75.75 0 0 1 1.06 0l5 5a.75.75 0 0 1-1.06 1.06L8.75 4.81V13c0 .414-.336.75-.75.75Z" />
-          </svg>
-        </button>
-      )}
     </div>
   );
 }
