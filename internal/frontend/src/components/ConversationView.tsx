@@ -198,6 +198,18 @@ export function ConversationView({
     localStorage.setItem("sess-marker-filters", JSON.stringify([...hiddenMarkerTypes]));
   }, [hiddenMarkerTypes]);
 
+  const filterRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!markerFilterOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setMarkerFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [markerFilterOpen]);
+
   const firstMessage = messages[0];
   const tail = messages.slice(1);
   const grouped = useMemo(() => groupMessages(tail), [tail]);
@@ -507,7 +519,7 @@ export function ConversationView({
             <div className={`absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 ${markerFilterOpen ? 'w-12' : 'w-3 group-hover:w-12'}`}>
               <div className="relative h-full w-full">
                 {/* Filter toggle */}
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
+                <div ref={filterRef} className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
                   <div className="relative pointer-events-auto">
                     <button
                       type="button"
@@ -520,39 +532,46 @@ export function ConversationView({
                       </svg>
                     </button>
                     {markerFilterOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setMarkerFilterOpen(false)}
-                        />
-                        <div className="absolute right-full top-0 mr-2 z-50 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl py-1.5 min-w-36 max-h-60 overflow-y-auto">
-                          {Object.entries(MARKER_DISPLAY_LABELS).map(([type, label]) => (
-                            <label
-                              key={type}
-                              className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-gh-bg-hover transition-colors whitespace-nowrap"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={!hiddenMarkerTypes.has(type)}
-                                onChange={() => {
-                                  setHiddenMarkerTypes((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(type)) next.delete(type);
-                                    else next.add(type);
-                                    return next;
-                                  });
-                                }}
-                                className="accent-accent"
-                              />
-                              <span
-                                className="w-2 h-2 rounded-sm shrink-0"
-                                style={{ backgroundColor: MARKER_COLORS[type] }}
-                              />
-                              {label}
-                            </label>
-                          ))}
-                        </div>
-                      </>
+                      <div className="absolute right-full top-0 mr-2 z-50 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl min-w-36 max-h-60 overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHiddenMarkerTypes(
+                              hiddenMarkerTypes.size > 0
+                                ? new Set()
+                                : new Set(Object.keys(MARKER_DISPLAY_LABELS)),
+                            );
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover transition-colors cursor-pointer border-b border-gh-border"
+                        >
+                          {hiddenMarkerTypes.size > 0 ? "Select all" : "Deselect all"}
+                        </button>
+                        {Object.entries(MARKER_DISPLAY_LABELS).map(([type, label]) => (
+                          <label
+                            key={type}
+                            className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-gh-bg-hover transition-colors whitespace-nowrap"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!hiddenMarkerTypes.has(type)}
+                              onChange={() => {
+                                setHiddenMarkerTypes((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(type)) next.delete(type);
+                                  else next.add(type);
+                                  return next;
+                                });
+                              }}
+                              className="accent-accent"
+                            />
+                            <span
+                              className="w-2 h-2 rounded-sm shrink-0"
+                              style={{ backgroundColor: MARKER_COLORS[type] }}
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
