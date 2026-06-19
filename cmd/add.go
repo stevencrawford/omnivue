@@ -30,7 +30,7 @@ By default, sess will auto-detect the agent type. Use --type to force.`,
 }
 
 func init() {
-	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor)")
+	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor, pi)")
 	rootCmd.AddCommand(addCmd)
 }
 
