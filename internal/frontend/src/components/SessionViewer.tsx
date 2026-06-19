@@ -240,12 +240,13 @@ export function SessionViewer({
             sessionId={session.id}
             sessionDirectory={session.directory}
             refreshKey={refreshKey}
+            searchHighlightQuery={searchHighlightQuery}
           />
         </div>
       )}
       {activeTab === "plan" && (
         <div className="flex-1 overflow-y-auto">
-          <PlanView sessionId={session.id} refreshKey={refreshKey} />
+          <PlanView sessionId={session.id} refreshKey={refreshKey} searchHighlightQuery={searchHighlightQuery} />
         </div>
       )}
       {isScratchTab(activeTab) &&

@@ -9,6 +9,7 @@ interface DiffViewProps {
   sessionId: string;
   sessionDirectory?: string;
   refreshKey: number;
+  searchHighlightQuery?: string | null;
 }
 
 interface MergedFileDiff {
@@ -351,7 +352,7 @@ function relativizePath(filePath: string, directory: string | undefined): string
   return filePath;
 }
 
-export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewProps) {
+export function DiffView({ sessionId, sessionDirectory, refreshKey, searchHighlightQuery }: DiffViewProps) {
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -424,6 +425,20 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
       setSelectedPath(mergedDiffs[0].path);
     }
   }, [mergedDiffs, selectedPath]);
+
+  // Auto-select and highlight first diff file matching search query
+  useEffect(() => {
+    if (!searchHighlightQuery || mergedDiffs.length === 0) return;
+    const q = searchHighlightQuery.toLowerCase();
+    const match = mergedDiffs.find(
+      (d) =>
+        d.path.toLowerCase().includes(q) ||
+        d.patch.toLowerCase().includes(q),
+    );
+    if (match) {
+      setSelectedPath(match.path);
+    }
+  }, [searchHighlightQuery, mergedDiffs]);
 
   const stats = useMemo(() => {
     let additions = 0,
