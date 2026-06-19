@@ -186,17 +186,7 @@ export function ConversationView({
 
   const [markerPositions, setMarkerPositions] = useState<Record<string, number>>({});
   const [markerFilterOpen, setMarkerFilterOpen] = useState(false);
-  const [hiddenMarkerTypes, setHiddenMarkerTypes] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem("sess-marker-filters");
-      if (stored) return new Set(JSON.parse(stored));
-    } catch {}
-    return new Set();
-  });
-
-  useEffect(() => {
-    localStorage.setItem("sess-marker-filters", JSON.stringify([...hiddenMarkerTypes]));
-  }, [hiddenMarkerTypes]);
+  const [hiddenMarkerTypes, setHiddenMarkerTypes] = useState<Set<string>>(new Set());
 
   const filterRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
