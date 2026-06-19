@@ -1,6 +1,6 @@
 # sess
 
-**sess** is a CLI tool that watches AI coding agent sessions — [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), and [Pi](https://pi.ai) — and presents them in a browser UI for easy browsing, searching, and management. A Go HTTP server embeds a React SPA as a single binary.
+**sess** is an AI session manager for [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), and [Pi](https://pi.ai). All your sessions, visible in one place.
 
 ## Features
 
