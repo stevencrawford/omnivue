@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { ToolCall } from "../../hooks/useApi";
-import { File, FileDiff } from "@pierre/diffs/react";
-import { parseDiffFromFile } from "@pierre/diffs";
+import { detectLanguage } from "../../utils/detectLanguage";
+import { computeDiff } from "../../utils/diff";
+import { PatchRenderer, FileRenderer } from "../DiffRenderer";
 
 interface EditInput {
   path?: string;
@@ -13,38 +14,6 @@ interface EditInput {
   newString?: string;
   content?: string;
   view_range?: [number, number];
-}
-
-function detectLanguage(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase() || "";
-  const langMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    json: "json",
-    md: "markdown",
-    css: "css",
-    html: "html",
-    go: "go",
-    py: "python",
-    rs: "rust",
-    rb: "ruby",
-    java: "java",
-    yml: "yaml",
-    yaml: "yaml",
-    toml: "toml",
-    sh: "shellscript",
-    bash: "shellscript",
-    sql: "sql",
-    graphql: "graphql",
-    vue: "vue",
-    svelte: "svelte",
-    c: "c",
-    cpp: "cpp",
-    h: "c",
-  };
-  return langMap[ext] || "";
 }
 
 export function EditToolDiff({ tool }: { tool: ToolCall }) {
@@ -70,24 +39,6 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
   // Skip expensive diff computation for very large files — just show the new content.
   const skipDiff = (oldStr && oldStr.length > 20000) || (newStr && newStr.length > 20000);
 
-  let fileDiffMetadata: ReturnType<typeof parseDiffFromFile> | null = null;
-  if (!isAddition && oldStr && newStr && !skipDiff) {
-    try {
-      fileDiffMetadata = parseDiffFromFile(
-        { name: filePath, contents: oldStr, lang },
-        { name: filePath, contents: newStr, lang },
-      );
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const baseOptions = {
-    disableLineNumbers: false,
-    disableFileHeader: true,
-    theme: { light: "github-light" as const, dark: "github-dark" as const },
-  };
-
   const displayContent = newStr || content;
   const totalLines = displayContent ? displayContent.split("\n").length : 0;
   const isOverLimit = totalLines > MAX_LINES;
@@ -95,6 +46,21 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
     !expanded && isOverLimit
       ? displayContent.split("\n").slice(0, MAX_LINES).join("\n")
       : displayContent;
+
+  let diffPatch: string | null = null;
+  if (!isAddition && oldStr && newStr && !skipDiff) {
+    try {
+      const hunks = computeDiff(oldStr, newStr);
+      if (hunks.length > 0) {
+        const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
+        diffPatch = header + hunks.flatMap(h => h.lines).join("\n") + "\n";
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const showFile = !diffPatch && !!displayContent;
 
   return (
     <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
@@ -109,15 +75,12 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
           </span>
         )}
       </div>
-      {fileDiffMetadata ? (
+      {diffPatch ? (
         <div className={!expanded && isOverLimit ? "max-h-[440px] overflow-hidden" : ""}>
-          <FileDiff
-            fileDiff={fileDiffMetadata}
-            options={{ ...baseOptions, diffStyle: "unified" as const }}
-          />
+          <PatchRenderer patch={diffPatch} lang={lang} />
         </div>
-      ) : displayContent ? (
-        <File file={{ name: filePath, contents: truncatedContent, lang }} options={baseOptions} />
+      ) : showFile ? (
+        <FileRenderer content={truncatedContent} lang={lang} />
       ) : null}
       {isOverLimit && (
         <div className="text-center border-t border-accent-border">

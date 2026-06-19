@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PatchDiff } from "@pierre/diffs/react";
-import { parseDiffFromFile } from "@pierre/diffs";
 import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
-import { trimTrailingNewline } from "../utils/trimTrailingNewline";
+import { computeDiff } from "../utils/diff";
+import { PatchRenderer } from "./DiffRenderer";
+import { detectLanguage } from "../utils/detectLanguage";
 
 interface DiffViewProps {
   sessionId: string;
@@ -40,93 +40,19 @@ interface FileTreeNode {
 const DIFF_TREE_WIDTH_KEY = "sess-diff-tree-width";
 
 function extractHunks(
-  filePath: string,
+  _filePath: string,
   oldContent: string,
   newContent: string,
-  lang: string,
+  _lang: string,
 ): ExtractedHunk[] {
   try {
-    const meta = parseDiffFromFile(
-      { name: filePath, contents: oldContent, lang },
-      { name: filePath, contents: newContent, lang },
-    );
-
-    const result: ExtractedHunk[] = [];
-    for (const hunk of meta.hunks) {
-      const lines: string[] = [];
-      const delLines = meta.deletionLines;
-      const addLines = meta.additionLines;
-      let delIdx = hunk.deletionLineIndex;
-      let addIdx = hunk.additionLineIndex;
-
-      let header = `@@ -${hunk.deletionStart},${hunk.deletionCount} +${hunk.additionStart},${hunk.additionCount} @@`;
-      if (hunk.hunkContext) header += " " + hunk.hunkContext;
-      lines.push(header);
-
-      for (const content of hunk.hunkContent) {
-        if (content.type === "context") {
-          for (let i = 0; i < content.lines; i++) {
-            lines.push(" " + trimTrailingNewline(delLines[delIdx]));
-            delIdx++;
-            addIdx++;
-          }
-        } else {
-          for (let i = 0; i < content.deletions; i++) {
-            lines.push("-" + trimTrailingNewline(delLines[delIdx]));
-            delIdx++;
-          }
-          for (let i = 0; i < content.additions; i++) {
-            lines.push("+" + trimTrailingNewline(addLines[addIdx]));
-            addIdx++;
-          }
-        }
-      }
-
-      result.push({
-        deletionStart: hunk.deletionStart,
-        deletionCount: hunk.deletionCount,
-        additionStart: hunk.additionStart,
-        additionCount: hunk.additionCount,
-        lines,
-      });
-    }
-    return result;
+    return computeDiff(oldContent, newContent);
   } catch {
     return [];
   }
 }
 
-function detectLanguage(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase() || "";
-  const langMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    json: "json",
-    md: "markdown",
-    css: "css",
-    html: "html",
-    go: "go",
-    py: "python",
-    rs: "rust",
-    rb: "ruby",
-    java: "java",
-    yml: "yaml",
-    yaml: "yaml",
-    toml: "toml",
-    sh: "shellscript",
-    bash: "shellscript",
-    sql: "sql",
-    graphql: "graphql",
-    vue: "vue",
-    svelte: "svelte",
-    c: "c",
-    cpp: "cpp",
-    h: "c",
-  };
-  return langMap[ext] || "";
-}
+
 
 function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   const allHunks: ExtractedHunk[] = [];
@@ -620,14 +546,10 @@ export function DiffView({ sessionId, sessionDirectory, refreshKey }: DiffViewPr
           {selectedDiff && selectedDiff.patch ? (
             <div className="p-4 space-y-3">
               {selectedDiff.perHunkPatches.map((hunkPatch, i) => (
-                <PatchDiff
+                <PatchRenderer
                   key={i}
                   patch={hunkPatch}
-                  options={{
-                    theme: { light: "github-light", dark: "github-dark" },
-                    diffStyle: "unified",
-                    disableFileHeader: false,
-                  }}
+                  lang={detectLanguage(selectedDiff.path)}
                 />
               ))}
             </div>

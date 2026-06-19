@@ -3,8 +3,7 @@ import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
 import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
-import { WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { workerFactory } from "../utils/workerFactory";
+
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
 import { useSessionNav } from "../hooks/useNav";
@@ -428,29 +427,7 @@ export function ConversationView({
       {/* Scroll area wrapper */}
       <div className="flex-1 relative min-h-0">
         <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden py-3">
-          <WorkerPoolContextProvider
-            poolOptions={{ workerFactory }}
-            highlighterOptions={{
-              theme: { light: "github-light", dark: "github-dark" },
-              langs: [
-                "typescript",
-                "javascript",
-                "tsx",
-                "jsx",
-                "css",
-                "html",
-                "json",
-                "markdown",
-                "go",
-                "python",
-                "rust",
-                "shellscript",
-                "yaml",
-                "sql",
-              ],
-            }}
-          >
-            {systemReminders.length > 0 && (
+          {systemReminders.length > 0 && (
               <div className="px-4 pb-2">
                 {systemReminders.map((msg) => (
                   <SystemReminderView
@@ -473,7 +450,6 @@ export function ConversationView({
                 </div>
               ))
             )}
-          </WorkerPoolContextProvider>
         </div>
 
         {showScrollBottom && (

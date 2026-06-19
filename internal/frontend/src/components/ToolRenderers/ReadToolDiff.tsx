@@ -1,38 +1,7 @@
 import { useState } from "react";
 import type { ToolCall } from "../../hooks/useApi";
-import { File } from "@pierre/diffs/react";
-
-function detectLanguage(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase() || "";
-  const langMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    json: "json",
-    md: "markdown",
-    css: "css",
-    html: "html",
-    go: "go",
-    py: "python",
-    rs: "rust",
-    rb: "ruby",
-    java: "java",
-    yml: "yaml",
-    yaml: "yaml",
-    toml: "toml",
-    sh: "shellscript",
-    bash: "shellscript",
-    sql: "sql",
-    graphql: "graphql",
-    vue: "vue",
-    svelte: "svelte",
-    c: "c",
-    cpp: "cpp",
-    h: "c",
-  };
-  return langMap[ext] || "";
-}
+import { detectLanguage } from "../../utils/detectLanguage";
+import { FileRenderer } from "../DiffRenderer";
 
 interface ReadInput {
   filePath?: string;
@@ -69,12 +38,6 @@ export function ReadToolDiff({ tool }: { tool: ToolCall }) {
 
   const baseName = filePath.split("/").pop() || filePath;
 
-  const baseOptions = {
-    disableLineNumbers: false,
-    disableFileHeader: true,
-    theme: { light: "github-light" as const, dark: "github-dark" as const },
-  };
-
   return (
     <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
       <button
@@ -102,7 +65,7 @@ export function ReadToolDiff({ tool }: { tool: ToolCall }) {
         )}
       </button>
       {expanded && cleanContent && (
-        <File file={{ name: filePath, contents: cleanContent, lang }} options={baseOptions} />
+        <FileRenderer content={cleanContent} lang={lang} />
       )}
     </div>
   );
