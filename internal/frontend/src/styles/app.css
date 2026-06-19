@@ -776,3 +776,18 @@ body {
     max-width: 980px !important;
   }
 }
+
+/* ─── Search Results Drawer ─────────────────────────────────────── */
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.2s ease-out;
+}

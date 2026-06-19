@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SearchResult } from "../hooks/useApi";
 import { fetchSearch } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
+import { renderSnippet } from "../utils/searchUtils";
 
 interface SearchPanelProps {
   query: string;
   onQueryChange: (q: string) => void;
   onSelectSession: (sessionId: string, chunkType: string, query: string) => void;
+  onOpenDrawer: (query: string) => void;
   onClose: () => void;
   searchScope: string | null;
   searchScopeName: string | null;
@@ -25,25 +27,6 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   },
 };
 
-function renderSnippet(snippet: string): React.ReactNode[] {
-  const doc = new DOMParser().parseFromString(snippet, "text/html");
-  const parts: React.ReactNode[] = [];
-  let key = 0;
-  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ALL, null);
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    if (node.nodeType === Node.TEXT_NODE) {
-      parts.push(node.textContent || "");
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as Element;
-      if (el.tagName.toLowerCase() === "mark") {
-        parts.push(<mark key={key++}>{el.textContent || ""}</mark>);
-      }
-    }
-  }
-  return parts;
-}
-
 type Section = {
   chunkType: string;
   label: string;
@@ -56,6 +39,7 @@ export function SearchPanel({
   query,
   onQueryChange,
   onSelectSession,
+  onOpenDrawer,
   onClose,
   searchScope,
   searchScopeName,
@@ -66,6 +50,8 @@ export function SearchPanel({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userNavigated = useRef(false);
+  const [hasNavigated, setHasNavigated] = useState(false);
 
   const sections: Section[] = useMemo(() => {
     const groups = new Map<string, SearchResult[]>();
@@ -93,8 +79,19 @@ export function SearchPanel({
   const totalResults = results.length;
 
   useEffect(() => {
+    setHasNavigated(false);
+    userNavigated.current = false;
+  }, [results]);
+
+  useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (query.trim()) {
+      doSearch(query);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doSearch = useCallback(
     async (q: string) => {
@@ -120,6 +117,8 @@ export function SearchPanel({
     const val = e.target.value;
     onQueryChange(val);
     setSelectedIndex(0);
+    userNavigated.current = false;
+    setHasNavigated(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(val), 300);
   };
@@ -131,16 +130,24 @@ export function SearchPanel({
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      userNavigated.current = true;
+      setHasNavigated(true);
       setSelectedIndex((i) => Math.min(i + 1, totalResults - 1));
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
+      userNavigated.current = true;
+      setHasNavigated(true);
       setSelectedIndex((i) => Math.max(i - 1, 0));
       return;
     }
-    if (e.key === "Enter" && results[selectedIndex]) {
-      onSelectSession(results[selectedIndex].sessionId, results[selectedIndex].chunkType, query);
+    if (e.key === "Enter") {
+      if (userNavigated.current && results[selectedIndex]) {
+        onSelectSession(results[selectedIndex].sessionId, results[selectedIndex].chunkType, query);
+      } else if (results.length > 0) {
+        onOpenDrawer(query);
+      }
     }
   };
 
@@ -237,6 +244,11 @@ export function SearchPanel({
                         onClick={() => onSelectSession(r.sessionId, r.chunkType, query)}
                       >
                         <div className="flex items-center gap-2 mb-1">
+                          {r.chunkType !== "name" && r.sessionName && (
+                            <span className="text-[11px] font-semibold text-gh-text truncate">
+                              {r.sessionName}
+                            </span>
+                          )}
                           {r.repository && (
                             <span className="text-[11px] font-mono text-gh-text-secondary truncate">
                               {r.repository}
@@ -259,6 +271,13 @@ export function SearchPanel({
             {!loading && !query && (
               <div className="text-xs text-gh-text-secondary p-6 text-center leading-relaxed">
                 Search across conversations, tool calls, and plan content
+              </div>
+            )}
+            {!loading && query && totalResults > 0 && !hasNavigated && (
+              <div className="sticky bottom-0 px-3 py-2 border-t border-gh-border bg-gh-bg-secondary/80 backdrop-blur-sm text-center">
+                <span className="text-[11px] text-gh-text-secondary">
+                  Press <span className="sess-kbd mx-0.5">Enter</span> to open results panel
+                </span>
               </div>
             )}
           </div>

@@ -4,15 +4,17 @@ import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchPanel } from "./components/SearchPanel";
+import { SearchResultsDrawer } from "./components/SearchResultsDrawer";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
-import type { Session } from "./hooks/useApi";
+import type { Session, SearchResult } from "./hooks/useApi";
 import {
   fetchSessions,
+  fetchSearch,
   createScratchFile,
   deleteScratchFile,
   renameScratchFile,
@@ -33,6 +35,9 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchSessionScope, setSearchSessionScope] = useState<string | null>(null);
   const [searchHighlightQuery, setSearchHighlightQuery] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerQuery, setDrawerQuery] = useState("");
+  const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollPositions = useRef(new Map<string, number>());
@@ -78,6 +83,10 @@ export function App() {
 
       if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
         e.preventDefault();
+        if (drawerOpen) {
+          setDrawerOpen(false);
+          setDrawerResults([]);
+        }
         setSearchOpen((v) => {
           if (!v) {
             setSearchSessionScope(activeSessionId);
@@ -86,12 +95,19 @@ export function App() {
         });
         return;
       }
-      if (e.key === "Escape" && searchOpen) {
-        setSearchOpen(false);
-        return;
+      if (e.key === "Escape") {
+        if (drawerOpen) {
+          setDrawerOpen(false);
+          setDrawerResults([]);
+          return;
+        }
+        if (searchOpen) {
+          setSearchOpen(false);
+          return;
+        }
       }
 
-      if (searchOpen) return;
+      if (searchOpen || drawerOpen) return;
 
       if ((e.metaKey || e.ctrlKey) && !isInput) {
         const tabMap: Record<string, Tab> = {
@@ -131,7 +147,7 @@ export function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [searchOpen, sessions]);
+  }, [searchOpen, sessions, drawerOpen, activeSessionId]);
 
   useSSE({
     onUpdate: () => {
@@ -275,10 +291,44 @@ export function App() {
 
   const handleSearchSelect = useCallback((sessionId: string, chunkType: string, query: string) => {
     setActiveSessionId(sessionId);
-    setActiveTab(chunkType === "plan" ? "plan" : "session");
+    const tabMap: Record<string, Tab> = {
+      name: "session",
+      messages: "session",
+      plan: "plan",
+    };
+    setActiveTab(tabMap[chunkType] || "session");
     setSearchHighlightQuery(query || null);
     setSearchOpen(false);
+    setDrawerOpen(false);
   }, []);
+
+  const handleSearchOpenDrawer = useCallback(async (q: string) => {
+    try {
+      const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined);
+      setDrawerQuery(q);
+      setDrawerResults(data || []);
+      setDrawerOpen(true);
+      setSearchOpen(false);
+    } catch {
+      setDrawerResults([]);
+    }
+  }, [searchSessionScope]);
+
+  const handleDrawerClose = useCallback(() => {
+    setDrawerOpen(false);
+    setDrawerResults([]);
+  }, []);
+
+  const handleDrawerClearScope = useCallback(() => {
+    setSearchSessionScope(null);
+    if (drawerQuery.trim()) {
+      fetchSearch(drawerQuery.trim(), 100).then((data) => {
+        setDrawerResults(data || []);
+      }).catch(() => {
+        setDrawerResults([]);
+      });
+    }
+  }, [drawerQuery]);
 
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
@@ -334,6 +384,7 @@ export function App() {
             query={searchQuery}
             onQueryChange={setSearchQuery}
             onSelectSession={handleSearchSelect}
+            onOpenDrawer={handleSearchOpenDrawer}
             onClose={() => setSearchOpen(false)}
             searchScope={searchSessionScope}
             searchScopeName={(() => {
@@ -344,6 +395,19 @@ export function App() {
             onClearScope={() => setSearchSessionScope(null)}
           />
         )}
+        <SearchResultsDrawer
+          isOpen={drawerOpen}
+          query={drawerQuery}
+          results={drawerResults}
+          onSelect={handleSearchSelect}
+          onClose={handleDrawerClose}
+          searchScopeName={(() => {
+            if (!searchSessionScope) return null;
+            const s = sessions.find((s) => s.id === searchSessionScope);
+            return s?.title || s?.repository || null;
+          })()}
+          onClearScope={handleDrawerClearScope}
+        />
 
         <SessionNavContext.Provider
           value={{
