@@ -11,7 +11,7 @@ import { useSessionNav } from "../hooks/useNav";
 
 const MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
-  edit: "#22c55e",
+  edit: "#ef4444",
   read: "#06b6d4",
   bash: "#eab308",
   "task-complete": "#10b981",
@@ -503,7 +503,7 @@ export function ConversationView({
         )}
 
         {markers.length > 0 && (
-          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "48px" }}>
+          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "48px" }} onMouseLeave={() => setMarkerFilterOpen(false)}>
             <div className="absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 w-3 group-hover:w-12">
               <div className="relative h-full w-full">
                 {/* Filter toggle */}
@@ -522,10 +522,10 @@ export function ConversationView({
                     {markerFilterOpen && (
                       <>
                         <div
-                          className="fixed inset-0 z-10"
+                          className="fixed inset-0 z-40"
                           onClick={() => setMarkerFilterOpen(false)}
                         />
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl py-1.5 min-w-36 max-h-60 overflow-y-auto">
+                        <div className="absolute right-full top-0 mr-2 z-50 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl py-1.5 min-w-36 max-h-60 overflow-y-auto">
                           {Object.entries(MARKER_DISPLAY_LABELS).map(([type, label]) => (
                             <label
                               key={type}
