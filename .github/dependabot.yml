@@ -16,7 +16,7 @@ updates:
       include: "scope"
     open-pull-requests-limit: 10
     assignees:
-      - "k1LoW"
+      - "stevencrawford"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -33,7 +33,7 @@ updates:
       include: "scope"
     open-pull-requests-limit: 10
     assignees:
-      - "k1LoW"
+      - "stevencrawford"
 
   - package-ecosystem: "npm"
     directory: "/internal/frontend"
@@ -50,4 +50,4 @@ updates:
       include: "scope"
     open-pull-requests-limit: 10
     assignees:
-      - "k1LoW"
+      - "stevencrawford"

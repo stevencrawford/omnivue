@@ -29,7 +29,7 @@ func Dir() (string, error) {
 	return filepath.Join(stateHome, "sess", "log"), nil
 }
 
-// Setup configures slog to write to a rotating log file under XDG_STATE_HOME/mo/log/.
+// Setup configures slog to write to a rotating log file under XDG_STATE_HOME/sess/log/.
 // Returns a cleanup function that closes the log file.
 func Setup(port int) (func(), error) {
 	dir, err := Dir()

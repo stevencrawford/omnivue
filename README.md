@@ -213,3 +213,7 @@ $ go test ./...     # Run Go tests only
 ## License
 
 MIT License — see [LICENSE](LICENSE).
+
+## Acknowledgements
+
+sess is a fork of [mo](https://github.com/k1LoW/mo) by [Ken'ichiro Oyama (k1LoW)](https://github.com/k1LoW). The original project was adapted from a Markdown viewer into an AI session manager. We're grateful for the excellent architecture and infrastructure that made this possible.
