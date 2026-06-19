@@ -74,6 +74,7 @@ export function SessionViewer({
   const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
     null,
   );
+  const [createFileOpen, setCreateFileOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadMessages = useCallback(async () => {
@@ -210,9 +211,9 @@ export function SessionViewer({
             <div className="w-px h-4 bg-gh-border mx-1 shrink-0" />
             <button
               type="button"
-              onClick={onNewScratchFile}
+              onClick={() => setCreateFileOpen(true)}
               className="sess-tab-pill text-gh-text-secondary hover:text-gh-text shrink-0"
-              title="New scratch file"
+              title="New file"
             >
               <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
@@ -270,6 +271,33 @@ export function SessionViewer({
         {markdownModal && (
           <MarkdownContent content={markdownModal.content} className="markdown-body--wide" />
         )}
+      </Modal>
+
+      {/* Create file dialog */}
+      <Modal
+        isOpen={createFileOpen}
+        onClose={() => setCreateFileOpen(false)}
+        title="Create new file"
+        size="md"
+      >
+        <div className="p-3 space-y-1">
+          <button
+            type="button"
+            onClick={() => {
+              setCreateFileOpen(false);
+              onNewScratchFile?.();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gh-text hover:bg-gh-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
+          >
+            <svg className="size-5 shrink-0 text-accent" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 2.75C2 1.784 2.784 1 3.75 1h5.5c.966 0 1.75.784 1.75 1.75v1.5h1.5c.966 0 1.75.784 1.75 1.75v6.25c0 .966-.784 1.75-1.75 1.75h-8.5A1.75 1.75 0 0 1 2 12.25V2.75Zm8.5 3.5v-1.5a.25.25 0 0 0-.25-.25h-5.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h.5v-4.25c0-.966.784-1.75 1.75-1.75h3.5v-.25Zm.75 0h-3.5a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h4.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25Z" />
+            </svg>
+            <div className="flex flex-col">
+              <span className="font-medium">Markdown</span>
+              <span className="text-[11px] text-gh-text-secondary">.md — Rich text file</span>
+            </div>
+          </button>
+        </div>
       </Modal>
     </div>
   );
