@@ -503,8 +503,8 @@ export function ConversationView({
         )}
 
         {markers.length > 0 && (
-          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "48px" }} onMouseLeave={() => setMarkerFilterOpen(false)}>
-            <div className="absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 w-3 group-hover:w-12">
+          <div className="absolute right-0 top-0 bottom-0 z-10 group" style={{ width: "48px" }}>
+            <div className={`absolute right-0 top-0 bottom-0 pointer-events-none transition-all duration-150 ${markerFilterOpen ? 'w-12' : 'w-3 group-hover:w-12'}`}>
               <div className="relative h-full w-full">
                 {/* Filter toggle */}
                 <div className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
@@ -564,9 +564,9 @@ export function ConversationView({
                     const pos = markerPositions[m.id];
                     if (pos === undefined) return null;
                     return (
-                      <div
-                        key={m.id}
-                        className="absolute cursor-pointer transition-all pointer-events-auto left-1/2 -translate-x-1/2 w-1.5 h-1 rounded-full opacity-30 group-hover:left-0 group-hover:-translate-x-0 group-hover:w-full group-hover:h-0.5 group-hover:rounded-none group-hover:opacity-100 hover:opacity-100 hover:[&>div]:block"
+                        <div
+                          key={m.id}
+                          className={`absolute cursor-pointer transition-all pointer-events-auto ${markerFilterOpen ? 'left-0 -translate-x-0 w-full h-0.5 rounded-none opacity-100' : 'left-1/2 -translate-x-1/2 w-1.5 h-1 rounded-full opacity-30 group-hover:left-0 group-hover:-translate-x-0 group-hover:w-full group-hover:h-0.5 group-hover:rounded-none group-hover:opacity-100'} hover:opacity-100 hover:[&>div]:block`}
                         style={{
                           top: `${Math.max(0, Math.min(100, pos))}%`,
                           backgroundColor: m.color,
