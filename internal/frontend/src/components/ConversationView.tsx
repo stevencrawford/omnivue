@@ -9,7 +9,6 @@ import {
   Check,
   Copy,
   Info,
-  File,
   TriangleAlert,
   CircleCheckBig,
 } from "lucide-react";
@@ -20,8 +19,11 @@ import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../uti
 
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
+import { FileRenderer } from "./DiffRenderer";
+import { CopyButton } from "./CopyButton";
 import { useSessionNav } from "../hooks/useNav";
 import { useCopy } from "../hooks/useCopy";
+import { detectLanguage } from "../utils/detectLanguage";
 
 const MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
@@ -747,16 +749,18 @@ function CollapsibleBlock({
   icon,
   className,
   onOpenModal,
+  defaultCollapsed = false,
 }: {
   content: string;
   label: string;
   icon: ReactNode;
   className?: string;
   onOpenModal?: (content: string, title?: string) => void;
+  defaultCollapsed?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!defaultCollapsed);
   const lines = content.split("\n");
-  const isLong = lines.length > 20;
+  const isLong = defaultCollapsed || lines.length > 20;
   const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
 
   return (
@@ -765,24 +769,61 @@ function CollapsibleBlock({
         {icon}
         <span className="font-semibold text-[11px]">{label}</span>
       </div>
-      <div className="px-3 py-2">
-        <div className="relative">
-          {!expanded && isLong && (
-            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
-          )}
-          <MarkdownContent
-            content={display}
-            className="markdown-body--wide"
-            onOpenModal={onOpenModal ? () => onOpenModal(content, label) : undefined}
-            modalTitle={label}
-          />
+      {expanded && (
+        <div className="px-3 py-2">
+          <div className="relative">
+            {!expanded && isLong && (
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
+            )}
+            <MarkdownContent
+              content={display}
+              className="markdown-body--wide"
+              onOpenModal={onOpenModal ? () => onOpenModal(content, label) : undefined}
+              modalTitle={label}
+            />
+          </div>
         </div>
-      </div>
+      )}
       {isLong && (
         <div className="flex justify-center border-t border-inherit">
           <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
             {expanded ? "Show less" : "Show more"}
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FileContextBlock({ block }: { block: { content: string; fileName?: string } }) {
+  const [expanded, setExpanded] = useState(false);
+  const fileName = block.fileName || "";
+  const baseName = fileName.split("/").pop() || fileName;
+  const lang = detectLanguage(fileName);
+  const content = block.content;
+
+  return (
+    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
+      <button
+        type="button"
+        className={`flex items-center gap-2 w-full px-3 py-1.5 ${
+          expanded ? "border-b border-accent-border" : ""
+        } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <ChevronRight
+          size={12}
+          className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+        />
+        <span className="text-gh-text-secondary/70 font-medium shrink-0">read:</span>
+        <span className="font-medium text-gh-text truncate min-w-0" title={fileName}>
+          {baseName}
+        </span>
+      </button>
+      {expanded && content && (
+        <div className="relative group">
+          <CopyButton text={content} className="absolute top-1 right-1 z-10" />
+          <FileRenderer content={content} lang={lang} />
         </div>
       )}
     </div>
@@ -836,6 +877,14 @@ function UserTurnView({
       <div className="sess-user-turn-label">
         {isSkillOnly ? `SKILL: ${blocks[0].fileName || "Context"}` : "USER-REQUEST"}
       </div>
+      {remaining && (
+        <MarkdownContent
+          content={remaining}
+          className="markdown-body--wide"
+          onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
+          modalTitle="USER-REQUEST"
+        />
+      )}
       {blocks.map((block, i) =>
         block.type === "skill-context" ? (
           <CollapsibleBlock
@@ -847,23 +896,8 @@ function UserTurnView({
             onOpenModal={onOpenModal}
           />
         ) : block.type === "file-context" ? (
-          <CollapsibleBlock
-            key={i}
-            content={block.content}
-            label={block.fileName || "Referenced file"}
-            icon={<File size={16} className="text-accent-secondary shrink-0" />}
-            className="border-accent-border/30 bg-accent-muted/[0.05]"
-            onOpenModal={onOpenModal}
-          />
+          <FileContextBlock key={i} block={block} />
         ) : null,
-      )}
-      {remaining && (
-        <MarkdownContent
-          content={remaining}
-          className="markdown-body--wide"
-          onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
-          modalTitle="USER-REQUEST"
-        />
       )}
     </div>
   );
