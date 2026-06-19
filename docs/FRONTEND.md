@@ -67,7 +67,7 @@ Multi-tab view for the active session:
 
 ### Tool call renderers (`ToolRenderers/`)
 
-Each tool call type has a dedicated renderer. See `ToolRenderers/CLAUDE.md` for the detailed architecture guide on adding new renderers, kind mappings, and styling conventions.
+Each tool call type has a dedicated renderer. See `ToolRenderers/AGENTS.md` for the detailed architecture guide on adding new renderers, kind mappings, and styling conventions.
 - `BashRenderer` — Terminal command output
 - `EditToolDiff` — File edit diff visualization (oldStr → newStr)
 - `GlobRenderer` — Glob search results

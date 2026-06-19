@@ -145,4 +145,4 @@ Reference implementations:
 - `internal/ingest/opencode/` — SQLite-based, messages stored as JSON parts
 - `internal/ingest/copilot/` — Multi-source (SQLite + JSONL + filesystem)
 - `internal/ingest/cursor/` — SQLite KV store + JSONL transcripts with tool call normalization
-- `internal/ingest/CLAUDE.md` — Detailed adapter integration guide with step-by-step instructions
+- `internal/ingest/AGENTS.md` — Detailed adapter integration guide with step-by-step instructions
