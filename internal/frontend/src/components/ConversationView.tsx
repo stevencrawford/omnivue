@@ -1,5 +1,18 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { CirclePlus, ChevronDown, ChevronUp, Filter, ChevronRight, User, Check, Copy, Info, TriangleAlert, CircleCheckBig } from "lucide-react";
+import {
+  CirclePlus,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  ChevronRight,
+  User,
+  Check,
+  Copy,
+  Info,
+  File,
+  TriangleAlert,
+  CircleCheckBig,
+} from "lucide-react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost } from "../utils/buildTree";
@@ -632,17 +645,17 @@ export function ConversationView({
             }`}
             title="Copy resume command"
           >
-              {copied ? (
-                <>
-                  <Check size={10} className="text-emerald-400" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy size={10} />
-                  Resume
-                </>
-              )}
+            {copied ? (
+              <>
+                <Check size={10} className="text-emerald-400" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy size={10} />
+                Resume
+              </>
+            )}
           </button>
         </button>
         {pinnedExpanded && (
@@ -693,7 +706,7 @@ function MessageBlock({
 
 function extractInlineBlocks(content: string) {
   const blocks: Array<{
-    type: "skill-context";
+    type: "skill-context" | "file-context";
     content: string;
     fileName?: string;
   }> = [];
@@ -707,6 +720,18 @@ function extractInlineBlocks(content: string) {
         type: "skill-context",
         content: inner.trim(),
         fileName: fileOrName || undefined,
+      });
+      return "";
+    },
+  );
+
+  remaining = remaining.replace(
+    /<file-context(?:\s+path="([^"]*)")?(?:\s+lang="([^"]*)")?\s*>([\s\S]*?)<\/file-context>\n?/g,
+    (_match, filePath, _lang, inner) => {
+      blocks.push({
+        type: "file-context",
+        content: inner.trim(),
+        fileName: filePath || undefined,
       });
       return "";
     },
@@ -817,10 +842,17 @@ function UserTurnView({
             key={i}
             content={block.content}
             label={block.fileName || "Context"}
-            icon={
-              <Info size={16} className="text-sky-400 shrink-0" />
-            }
+            icon={<Info size={16} className="text-sky-400 shrink-0" />}
             className="border-sky-500/30 bg-sky-500/[0.03]"
+            onOpenModal={onOpenModal}
+          />
+        ) : block.type === "file-context" ? (
+          <CollapsibleBlock
+            key={i}
+            content={block.content}
+            label={block.fileName || "Referenced file"}
+            icon={<File size={16} className="text-accent-secondary shrink-0" />}
+            className="border-accent-border/30 bg-accent-muted/[0.05]"
             onOpenModal={onOpenModal}
           />
         ) : null,
@@ -847,10 +879,7 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
         className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
-        <ChevronRight
-          size={14}
-          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
-        />
+        <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
         {expanded ? "Hide thinking" : "Show thinking"}
       </button>
       {expanded && (
