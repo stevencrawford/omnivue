@@ -123,6 +123,8 @@ export interface SearchResult {
   repository: string;
   snippet: string;
   updatedAt?: string;
+  fileTitle?: string;
+  fileId?: string;
 }
 
 export interface Folder {

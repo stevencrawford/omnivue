@@ -8,7 +8,7 @@ interface SearchResultsDrawerProps {
   isOpen: boolean;
   query: string;
   results: SearchResult[];
-  onSelect: (sessionId: string, chunkType: string, query: string) => void;
+  onSelect: (sessionId: string, chunkType: string, query: string, fileId?: string) => void;
   onClose: () => void;
   searchScopeName?: string | null;
   onClearScope?: () => void;
@@ -23,6 +23,10 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   messages: {
     label: "Session Messages",
     badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+  },
+  scratch: {
+    label: "Scratch Notes",
+    badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
   },
 };
 
@@ -66,7 +70,7 @@ export function SearchResultsDrawer({
       if (!groups.has(ct)) groups.set(ct, []);
       groups.get(ct)!.push(r);
     }
-    const order = ["name", "plan", "messages"];
+    const order = ["name", "plan", "messages", "scratch"];
     const out: Section[] = [];
     for (const ct of order) {
       const group = groups.get(ct);
@@ -143,12 +147,24 @@ export function SearchResultsDrawer({
                   key={`${r.sessionId}-${section.chunkType}-${i}`}
                   type="button"
                   className="w-full text-left px-4 py-3 border-b border-gh-border cursor-pointer transition-colors hover:bg-gh-bg-hover text-gh-text-secondary"
-                  onClick={() => onSelect(r.sessionId, r.chunkType, query)}
+                  onClick={() =>
+                    onSelect(
+                      r.sessionId,
+                      r.chunkType,
+                      query,
+                      r.chunkType === "scratch" ? r.fileId : undefined,
+                    )
+                  }
                 >
                   <div className="flex items-center gap-2 mb-1">
                     {r.chunkType !== "name" && r.sessionName && (
                       <span className="text-[11px] font-semibold text-gh-text truncate">
                         {r.sessionName}
+                      </span>
+                    )}
+                    {r.chunkType === "scratch" && r.fileTitle && (
+                      <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate">
+                        {r.fileTitle}
                       </span>
                     )}
                     {r.repository && (

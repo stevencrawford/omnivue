@@ -333,18 +333,25 @@ export function App() {
     setActiveTab(`scratch:${fileId}`);
   }, []);
 
-  const handleSearchSelect = useCallback((sessionId: string, chunkType: string, query: string) => {
-    setActiveSessionId(sessionId);
-    const tabMap: Record<string, Tab> = {
-      name: "session",
-      messages: "session",
-      plan: "plan",
-    };
-    setActiveTab(tabMap[chunkType] || "session");
-    setSearchHighlightQuery(query || null);
-    setSearchOpen(false);
-    setDrawerOpen(false);
-  }, []);
+  const handleSearchSelect = useCallback(
+    (sessionId: string, chunkType: string, query: string, fileId?: string) => {
+      setActiveSessionId(sessionId);
+      const tabMap: Record<string, Tab> = {
+        name: "session",
+        messages: "session",
+        plan: "plan",
+      };
+      if (chunkType === "scratch" && fileId) {
+        setActiveTab(`scratch:${fileId}`);
+      } else {
+        setActiveTab(tabMap[chunkType] || "session");
+      }
+      setSearchHighlightQuery(query || null);
+      setSearchOpen(false);
+      setDrawerOpen(false);
+    },
+    [],
+  );
 
   const handleSearchOpenDrawer = useCallback(
     async (q: string) => {

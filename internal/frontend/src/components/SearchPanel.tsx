@@ -8,7 +8,7 @@ import { renderSnippet } from "../utils/searchUtils";
 interface SearchPanelProps {
   query: string;
   onQueryChange: (q: string) => void;
-  onSelectSession: (sessionId: string, chunkType: string, query: string) => void;
+  onSelectSession: (sessionId: string, chunkType: string, query: string, fileId?: string) => void;
   onOpenDrawer: (query: string) => void;
   onClose: () => void;
   searchScope: string | null;
@@ -25,6 +25,10 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   messages: {
     label: "Session Messages",
     badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+  },
+  scratch: {
+    label: "Scratch Notes",
+    badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
   },
 };
 
@@ -61,7 +65,7 @@ export function SearchPanel({
       if (!groups.has(ct)) groups.set(ct, []);
       groups.get(ct)!.push(r);
     }
-    const order = ["name", "plan", "messages"];
+    const order = ["name", "plan", "messages", "scratch"];
     const out: Section[] = [];
     let globalIdx = 0;
     for (const ct of order) {
@@ -145,7 +149,13 @@ export function SearchPanel({
     }
     if (e.key === "Enter") {
       if (userNavigated.current && results[selectedIndex]) {
-        onSelectSession(results[selectedIndex].sessionId, results[selectedIndex].chunkType, query);
+        const r = results[selectedIndex];
+        onSelectSession(
+          r.sessionId,
+          r.chunkType,
+          query,
+          r.chunkType === "scratch" ? r.fileId : undefined,
+        );
       } else if (results.length > 0) {
         onOpenDrawer(query);
       }
@@ -234,12 +244,24 @@ export function SearchPanel({
                             ? "search-result--selected text-gh-text"
                             : "hover:bg-gh-bg-hover text-gh-text-secondary"
                         }`}
-                        onClick={() => onSelectSession(r.sessionId, r.chunkType, query)}
+                        onClick={() =>
+                          onSelectSession(
+                            r.sessionId,
+                            r.chunkType,
+                            query,
+                            r.chunkType === "scratch" ? r.fileId : undefined,
+                          )
+                        }
                       >
                         <div className="flex items-center gap-2 mb-1">
                           {r.chunkType !== "name" && r.sessionName && (
                             <span className="text-[11px] font-semibold text-gh-text truncate">
                               {r.sessionName}
+                            </span>
+                          )}
+                          {r.chunkType === "scratch" && r.fileTitle && (
+                            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate">
+                              {r.fileTitle}
                             </span>
                           )}
                           {r.repository && (
