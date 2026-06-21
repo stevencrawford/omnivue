@@ -441,17 +441,23 @@ func (s *Store) ClearSessionIndex(sessionID string) error {
 	return err
 }
 
+// ClearSessionChunkType removes FTS entries for a specific chunk type within a session.
+func (s *Store) ClearSessionChunkType(sessionID, chunkType string) error {
+	_, err := s.db.Exec(`DELETE FROM search_index WHERE session_id = ? AND chunk_type = ?`, sessionID, chunkType)
+	return err
+}
+
 // IndexSession indexes a session's content for full-text search.
 func (s *Store) IndexSession(sessionID, sourceID, chunkType, repository, content string) error {
-	return s.IndexSessionAt(sessionID, sourceID, chunkType, repository, content, "")
+	return s.IndexSessionAt(sessionID, sourceID, chunkType, repository, content, "", "", "")
 }
 
 // IndexSessionAt indexes session content with an explicit last-updated timestamp.
-func (s *Store) IndexSessionAt(sessionID, sourceID, chunkType, repository, content, updatedAt string) error {
+func (s *Store) IndexSessionAt(sessionID, sourceID, chunkType, repository, content, updatedAt, fileTitle, fileID string) error {
 	_, err := s.db.Exec(`
-		INSERT INTO search_index (content, session_id, source_id, chunk_type, repository, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, content, sessionID, sourceID, chunkType, repository, updatedAt)
+		INSERT INTO search_index (content, session_id, source_id, chunk_type, repository, updated_at, file_title, file_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, content, sessionID, sourceID, chunkType, repository, updatedAt, fileTitle, fileID)
 	return err
 }
 
@@ -484,7 +490,7 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 	var err error
 	if sessionID != "" {
 		rows, err = s.db.Query(`
-			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, '')
+			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, ''), COALESCE(file_title, ''), COALESCE(file_id, '')
 			FROM search_index
 			WHERE search_index MATCH ?
 			  AND session_id = ?
@@ -493,14 +499,15 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 					WHEN 'name' THEN 0
 					WHEN 'plan' THEN 1
 					WHEN 'messages' THEN 2
-					ELSE 3
+					WHEN 'scratch' THEN 3
+					ELSE 4
 				END,
 				rank
 			LIMIT ?
 		`, query, sessionID, limit)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, '')
+			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, ''), COALESCE(file_title, ''), COALESCE(file_id, '')
 			FROM search_index
 			WHERE search_index MATCH ?
 			ORDER BY
@@ -508,7 +515,8 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 					WHEN 'name' THEN 0
 					WHEN 'plan' THEN 1
 					WHEN 'messages' THEN 2
-					ELSE 3
+					WHEN 'scratch' THEN 3
+					ELSE 4
 				END,
 				rank
 			LIMIT ?
@@ -522,7 +530,7 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.ChunkType, &r.Repository, &r.Snippet, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.ChunkType, &r.Repository, &r.Snippet, &r.UpdatedAt, &r.FileTitle, &r.FileID); err != nil {
 			continue
 		}
 		results = append(results, r)
@@ -539,6 +547,8 @@ type SearchResult struct {
 	Repository  string `json:"repository"`
 	Snippet     string `json:"snippet"`
 	UpdatedAt   string `json:"updatedAt"`
+	FileTitle   string `json:"fileTitle,omitempty"`
+	FileID      string `json:"fileId,omitempty"`
 }
 
 // migrate runs database migrations.
@@ -579,7 +589,9 @@ func (s *Store) migrate() error {
 			source_id UNINDEXED,
 			chunk_type UNINDEXED,
 			repository UNINDEXED,
-			updated_at UNINDEXED
+			updated_at UNINDEXED,
+			file_title UNINDEXED,
+			file_id UNINDEXED
 		);
 
 		CREATE TABLE IF NOT EXISTS index_state (
@@ -610,10 +622,10 @@ func (s *Store) migrate() error {
 		);
 	`)
 
-	// Migration: ensure updated_at column exists on search_index.
+	// Migration: ensure updated_at, file_title, file_id columns exist on search_index.
 	// FTS5 ALTER TABLE ADD COLUMN may fail on some platforms, so we
 	// test the column and drop/recreate the table if needed.
-	_, probeErr := s.db.Exec(`SELECT updated_at FROM search_index LIMIT 0`)
+	_, probeErr := s.db.Exec(`SELECT updated_at, file_title, file_id FROM search_index LIMIT 0`)
 	if probeErr != nil {
 		s.db.Exec(`DROP TABLE IF EXISTS search_index`)
 		s.db.Exec(`DROP TABLE IF EXISTS index_state`)
@@ -623,7 +635,9 @@ func (s *Store) migrate() error {
 			source_id UNINDEXED,
 			chunk_type UNINDEXED,
 			repository UNINDEXED,
-			updated_at UNINDEXED
+			updated_at UNINDEXED,
+			file_title UNINDEXED,
+			file_id UNINDEXED
 		)`)
 		s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
 			session_id TEXT PRIMARY KEY,

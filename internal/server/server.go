@@ -272,8 +272,19 @@ func (s *State) indexSessions(ctx context.Context) {
 		// Build name content (title is searchable)
 		nameContent := sess.Title
 
+		// Get scratch files for hash comparison and indexing
+		scratchFiles, _ := s.store.ListScratchFiles(sess.ID)
+		var scratchBuilder strings.Builder
+		for _, sf := range scratchFiles {
+			scratchBuilder.WriteString(sf.Title)
+			scratchBuilder.WriteString("\n")
+			scratchBuilder.WriteString(sf.Content)
+			scratchBuilder.WriteString("\n")
+		}
+		scratchContent := scratchBuilder.String()
+
 		// Combined content for hash comparison
-		combined := nameContent + "\n" + planContent + "\n" + messagesContent
+		combined := nameContent + "\n" + planContent + "\n" + messagesContent + "\n" + scratchContent
 		h := sha256.Sum256([]byte(combined))
 		contentHash := hex.EncodeToString(h[:8])
 
@@ -295,20 +306,36 @@ func (s *State) indexSessions(ctx context.Context) {
 		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
 
 		// Index name chunk
-		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt); err != nil {
+		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", ""); err != nil {
 			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
 		}
 
 		// Index plan chunk
 		if planContent != "" {
-			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt); err != nil {
+			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", ""); err != nil {
 				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
 			}
 		}
 
 		// Index messages chunk
-		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "messages", sess.Repository, messagesContent, updatedAt); err != nil {
+		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "messages", sess.Repository, messagesContent, updatedAt, "", ""); err != nil {
 			slog.Warn("failed to index session messages", "session", sess.ID, "error", err)
+		}
+
+		// Index scratch files chunk
+		if len(scratchFiles) > 0 {
+			if err := s.store.ClearSessionChunkType(sess.ID, "scratch"); err != nil {
+				slog.Warn("failed to clear scratch index", "session", sess.ID, "error", err)
+			}
+			for _, sf := range scratchFiles {
+				if sf.Content == "" {
+					continue
+				}
+				fileContent := sf.Title + "\n" + sf.Content
+				if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID); err != nil {
+					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
+				}
+			}
 		}
 
 		// Update index state
@@ -628,6 +655,42 @@ func (s *State) GetResumeCommand(ctx context.Context, sessionID string) (string,
 		return "", fmt.Errorf("session not found: %s", sessionID)
 	}
 	return adapter.ResumeCommand(sess), nil
+}
+
+// reindexSessionScratch re-indexes all scratch files for a session.
+func (s *State) reindexSessionScratch(sessionID string) {
+	if s.store == nil {
+		return
+	}
+	scratchFiles, err := s.store.ListScratchFiles(sessionID)
+	if err != nil {
+		return
+	}
+	// Look up session info for sourceID/repository
+	sourceID := ""
+	repository := ""
+	s.mu.RLock()
+	for _, sess := range s.sessions {
+		if sess.ID == sessionID {
+			sourceID = sess.SourceID
+			repository = sess.Repository
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if err := s.store.ClearSessionChunkType(sessionID, "scratch"); err != nil {
+		return
+	}
+	for _, sf := range scratchFiles {
+		if sf.Content == "" {
+			continue
+		}
+		content := sf.Title + "\n" + sf.Content
+		if err := s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID); err != nil {
+			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
+		}
+	}
 }
 
 // Search performs full-text search across indexed session content.
@@ -1129,6 +1192,7 @@ func handleCreateScratchFile(state *State) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(f)
 	}
@@ -1161,10 +1225,12 @@ func handleUpdateScratchFile(state *State) http.HandlerFunc {
 		if body.Title == "" {
 			body.Title = "Untitled"
 		}
+		sessionID := r.PathValue("id")
 		if err := state.UpdateScratchFile(fileID, body.Title, body.Content); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
@@ -1173,10 +1239,12 @@ func handleUpdateScratchFile(state *State) http.HandlerFunc {
 func handleDeleteScratchFile(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fileID := r.PathValue("fileId")
+		sessionID := r.PathValue("id")
 		if err := state.DeleteScratchFile(fileID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
