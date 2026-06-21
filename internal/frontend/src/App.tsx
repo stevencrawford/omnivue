@@ -5,6 +5,7 @@ import { SessionViewer } from "./components/SessionViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { SearchPanel } from "./components/SearchPanel";
 import { SearchResultsDrawer } from "./components/SearchResultsDrawer";
+import { Modal } from "./components/Modal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { Tab } from "./components/SessionViewer";
@@ -40,6 +41,8 @@ export function App() {
   const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pinningContent, setPinningContent] = useState<string | null>(null);
+  const [pinTitle, setPinTitle] = useState("");
   const scrollPositions = useRef(new Map<string, number>());
   const SCROLL_POSITION_CAP = 100;
 
@@ -239,6 +242,47 @@ export function App() {
       /* ignore */
     }
   }, [activeSessionId]);
+
+  const handlePinMessage = useCallback((content: string) => {
+    const firstLine = (() => {
+      for (const line of content.split("\n")) {
+        const t = line.trim();
+        const h1 = t.match(/^#\s+(.+)/);
+        if (h1) return h1[1].trim();
+      }
+      for (const line of content.split("\n")) {
+        const t = line.trim();
+        if (t && !t.startsWith("```")) {
+          const cleaned = t.replace(/^#+\s*/, "");
+          return cleaned.length > 60 ? cleaned.slice(0, 57) + "..." : cleaned;
+        }
+      }
+      return "Pinned message";
+    })();
+    setPinTitle(firstLine);
+    setPinningContent(content);
+  }, []);
+
+  const handleConfirmPin = useCallback(async () => {
+    if (!activeSessionId || !pinningContent) return;
+    try {
+      const title = pinTitle.trim() || "Pinned message";
+      const f = await createScratchFile(activeSessionId, title, pinningContent);
+      setScratchFiles((prev) => [f, ...prev]);
+      setOpenScratchTabs((prev) => (prev.includes(f.id) ? prev : [...prev, f.id]));
+      setActiveTab(`scratch:${f.id}`);
+    } catch {
+      /* ignore */
+    } finally {
+      setPinningContent(null);
+      setPinTitle("");
+    }
+  }, [activeSessionId, pinningContent, pinTitle]);
+
+  const handleCancelPin = useCallback(() => {
+    setPinningContent(null);
+    setPinTitle("");
+  }, []);
 
   const handleCloseScratchTab = useCallback(
     (fileId: string) => {
@@ -451,6 +495,7 @@ export function App() {
                     scratchFileMap={scratchFileMap}
                     onCloseScratchTab={handleCloseScratchTab}
                     onNewScratchFile={handleNewScratchFile}
+                    onPinMessage={handlePinMessage}
                     focusStepIndex={focusStepIndex}
                     searchHighlightQuery={searchHighlightQuery}
                   />
@@ -487,6 +532,58 @@ export function App() {
         </SessionNavContext.Provider>
 
         <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+        <Modal
+          isOpen={pinningContent !== null}
+          onClose={handleCancelPin}
+          title="Pin Message"
+          size="md"
+        >
+          {pinningContent && (
+            <div className="p-3 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gh-text-secondary block mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={pinTitle}
+                  onChange={(e) => setPinTitle(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-sm rounded border border-gh-border bg-gh-bg text-gh-text focus:outline-none focus:border-accent-border"
+                  placeholder="Pinned message"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gh-text-secondary block mb-1">
+                  Preview
+                </label>
+                <div className="max-h-32 overflow-y-auto p-2 rounded border border-gh-border bg-gh-bg-secondary/50 text-xs text-gh-text-secondary whitespace-pre-wrap leading-relaxed">
+                  {pinningContent.slice(0, 500)}
+                  {pinningContent.length > 500 && (
+                    <span className="text-gh-text-secondary/50">...</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCancelPin}
+                  className="px-3 py-1.5 text-xs rounded border border-gh-border text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPin}
+                  className="px-3 py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-secondary cursor-pointer transition-colors"
+                >
+                  Pin
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </ThemeProvider>
   );

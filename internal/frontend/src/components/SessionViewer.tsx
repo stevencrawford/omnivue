@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CirclePlus, FileText, ListTodo, File, X, Plus, FilePlus, Check, Copy } from "lucide-react";
+import {
+  CirclePlus,
+  FileText,
+  ListTodo,
+  File,
+  X,
+  Plus,
+  FilePlus,
+  Check,
+  Copy,
+  Pin,
+} from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
@@ -22,6 +33,7 @@ interface SessionViewerProps {
   scratchFileMap: Record<string, { title: string }>;
   onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
+  onPinMessage?: (content: string) => void;
   focusStepIndex?: number;
   searchHighlightQuery?: string | null;
 }
@@ -41,6 +53,7 @@ export function SessionViewer({
   scratchFileMap,
   onCloseScratchTab,
   onNewScratchFile,
+  onPinMessage,
   focusStepIndex,
   searchHighlightQuery,
 }: SessionViewerProps) {
@@ -184,6 +197,7 @@ export function SessionViewer({
           session={session}
           loading={loading}
           onOpenModal={(content, title) => setMarkdownModal({ content, title })}
+          onPin={onPinMessage}
           focusStepIndex={focusStepIndex}
           searchHighlightQuery={searchHighlightQuery ?? undefined}
         />
@@ -227,7 +241,9 @@ export function SessionViewer({
         title={markdownModal?.title}
         size="xl"
       >
-        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
+        {markdownModal && (
+          <ModalMarkdownWrapper content={markdownModal.content} onPin={onPinMessage} />
+        )}
       </Modal>
 
       {/* Create file dialog */}
@@ -258,18 +274,36 @@ export function SessionViewer({
   );
 }
 
-function ModalMarkdownWrapper({ content }: { content: string }) {
+function ModalMarkdownWrapper({
+  content,
+  onPin,
+}: {
+  content: string;
+  onPin?: (content: string) => void;
+}) {
   const { copied, copy } = useCopy(2000);
   return (
     <div className="relative group">
-      <button
-        type="button"
-        onClick={() => copy(content)}
-        className="absolute top-0 right-0 z-10 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
-        title="Copy"
-      >
-        {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-      </button>
+      <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {onPin && (
+          <button
+            type="button"
+            onClick={() => onPin(content)}
+            className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+            title="Pin as scratch note"
+          >
+            <Pin size={12} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => copy(content)}
+          className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+          title="Copy"
+        >
+          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+        </button>
+      </div>
       <MarkdownContent content={content} className="markdown-body--wide" />
     </div>
   );

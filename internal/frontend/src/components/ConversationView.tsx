@@ -102,6 +102,7 @@ export function ConversationView({
   session,
   loading,
   onOpenModal,
+  onPin,
   focusStepIndex,
   searchHighlightQuery,
 }: {
@@ -109,6 +110,7 @@ export function ConversationView({
   session: Session;
   loading: boolean;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
   focusStepIndex?: number;
   searchHighlightQuery?: string;
 }) {
@@ -461,7 +463,7 @@ export function ConversationView({
           ) : (
             messagesWithoutReminders.map((msg, idx) => (
               <div key={msg.id} data-marker-id={`msg-${idx}`} data-message-index={idx}>
-                <MessageBlock message={msg} onOpenModal={onOpenModal} />
+                <MessageBlock message={msg} onOpenModal={onOpenModal} onPin={onPin} />
               </div>
             ))
           )}
@@ -675,9 +677,11 @@ export function ConversationView({
 function MessageBlock({
   message,
   onOpenModal,
+  onPin,
 }: {
   message: Message;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
 }) {
   if (message.role === "user") {
     if (!message.content?.trim()) return null;
@@ -717,7 +721,7 @@ function MessageBlock({
       return <TaskCompleteMessageView tool={taskComplete} />;
     }
   }
-  return <AssistantMessageView message={message} onOpenModal={onOpenModal} />;
+  return <AssistantMessageView message={message} onOpenModal={onOpenModal} onPin={onPin} />;
 }
 
 function extractInlineBlocks(content: string) {
@@ -944,9 +948,11 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
 function AssistantMessageView({
   message,
   onOpenModal,
+  onPin,
 }: {
   message: Message;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
 }) {
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
@@ -964,7 +970,7 @@ function AssistantMessageView({
         </span>
       )}
       <ThinkingBlock reasoning={reasoning} />
-      {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} />}
+      {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} onPin={onPin} />}
       {tools.length > 0 && (
         <div className={showText ? "mt-2" : ""}>
           <ToolCallList toolCalls={tools} agent={agent} compact onOpenModal={onOpenModal} />
@@ -977,9 +983,11 @@ function AssistantMessageView({
 function AssistantStepContent({
   content,
   onOpenModal,
+  onPin,
 }: {
   content: string;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const isLong = content.length > 4000;
@@ -991,6 +999,7 @@ function AssistantStepContent({
         content={display}
         className="markdown-body--wide"
         onOpenModal={() => onOpenModal?.(content, "Assistant response")}
+        onPin={onPin ? () => onPin(content) : undefined}
         modalTitle="Assistant response"
       />
       {isLong && (

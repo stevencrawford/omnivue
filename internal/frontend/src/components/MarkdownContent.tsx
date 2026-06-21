@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Check, Copy, Maximize2 } from "lucide-react";
+import { ChevronRight, Check, Copy, Maximize2, Pin } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -10,6 +10,7 @@ interface MarkdownContentProps {
   content: string;
   className?: string;
   onOpenModal?: (content: string) => void;
+  onPin?: (content: string) => void;
   modalTitle?: string;
   expandable?: boolean;
   defaultExpanded?: boolean;
@@ -19,6 +20,7 @@ export function MarkdownContent({
   content,
   className = "",
   onOpenModal,
+  onPin,
   modalTitle,
   expandable = false,
   defaultExpanded = false,
@@ -51,6 +53,16 @@ export function MarkdownContent({
           >
             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
           </button>
+          {onPin && (
+            <button
+              type="button"
+              onClick={() => onPin(content)}
+              className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              title="Pin as scratch note"
+            >
+              <Pin size={12} />
+            </button>
+          )}
           {onOpenModal && !shortContent && (
             <button
               type="button"
@@ -120,6 +132,16 @@ export function MarkdownContent({
         >
           {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
         </button>
+        {onPin && (
+          <button
+            type="button"
+            onClick={() => onPin(content)}
+            className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+            title="Pin as scratch note"
+          >
+            <Pin size={12} />
+          </button>
+        )}
         {onOpenModal && !shortContent && (
           <button
             type="button"
