@@ -64,6 +64,9 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	defer rows.Close()
 
 	var sessions []ingest.Session
+	var zeroDiffIDs []string
+	var zeroDiffIdx []int
+
 	for rows.Next() {
 		var (
 			s            ingest.Session
@@ -94,7 +97,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Agent = ingest.AgentOpenCode
 		s.Model = extractModelID(modelJSON.String)
 		s.Repository = util.DeriveRepository(s.Directory, projectName)
-		s.Branch = "" // OpenCode doesn't store branch in session table
+		s.Branch = ""
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
 		s.Status = "completed"
@@ -109,7 +112,6 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.SubAgent = extractSubAgentFromTitle(s.Title)
 		}
 
-		// Infer status: if parent_id and agent_col are both set, it's definitely completed
 		if agentCol.Valid {
 			s.Status = "completed"
 		}
@@ -124,12 +126,34 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.DiffDeletions = int(summDel.Int64)
 		}
 
+		if s.DiffFiles == 0 {
+			zeroDiffIDs = append(zeroDiffIDs, s.ID)
+			zeroDiffIdx = append(zeroDiffIdx, len(sessions))
+		}
+
 		s.MessageCount = msgCount
 
 		sessions = append(sessions, s)
 	}
 
-	return sessions, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(zeroDiffIDs) > 0 {
+		computed, err := a.computeDiffMetrics(ctx, zeroDiffIDs)
+		if err == nil {
+			for i, id := range zeroDiffIDs {
+				if vals, ok := computed[id]; ok && vals[0] > 0 {
+					sessions[zeroDiffIdx[i]].DiffFiles = vals[0]
+					sessions[zeroDiffIdx[i]].DiffAdditions = vals[1]
+					sessions[zeroDiffIdx[i]].DiffDeletions = vals[2]
+				}
+			}
+		}
+	}
+
+	return sessions, nil
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
@@ -206,9 +230,97 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 		s.DiffDeletions = int(summDel.Int64)
 	}
 
+	if s.DiffFiles == 0 {
+		computed, err := a.computeDiffMetrics(ctx, []string{id})
+		if err == nil {
+			if vals, ok := computed[id]; ok && vals[0] > 0 {
+				s.DiffFiles = vals[0]
+				s.DiffAdditions = vals[1]
+				s.DiffDeletions = vals[2]
+			}
+		}
+	}
+
 	s.MessageCount = msgCount
 
 	return &s, nil
+}
+
+func (a *Adapter) computeDiffMetrics(ctx context.Context, ids []string) (map[string][3]int, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			m.session_id,
+			COUNT(DISTINCT COALESCE(
+				json_extract(p.data, '$.state.input.filePath'),
+				json_extract(p.data, '$.state.input.file_path'),
+				json_extract(p.data, '$.state.input.path')
+			)) as file_count,
+			COALESCE(SUM(CASE
+				WHEN json_extract(p.data, '$.tool') = 'edit'
+					THEN CASE
+						WHEN json_extract(p.data, '$.state.input.newString') IS NOT NULL
+						 AND json_extract(p.data, '$.state.input.newString') != ''
+						THEN LENGTH(json_extract(p.data, '$.state.input.newString'))
+						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.newString'), CHAR(10), '')) + 1
+						ELSE 0
+					END
+				WHEN json_extract(p.data, '$.tool') = 'write'
+					THEN CASE
+						WHEN json_extract(p.data, '$.state.input.content') IS NOT NULL
+						 AND json_extract(p.data, '$.state.input.content') != ''
+						THEN LENGTH(json_extract(p.data, '$.state.input.content'))
+						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.content'), CHAR(10), '')) + 1
+						ELSE 0
+					END
+				ELSE 0
+			END), 0) as total_additions,
+			COALESCE(SUM(CASE
+				WHEN json_extract(p.data, '$.tool') = 'edit'
+					THEN CASE
+						WHEN json_extract(p.data, '$.state.input.oldString') IS NOT NULL
+						 AND json_extract(p.data, '$.state.input.oldString') != ''
+						THEN LENGTH(json_extract(p.data, '$.state.input.oldString'))
+						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.oldString'), CHAR(10), '')) + 1
+						ELSE 0
+					END
+				ELSE 0
+			END), 0) as total_deletions
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE m.session_id IN (%s)
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') IN ('edit', 'write')
+		GROUP BY m.session_id
+	`, strings.Join(placeholders, ","))
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("computing diff metrics: %w", err)
+	}
+	defer rows.Close()
+
+	computed := make(map[string][3]int, len(ids))
+	for rows.Next() {
+		var sid string
+		var files, adds, dels int
+		if err := rows.Scan(&sid, &files, &adds, &dels); err != nil {
+			continue
+		}
+		computed[sid] = [3]int{files, adds, dels}
+	}
+
+	return computed, rows.Err()
 }
 
 func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
