@@ -29,6 +29,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [adding, setAdding] = useState(false);
 
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const { theme, setTheme } = useTheme();
 
@@ -50,6 +51,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       loadSources();
       setAddingPath("");
       setAddingType("opencode");
+      setConfirmingDeleteId(null);
     }
   }, [isOpen, loadSources]);
 
@@ -104,33 +106,71 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <p className="text-xs text-red-400">{sourcesError}</p>
           ) : (
             <div className="space-y-1">
-              {sources.map((source) => (
-                <div
-                  key={source.id}
-                  className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-gh-bg-secondary border border-gh-border text-xs"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-gh-text font-mono">{source.path}</p>
-                    <p className="text-[11px] text-gh-text-secondary">
-                      {source.agentType}
-                      {source.label && ` · ${source.label}`}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={removingId === source.id}
-                    onClick={() => handleRemove(source.id)}
-                    className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 disabled:opacity-40 cursor-pointer transition-colors"
-                    title="Remove source"
+              {sources.map((source) =>
+                confirmingDeleteId === source.id ? (
+                  <div
+                    key={source.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-red-500/[0.08] border border-red-500/30"
                   >
-                    {removingId === source.id ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-3" />
-                    )}
-                  </button>
-                </div>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gh-text">
+                        {source.agentType}
+                        {source.label && ` · ${source.label}`}
+                      </p>
+                      <p className="truncate text-[11px] text-red-400/80">
+                        Removes all information local to sess. Agent data unaffected. Confirm?
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDeleteId(null)}
+                      className="shrink-0 px-2 py-1 text-xs rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={removingId === source.id}
+                      onClick={() => handleRemove(source.id)}
+                      className="shrink-0 px-2 py-1 text-xs rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-40 cursor-pointer transition-colors"
+                    >
+                      {removingId === source.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        "Delete"
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    key={source.id}
+                    className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-gh-bg-secondary border border-gh-border text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gh-text">
+                        {source.agentType}
+                        {source.label && ` · ${source.label}`}
+                      </p>
+                      <p className="truncate text-[11px] text-gh-text-secondary font-mono">
+                        {source.path}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={removingId === source.id}
+                      onClick={() => setConfirmingDeleteId(source.id)}
+                      className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 disabled:opacity-40 cursor-pointer transition-colors"
+                      title="Remove source"
+                    >
+                      {removingId === source.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3" />
+                      )}
+                    </button>
+                  </div>
+                ),
+              )}
             </div>
           )}
 
