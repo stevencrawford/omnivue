@@ -29,7 +29,7 @@ type Adapter struct {
 }
 
 func New(vscdbPath string) (*Adapter, error) {
-	resolved := resolveVscdbPath(vscdbPath)
+	resolved := util.FindCursorVscdbPath(vscdbPath)
 	if resolved == "" {
 		return nil, fmt.Errorf("cursor adapter: no state.vscdb found at %s", vscdbPath)
 	}
@@ -1095,39 +1095,6 @@ func extractTextFromRichText(rt json.RawMessage) string {
 		}
 	}
 	return strings.Join(parts, "\n")
-}
-
-// resolveVscdbPath resolves a Cursor entry path (directory or file) to the
-// actual state.vscdb database path. It searches common locations relative to
-// the entry point, and falls back to macOS/Linux App Support paths.
-func resolveVscdbPath(entry string) string {
-	if entry == "" {
-		return ""
-	}
-	candidates := []string{
-		entry,
-		filepath.Join(entry, "state.vscdb"),
-		filepath.Join(entry, "User", "globalStorage", "state.vscdb"),
-	}
-	home, err := os.UserHomeDir()
-	if err == nil {
-		candidates = append(candidates,
-			filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"),
-			filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb"),
-		)
-	}
-	for _, c := range candidates {
-		if util.PathExists(c) {
-			if fi, err := os.Stat(c); err == nil && fi.IsDir() {
-				c = filepath.Join(c, "state.vscdb")
-				if !util.PathExists(c) {
-					continue
-				}
-			}
-			return c
-		}
-	}
-	return ""
 }
 
 func resolveCursorDir(vscdbPath string) string {

@@ -171,3 +171,37 @@ func TruncateContent(s string, maxBytes int) string {
 	}
 	return s[:end] + "\n… (truncated)"
 }
+
+// FindCursorVscdbPath resolves a Cursor entry path (directory or file) to the
+// actual state.vscdb database path. It searches common locations relative to
+// the entry point and falls back to macOS/Linux App Support paths.
+// Returns the resolved path or empty string if not found.
+func FindCursorVscdbPath(entry string) string {
+	if entry == "" {
+		return ""
+	}
+	candidates := []string{
+		entry,
+		filepath.Join(entry, "state.vscdb"),
+		filepath.Join(entry, "User", "globalStorage", "state.vscdb"),
+	}
+	home, err := os.UserHomeDir()
+	if err == nil {
+		candidates = append(candidates,
+			filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"),
+			filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb"),
+		)
+	}
+	for _, c := range candidates {
+		if PathExists(c) {
+			if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+				c = filepath.Join(c, "state.vscdb")
+				if !PathExists(c) {
+					continue
+				}
+			}
+			return c
+		}
+	}
+	return ""
+}

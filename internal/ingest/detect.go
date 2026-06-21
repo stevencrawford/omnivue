@@ -84,7 +84,7 @@ func detectCopilot(path string) *DiscoveredSource {
 }
 
 func detectCursor(path string) *DiscoveredSource {
-	dbPath := findCursorDB(path)
+	dbPath := util.FindCursorVscdbPath(path)
 	if dbPath != "" {
 		return &DiscoveredSource{
 			Path:      dbPath,
@@ -93,40 +93,6 @@ func detectCursor(path string) *DiscoveredSource {
 		}
 	}
 	return nil
-}
-
-// findCursorDB resolves the Cursor state.vscdb path from any known entry point:
-// - Direct path to state.vscdb
-// - globalStorage directory
-// - Cursor config directory (~/.cursor)
-// - macOS App Support path (~/Library/Application Support/Cursor)
-// - Linux App Support path (~/.config/Cursor)
-func findCursorDB(entry string) string {
-	candidates := []string{
-		entry,
-		filepath.Join(entry, "state.vscdb"),
-		filepath.Join(entry, "User", "globalStorage", "state.vscdb"),
-	}
-	home, err := os.UserHomeDir()
-	if err == nil {
-		candidates = append(candidates,
-			filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"),
-			filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb"),
-		)
-	}
-	for _, c := range candidates {
-		if util.PathExists(c) {
-			// If it's a directory, append state.vscdb
-			if fi, err := os.Stat(c); err == nil && fi.IsDir() {
-				c = filepath.Join(c, "state.vscdb")
-				if !util.PathExists(c) {
-					continue
-				}
-			}
-			return c
-		}
-	}
-	return ""
 }
 
 func detectPi(path string) *DiscoveredSource {
