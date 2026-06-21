@@ -10,6 +10,7 @@ const (
 	AgentCopilot  AgentType = "copilot"
 	AgentCursor   AgentType = "cursor"
 	AgentPi       AgentType = "pi"
+	AgentCodex    AgentType = "codex"
 )
 
 // Source represents a configured session data source.

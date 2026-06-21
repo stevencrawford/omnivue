@@ -27,6 +27,7 @@ Known locations:
   ~/.copilot                (GitHub Copilot)
   ~/.cursor                 (Cursor)
   ~/.pi/agent/sessions      (Pi)
+  ~/.codex                  (Codex)
 
 Sources are saved to the sess database and will be loaded automatically
 on subsequent launches.`,

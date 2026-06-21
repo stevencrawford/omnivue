@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/sess/internal/ingest/codex"
 	"github.com/stevencrawford/sess/internal/ingest/copilot"
 	"github.com/stevencrawford/sess/internal/ingest/cursor"
 	"github.com/stevencrawford/sess/internal/ingest/opencode"
@@ -105,6 +106,8 @@ func createAdapter(src ingest.Source) (ingest.Adapter, error) {
 		return cursor.New(src.Path)
 	case ingest.AgentPi:
 		return pi.New(src.Path)
+	case ingest.AgentCodex:
+		return codex.New(src.Path)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %s", src.AgentType)
 	}
@@ -835,8 +838,30 @@ func handleAddSource(state *State) http.HandlerFunc {
 			http.Error(w, "path is required", http.StatusBadRequest)
 			return
 		}
+		// Expand tilde in path (frontend sends raw user input)
+		if len(body.Path) > 1 && body.Path[:2] == "~/" {
+			home, err := os.UserHomeDir()
+			if err == nil {
+				body.Path = home + body.Path[1:]
+			}
+		}
 		if body.AgentType == "" {
 			body.AgentType = string(ingest.AgentOpenCode)
+		}
+		// Auto-set a label if not provided
+		if body.Label == "" {
+			switch ingest.AgentType(body.AgentType) {
+			case ingest.AgentOpenCode:
+				body.Label = "OpenCode"
+			case ingest.AgentCopilot:
+				body.Label = "GitHub Copilot"
+			case ingest.AgentCursor:
+				body.Label = "Cursor"
+			case ingest.AgentPi:
+				body.Label = "Pi"
+			case ingest.AgentCodex:
+				body.Label = "Codex"
+			}
 		}
 		// Generate source ID from path (same scheme as CLI)
 		h := sha256.Sum256([]byte(body.Path))

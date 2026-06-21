@@ -371,6 +371,17 @@ body {
   background: rgba(202, 138, 4, 0.1);
 }
 
+.sess-agent-badge--codex {
+  background: rgba(251, 146, 60, 0.12);
+  color: #fb923c;
+  border-color: rgba(251, 146, 60, 0.25);
+}
+
+[data-theme="light"] .sess-agent-badge--codex {
+  color: #c2410c;
+  background: rgba(234, 88, 12, 0.1);
+}
+
 .sess-privacy-badge {
   font-size: 0.5625rem;
   font-weight: 700;

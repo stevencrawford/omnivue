@@ -43,13 +43,13 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "sess [flags]",
 	Short: "sess is an AI/LLM session manager for coding agents",
-	Long: `sess watches AI coding agent sessions (OpenCode, GitHub Copilot) and
+	Long: `	sess watches AI coding agent sessions (OpenCode, Copilot, Cursor, Codex, Pi) and
 presents them in a browser UI for easy browsing, searching, and management.
 
 Quick Start:
   sess init                      Discover and configure agent sources
   sess                           Start the sess server and open browser
-  sess add ~/.local/share/opencode   Manually add a source
+  sess add ~/.codex              Manually add a source (or path to another agent)
 
 Management:
   sess --status                  Show running sess servers

@@ -15,6 +15,7 @@ var KnownPaths = []struct {
 	{"~/.copilot", AgentCopilot, "GitHub Copilot"},
 	{"~/.cursor", AgentCursor, "Cursor"},
 	{"~/.pi/agent/sessions", AgentPi, "Pi"},
+	{"~/.codex", AgentCodex, "Codex"},
 }
 
 // AutoDiscover scans known paths for AI agent session sources.
@@ -42,6 +43,10 @@ func AutoDiscover() []DiscoveredSource {
 			}
 		case AgentPi:
 			if d := detectPi(path); d != nil {
+				discovered = append(discovered, *d)
+			}
+		case AgentCodex:
+			if d := detectCodex(path); d != nil {
 				discovered = append(discovered, *d)
 			}
 		}
@@ -154,6 +159,18 @@ func detectPi(path string) *DiscoveredSource {
 		Path:      path,
 		AgentType: AgentPi,
 		Label:     "Pi",
+	}
+}
+
+func detectCodex(path string) *DiscoveredSource {
+	indexPath := filepath.Join(path, "session_index.jsonl")
+	if !pathExists(indexPath) {
+		return nil
+	}
+	return &DiscoveredSource{
+		Path:      path,
+		AgentType: AgentCodex,
+		Label:     "Codex",
 	}
 }
 
