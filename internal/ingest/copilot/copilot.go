@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/sess/internal/ingest/internal/util"
 
 	_ "modernc.org/sqlite"
 )
@@ -78,8 +78,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Repository = repository.String
 		s.Branch = branch.String
 		s.Status = "completed"
-		s.CreatedAt = parseTime(createdAt)
-		s.UpdatedAt = parseTime(updatedAt)
+		s.CreatedAt = util.ParseTime(createdAt)
+		s.UpdatedAt = util.ParseTime(updatedAt)
 
 		// Derive title from summary or directory if empty
 		if s.Title == "" {
@@ -137,8 +137,8 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	s.Repository = repository.String
 	s.Branch = branch.String
 	s.Status = "completed"
-	s.CreatedAt = parseTime(createdAt)
-	s.UpdatedAt = parseTime(updatedAt)
+	s.CreatedAt = util.ParseTime(createdAt)
+	s.UpdatedAt = util.ParseTime(updatedAt)
 
 	if s.Title == "" {
 		s.Title = filepath.Base(s.Directory)
@@ -182,7 +182,7 @@ func (a *Adapter) getMessagesFromTurns(ctx context.Context, sessionID string) ([
 			return nil, fmt.Errorf("scanning turn: %w", err)
 		}
 
-		ts := parseTime(timestamp)
+		ts := util.ParseTime(timestamp)
 
 		if userMsg.Valid && userMsg.String != "" {
 			messages = append(messages, ingest.Message{
@@ -241,7 +241,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					ID:        event.ID,
 					Role:      "user",
 					Content:   data.Content,
-					Timestamp: parseTime(event.Timestamp),
+					Timestamp: util.ParseTime(event.Timestamp),
 				})
 			}
 
@@ -253,7 +253,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					Role:      "assistant",
 					Content:   data.Content,
 					Model:     currentModel,
-					Timestamp: parseTime(event.Timestamp),
+					Timestamp: util.ParseTime(event.Timestamp),
 				}
 
 				// Extract tool calls from tool requests
@@ -288,7 +288,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					ID:        event.ID,
 					Role:      "system",
 					Content:   data.Content,
-					Timestamp: parseTime(event.Timestamp),
+					Timestamp: util.ParseTime(event.Timestamp),
 					Metadata: map[string]string{
 						"type": "system_reminder",
 						"file": fileName,
@@ -369,7 +369,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 				continue
 			}
 
-			ts := parseTime(event.Timestamp)
+			ts := util.ParseTime(event.Timestamp)
 
 			switch req.Name {
 			case "create":
@@ -502,27 +502,11 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	if err != nil || !maxTime.Valid {
 		return 0, err
 	}
-	return parseTime(maxTime.String).UnixMilli(), nil
+	return util.ParseTime(maxTime.String).UnixMilli(), nil
 }
 
 func (a *Adapter) Close() error {
 	return a.db.Close()
-}
-
-// parseTime parses an ISO 8601 timestamp string.
-func parseTime(s string) time.Time {
-	// Try common formats
-	for _, layout := range []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04:05.000Z",
-		"2006-01-02 15:04:05",
-	} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t
-		}
-	}
-	return time.Time{}
 }
 
 // Event types for parsing events.jsonl

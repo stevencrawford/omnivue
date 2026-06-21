@@ -3,6 +3,8 @@ package ingest
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/stevencrawford/sess/internal/ingest/internal/util"
 )
 
 // KnownPaths are the default locations to scan for AI agent session data.
@@ -23,8 +25,8 @@ func AutoDiscover() []DiscoveredSource {
 	var discovered []DiscoveredSource
 
 	for _, known := range KnownPaths {
-		path := expandHome(known.Path)
-		if !pathExists(path) {
+		path := util.ExpandHome(known.Path)
+		if !util.PathExists(path) {
 			continue
 		}
 
@@ -57,7 +59,7 @@ func AutoDiscover() []DiscoveredSource {
 
 func detectOpenCode(path string) *DiscoveredSource {
 	dbPath := filepath.Join(path, "opencode.db")
-	if !pathExists(dbPath) {
+	if !util.PathExists(dbPath) {
 		return nil
 	}
 	return &DiscoveredSource{
@@ -71,7 +73,7 @@ func detectCopilot(path string) *DiscoveredSource {
 	// Check for session-store.db or session-state directory
 	dbPath := filepath.Join(path, "session-store.db")
 	statePath := filepath.Join(path, "session-state")
-	if !pathExists(dbPath) && !pathExists(statePath) {
+	if !util.PathExists(dbPath) && !util.PathExists(statePath) {
 		return nil
 	}
 	return &DiscoveredSource{
@@ -79,17 +81,6 @@ func detectCopilot(path string) *DiscoveredSource {
 		AgentType: AgentCopilot,
 		Label:     "GitHub Copilot",
 	}
-}
-
-func expandHome(path string) string {
-	if len(path) > 1 && path[:2] == "~/" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
-	}
-	return path
 }
 
 func detectCursor(path string) *DiscoveredSource {
@@ -124,11 +115,11 @@ func findCursorDB(entry string) string {
 		)
 	}
 	for _, c := range candidates {
-		if pathExists(c) {
+		if util.PathExists(c) {
 			// If it's a directory, append state.vscdb
 			if fi, err := os.Stat(c); err == nil && fi.IsDir() {
 				c = filepath.Join(c, "state.vscdb")
-				if !pathExists(c) {
+				if !util.PathExists(c) {
 					continue
 				}
 			}
@@ -139,7 +130,7 @@ func findCursorDB(entry string) string {
 }
 
 func detectPi(path string) *DiscoveredSource {
-	if !pathExists(path) {
+	if !util.PathExists(path) {
 		return nil
 	}
 	var found bool
@@ -164,7 +155,7 @@ func detectPi(path string) *DiscoveredSource {
 
 func detectCodex(path string) *DiscoveredSource {
 	indexPath := filepath.Join(path, "session_index.jsonl")
-	if !pathExists(indexPath) {
+	if !util.PathExists(indexPath) {
 		return nil
 	}
 	return &DiscoveredSource{
@@ -174,7 +165,4 @@ func detectCodex(path string) *DiscoveredSource {
 	}
 }
 
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
+

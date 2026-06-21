@@ -1,7 +1,6 @@
 package pi
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,11 +13,8 @@ import (
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/sess/internal/ingest/internal/util"
 )
-
-// maxScanTokenSize is the maximum buffer for bufio.Scanner when reading JSONL lines.
-// File content embedded in JSONL lines can exceed the default 64KB limit.
-const maxScanTokenSize = 512 * 1024
 
 // Adapter reads Pi agent session data from JSONL files.
 type Adapter struct {
@@ -185,8 +181,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("empty file: %s", fpath)
 	}
@@ -204,7 +199,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 		parsedTime = extractTimestampFromFilename(filepath.Base(fpath))
 	}
 
-	repo := deriveRepository(header.CWD)
+	repo := util.DeriveRepository(header.CWD, "")
 	title := deriveTitle(header.ID, header.CWD)
 
 	session := &ingest.Session{
@@ -317,8 +312,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 	var parsed []ingest.Message
 	currentModel := ""
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	// Skip session header
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("empty file: %s", filePath)
@@ -415,7 +409,7 @@ func parseMessage(env piMessageEnvelope, currentModel string) (ingest.Message, e
 	}
 
 	if env.Timestamp != "" {
-		msg.Timestamp = parsePiTimestamp(env.Timestamp)
+		msg.Timestamp = util.ParseTime(env.Timestamp)
 	}
 
 	if env.Message.Model != "" {
@@ -647,7 +641,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			delete(p, "path")
 		}
 		// Pi read output format: {"content":"...","filePath":"..."}
-		if content := extractJSONString(tc.Output, "content"); content != "" {
+		if content := util.ExtractJSONString(tc.Output, "content"); content != "" {
 			tc.Output = content
 		}
 
@@ -693,14 +687,14 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 
 	case "bash":
 		// Pi bash output: {"stdout":"...","stderr":"...","exitCode":N}
-		if stdout := extractJSONString(tc.Output, "stdout"); stdout != "" {
-			if stderr := extractJSONString(tc.Output, "stderr"); stderr != "" {
+		if stdout := util.ExtractJSONString(tc.Output, "stdout"); stdout != "" {
+			if stderr := util.ExtractJSONString(tc.Output, "stderr"); stderr != "" {
 				tc.Output = stdout + "\n" + stderr
 			} else {
 				tc.Output = stdout
 			}
 		}
-		if exitCode := extractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
+		if exitCode := util.ExtractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
 			tc.Metadata = `{"exit":` + exitCode + `}`
 		}
 
@@ -719,26 +713,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	if out, err := json.Marshal(p); err == nil {
 		tc.Input = string(out)
 	}
-}
-
-// extractJSONString extracts a string value from a JSON field, returning empty
-// if the field is missing, not a string, or if the input is not valid JSON.
-func extractJSONString(jsonStr, field string) string {
-	if jsonStr == "" {
-		return ""
-	}
-	var m map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
-		return ""
-	}
-	v, ok := m[field]
-	if !ok {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
 }
 
 // --- Helpers ---
@@ -773,22 +747,4 @@ func deriveTitle(id, cwd string) string {
 	return id
 }
 
-func deriveRepository(cwd string) string {
-	if cwd == "" {
-		return "unknown"
-	}
-	return filepath.Base(cwd)
-}
 
-func parsePiTimestamp(ts string) time.Time {
-	for _, layout := range []string{
-		time.RFC3339,
-		"2006-01-02T15:04:05.999Z",
-		"2006-01-02T15:04:05Z",
-	} {
-		if t, err := time.Parse(layout, ts); err == nil {
-			return t
-		}
-	}
-	return time.Now()
-}

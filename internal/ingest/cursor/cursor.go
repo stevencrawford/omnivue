@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/sess/internal/ingest/internal/util"
 
 	_ "modernc.org/sqlite"
 )
@@ -341,12 +342,12 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	if err := json.Unmarshal([]byte(tc.Output), &output); err == nil {
 		if output.BeforeContentID != "" {
 			if c := a.readContentBlock(ctx, output.BeforeContentID); c != "" {
-				oldStr = truncateContent(c)
+				oldStr = util.TruncateContent(c, 2000)
 			}
 		}
 		if output.AfterContentID != "" {
 			if c := a.readContentBlock(ctx, output.AfterContentID); c != "" {
-				newStr = truncateContent(c)
+				newStr = util.TruncateContent(c, 2000)
 			}
 		}
 		if newStr == "" && output.Contents != "" {
@@ -357,24 +358,6 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	return
 }
 
-// maxContentBytes caps the size of content injected into tool call input/output
-// fields. Large file blobs blow up the API payload and crash the browser.
-const maxContentBytes = 2000
-
-// truncateContent returns content truncated to maxContentBytes, appending a
-// notice if truncated. This keeps API payloads manageable while still providing
-// enough context for diff rendering.
-func truncateContent(s string) string {
-	if len(s) <= maxContentBytes {
-		return s
-	}
-	// Truncate at the last newline within the limit so we don't break mid-line.
-	end := strings.LastIndex(s[:maxContentBytes], "\n")
-	if end < 0 {
-		end = maxContentBytes
-	}
-	return s[:end] + "\n… (truncated)"
-}
 
 // readContentBlock looks up a composer.content.<hash> key in the KV store.
 // The contentID may or may not include the "composer.content." prefix.
@@ -415,14 +398,14 @@ func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
 	}
 	if after := a.readContentBlock(ctx, output.AfterContentID); after != "" {
 		if _, exists := input["newString"]; !exists {
-			input["newString"] = truncateContent(after)
+			input["newString"] = util.TruncateContent(after, 2000)
 			delete(input, "noCodeblock")
 			delete(input, "cloudAgentEdit")
 		}
 	}
 	if before := a.readContentBlock(ctx, output.BeforeContentID); before != "" {
 		if _, exists := input["oldString"]; !exists {
-			input["oldString"] = truncateContent(before)
+			input["oldString"] = util.TruncateContent(before, 2000)
 		}
 	}
 	if out, err := json.Marshal(input); err == nil {
@@ -459,14 +442,14 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 		if err := json.Unmarshal(value, &cd); err != nil {
 			continue
 		}
-		ms := parseMillis(cd.LastUpdatedAt)
+		ms := util.ParseMillis(string(cd.LastUpdatedAt))
 		if ms > maxTs {
 			maxTs = ms
 		}
 	}
 
 	transcriptDir := filepath.Join(a.cursorDir, "projects")
-	if pathExists(transcriptDir) {
+	if util.PathExists(transcriptDir) {
 		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil
@@ -589,11 +572,11 @@ type transcriptSession struct {
 // --- composerData helpers ---
 
 func (cd *composerData) timeCreated() time.Time {
-	return unixMillis(parseMillis(cd.CreatedAt))
+	return util.UnixMillis(util.ParseMillis(string(cd.CreatedAt)))
 }
 
 func (cd *composerData) timeUpdated() time.Time {
-	return unixMillis(parseMillis(cd.LastUpdatedAt))
+	return util.UnixMillis(util.ParseMillis(string(cd.LastUpdatedAt)))
 }
 
 func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, outputTokens int) {
@@ -617,7 +600,7 @@ func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, ou
 
 func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSession {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !pathExists(projectsDir) {
+	if !util.PathExists(projectsDir) {
 		return nil
 	}
 
@@ -666,7 +649,7 @@ func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSe
 
 func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) []ingest.Message {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !pathExists(projectsDir) {
+	if !util.PathExists(projectsDir) {
 		return nil
 	}
 
@@ -799,7 +782,7 @@ func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]i
 			ID:        bd.BubbleID,
 			Role:      role,
 			Content:   content,
-			Timestamp: parseTime(bd.CreatedAt),
+			Timestamp: util.ParseTime(bd.CreatedAt),
 		}
 
 		if content == "" && role == "assistant" {
@@ -893,22 +876,6 @@ func mapToolStatus(s string) string {
 	}
 }
 
-// extractJSONString parses raw as JSON and returns the value of the given key
-// if it is a string. Returns raw unchanged on any failure.
-func extractJSONString(raw, key string) string {
-	if !json.Valid([]byte(raw)) {
-		return raw
-	}
-	var m map[string]any
-	if err := json.Unmarshal([]byte(raw), &m); err != nil {
-		return raw
-	}
-	if s, ok := m[key].(string); ok {
-		return s
-	}
-	return raw
-}
-
 // formatGlobOutput parses Cursor's glob output JSON and returns a
 // newline-separated list of file paths suitable for the frontend.
 // Returns "" if the JSON doesn't match the expected format.
@@ -997,7 +964,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		}
 		delete(p, "charsLimit")
 		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
-		tc.Output = extractJSONString(tc.Output, "contents")
+		tc.Output = util.ExtractJSONString(tc.Output, "contents")
 
 	case "edit":
 		if v, ok := p["relativeWorkspacePath"]; ok {
@@ -1074,53 +1041,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	}
 }
 
-func parseMillis(n json.Number) int64 {
-	if n == "" {
-		return 0
-	}
-	// Try integer (milliseconds)
-	if ms, err := n.Int64(); err == nil {
-		return ms
-	}
-	// Try float (seconds with decimals, though unlikely)
-	if f, err := n.Float64(); err == nil {
-		return int64(f)
-	}
-	return 0
-}
-
-func unixMillis(ms int64) time.Time {
-	if ms <= 0 {
-		return time.Time{}
-	}
-	return time.UnixMilli(ms)
-}
-
-func parseTime(s string) time.Time {
-	if s == "" {
-		return time.Time{}
-	}
-	t, err := time.Parse(time.RFC3339Nano, s)
-	if err == nil {
-		return t
-	}
-	t, err = time.Parse("2006-01-02T15:04:05.999Z07:00", s)
-	if err == nil {
-		return t
-	}
-	for _, layout := range []string{
-		"2006-01-02T15:04:05.999999999Z",
-		"2006-01-02T15:04:05Z07:00",
-		"2006-01-02 15:04:05",
-	} {
-		t, err := time.Parse(layout, s)
-		if err == nil {
-			return t
-		}
-	}
-	return time.Time{}
-}
-
 func extractTextFromRichText(rt json.RawMessage) string {
 	var node struct {
 		Text     string            `json:"text"`
@@ -1139,11 +1059,6 @@ func extractTextFromRichText(rt json.RawMessage) string {
 		}
 	}
 	return strings.Join(parts, "\n")
-}
-
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // resolveVscdbPath resolves a Cursor entry path (directory or file) to the
@@ -1166,10 +1081,10 @@ func resolveVscdbPath(entry string) string {
 		)
 	}
 	for _, c := range candidates {
-		if pathExists(c) {
+		if util.PathExists(c) {
 			if fi, err := os.Stat(c); err == nil && fi.IsDir() {
 				c = filepath.Join(c, "state.vscdb")
-				if !pathExists(c) {
+				if !util.PathExists(c) {
 					continue
 				}
 			}
@@ -1194,7 +1109,7 @@ func resolveCursorDir(vscdbPath string) string {
 	home, err := os.UserHomeDir()
 	if err == nil {
 		cursorDir := filepath.Join(home, ".cursor")
-		if pathExists(cursorDir) {
+		if util.PathExists(cursorDir) {
 			return cursorDir
 		}
 	}
@@ -1220,7 +1135,7 @@ func resolveAppSupportDir(vscdbPath string) string {
 			filepath.Join(home, ".config", "Cursor"),
 		}
 		for _, p := range paths {
-			if pathExists(p) {
+			if util.PathExists(p) {
 				return p
 			}
 		}
@@ -1256,7 +1171,7 @@ func (a *Adapter) readConversationSummaries(ctx context.Context) map[string]conv
 	result := make(map[string]conversationSummaryRow)
 
 	dbPath := filepath.Join(a.appSupportDir, "User", "globalStorage", "ai-code-tracking.db")
-	if !pathExists(dbPath) {
+	if !util.PathExists(dbPath) {
 		return result
 	}
 

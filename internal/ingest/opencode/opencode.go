@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/sess/internal/ingest/internal/util"
 
 	_ "modernc.org/sqlite"
 )
@@ -92,7 +93,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 		s.Agent = ingest.AgentOpenCode
 		s.Model = extractModelID(modelJSON.String)
-		s.Repository = deriveRepository(s.Directory, projectName)
+		s.Repository = util.DeriveRepository(s.Directory, projectName)
 		s.Branch = "" // OpenCode doesn't store branch in session table
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -177,7 +178,7 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 		var data messageData
 		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
 			msg.Role = data.Role
-			msg.Model = extractModelID(marshalJSON(data.Model))
+			msg.Model = extractModelID(util.MarshalJSON(data.Model))
 			msg.Agent = data.Agent
 		}
 
@@ -226,12 +227,12 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 					tc := ingest.ToolCall{
 						ID:     p.CallID,
 						Name:   p.Tool,
-						Input:  marshalJSON(p.State.Input),
+						Input:  util.MarshalJSON(p.State.Input),
 						Output: p.State.Output,
 						Status: p.State.Status,
 					}
 					if p.State.Metadata != nil {
-						tc.Metadata = marshalJSON(p.State.Metadata)
+						tc.Metadata = util.MarshalJSON(p.State.Metadata)
 					}
 					if p.State.Time != nil {
 						tc.Duration = p.State.Time.End - p.State.Time.Start
@@ -526,7 +527,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 			continue
 		}
 
-		inputJSON := marshalJSON(p.State.Input)
+		inputJSON := util.MarshalJSON(p.State.Input)
 		if inputJSON == "" {
 			continue
 		}
@@ -742,15 +743,6 @@ func extractModelID(modelJSON string) string {
 	return modelJSON
 }
 
-// deriveRepository creates a repository identifier from directory and project name.
-func deriveRepository(directory, projectName string) string {
-	if projectName != "" {
-		return projectName
-	}
-	// Fall back to last path component
-	return filepath.Base(directory)
-}
-
 func extractSubAgentFromTitle(title string) string {
 	idx := strings.Index(title, "(@")
 	if idx == -1 {
@@ -779,16 +771,4 @@ func stripTaskWrapper(output string) string {
 	return strings.TrimSpace(strings.Join(result, "\n"))
 }
 
-func marshalJSON(v interface{}) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
-	}
-	return string(b)
-}
+

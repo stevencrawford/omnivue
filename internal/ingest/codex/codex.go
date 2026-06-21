@@ -1,7 +1,6 @@
 package codex
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,9 +13,8 @@ import (
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/sess/internal/ingest/internal/util"
 )
-
-const maxScanTokenSize = 512 * 1024
 
 type Adapter struct {
 	basePath string
@@ -133,8 +131,7 @@ func readIndex(path string) ([]codexIndexEntry, error) {
 	defer f.Close()
 
 	var entries []codexIndexEntry
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -188,8 +185,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	var cost float64
 	var tokensInput, tokensOutput int
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -209,7 +205,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 					session.Directory = pl.CWD
 				}
 				if pl.Git != nil {
-					session.Repository = deriveRepo(pl.Git.RepositoryURL)
+					session.Repository = util.DeriveRepoFromURL(pl.Git.RepositoryURL)
 					session.Branch = pl.Git.Branch
 				}
 				if session.Title == "" && pl.ID != "" {
@@ -266,7 +262,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	}
 
 	if session.Repository == "" {
-		session.Repository = deriveRepo("")
+		session.Repository = util.DeriveRepoFromURL("")
 		if session.Repository == "" {
 			session.Repository = filepath.Base(session.Directory)
 		}
@@ -413,8 +409,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	toolCallsByID := make(map[string]*ingest.ToolCall)
 	hasDeveloperContent := false
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -436,7 +431,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			switch pl.Type {
 			case "message":
 				msg := ingest.Message{
-					Timestamp: parseCodexTime(env.Timestamp),
+					Timestamp: util.ParseTime(env.Timestamp),
 				}
 
 		switch pl.Role {
@@ -468,7 +463,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 						msg := ingest.Message{
 							Role:      "system",
 							Content:   extractContentText(pl.Content),
-							Timestamp: parseCodexTime(env.Timestamp),
+							Timestamp: util.ParseTime(env.Timestamp),
 						}
 						messages = append(messages, msg)
 					}
@@ -522,7 +517,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					Role:      "user",
 					Content:   normalized,
 					Metadata:  meta,
-					Timestamp: parseCodexTime(env.Timestamp),
+					Timestamp: util.ParseTime(env.Timestamp),
 				}
 				messages = append(messages, msg)
 
@@ -530,7 +525,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				msg := ingest.Message{
 					Role:      "assistant",
 					Content:   pl.Message,
-					Timestamp: parseCodexTime(env.Timestamp),
+					Timestamp: util.ParseTime(env.Timestamp),
 				}
 				var msgToolCalls []ingest.ToolCall
 				for _, tc := range toolCallsByID {
@@ -620,8 +615,7 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	defer f.Close()
 
 	var sections []string
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -673,8 +667,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	defer f.Close()
 
 	var diffs []ingest.DiffFile
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -742,8 +735,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 	defer f.Close()
 
 	var edits []ingest.FileEdit
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, maxScanTokenSize), maxScanTokenSize)
+	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -765,7 +757,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 				continue
 			}
 
-			ts := parseCodexTime(env.Timestamp)
+			ts := util.ParseTime(env.Timestamp)
 
 			var changes map[string]changeEntry
 			if err := json.Unmarshal(pl.Changes, &changes); err != nil {
@@ -790,7 +782,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 				continue
 			}
 
-			ts := parseCodexTime(env.Timestamp)
+			ts := util.ParseTime(env.Timestamp)
 			patchText := pl.Input
 			if patchText == "" {
 				patchText = pl.Arguments
@@ -891,31 +883,6 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 
 func (a *Adapter) Close() error {
 	return nil
-}
-
-func parseCodexTime(ts string) time.Time {
-	for _, layout := range []string{
-		time.RFC3339,
-		"2006-01-02T15:04:05.999Z",
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.999999Z",
-	} {
-		if t, err := time.Parse(layout, ts); err == nil {
-			return t
-		}
-	}
-	return time.Now()
-}
-
-func deriveRepo(repoURL string) string {
-	if repoURL == "" {
-		return ""
-	}
-	repoURL = strings.TrimSuffix(repoURL, ".git")
-	if idx := strings.LastIndex(repoURL, "/"); idx >= 0 {
-		return repoURL[idx+1:]
-	}
-	return repoURL
 }
 
 func normalizeBashInput(tc *ingest.ToolCall) {
