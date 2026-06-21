@@ -252,16 +252,25 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
-	sessions, err := a.ListSessions(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for i := range sessions {
-		if sessions[i].ID == id {
-			return &sessions[i], nil
+	// Check cache first (fast path)
+	a.mu.RLock()
+	if a.sessions != nil {
+		for i := range a.sessions {
+			if a.sessions[i].ID == id {
+				s := a.sessions[i]
+				a.mu.RUnlock()
+				return &s, nil
+			}
 		}
 	}
-	return nil, fmt.Errorf("session not found: %s", id)
+	a.mu.RUnlock()
+
+	// Fallback: find and parse just the one session file
+	fpath := a.findSessionFile(id)
+	if fpath == "" {
+		return nil, fmt.Errorf("session not found: %s", id)
+	}
+	return a.parseSessionFile(fpath)
 }
 
 func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {

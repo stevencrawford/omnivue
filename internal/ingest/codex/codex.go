@@ -299,13 +299,29 @@ func (a *Adapter) sessionFilePath(sessionID string) string {
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
-	sessions, err := a.ListSessions(ctx)
-	if err != nil {
-		return nil, err
+	// Check cache first (fast path)
+	a.mu.RLock()
+	if a.sessions != nil {
+		for i := range a.sessions {
+			if a.sessions[i].ID == id {
+				s := a.sessions[i]
+				a.mu.RUnlock()
+				return &s, nil
+			}
+		}
 	}
-	for i := range sessions {
-		if sessions[i].ID == id {
-			return &sessions[i], nil
+	a.mu.RUnlock()
+
+	// Fallback: find just the one session by scanning the index for this ID
+	indexPath := filepath.Join(a.basePath, "session_index.jsonl")
+	indexEntries, err := readIndex(indexPath)
+	if err != nil {
+		return nil, fmt.Errorf("codex adapter: reading index: %w", err)
+	}
+
+	for _, entry := range indexEntries {
+		if entry.ID == id {
+			return a.resolveSessionFromIndex(ctx, entry)
 		}
 	}
 	return nil, fmt.Errorf("session not found: %s", id)

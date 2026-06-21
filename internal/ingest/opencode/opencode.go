@@ -133,16 +133,82 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
-	sessions, err := a.ListSessions(ctx)
+	var (
+		s            ingest.Session
+		parentID     sql.NullString
+		modelJSON    sql.NullString
+		agentCol     sql.NullString
+		summFiles    sql.NullInt64
+		summAdd      sql.NullInt64
+		summDel      sql.NullInt64
+		timeCreated  int64
+		timeUpdated  int64
+		projectName  string
+		msgCount     int
+	)
+
+	err := a.db.QueryRowContext(ctx, `
+		SELECT 
+			s.id, s.parent_id, s.title, s.directory, s.model, s.agent,
+			s.cost, s.tokens_input, s.tokens_output, s.tokens_reasoning,
+			s.tokens_cache_read, s.tokens_cache_write,
+			s.summary_files, s.summary_additions, s.summary_deletions,
+			s.time_created, s.time_updated,
+			COALESCE(p.name, ''),
+			(SELECT COUNT(*) FROM message WHERE session_id = s.id)
+		FROM session s
+		LEFT JOIN project p ON s.project_id = p.id
+		WHERE s.id = ?
+	`, id).Scan(
+		&s.ID, &parentID, &s.Title, &s.Directory, &modelJSON, &agentCol,
+		&s.Cost, &s.TokensInput, &s.TokensOutput, &s.TokensReasoning,
+		&s.TokensCacheRead, &s.TokensCacheWrite,
+		&summFiles, &summAdd, &summDel,
+		&timeCreated, &timeUpdated,
+		&projectName, &msgCount,
+	)
 	if err != nil {
-		return nil, err
-	}
-	for i := range sessions {
-		if sessions[i].ID == id {
-			return &sessions[i], nil
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("session not found: %s", id)
 		}
+		return nil, fmt.Errorf("querying session: %w", err)
 	}
-	return nil, fmt.Errorf("session not found: %s", id)
+
+	s.Agent = ingest.AgentOpenCode
+	s.Model = extractModelID(modelJSON.String)
+	s.Repository = util.DeriveRepository(s.Directory, projectName)
+	s.Branch = ""
+	s.CreatedAt = time.UnixMilli(timeCreated)
+	s.UpdatedAt = time.UnixMilli(timeUpdated)
+	s.Status = "completed"
+
+	if parentID.Valid {
+		s.ParentID = parentID.String
+	}
+
+	if agentCol.Valid && agentCol.String != "" {
+		s.SubAgent = agentCol.String
+	} else {
+		s.SubAgent = extractSubAgentFromTitle(s.Title)
+	}
+
+	if agentCol.Valid {
+		s.Status = "completed"
+	}
+
+	if summFiles.Valid {
+		s.DiffFiles = int(summFiles.Int64)
+	}
+	if summAdd.Valid {
+		s.DiffAdditions = int(summAdd.Int64)
+	}
+	if summDel.Valid {
+		s.DiffDeletions = int(summDel.Int64)
+	}
+
+	s.MessageCount = msgCount
+
+	return &s, nil
 }
 
 func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {

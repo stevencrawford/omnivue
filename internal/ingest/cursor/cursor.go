@@ -150,15 +150,51 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
-	sessions, err := a.ListSessions(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range sessions {
-		if s.ID == id {
-			return &s, nil
+	// Try composer data from KV store first
+	var value []byte
+	err := a.db.QueryRowContext(ctx,
+		`SELECT value FROM cursorDiskKV WHERE key = 'composerData:`+id+`'`).Scan(&value)
+	if err == nil {
+		var cd composerData
+		if err := json.Unmarshal(value, &cd); err == nil && cd.ComposerID != "" {
+			createdAt := cd.timeCreated()
+			updatedAt := cd.timeUpdated()
+			title := extractTitle(&cd)
+			dir := resolveDir(&cd)
+			model, cost, inputTokens, outputTokens := cd.usageInfo()
+
+			return &ingest.Session{
+				ID:           id,
+				Title:        title,
+				Directory:    dir,
+				Repository:   deriveRepository(dir),
+				Agent:        ingest.AgentCursor,
+				Model:        model,
+				Cost:         cost,
+				Status:       mapStatus(cd.Status),
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
+				TokensInput:  inputTokens,
+				TokensOutput: outputTokens,
+				MessageCount: len(cd.FullConversationHeadersOnly),
+			}, nil
 		}
 	}
+
+	// Fallback: try transcript sessions
+	for _, ts := range a.discoverTranscriptSessions(ctx) {
+		if ts.ID == id {
+			return &ingest.Session{
+				ID:           id,
+				Agent:        ingest.AgentCursor,
+				Status:       ts.Status,
+				CreatedAt:    ts.CreatedAt,
+				UpdatedAt:    ts.UpdatedAt,
+				MessageCount: len(ts.Messages),
+			}, nil
+		}
+	}
+
 	return nil, fmt.Errorf("session not found: %s", id)
 }
 

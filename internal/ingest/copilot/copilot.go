@@ -144,6 +144,23 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 		s.Title = filepath.Base(s.Directory)
 	}
 
+	// Count diff files (same as ListSessions)
+	var fileCount int
+	_ = a.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM session_files WHERE session_id = ?`, id,
+	).Scan(&fileCount)
+	s.DiffFiles = fileCount
+
+	// Count messages (same as ListSessions)
+	var msgCount int
+	_ = a.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM turns
+		WHERE session_id = ?
+		AND (user_message IS NOT NULL AND user_message != ''
+		     OR assistant_response IS NOT NULL AND assistant_response != '')
+	`, id).Scan(&msgCount)
+	s.MessageCount = msgCount
+
 	return &s, nil
 }
 
