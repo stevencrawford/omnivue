@@ -681,6 +681,20 @@ function MessageBlock({
 }) {
   if (message.role === "user") {
     if (!message.content?.trim()) return null;
+    const turnAborted = message.metadata?.type === "turn_aborted";
+    if (turnAborted) {
+      return (
+        <div className="border border-red-500/30 rounded-lg overflow-hidden mb-3 bg-red-500/[0.03]">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-red-500/20">
+            <TriangleAlert size={14} className="text-red-400 shrink-0" />
+            <span className="text-[11px] font-semibold text-red-400">TURN ABORTED</span>
+          </div>
+          <div className="px-3 py-2 text-xs text-gh-text-secondary whitespace-pre-wrap leading-relaxed">
+            {message.content}
+          </div>
+        </div>
+      );
+    }
     return <UserTurnView content={message.content} onOpenModal={onOpenModal} />;
   }
   if (message.role === "system") {
@@ -838,11 +852,11 @@ function UserTurnView({
   onOpenModal?: (content: string, title?: string) => void;
 }) {
   const { blocks, remaining } = extractInlineBlocks(content);
-  const [expanded, setExpanded] = useState(true);
+  const lines = content.split("\n");
+  const isLong = lines.length > 20;
+  const [expanded, setExpanded] = useState(!isLong);
 
   if (blocks.length === 0) {
-    const lines = content.split("\n");
-    const isLong = lines.length > 20;
     const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
 
     return (
