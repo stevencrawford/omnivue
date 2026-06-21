@@ -93,6 +93,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
+  const originalTitleRef = useRef("Untitled");
   const lastSavedMarkdownRef = useRef("");
   const isUpdatingRef = useRef(false);
 
@@ -101,6 +102,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
     try {
       const f = await getScratchFile(sessionId, fileId);
       setSourceContent(f.content);
+      originalTitleRef.current = f.title;
       lastSavedMarkdownRef.current = f.content;
     } catch {
       /* ignore */
@@ -202,7 +204,10 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   const doSave = useCallback(
     async (fid: string, md: string) => {
       setSaveStatus("saving");
-      const title = extractFirstH1(md) || "Untitled";
+      const title =
+        originalTitleRef.current === "Untitled"
+          ? extractFirstH1(md) || "Untitled"
+          : originalTitleRef.current;
       try {
         await updateScratchFile(sessionId, fid, title, md);
         setSaveStatus("saved");
