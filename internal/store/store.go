@@ -449,15 +449,15 @@ func (s *Store) ClearSessionChunkType(sessionID, chunkType string) error {
 
 // IndexSession indexes a session's content for full-text search.
 func (s *Store) IndexSession(sessionID, sourceID, chunkType, repository, content string) error {
-	return s.IndexSessionAt(sessionID, sourceID, chunkType, repository, content, "", "", "")
+	return s.IndexSessionAt(sessionID, sourceID, chunkType, repository, content, "", "", "", 0)
 }
 
 // IndexSessionAt indexes session content with an explicit last-updated timestamp.
-func (s *Store) IndexSessionAt(sessionID, sourceID, chunkType, repository, content, updatedAt, fileTitle, fileID string) error {
+func (s *Store) IndexSessionAt(sessionID, sourceID, chunkType, repository, content, updatedAt, fileTitle, fileID string, messageIndex int) error {
 	_, err := s.db.Exec(`
-		INSERT INTO search_index (content, session_id, source_id, chunk_type, repository, updated_at, file_title, file_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, content, sessionID, sourceID, chunkType, repository, updatedAt, fileTitle, fileID)
+		INSERT INTO search_index (content, session_id, source_id, chunk_type, repository, updated_at, file_title, file_id, message_index)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, content, sessionID, sourceID, chunkType, repository, updatedAt, fileTitle, fileID, messageIndex)
 	return err
 }
 
@@ -490,7 +490,7 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 	var err error
 	if sessionID != "" {
 		rows, err = s.db.Query(`
-			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, ''), COALESCE(file_title, ''), COALESCE(file_id, '')
+			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, ''), COALESCE(file_title, ''), COALESCE(file_id, ''), COALESCE(message_index, 0)
 			FROM search_index
 			WHERE search_index MATCH ?
 			  AND session_id = ?
@@ -498,7 +498,7 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 				CASE chunk_type
 					WHEN 'name' THEN 0
 					WHEN 'plan' THEN 1
-					WHEN 'messages' THEN 2
+					WHEN 'message' THEN 2
 					WHEN 'scratch' THEN 3
 					ELSE 4
 				END,
@@ -507,14 +507,14 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 		`, query, sessionID, limit)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, ''), COALESCE(file_title, ''), COALESCE(file_id, '')
+			SELECT session_id, source_id, chunk_type, repository, snippet(search_index, 0, '<mark>', '</mark>', '...', 64), COALESCE(updated_at, ''), COALESCE(file_title, ''), COALESCE(file_id, ''), COALESCE(message_index, 0)
 			FROM search_index
 			WHERE search_index MATCH ?
 			ORDER BY
 				CASE chunk_type
 					WHEN 'name' THEN 0
 					WHEN 'plan' THEN 1
-					WHEN 'messages' THEN 2
+					WHEN 'message' THEN 2
 					WHEN 'scratch' THEN 3
 					ELSE 4
 				END,
@@ -530,7 +530,7 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.ChunkType, &r.Repository, &r.Snippet, &r.UpdatedAt, &r.FileTitle, &r.FileID); err != nil {
+		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.ChunkType, &r.Repository, &r.Snippet, &r.UpdatedAt, &r.FileTitle, &r.FileID, &r.MessageIndex); err != nil {
 			continue
 		}
 		results = append(results, r)
@@ -540,15 +540,16 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 
 // SearchResult represents a search hit.
 type SearchResult struct {
-	SessionID   string `json:"sessionId"`
-	SessionName string `json:"sessionName"`
-	SourceID    string `json:"sourceId"`
-	ChunkType   string `json:"chunkType"`
-	Repository  string `json:"repository"`
-	Snippet     string `json:"snippet"`
-	UpdatedAt   string `json:"updatedAt"`
-	FileTitle   string `json:"fileTitle,omitempty"`
-	FileID      string `json:"fileId,omitempty"`
+	SessionID     string `json:"sessionId"`
+	SessionName   string `json:"sessionName"`
+	SourceID      string `json:"sourceId"`
+	ChunkType     string `json:"chunkType"`
+	Repository    string `json:"repository"`
+	Snippet       string `json:"snippet"`
+	UpdatedAt     string `json:"updatedAt"`
+	FileTitle     string `json:"fileTitle,omitempty"`
+	FileID        string `json:"fileId,omitempty"`
+	MessageIndex  int    `json:"messageIndex,omitempty"`
 }
 
 // migrate runs database migrations.
@@ -622,10 +623,10 @@ func (s *Store) migrate() error {
 		);
 	`)
 
-	// Migration: ensure updated_at, file_title, file_id columns exist on search_index.
+	// Migration: ensure message_index, updated_at, file_title, file_id columns exist on search_index.
 	// FTS5 ALTER TABLE ADD COLUMN may fail on some platforms, so we
 	// test the column and drop/recreate the table if needed.
-	_, probeErr := s.db.Exec(`SELECT updated_at, file_title, file_id FROM search_index LIMIT 0`)
+	_, probeErr := s.db.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`)
 	if probeErr != nil {
 		s.db.Exec(`DROP TABLE IF EXISTS search_index`)
 		s.db.Exec(`DROP TABLE IF EXISTS index_state`)
@@ -637,7 +638,8 @@ func (s *Store) migrate() error {
 			repository UNINDEXED,
 			updated_at UNINDEXED,
 			file_title UNINDEXED,
-			file_id UNINDEXED
+			file_id UNINDEXED,
+			message_index UNINDEXED
 		)`)
 		s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
 			session_id TEXT PRIMARY KEY,

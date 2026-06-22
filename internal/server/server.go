@@ -306,20 +306,32 @@ func (s *State) indexSessions(ctx context.Context) {
 		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
 
 		// Index name chunk
-		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", ""); err != nil {
+		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0); err != nil {
 			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
 		}
 
 		// Index plan chunk
 		if planContent != "" {
-			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", ""); err != nil {
+			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0); err != nil {
 				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
 			}
 		}
 
-		// Index messages chunk
-		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "messages", sess.Repository, messagesContent, updatedAt, "", ""); err != nil {
-			slog.Warn("failed to index session messages", "session", sess.ID, "error", err)
+		// Index individual messages with their index for exact message targeting
+		for mi, msg := range messages {
+			var msgBuilder strings.Builder
+			msgBuilder.WriteString(msg.Content)
+			msgBuilder.WriteString("\n")
+			for _, tc := range msg.ToolCalls {
+				msgBuilder.WriteString(tc.Name)
+				msgBuilder.WriteString(" ")
+				msgBuilder.WriteString(tc.Output)
+				msgBuilder.WriteString("\n")
+			}
+			msgContent := msgBuilder.String()
+			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi); err != nil {
+				slog.Warn("failed to index session message", "session", sess.ID, "idx", mi, "error", err)
+			}
 		}
 
 		// Index scratch files chunk
@@ -332,7 +344,7 @@ func (s *State) indexSessions(ctx context.Context) {
 					continue
 				}
 				fileContent := sf.Title + "\n" + sf.Content
-				if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID); err != nil {
+				if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0); err != nil {
 					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
 				}
 			}
@@ -687,7 +699,7 @@ func (s *State) reindexSessionScratch(sessionID string) {
 			continue
 		}
 		content := sf.Title + "\n" + sf.Content
-		if err := s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID); err != nil {
+		if err := s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0); err != nil {
 			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
 		}
 	}
