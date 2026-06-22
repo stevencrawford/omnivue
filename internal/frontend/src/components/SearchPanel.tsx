@@ -93,6 +93,13 @@ export function SearchPanel({
 
   const totalResults = results.length;
 
+  // Flatten all results into a single array matching keyboard navigation order
+  const allFlatResults = useMemo(() => {
+    return sections.flatMap((s) => s.results);
+  }, [sections]);
+
+  const selectedResult: SearchResult | undefined = allFlatResults[selectedIndex];
+
   useEffect(() => {
     setHasNavigated(false);
     userNavigated.current = false;
@@ -184,46 +191,55 @@ export function SearchPanel({
       <div className="search-overlay-backdrop" onClick={onClose} />
       <div className="search-overlay">
         <div className="search-overlay-panel">
-          <div className="flex items-center gap-1.5 px-3 py-3 border-b border-gh-border">
-            <Search size={16} className="text-accent shrink-0" />
-            {searchScope && searchScopeName && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border shrink-0">
-                <Folder size={12} />
-                {searchScopeName}
+          <div className="px-3 py-3 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Search size={16} className="text-accent shrink-0" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  searchScope ? "Search in current session..." : "Search sessions, messages, plans..."
+                }
+                className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
+              />
+              {query && (
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClearScope();
-                  }}
-                  className="ml-0.5 p-0.5 rounded hover:bg-accent/20 cursor-pointer"
+                  onClick={handleClearQuery}
+                  className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded shrink-0"
                 >
-                  <X size={12} />
+                  <X size={14} />
                 </button>
-              </span>
+              )}
+              <span className="sess-kbd">Esc</span>
+            </div>
+            {searchScope && searchScopeName && (
+              <div className="flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border">
+                  <Folder size={12} />
+                  {searchScopeName}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClearScope();
+                    }}
+                    className="ml-0.5 p-0.5 rounded hover:bg-accent/20 cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              </div>
             )}
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                searchScope ? "Search in current session..." : "Search sessions, messages, plans..."
-              }
-              className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={handleClearQuery}
-                className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded shrink-0"
-              >
-                <X size={14} />
-              </button>
-            )}
-            <span className="sess-kbd">Esc</span>
           </div>
+          {selectedResult && selectedResult.sessionName && (
+            <div className="px-3 py-1.5 bg-gh-bg-secondary/60 border-b border-gh-border text-[11px] font-medium text-gh-text truncate">
+              Session: {selectedResult.sessionName}
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
             {loading && (
               <div className="flex items-center justify-center gap-2 text-xs text-gh-text-secondary p-6">
@@ -278,7 +294,7 @@ export function SearchPanel({
                               </span>
                             )}
                           </div>
-                          {r.chunkType !== "name" && r.sessionName && (
+                          {r.sessionName && (
                             <div className="text-[11px] font-semibold text-gh-text truncate leading-snug mt-0.5">
                               {r.sessionName}
                             </div>

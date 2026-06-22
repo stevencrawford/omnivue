@@ -97,11 +97,27 @@ export function SearchResultsDrawer({
       <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed top-0 right-0 bottom-0 z-50 w-[420px] max-w-[90vw] flex flex-col bg-surface-elevated border-l border-gh-border shadow-2xl animate-slide-in-right">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gh-border shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Search size={16} className="text-accent shrink-0" />
-            {searchScopeName && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border shrink-0">
+        <div className="px-4 py-3 border-b border-gh-border shrink-0 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <Search size={16} className="text-accent shrink-0" />
+              <span className="text-sm font-medium text-gh-text truncate">{query}</span>
+              <span className="text-[11px] text-gh-text-secondary tabular-nums shrink-0">
+                ({results.length})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 text-gh-text-secondary hover:text-gh-text cursor-pointer p-1 rounded transition-colors"
+              aria-label="Close search results"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          {searchScopeName && (
+            <div className="flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-accent-muted text-accent border border-accent-border">
                 <Folder size={12} />
                 {searchScopeName}
                 {onClearScope && (
@@ -117,20 +133,8 @@ export function SearchResultsDrawer({
                   </button>
                 )}
               </span>
-            )}
-            <span className="text-sm font-medium text-gh-text truncate">{query}</span>
-            <span className="text-[11px] text-gh-text-secondary tabular-nums shrink-0">
-              ({results.length})
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 text-gh-text-secondary hover:text-gh-text cursor-pointer p-1 rounded transition-colors"
-            aria-label="Close search results"
-          >
-            <X size={16} />
-          </button>
+            </div>
+          )}
         </div>
 
         {/* Results */}
@@ -176,7 +180,7 @@ export function SearchResultsDrawer({
                         </span>
                       )}
                     </div>
-                    {r.chunkType !== "name" && r.sessionName && (
+                    {r.sessionName && (
                       <div className="text-[11px] font-semibold text-gh-text truncate leading-snug mt-0.5">
                         {r.sessionName}
                       </div>
