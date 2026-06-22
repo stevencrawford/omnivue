@@ -1,33 +1,71 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-type Theme = "light" | "dark";
+export type ThemeName = "default" | "nord" | "catppuccin" | "tokyo-night" | "github";
+export type ThemeMode = "light" | "dark";
 
-function getInitialTheme(): Theme {
+export const THEMES: { name: ThemeName; label: string; description: string }[] = [
+  { name: "default", label: "Ayu", description: "Warm earthy tones" },
+  { name: "nord", label: "Nord", description: "Cool arctic blues" },
+  { name: "catppuccin", label: "Catppuccin", description: "Warm pastel tones" },
+  { name: "tokyo-night", label: "Tokyo Night", description: "Deep blue night" },
+  { name: "github", label: "GitHub", description: "GitHub's official palette" },
+];
+
+const THEME_NAMES: ThemeName[] = ["default", "nord", "catppuccin", "tokyo-night", "github"];
+
+function getInitialThemeName(): ThemeName {
   const stored = localStorage.getItem("sess-theme");
+  if (THEME_NAMES.includes(stored as ThemeName)) return stored as ThemeName;
+  if (stored === "light" || stored === "dark") return "default";
+  return "default";
+}
+
+function getInitialThemeMode(): ThemeMode {
+  const stored = localStorage.getItem("sess-mode");
   if (stored === "light" || stored === "dark") return stored;
+  const old = localStorage.getItem("sess-theme");
+  if (old === "light" || old === "dark") return old;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 interface ThemeContextValue {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
+  themeName: ThemeName;
+  themeMode: ThemeMode;
+  setThemeName: (name: ThemeName) => void;
+  setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
+  theme: ThemeMode;
+  setTheme: (t: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [themeName, setThemeName] = useState<ThemeName>(getInitialThemeName);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialThemeMode);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("sess-theme", theme);
-  }, [theme]);
+    document.documentElement.setAttribute("data-theme", themeName);
+    document.documentElement.setAttribute("data-mode", themeMode);
+    localStorage.setItem("sess-theme", themeName);
+    localStorage.setItem("sess-mode", themeMode);
+  }, [themeName, themeMode]);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const toggleTheme = () => setThemeMode((t) => (t === "dark" ? "light" : "dark"));
+  const setTheme = (t: ThemeMode) => setThemeMode(t);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{
+        themeName,
+        themeMode,
+        setThemeName,
+        setThemeMode,
+        toggleTheme,
+        theme: themeMode,
+        setTheme,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

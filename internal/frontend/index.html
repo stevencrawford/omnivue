@@ -13,12 +13,21 @@
     <title>sess</title>
     <script>
       (function () {
-        var t = localStorage.getItem("sess-theme");
-        if (t === "light" || t === "dark") {
-          document.documentElement.setAttribute("data-theme", t);
-        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          document.documentElement.setAttribute("data-theme", "dark");
+        var theme = localStorage.getItem("sess-theme");
+        var mode = localStorage.getItem("sess-mode");
+        var names = ["default","nord","catppuccin","tokyo-night","github"];
+        if (names.indexOf(theme) === -1) {
+          theme = "default";
+          if (mode !== "light" && mode !== "dark") {
+            var old = localStorage.getItem("sess-theme");
+            mode = (old === "light" || old === "dark") ? old : null;
+          }
         }
+        if (mode !== "light" && mode !== "dark") {
+          mode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.setAttribute("data-mode", mode);
       })();
     </script>
   </head>
