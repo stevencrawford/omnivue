@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
@@ -109,6 +110,11 @@ export function App() {
           setSearchOpen(false);
           return;
         }
+        if (searchHighlightQuery) {
+          setSearchHighlightQuery(null);
+          setFocusMessageIndex(undefined);
+          return;
+        }
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
@@ -157,7 +163,14 @@ export function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [searchOpen, sessions, drawerOpen, activeSessionId]);
+  }, [
+    searchOpen,
+    sessions,
+    drawerOpen,
+    activeSessionId,
+    searchHighlightQuery,
+    setFocusMessageIndex,
+  ]);
 
   useSSE({
     onUpdate: () => {
@@ -431,11 +444,39 @@ export function App() {
             </div>
           </div>
 
-          <button type="button" className="sess-search-trigger" onClick={() => setSearchOpen(true)}>
+          <button
+            type="button"
+            className={`sess-search-trigger ${searchHighlightQuery ? "sess-search-active" : ""}`}
+            onClick={() => {
+              if (searchHighlightQuery) setSearchQuery(searchHighlightQuery);
+              setSearchOpen(true);
+            }}
+          >
             <svg className="size-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
               <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
             </svg>
-            <span className="flex-1 text-left">Search sessions...</span>
+            <span className="flex-1 text-left truncate">
+              {searchHighlightQuery ? (
+                <span className="text-accent font-medium">
+                  Search: &ldquo;{searchHighlightQuery}&rdquo;
+                </span>
+              ) : (
+                "Search sessions..."
+              )}
+            </span>
+            {searchHighlightQuery && (
+              <span
+                role="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSearchHighlightQuery(null);
+                  setFocusMessageIndex(undefined);
+                }}
+                className="size-4 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer shrink-0"
+              >
+                <X size={12} />
+              </span>
+            )}
             <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}P</span>
           </button>
 
