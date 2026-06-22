@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/stevencrawford/sess/internal/ingest"
 	"github.com/stevencrawford/sess/internal/ingest/internal/util"
@@ -16,10 +17,18 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// syntheticSession holds a virtual child session created from sub-agent delegation events.
+type syntheticSession struct {
+	session  ingest.Session
+	messages []ingest.Message
+}
+
 // Adapter reads GitHub Copilot session data from its SQLite database and session-state files.
 type Adapter struct {
-	db       *sql.DB
-	basePath string
+	db                *sql.DB
+	basePath          string
+	syntheticSessions map[string]*syntheticSession
+	mu                sync.Mutex
 }
 
 // New creates a new Copilot adapter for the given base path.
@@ -30,7 +39,7 @@ func New(basePath string) (*Adapter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("copilot adapter: %w", err)
 	}
-	return &Adapter{db: db, basePath: basePath}, nil
+	return &Adapter{db: db, basePath: basePath, syntheticSessions: make(map[string]*syntheticSession)}, nil
 }
 
 func (a *Adapter) Type() ingest.AgentType {
@@ -103,6 +112,22 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		).Scan(&fileCount)
 		s.DiffFiles = fileCount
 
+		// Enrich with metadata from events.jsonl (model, cost, tokens, diffs)
+		if meta := a.scanEventsMetadata(s.ID); meta != nil {
+			s.Model = meta.Model
+			s.Cost = meta.Cost
+			s.TokensInput = meta.TokensInput
+			s.TokensOutput = meta.TokensOutput
+			s.TokensReasoning = meta.TokensReasoning
+			s.TokensCacheRead = meta.TokensCacheRead
+			s.TokensCacheWrite = meta.TokensCacheWrite
+			s.DiffAdditions = meta.DiffAdditions
+			s.DiffDeletions = meta.DiffDeletions
+			if meta.DiffFiles > 0 {
+				s.DiffFiles = meta.DiffFiles
+			}
+		}
+
 		// Count messages from events.jsonl when available (aligns with GetMessages)
 		s.MessageCount = a.countMessagesFromEvents(s.ID)
 
@@ -119,6 +144,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	stateDir := filepath.Join(a.basePath, "session-state")
 	entries, err := os.ReadDir(stateDir)
 	if err != nil {
+		// Include synthetic sessions even if the state directory is missing
+		sessions = a.appendSyntheticSessions(sessions)
 		return sessions, nil
 	}
 
@@ -140,7 +167,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		if len(id) > 8 {
 			title = id[:8] + "..."
 		}
-		sessions = append(sessions, ingest.Session{
+		s := ingest.Session{
 			ID:           id,
 			Agent:        ingest.AgentCopilot,
 			Title:        title,
@@ -148,8 +175,26 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			CreatedAt:    info.ModTime(),
 			UpdatedAt:    info.ModTime(),
 			MessageCount: msgCount,
-		})
+		}
+		if meta := a.scanEventsMetadata(id); meta != nil {
+			s.Model = meta.Model
+			s.Cost = meta.Cost
+			s.TokensInput = meta.TokensInput
+			s.TokensOutput = meta.TokensOutput
+			s.TokensReasoning = meta.TokensReasoning
+			s.TokensCacheRead = meta.TokensCacheRead
+			s.TokensCacheWrite = meta.TokensCacheWrite
+			s.DiffAdditions = meta.DiffAdditions
+			s.DiffDeletions = meta.DiffDeletions
+			if meta.DiffFiles > 0 {
+				s.DiffFiles = meta.DiffFiles
+			}
+		}
+		sessions = append(sessions, s)
 	}
+
+	// Include synthetic child sessions from sub-agent delegations
+	sessions = a.appendSyntheticSessions(sessions)
 
 	// Re-sort by UpdatedAt desc since appended filesystem sessions
 	sort.Slice(sessions, func(i, j int) bool {
@@ -159,7 +204,26 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	return sessions, nil
 }
 
+// appendSyntheticSessions adds any synthetic child sessions to the list.
+func (a *Adapter) appendSyntheticSessions(sessions []ingest.Session) []ingest.Session {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, syn := range a.syntheticSessions {
+		sessions = append(sessions, syn.session)
+	}
+	return sessions
+}
+
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+	// Check for synthetic child session first
+	a.mu.Lock()
+	if syn, ok := a.syntheticSessions[id]; ok {
+		a.mu.Unlock()
+		s := syn.session
+		return &s, nil
+	}
+	a.mu.Unlock()
+
 	var (
 		s          ingest.Session
 		cwd        sql.NullString
@@ -201,6 +265,22 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	).Scan(&fileCount)
 	s.DiffFiles = fileCount
 
+	// Enrich with metadata from events.jsonl
+	if meta := a.scanEventsMetadata(id); meta != nil {
+		s.Model = meta.Model
+		s.Cost = meta.Cost
+		s.TokensInput = meta.TokensInput
+		s.TokensOutput = meta.TokensOutput
+		s.TokensReasoning = meta.TokensReasoning
+		s.TokensCacheRead = meta.TokensCacheRead
+		s.TokensCacheWrite = meta.TokensCacheWrite
+		s.DiffAdditions = meta.DiffAdditions
+		s.DiffDeletions = meta.DiffDeletions
+		if meta.DiffFiles > 0 {
+			s.DiffFiles = meta.DiffFiles
+		}
+	}
+
 	// Count messages (same as ListSessions)
 	var msgCount int
 	_ = a.db.QueryRowContext(ctx, `
@@ -215,6 +295,14 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 }
 
 func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	// Check for synthetic child session first
+	a.mu.Lock()
+	if syn, ok := a.syntheticSessions[sessionID]; ok {
+		a.mu.Unlock()
+		return syn.messages, nil
+	}
+	a.mu.Unlock()
+
 	// First try to load rich data from events.jsonl
 	messages, err := a.getMessagesFromEvents(sessionID)
 	if err == nil && len(messages) > 0 {
@@ -283,6 +371,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 
 	var messages []ingest.Message
 	var currentModel string
+	var subAgentStack []*subAgentState
 
 	scanner := bufio.NewScanner(f)
 	// Allow large lines (events can contain tool output)
@@ -304,12 +393,17 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 		case "user.message":
 			var data userMessageData
 			if json.Unmarshal(event.Data, &data) == nil {
-				messages = append(messages, ingest.Message{
+				msg := ingest.Message{
 					ID:        event.ID,
 					Role:      "user",
 					Content:   data.Content,
 					Timestamp: util.ParseTime(event.Timestamp),
-				})
+				}
+				if len(subAgentStack) > 0 {
+					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
+				} else {
+					messages = append(messages, msg)
+				}
 			}
 
 		case "assistant.message":
@@ -340,14 +434,101 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					msg.ToolCalls = append(msg.ToolCalls, tc)
 				}
 
-				messages = append(messages, msg)
+				if len(subAgentStack) > 0 {
+					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
+				} else {
+					messages = append(messages, msg)
+				}
 			}
 
 		case "tool.execution_complete":
 			var data toolCompleteData
 			if json.Unmarshal(event.Data, &data) == nil {
-				// Find and update the tool call in previous messages
-				updateToolCallResult(&messages, data)
+				if len(subAgentStack) > 0 {
+					updateToolCallResult(&subAgentStack[len(subAgentStack)-1].messages, data)
+				} else {
+					updateToolCallResult(&messages, data)
+				}
+			}
+
+		case "subagent.started":
+			var data subAgentStartedData
+			if json.Unmarshal(event.Data, &data) == nil && data.ToolCallID != "" {
+				sa := &subAgentState{
+					toolCallID:   data.ToolCallID,
+					agentName:    data.AgentName,
+					agentDisplay: data.AgentDisplayName,
+					parentMsgIdx: -1,
+					parentToolIdx: -1,
+				}
+				// Find the matching task tool call in the parent messages and mark it
+				// as the delegation point for this sub-agent.
+				for i := len(messages) - 1; i >= 0; i-- {
+					msg := &messages[i]
+					for j := range msg.ToolCalls {
+						if msg.ToolCalls[j].ID == data.ToolCallID {
+							sa.parentMsgIdx = i
+							sa.parentToolIdx = j
+							break
+						}
+					}
+					if sa.parentMsgIdx >= 0 {
+						break
+					}
+				}
+				subAgentStack = append(subAgentStack, sa)
+			}
+
+		case "subagent.completed":
+			if len(subAgentStack) > 0 {
+				sa := subAgentStack[len(subAgentStack)-1]
+				subAgentStack = subAgentStack[:len(subAgentStack)-1]
+
+				// Create synthetic child session from buffered messages
+				synID := fmt.Sprintf("%s-sub-%s-%s", sessionID, sa.agentName, sa.toolCallID)
+				if len(synID) > 100 {
+					synID = synID[:100]
+				}
+
+				// Only create if there are actual messages
+				if len(sa.messages) > 0 {
+					// Use the first message's timestamp as created, last as updated
+					createdAt := sa.messages[0].Timestamp
+					updatedAt := sa.messages[len(sa.messages)-1].Timestamp
+
+					syn := &syntheticSession{
+						session: ingest.Session{
+							ID:        synID,
+							ParentID:  sessionID,
+							Agent:     ingest.AgentCopilot,
+							SubAgent:  sa.agentName,
+							Title:     sa.agentDisplay,
+							Status:    "completed",
+							CreatedAt: createdAt,
+							UpdatedAt: updatedAt,
+						},
+						messages: sa.messages,
+					}
+
+					a.mu.Lock()
+					a.syntheticSessions[synID] = syn
+					a.mu.Unlock()
+				}
+
+				// Update the parent's task tool call metadata to link to the synthetic session
+				if sa.parentMsgIdx >= 0 && sa.parentToolIdx >= 0 && sa.parentMsgIdx < len(messages) {
+					parentMsg := &messages[sa.parentMsgIdx]
+					if sa.parentToolIdx < len(parentMsg.ToolCalls) {
+						tc := &parentMsg.ToolCalls[sa.parentToolIdx]
+						meta := make(map[string]string)
+						if tc.Metadata != "" {
+							json.Unmarshal([]byte(tc.Metadata), &meta)
+						}
+						meta["sessionId"] = synID
+						metaBytes, _ := json.Marshal(meta)
+						tc.Metadata = string(metaBytes)
+					}
+				}
 			}
 
 		case "system_reminder":
@@ -357,7 +538,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 				if data.File != "" {
 					fileName = data.File
 				}
-				messages = append(messages, ingest.Message{
+				msg := ingest.Message{
 					ID:        event.ID,
 					Role:      "system",
 					Content:   data.Content,
@@ -366,12 +547,27 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 						"type": "system_reminder",
 						"file": fileName,
 					},
-				})
+				}
+				if len(subAgentStack) > 0 {
+					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
+				} else {
+					messages = append(messages, msg)
+				}
 			}
 		}
 	}
 
 	return messages, scanner.Err()
+}
+
+// subAgentState tracks the buffering of sub-agent events between subagent.started and subagent.completed.
+type subAgentState struct {
+	toolCallID   string
+	agentName    string
+	agentDisplay string
+	parentMsgIdx int
+	parentToolIdx int
+	messages     []ingest.Message
 }
 
 // updateToolCallResult finds the tool call by ID and updates its output/status.
@@ -611,6 +807,9 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 }
 
 func (a *Adapter) Close() error {
+	a.mu.Lock()
+	a.syntheticSessions = make(map[string]*syntheticSession)
+	a.mu.Unlock()
 	return a.db.Close()
 }
 
@@ -691,6 +890,106 @@ func normalizeAskUserInput(input string) string {
 	return string(out)
 }
 
+// eventsMetadata holds summary info extracted from events.jsonl.
+type eventsMetadata struct {
+	Model          string
+	Cost           float64
+	TokensInput    int
+	TokensOutput   int
+	TokensReasoning int
+	TokensCacheRead int
+	TokensCacheWrite int
+	DiffAdditions  int
+	DiffDeletions  int
+	DiffFiles      int
+}
+
+// scanEventsMetadata reads a session's events.jsonl and extracts model, cost, token, and diff
+// information from session.model_change and session.shutdown events.
+func (a *Adapter) scanEventsMetadata(sessionID string) *eventsMetadata {
+	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	meta := &eventsMetadata{}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	for scanner.Scan() {
+		var env struct {
+			Type string          `json:"type"`
+			Data json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &env); err != nil {
+			continue
+		}
+
+		switch env.Type {
+		case "session.model_change":
+			var data struct {
+				NewModel string `json:"newModel"`
+			}
+			if json.Unmarshal(env.Data, &data) == nil && data.NewModel != "" {
+				meta.Model = data.NewModel
+			}
+
+		case "session.shutdown":
+			var data struct {
+				CurrentModel string `json:"currentModel"`
+				CodeChanges  *struct {
+					LinesAdded   int      `json:"linesAdded"`
+					LinesRemoved int      `json:"linesRemoved"`
+					FilesModified []string `json:"filesModified"`
+				} `json:"codeChanges"`
+				ModelMetrics map[string]*struct {
+					Requests *struct {
+						Cost float64 `json:"cost"`
+					} `json:"requests"`
+					Usage *struct {
+						InputTokens    int `json:"inputTokens"`
+						OutputTokens   int `json:"outputTokens"`
+						ReasoningTokens int `json:"reasoningTokens"`
+						CacheReadTokens int `json:"cacheReadTokens"`
+						CacheWriteTokens int `json:"cacheWriteTokens"`
+					} `json:"usage"`
+				} `json:"modelMetrics"`
+			}
+			if json.Unmarshal(env.Data, &data) != nil {
+				continue
+			}
+			if data.CurrentModel != "" {
+				meta.Model = data.CurrentModel
+			}
+			if data.CodeChanges != nil {
+				meta.DiffAdditions = data.CodeChanges.LinesAdded
+				meta.DiffDeletions = data.CodeChanges.LinesRemoved
+				if n := len(data.CodeChanges.FilesModified); n > 0 {
+					meta.DiffFiles = n
+				}
+			}
+			if data.ModelMetrics != nil {
+				for _, m := range data.ModelMetrics {
+					if m.Requests != nil {
+						meta.Cost += m.Requests.Cost
+					}
+					if m.Usage != nil {
+						meta.TokensInput += m.Usage.InputTokens
+						meta.TokensOutput += m.Usage.OutputTokens
+						meta.TokensReasoning += m.Usage.ReasoningTokens
+						meta.TokensCacheRead += m.Usage.CacheReadTokens
+						meta.TokensCacheWrite += m.Usage.CacheWriteTokens
+					}
+				}
+			}
+		}
+	}
+
+	return meta
+}
+
 // Event types for parsing events.jsonl
 
 type eventEnvelope struct {
@@ -699,10 +998,23 @@ type eventEnvelope struct {
 	ID        string          `json:"id"`
 	Timestamp string          `json:"timestamp"`
 	ParentID  *string         `json:"parentId"`
+	AgentID   string          `json:"agentId,omitempty"`
 }
 
 type modelChangeData struct {
 	NewModel string `json:"newModel"`
+}
+
+type subAgentStartedData struct {
+	ToolCallID       string `json:"toolCallId"`
+	AgentName        string `json:"agentName"`
+	AgentDisplayName string `json:"agentDisplayName"`
+}
+
+type subAgentCompletedData struct {
+	ToolCallID       string `json:"toolCallId"`
+	AgentName        string `json:"agentName"`
+	AgentDisplayName string `json:"agentDisplayName"`
 }
 
 type userMessageData struct {
