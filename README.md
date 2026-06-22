@@ -1,6 +1,6 @@
 # sess
 
-**sess** is an AI session manager for [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), and [Pi](https://pi.ai). All your sessions, visible in one place.
+**sess** is an AI session manager for [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), [Pi](https://pi.ai), and [Codex](https://codex.ai). All your sessions, visible in one place.
 
 ## Features
 
@@ -17,7 +17,7 @@
 - **Deep linking** — Shareable URLs `#/session/{id}/step/{n}`
 - **Read-only access** — Never writes to agent databases (enforced at driver level)
 - **Single binary** — Go + embedded React SPA, zero runtime dependencies
-- **Light/dark theme** — GitHub-style theme with persistent preference
+- **Multi-theme** — Ayu, Nord, Catppuccin, Tokyo Night, and GitHub themes with light/dark modes
 
 ## Quick Start
 
@@ -115,7 +115,8 @@ The backend normalizes agent-specific session data into a unified model via the 
 | `k` / `ArrowUp` | Select previous session |
 | `⌘1` / `Ctrl+1` | Conversation tab |
 | `⌘2` / `Ctrl+2` | Diff tab |
-| `⌘P` / `Ctrl+P` | Open search |
+| `⌘P` / `Ctrl+P` or `⌘K` / `Ctrl+K` | Open search (scoped to active session) |
+| `⌘B` / `Ctrl+B` | Toggle sidebar |
 | `Escape` | Close search / results |
 
 ## Build from source

@@ -16,8 +16,11 @@ Adapters are the pluggable interface between sess and AI coding agent data store
 | | | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL (agentic session transcripts) |
 | | | `~/.cursor/ai-code-tracking.db` | SQLite (summaries, model, cost, tokens) |
 | Pi | `internal/ingest/pi/` | `~/.pi/agent/sessions/*.jsonl` | JSONL (sessions, messages, tool calls, reasoning) |
+| Codex | `internal/ingest/codex/` | `~/.codex/session_index.jsonl` | JSONL (session index) |
 
 ## Adapter interface
+
+`internal/ingest/adapter.go`:
 
 ```go
 type Adapter interface {
@@ -37,112 +40,147 @@ type Adapter interface {
 
 ## Unified types
 
+All types in `internal/ingest/types.go`.
+
 ### Session
 
-```go
-type Session struct {
-    ID              string    `json:"id"`
-    SourceID        string    `json:"sourceId"`
-    Title           string    `json:"title"`
-    Repository      string    `json:"repository"`
-    Agent           AgentType `json:"agent"`
-    Model           string    `json:"model"`
-    Cost            float64   `json:"cost"`
-    Status          string    `json:"status"` // "active", "completed", "archived"
-    CreatedAt       time.Time `json:"createdAt"`
-    UpdatedAt       time.Time `json:"updatedAt"`
-    TokensInput     int       `json:"tokensInput"`
-    TokensOutput    int       `json:"tokensOutput"`
-    TokensReasoning int       `json:"tokensReasoning"`
-    MessageCount    int       `json:"messageCount"`
-    DiffFiles       int       `json:"diffFiles"`
-    DiffAdditions   int       `json:"diffAdditions"`
-    DiffDeletions   int       `json:"diffDeletions"`
-    // ...
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| ID | `string` | Unique session identifier |
+| SourceID | `string` | Source this session belongs to |
+| ParentID | `string` | Parent session ID (for sub-agent sessions) |
+| Title | `string` | Human-readable session name |
+| Repository | `string` | Git repository name |
+| Branch | `string` | Git branch |
+| Directory | `string` | Working directory |
+| Agent | `AgentType` | Agent type constant |
+| SubAgent | `string` | Sub-agent type name |
+| Model | `string` | AI model identifier |
+| Cost | `float64` | Total cost in USD |
+| Status | `string` | `"active"`, `"completed"`, or `"archived"` |
+| TokensInput | `int` | Input tokens consumed |
+| TokensOutput | `int` | Output tokens consumed |
+| TokensReasoning | `int` | Reasoning tokens consumed |
+| TokensCacheRead | `int` | Cache read tokens |
+| TokensCacheWrite | `int` | Cache write tokens |
+| MessageCount | `int` | Number of messages |
+| DiffFiles | `int` | File change count |
+| DiffAdditions | `int` | Total additions across diffs |
+| DiffDeletions | `int` | Total deletions across diffs |
+| CreatedAt | `time.Time` | Session creation timestamp |
+| UpdatedAt | `time.Time` | Session last-updated timestamp |
 
 ### Message
 
-```go
-type Message struct {
-    ID         string     `json:"id"`
-    Role       string     `json:"role"`     // "user", "assistant", "system"
-    Content    string     `json:"content"`
-    ToolCalls  []ToolCall `json:"toolCalls,omitempty"`
-    Reasoning  string     `json:"reasoning,omitempty"`  // Collapsible in UI
-    StepEvents []StepEvent `json:"stepEvents,omitempty"`
-    Timestamp  time.Time  `json:"timestamp"`
-    Metadata   map[string]string `json:"metadata,omitempty"`
-    // ...
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| ID | `string` | Message identifier |
+| Role | `string` | `"user"`, `"assistant"`, or `"system"` |
+| Content | `string` | Markdown text content |
+| Model | `string` | Model used for this message |
+| Agent | `string` | Agent type for this message (sub-agent) |
+| Reasoning | `string` | Model thinking/reasoning content (collapsible in UI) |
+| ToolCalls | `[]ToolCall` | Tool invocations |
+| StepEvents | `[]StepEvent` | Step-start/step-finish markers |
+| TokensInput | `int` | Input tokens for this message |
+| TokensOutput | `int` | Output tokens for this message |
+| Timestamp | `time.Time` | Message timestamp |
+| Metadata | `map[string]string` | Additional metadata |
 
 ### ToolCall
 
-```go
-type ToolCall struct {
-    ID       string `json:"id"`
-    Name     string `json:"name"`
-    Input    string `json:"input"`
-    Output   string `json:"output"`
-    Status   string `json:"status"`   // "completed", "failed", "running"
-    Duration int64  `json:"duration,omitempty"`
-    Metadata string `json:"metadata,omitempty"`
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| ID | `string` | Tool call identifier |
+| Name | `string` | Tool name (`edit`, `write`, `read`, `bash`, `grep`, `glob`, etc.) |
+| Input | `string` | Tool input (JSON or text) |
+| Output | `string` | Tool output |
+| Status | `string` | `"completed"`, `"failed"`, or `"running"` |
+| Duration | `int64` | Execution duration in milliseconds |
+| Metadata | `string` | Tool-specific metadata (JSON) |
+
+### StepEvent
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Step | `string` | `"start"` or `"finish"` |
+| Snapshot | `string` | Snapshot reference |
+| Reason | `string` | Reason for step change |
+| Cost | `float64` | Cost accumulator |
+| Tokens | `StepTokens` | Token counts at step boundary |
+
+### StepTokens
+
+| Field | Type |
+|-------|------|
+| Input | `int` |
+| Output | `int` |
+| Reasoning | `int` |
+| CacheRead | `int` |
+| CacheWrite | `int` |
 
 ### Plan
 
-```go
-type Plan struct {
-    Markdown string `json:"markdown"`
-    Source   string `json:"source"` // "file" or "synthesized"
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| Markdown | `string` | Plan content as markdown |
+| Source | `string` | `"file"` or `"synthesized"` |
+
+### PlanItem
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Content | `string` | Item description |
+| Status | `string` | `"pending"`, `"in_progress"`, `"completed"`, or `"cancelled"` |
+| Priority | `string` | `"high"`, `"medium"`, or `"low"` |
 
 ### DiffFile
 
-```go
-type DiffFile struct {
-    Path      string `json:"path"`
-    Status    string `json:"status"` // "added", "modified", "deleted", "renamed"
-    Additions int    `json:"additions"`
-    Deletions int    `json:"deletions"`
-    Patch     string `json:"patch,omitempty"`
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| Path | `string` | File path |
+| Status | `string` | `"added"`, `"modified"`, `"deleted"`, or `"renamed"` |
+| Additions | `int` | Lines added |
+| Deletions | `int` | Lines deleted |
+| Patch | `string` | Unified diff content |
 
 ### FileEdit
 
-```go
-type FileEdit struct {
-    FilePath  string    `json:"filePath"`
-    ToolName  string    `json:"toolName"` // "edit" or "write"
-    OldStr    string    `json:"oldStr,omitempty"`
-    NewStr    string    `json:"newStr,omitempty"`
-    Timestamp time.Time `json:"timestamp"`
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| FilePath | `string` | File path |
+| ToolName | `string` | `"edit"` or `"write"` |
+| OldStr | `string` | Original content (for edits) |
+| NewStr | `string` | New content |
+| Content | `string` | Full content (for writes) |
+| ViewRange | `[]int` | Line range for view operations |
+| Timestamp | `time.Time` | When the edit occurred |
+
+### Source
+
+| Field | Type | Description |
+|-------|------|-------------|
+| ID | `string` | Source identifier |
+| Path | `string` | Filesystem path |
+| AgentType | `AgentType` | Agent type constant |
+| Label | `string` | Display label |
+| Enabled | `bool` | Whether the source is active |
+| CreatedAt | `time.Time` | When the source was added |
 
 ## Safety
 
-All agent database connections use `?mode=ro` (read-only). The `OpenReadOnlyDB()` helper verifies this by attempting a write operation at open time and panicking if the database is writable.
+All agent database connections use `?mode=ro` (read-only). The `OpenReadOnlyDB()` helper in `internal/ingest/adapter.go` verifies this by attempting a write operation at open time and panicking if the database is writable.
 
 ## Adding a new adapter
 
 1. Create a new package under `internal/ingest/<agent>/`
-2. Implement all methods of the `Adapter` interface
+2. Implement all 11 methods of the `Adapter` interface
 3. Use `ingest.OpenReadOnlyDB()` for any SQLite access
 4. Add the agent type constant to `internal/ingest/types.go`
 5. Add the agent path to `KnownPaths` in `internal/ingest/detect.go`
-6. Add the detection case in `AutoDiscover()`
-7. Add the create case in `server.go:createAdapter()`
+6. Add the detection case in `ingest.AutoDiscover()`
+7. Add the create case in `internal/server/server.go:createAdapter()`
 8. Add `--type` support in `cmd/add.go`
-9. Add the source to the init display in `cmd/init.go`
+9. Optionally add to the init display in `cmd/init.go`
 
-Reference implementations:
-- `internal/ingest/opencode/` — SQLite-based, messages stored as JSON parts
-- `internal/ingest/copilot/` — Multi-source (SQLite + JSONL + filesystem)
-- `internal/ingest/cursor/` — SQLite KV store + JSONL transcripts with tool call normalization
-- `internal/ingest/AGENTS.md` — Detailed adapter integration guide with step-by-step instructions
+See `internal/ingest/AGENTS.md` for detailed integration patterns, tool call normalization, and reference implementations for each adapter.

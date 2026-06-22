@@ -245,12 +245,15 @@ Parameters:
     "chunkType": "messages",
     "repository": "my-app",
     "snippet": "fix the <mark>login</mark> form validation",
-    "updatedAt": "2026-06-01T12:00:00Z"
+    "updatedAt": "2026-06-01T12:00:00Z",
+    "fileTitle": "",
+    "fileId": "",
+    "messageIndex": 0
   }
 ]
 ```
 
-Results are ordered by chunk type (name → plan → messages) then by FTS rank.
+Results are ordered by chunk type (name → plan → messages → scratch) then by FTS rank.
 
 ## Folders
 
@@ -327,13 +330,13 @@ Remove a session from a folder. Returns `204`.
 POST /_/api/shutdown
 ```
 
-Gracefully shut down the server. Returns `202`.
+Gracefully shut down the server. Returns `202` with no body.
 
 ```http
 POST /_/api/restart
 ```
 
-Restart the server. The server spawns a new process before shutting down. Returns `202`.
+Restart the server. The server spawns a new process before shutting down. Returns `202` with no body.
 
 ## Server-Sent Events
 
@@ -341,7 +344,7 @@ Restart the server. The server spawns a new process before shutting down. Return
 GET /_/events
 ```
 
-SSE stream for live updates. The client receives:
+SSE stream for live updates. The response headers are set for streaming (`text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`).
 
 ```
 event: started
@@ -355,6 +358,6 @@ data: {"ids":["sess1","sess2"]}
 ```
 
 Events:
-- `started` — Initial connection confirmation
+- `started` — Initial connection confirmation (includes PID)
 - `update` — Session list may have changed (refresh)
 - `session-changed` — Specific sessions changed, with IDs
