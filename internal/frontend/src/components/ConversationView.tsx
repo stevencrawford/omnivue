@@ -172,6 +172,8 @@ export function ConversationView({
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  // Scroll listener: toggles button visibility when user scrolls
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -181,16 +183,22 @@ export function ConversationView({
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [messages.length]);
 
-  // Re-check scroll position after messages render (e.g. initial load, tab switch)
+  // ResizeObserver: recalculates button visibility when content height changes
+  // (e.g. async message loading, tab switch) without requiring a scroll event.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    requestAnimationFrame(() => {
+    const update = () => {
       setShowScrollTop(el.scrollTop > 200);
       setShowScrollBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
-    });
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    // Also run once in case the observer fires before the layout settles
+    requestAnimationFrame(update);
+    return () => observer.disconnect();
   }, [messages.length]);
 
   const scrollToTop = () => {
