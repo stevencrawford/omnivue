@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/stevencrawford/sess/internal/ingest"
 	"github.com/stevencrawford/sess/internal/ingest/internal/util"
@@ -55,6 +56,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	}
 	defer rows.Close()
 
+	dbIDs := make(map[string]bool)
 	var sessions []ingest.Session
 	for rows.Next() {
 		var (
@@ -93,20 +95,60 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		).Scan(&fileCount)
 		s.DiffFiles = fileCount
 
-		// Count messages from turns table
-		var msgCount int
-		_ = a.db.QueryRowContext(ctx, `
-			SELECT COUNT(*) FROM turns
-			WHERE session_id = ?
-			AND (user_message IS NOT NULL AND user_message != ''
-			     OR assistant_response IS NOT NULL AND assistant_response != '')
-		`, s.ID).Scan(&msgCount)
-		s.MessageCount = msgCount
+		// Count messages from events.jsonl when available (aligns with GetMessages)
+		s.MessageCount = a.countMessagesFromEvents(s.ID)
 
+		dbIDs[s.ID] = true
 		sessions = append(sessions, s)
 	}
 
-	return sessions, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Scan session-state directory for sessions that exist as events.jsonl on disk
+	// but aren't yet in the SQLite sessions table (e.g. brand-new Copilot sessions).
+	stateDir := filepath.Join(a.basePath, "session-state")
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		return sessions, nil
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		id := entry.Name()
+		if dbIDs[id] {
+			continue
+		}
+		eventsPath := filepath.Join(stateDir, id, "events.jsonl")
+		info, err := os.Stat(eventsPath)
+		if err != nil {
+			continue
+		}
+		msgCount := a.countMessagesFromEvents(id)
+		title := id
+		if len(id) > 8 {
+			title = id[:8] + "..."
+		}
+		sessions = append(sessions, ingest.Session{
+			ID:           id,
+			Agent:        ingest.AgentCopilot,
+			Title:        title,
+			Status:       "active",
+			CreatedAt:    info.ModTime(),
+			UpdatedAt:    info.ModTime(),
+			MessageCount: msgCount,
+		})
+	}
+
+	// Re-sort by UpdatedAt desc since appended filesystem sessions
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	})
+
+	return sessions, nil
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
@@ -276,12 +318,18 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 				// Extract tool calls from tool requests
 				for _, req := range data.ToolRequests {
 					inputJSON, _ := json.Marshal(req.Arguments)
-					msg.ToolCalls = append(msg.ToolCalls, ingest.ToolCall{
+					tc := ingest.ToolCall{
 						ID:     req.ToolCallID,
 						Name:   req.Name,
 						Input:  string(inputJSON),
 						Status: "running",
-					})
+					}
+					// Normalize ask_user to standard question kind
+					if tc.Name == "ask_user" {
+						tc.Name = "question"
+						tc.Input = normalizeAskUserInput(tc.Input)
+					}
+					msg.ToolCalls = append(msg.ToolCalls, tc)
 				}
 
 				messages = append(messages, msg)
@@ -514,16 +562,125 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
+	var maxTS int64
+
+	// Check SQLite sessions table
 	var maxTime sql.NullString
-	err := a.db.QueryRowContext(ctx, `SELECT MAX(updated_at) FROM sessions`).Scan(&maxTime)
-	if err != nil || !maxTime.Valid {
-		return 0, err
+	if err := a.db.QueryRowContext(ctx, `SELECT MAX(updated_at) FROM sessions`).Scan(&maxTime); err == nil && maxTime.Valid {
+		maxTS = util.ParseTime(maxTime.String).UnixMilli()
 	}
-	return util.ParseTime(maxTime.String).UnixMilli(), nil
+
+	// Check filesystem mtimes of events.jsonl files — Copilot may update JSONL
+	// without touching the SQLite sessions table (e.g. ongoing conversation).
+	stateDir := filepath.Join(a.basePath, "session-state")
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		if maxTS > 0 {
+			return maxTS, nil
+		}
+		return 0, fmt.Errorf("reading session-state: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		eventsPath := filepath.Join(stateDir, entry.Name(), "events.jsonl")
+		info, err := os.Stat(eventsPath)
+		if err != nil {
+			continue
+		}
+		if mtime := info.ModTime().UnixMilli(); mtime > maxTS {
+			maxTS = mtime
+		}
+	}
+
+	if maxTS == 0 {
+		return 0, fmt.Errorf("no sessions found")
+	}
+
+	return maxTS, nil
 }
 
 func (a *Adapter) Close() error {
 	return a.db.Close()
+}
+
+// countMessagesFromEvents counts user.message and assistant.message events
+// in a session's events.jsonl file. Returns 0 if the file doesn't exist.
+func (a *Adapter) countMessagesFromEvents(sessionID string) int {
+	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+
+	var count int
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) < 20 {
+			continue
+		}
+		// Fast check: look for "user.message" or "assistant.message"
+		if contains(line, `"user.message"`) || contains(line, `"assistant.message"`) {
+			count++
+		}
+	}
+	return count
+}
+
+// contains reports whether sub is a substring of b.
+func contains(b []byte, sub string) bool {
+	return len(b) >= len(sub) && searchBytes(b, sub) >= 0
+}
+
+// searchBytes finds the first occurrence of sub in b, or -1.
+func searchBytes(b []byte, sub string) int {
+	for i := 0; i <= len(b)-len(sub); i++ {
+		match := true
+		for j := 0; j < len(sub); j++ {
+			if b[i+j] != sub[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
+// normalizeAskUserInput transforms Copilot's ask_user input format
+// {question, choices, allow_freeform} to the standard QuestionToolDiff format
+// {questions: [{question, header, options: [{label}]}]}.
+func normalizeAskUserInput(input string) string {
+	var raw struct {
+		Question      string   `json:"question"`
+		Choices       []string `json:"choices"`
+		AllowFreeform bool     `json:"allow_freeform"`
+	}
+	if err := json.Unmarshal([]byte(input), &raw); err != nil || raw.Question == "" {
+		return input
+	}
+	options := make([]map[string]string, len(raw.Choices))
+	for i, c := range raw.Choices {
+		options[i] = map[string]string{"label": c}
+	}
+	transformed := map[string]any{
+		"questions": []map[string]any{
+			{
+				"question": raw.Question,
+				"header":   raw.Question,
+				"options":  options,
+			},
+		},
+	}
+	out, _ := json.Marshal(transformed)
+	return string(out)
 }
 
 // Event types for parsing events.jsonl

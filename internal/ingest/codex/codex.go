@@ -111,6 +111,42 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		}
 	}
 
+	// Scan the sessions/ directory for orphan .jsonl files not yet in the index.
+	// Codex may write a session file to disk before adding it to session_index.jsonl,
+	// so we need to discover these the same way we handle Copilot's session-state/.
+	indexIDs := make(map[string]bool, len(indexEntries))
+	for _, entry := range indexEntries {
+		indexIDs[entry.ID] = true
+	}
+
+	sessionsDir := filepath.Join(a.basePath, "sessions")
+	_ = filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		id := extractIDFromSessionFile(p, d.Name())
+		if id == "" || indexIDs[id] {
+			return nil
+		}
+		indexIDs[id] = true // avoid duplicates
+		fi, _ := d.Info()
+		s := ingest.Session{
+			ID:     id,
+			Agent:  ingest.AgentCodex,
+			Title:  id,
+			Status: "active",
+		}
+		if fi != nil {
+			s.CreatedAt = fi.ModTime()
+			s.UpdatedAt = fi.ModTime()
+			if m := fi.ModTime().UnixMilli(); m > maxMod {
+				maxMod = m
+			}
+		}
+		sessions = append(sessions, s)
+		return nil
+	})
+
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[j].UpdatedAt.Before(sessions[i].UpdatedAt)
 	})
@@ -324,6 +360,14 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 			return a.resolveSessionFromIndex(ctx, entry)
 		}
 	}
+
+	// Last resort: scan the filesystem for the session file directly.
+	// This covers orphan sessions not yet in session_index.jsonl.
+	fpath := a.sessionFilePath(id)
+	if fpath != "" {
+		return a.parseSessionFileMinimal(ctx, id, fpath)
+	}
+
 	return nil, fmt.Errorf("session not found: %s", id)
 }
 
@@ -899,6 +943,91 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 
 func (a *Adapter) Close() error {
 	return nil
+}
+
+// parseSessionFileMinimal builds a basic Session from a session .jsonl file
+// without requiring an index entry. Used by GetSession for orphan sessions.
+func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (*ingest.Session, error) {
+	fi, err := os.Stat(fpath)
+	if err != nil {
+		return nil, err
+	}
+	s := &ingest.Session{
+		ID:        id,
+		Agent:     ingest.AgentCodex,
+		Title:     id,
+		Status:    "active",
+		CreatedAt: fi.ModTime(),
+		UpdatedAt: fi.ModTime(),
+	}
+	if len(id) > 8 {
+		s.Title = id[:8]
+	}
+	// Try to read a few events for richer metadata
+	f, err := os.Open(fpath)
+	if err != nil {
+		return s, nil
+	}
+	defer f.Close()
+	scanner := util.NewJSONLScanner(f)
+	var msgCount int
+	for scanner.Scan() {
+		var env codexEnvelope
+		if json.Unmarshal(scanner.Bytes(), &env) != nil {
+			continue
+		}
+		switch env.Type {
+		case "session_meta":
+			var meta sessionMetaPayload
+			if json.Unmarshal(env.Payload, &meta) == nil {
+				if s.Directory == "" && meta.CWD != "" {
+					s.Directory = meta.CWD
+				}
+				if meta.Git != nil {
+					s.Repository = util.DeriveRepoFromURL(meta.Git.RepositoryURL)
+					s.Branch = meta.Git.Branch
+				}
+			}
+		case "event_msg":
+			msgCount++
+		case "response_item":
+			msgCount++
+		}
+	}
+	s.MessageCount = msgCount
+	if s.Directory == "" {
+		s.Directory = a.basePath
+	}
+	if s.Repository == "" {
+		s.Repository = filepath.Base(s.Directory)
+	}
+	return s, nil
+}
+
+// extractIDFromSessionFile reads the first event of a Codex session .jsonl file
+// to extract the session ID. Falls back to the filename stem (without .jsonl) if
+// no session_meta event is found.
+func extractIDFromSessionFile(path, name string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	scanner := util.NewJSONLScanner(f)
+	if scanner.Scan() {
+		var env codexEnvelope
+		if json.Unmarshal(scanner.Bytes(), &env) == nil && env.Type == "session_meta" {
+			var meta sessionMetaPayload
+			if json.Unmarshal(env.Payload, &meta) == nil && meta.ID != "" {
+				return meta.ID
+			}
+		}
+	}
+	// Fallback: use filename stem
+	if idx := strings.LastIndex(name, ".jsonl"); idx > 0 {
+		return name[:idx]
+	}
+	return name
 }
 
 func normalizeBashInput(tc *ingest.ToolCall) {
