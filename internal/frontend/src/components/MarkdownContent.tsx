@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import { useCopy } from "../hooks/useCopy";
+import { useSearchHighlight } from "../hooks/useNav";
 
 interface MarkdownContentProps {
   content: string;
@@ -14,6 +15,48 @@ interface MarkdownContentProps {
   modalTitle?: string;
   expandable?: boolean;
   defaultExpanded?: boolean;
+  searchHighlightQuery?: string;
+}
+
+/** Rehype plugin: wraps matching text in <mark> tags for search highlighting */
+function rehypeSearchHighlight(query: string) {
+  const q = query.toLowerCase();
+  return () => (tree: any) => {
+    transform(tree);
+    function transform(node: any): any {
+      if (!node || typeof node !== "object") return node;
+      if (node.type === "text") {
+        const lower = (node.value || "").toLowerCase();
+        if (!lower.includes(q)) return node;
+        const parts: any[] = [];
+        let last = 0;
+        let idx = lower.indexOf(q);
+        while (idx !== -1) {
+          if (idx > last) parts.push({ type: "text", value: node.value.slice(last, idx) });
+          parts.push({
+            type: "element",
+            tagName: "mark",
+            properties: { className: "search-highlight" },
+            children: [{ type: "text", value: node.value.slice(idx, idx + q.length) }],
+          });
+          last = idx + q.length;
+          idx = lower.indexOf(q, last);
+        }
+        if (last < node.value.length) parts.push({ type: "text", value: node.value.slice(last) });
+        return parts;
+      }
+      if (node.children && node.children.length > 0) {
+        const newChildren: any[] = [];
+        for (const child of node.children) {
+          const result = transform(child);
+          if (Array.isArray(result)) newChildren.push(...result);
+          else newChildren.push(result);
+        }
+        node.children = newChildren;
+      }
+      return node;
+    }
+  };
 }
 
 export function MarkdownContent({
@@ -24,9 +67,15 @@ export function MarkdownContent({
   modalTitle,
   expandable = false,
   defaultExpanded = false,
+  searchHighlightQuery: searchHighlightQueryProp,
 }: MarkdownContentProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { copied, copy } = useCopy(2000);
+  const ctxSearchHighlight = useSearchHighlight();
+  const searchHighlightQuery =
+    searchHighlightQueryProp !== undefined
+      ? searchHighlightQueryProp
+      : ctxSearchHighlight || undefined;
 
   const shortContent = content.split("\n").length <= 10;
 
@@ -81,7 +130,10 @@ export function MarkdownContent({
           <div className={`markdown-body markdown-ayu markdown-body--small ${className}`.trim()}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
-              rehypePlugins={[rehypeHighlight]}
+              rehypePlugins={[
+                rehypeHighlight,
+                ...(searchHighlightQuery ? [rehypeSearchHighlight(searchHighlightQuery)] : []),
+              ]}
               components={{
                 pre({ children }) {
                   return <pre>{children}</pre>;
@@ -156,7 +208,10 @@ export function MarkdownContent({
       <div className={`markdown-body markdown-ayu markdown-body--small ${className}`.trim()}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
-          rehypePlugins={[rehypeHighlight]}
+          rehypePlugins={[
+            rehypeHighlight,
+            ...(searchHighlightQuery ? [rehypeSearchHighlight(searchHighlightQuery)] : []),
+          ]}
           components={{
             pre({ children }) {
               return <pre>{children}</pre>;

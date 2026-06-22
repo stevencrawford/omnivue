@@ -613,17 +613,38 @@ body {
   color: var(--color-gh-text);
 }
 
+/* ─── Search result highlighting ──────────────────────────────────── */
+
+/* Persistent highlight for the message container that matched search */
+.sess-search-match {
+  background-color: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+
+/* Quick pulse used for marker-dot-click or focus-step navigation */
 .sess-message-highlight {
   animation: sess-highlight-fade 2s ease-out;
 }
 
 @keyframes sess-highlight-fade {
   0% {
-    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    background-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
   }
   100% {
     background-color: transparent;
   }
+}
+
+/* Inline <mark> tags from search highlighting in rendered markdown */
+.search-highlight mark,
+.markdown-body mark.search-highlight {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+  color: var(--color-accent);
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 500;
 }
 
 /* ─── Diff viewer ───────────────────────────────────────────────── */
