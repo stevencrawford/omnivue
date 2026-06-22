@@ -333,6 +333,55 @@ export function ConversationView({
       rect.top - containerRect.top - container.clientHeight / 2 + rect.height / 2;
   }, []);
 
+  /** Walk text nodes in an element and wrap matches in <mark> tags. Skips nodes
+   *  already inside a <mark> (from MarkdownContent rehype) or inside <pre>. */
+  function highlightDomTextNodes(root: Element, q: string) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const p = (node as Text).parentElement;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        if (p.tagName === "MARK" || p.tagName === "SCRIPT" || p.tagName === "STYLE")
+          return NodeFilter.FILTER_REJECT;
+        // Skip pre/code blocks — content is already syntax-highlighted
+        if (p.closest("pre")) return NodeFilter.FILTER_SKIP;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const toWrap: { node: Text; parts: { text: string; highlight: boolean }[] }[] = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const text = node.textContent || "";
+      const lower = text.toLowerCase();
+      if (!lower.includes(q)) continue;
+      const parts: { text: string; highlight: boolean }[] = [];
+      let last = 0;
+      let idx = lower.indexOf(q);
+      while (idx !== -1) {
+        if (idx > last) parts.push({ text: text.slice(last, idx), highlight: false });
+        parts.push({ text: text.slice(idx, idx + q.length), highlight: true });
+        last = idx + q.length;
+        idx = lower.indexOf(q, last);
+      }
+      if (last < text.length) parts.push({ text: text.slice(last), highlight: false });
+      toWrap.push({ node, parts });
+    }
+    for (const { node, parts } of toWrap) {
+      const frag = document.createDocumentFragment();
+      for (const p of parts) {
+        if (p.highlight) {
+          const mark = document.createElement("mark");
+          mark.className = "search-highlight";
+          mark.setAttribute("data-shl", "1");
+          mark.textContent = p.text;
+          frag.appendChild(mark);
+        } else {
+          frag.appendChild(document.createTextNode(p.text));
+        }
+      }
+      node.parentNode?.replaceChild(frag, node);
+    }
+  }
+
   // Scroll to focused step when focusStepIndex is provided
   useEffect(() => {
     if (focusStepIndex === undefined || !scrollRef.current) return;
@@ -365,32 +414,32 @@ export function ConversationView({
     }
   }, [focusMessageIndex, messagesWithoutReminders.length, scrollToMessageEl]);
 
-  // Apply persistent search highlighting to ALL matching messages and scroll to first
+  // Apply inline DOM marks to ALL matching messages + brief container fade
   useEffect(() => {
-    // Remove previous search highlights
-    if (scrollRef.current) {
-      scrollRef.current.querySelectorAll(".sess-search-match").forEach((el) => {
-        el.classList.remove("sess-search-match");
-      });
-    }
-    if (scrollRef.current && searchHighlightQuery) {
-      scrollRef.current.querySelectorAll(".sess-search-match").forEach((el) => {
-        el.classList.remove("sess-search-match");
-      });
-      scrollRef.current.querySelectorAll(".search-highlight").forEach((el) => {
-        el.classList.remove("search-highlight");
-      });
-    }
+    const container = scrollRef.current;
+    if (!container) return;
 
-    if (!searchHighlightQuery || !scrollRef.current || messagesWithoutReminders.length === 0) {
+    // Remove previous DOM highlight marks (our custom <mark data-shl="1"> tags)
+    container.querySelectorAll("mark[data-shl]").forEach((el) => {
+      const parent = el.parentNode;
+      if (parent) parent.replaceChild(document.createTextNode(el.textContent || ""), el);
+      parent?.normalize();
+    });
+
+    // Clear any lingering container highlights
+    container.querySelectorAll(".sess-message-highlight").forEach((el) => {
+      el.classList.remove("sess-message-highlight");
+    });
+
+    if (!searchHighlightQuery || messagesWithoutReminders.length === 0) {
       searchHighlightKeyRef.current = undefined;
       return;
     }
 
     const q = searchHighlightQuery.toLowerCase();
-    const container = scrollRef.current;
     const msgElements = container.querySelectorAll("[data-message-index]");
     let firstMatch: Element | null = null;
+    const fadeTimers: ReturnType<typeof setTimeout>[] = [];
 
     for (const el of msgElements) {
       const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
@@ -406,7 +455,13 @@ export function ConversationView({
         .toLowerCase();
 
       if (contentToSearch.includes(q)) {
-        el.classList.add("sess-search-match");
+        // Brief fade highlight on the message container
+        el.classList.add("sess-message-highlight");
+        fadeTimers.push(setTimeout(() => el.classList.remove("sess-message-highlight"), 2000));
+
+        // Persistent inline <mark> highlights in tool call content
+        highlightDomTextNodes(el, q);
+
         if (!firstMatch) firstMatch = el;
       }
     }
@@ -416,6 +471,10 @@ export function ConversationView({
       scrollToMessageEl(firstMatch);
       searchHighlightKeyRef.current = searchHighlightQuery;
     }
+
+    return () => {
+      for (const t of fadeTimers) clearTimeout(t);
+    };
   }, [searchHighlightQuery, messagesWithoutReminders.length, scrollToMessageEl]);
 
   useEffect(() => {

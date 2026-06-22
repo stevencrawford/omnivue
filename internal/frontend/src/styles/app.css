@@ -328,6 +328,12 @@ body {
   color: var(--color-gh-text);
 }
 
+.sess-search-trigger.sess-search-active {
+  border-color: var(--color-accent-border);
+  box-shadow: 0 0 0 3px var(--color-glow);
+  color: var(--color-gh-text);
+}
+
 .sess-kbd {
   font-size: 0.625rem;
   font-family: var(--font-mono);
@@ -615,22 +621,14 @@ body {
 
 /* ─── Search result highlighting ──────────────────────────────────── */
 
-/* Persistent highlight for the message container that matched search */
-.sess-search-match {
-  background-color: color-mix(in srgb, var(--color-accent) 8%, transparent);
-  outline: 2px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
-  outline-offset: -1px;
-  border-radius: 4px;
-}
-
-/* Quick pulse used for marker-dot-click or focus-step navigation */
+/* Fade highlight for message containers (brief pulse then gone) */
 .sess-message-highlight {
   animation: sess-highlight-fade 2s ease-out;
 }
 
 @keyframes sess-highlight-fade {
   0% {
-    background-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
   }
   100% {
     background-color: transparent;
