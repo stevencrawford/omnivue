@@ -83,6 +83,14 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.CreatedAt = util.ParseTime(createdAt)
 		s.UpdatedAt = util.ParseTime(updatedAt)
 
+		// events.jsonl often updates faster than the SQLite sessions.updated_at
+		// column during an active conversation. Check the filesystem mtime as
+		// a fallback so the server detects changes and triggers SSE re-fetch.
+		eventsPath := filepath.Join(a.basePath, "session-state", s.ID, "events.jsonl")
+		if info, err := os.Stat(eventsPath); err == nil && info.ModTime().After(s.UpdatedAt) {
+			s.UpdatedAt = info.ModTime()
+		}
+
 		// Derive title from summary or directory if empty
 		if s.Title == "" {
 			s.Title = filepath.Base(s.Directory)
@@ -670,11 +678,11 @@ func normalizeAskUserInput(input string) string {
 	for i, c := range raw.Choices {
 		options[i] = map[string]string{"label": c}
 	}
-	transformed := map[string]any{
+			transformed := map[string]any{
 		"questions": []map[string]any{
 			{
 				"question": raw.Question,
-				"header":   raw.Question,
+				"header":   "Question for you",
 				"options":  options,
 			},
 		},
