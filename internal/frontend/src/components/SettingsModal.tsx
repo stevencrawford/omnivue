@@ -3,7 +3,8 @@ import { Trash2, Plus, Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { fetchSources, addSource, removeSource, setConfig } from "../hooks/useApi";
 import type { Source } from "../hooks/useApi";
-import { useTheme } from "../hooks/useTheme";
+import { useTheme, THEMES } from "../hooks/useTheme";
+import type { ThemeName, ThemeMode } from "../hooks/useTheme";
 
 const AGENT_TYPES = [
   { value: "opencode", label: "OpenCode", disabled: false, defaultPath: "~/.local/share/opencode" },
@@ -13,6 +14,29 @@ const AGENT_TYPES = [
   { value: "cursor", label: "Cursor", disabled: false, defaultPath: "~/.cursor" },
   { value: "pi", label: "Pi", disabled: false, defaultPath: "~/.pi/agent/sessions" },
 ];
+
+const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
+  default: {
+    light: ["#fafafa", "#ffffff", "#ff9940", "#399ee6"],
+    dark: ["#0b0e14", "#131721", "#ffad66", "#39bae6"],
+  },
+  nord: {
+    light: ["#f2f4f8", "#ffffff", "#5e81ac", "#88c0d0"],
+    dark: ["#2e3440", "#3b4252", "#81a1c1", "#88c0d0"],
+  },
+  catppuccin: {
+    light: ["#eff1f5", "#ffffff", "#8839ef", "#ea76cb"],
+    dark: ["#1e1e2e", "#313244", "#cba6f7", "#f5c2e7"],
+  },
+  "tokyo-night": {
+    light: ["#d5d6db", "#ffffff", "#2e7de9", "#41a6b5"],
+    dark: ["#24283b", "#2f3346", "#7aa2f7", "#73daca"],
+  },
+  github: {
+    light: ["#ffffff", "#f6f8fa", "#0969da", "#1f883d"],
+    dark: ["#0d1117", "#151b23", "#58a6ff", "#3fb950"],
+  },
+};
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -31,7 +55,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  const { theme, setTheme } = useTheme();
+  const { themeName, setThemeName, theme, setTheme } = useTheme();
 
   const loadSources = useCallback(async () => {
     setSourcesLoading(true);
@@ -83,10 +107,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleThemeChange = async (t: "light" | "dark") => {
-    setTheme(t);
+  const handleThemeNameChange = async (name: ThemeName) => {
+    setThemeName(name);
     try {
-      await setConfig("theme", t);
+      await setConfig("theme-name", name);
+    } catch {
+      // Non-critical
+    }
+  };
+
+  const handleThemeModeChange = async (mode: ThemeMode) => {
+    setTheme(mode);
+    try {
+      await setConfig("theme-mode", mode);
     } catch {
       // Non-critical
     }
@@ -221,22 +254,66 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         {/* Appearance */}
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-3">
             Appearance
           </h3>
+
+          <p className="text-[11px] font-medium text-gh-text-secondary mb-2">Theme</p>
+          <div className="grid grid-cols-2 gap-2">
+            {THEMES.map((t) => {
+              const isActive = themeName === t.name;
+              const cols = THEME_PREVIEWS[t.name][theme];
+              return (
+                <button
+                  key={t.name}
+                  type="button"
+                  onClick={() => handleThemeNameChange(t.name)}
+                  className={`rounded-lg border overflow-hidden cursor-pointer transition-colors ${
+                    isActive
+                      ? "border-accent-border"
+                      : "border-gh-border hover:border-gh-text-secondary"
+                  }`}
+                >
+                  <div className="flex flex-col">
+                    {cols.map((c, i) => (
+                      <div
+                        key={i}
+                        className="w-full"
+                        style={{
+                          backgroundColor: c,
+                          height: i < 2 ? 12 : 8,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div
+                    className={`px-2.5 py-1.5 text-xs text-left ${
+                      isActive
+                        ? "bg-accent-muted text-gh-text font-medium"
+                        : "bg-gh-bg-secondary text-gh-text-secondary"
+                    }`}
+                  >
+                    {t.label}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-[11px] font-medium text-gh-text-secondary mt-3 mb-2">Mode</p>
           <div className="flex items-center gap-3">
-            {(["light", "dark"] as const).map((t) => (
+            {(["light", "dark"] as const).map((m) => (
               <button
-                key={t}
+                key={m}
                 type="button"
-                onClick={() => handleThemeChange(t)}
+                onClick={() => handleThemeModeChange(m)}
                 className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer capitalize transition-colors ${
-                  theme === t
+                  theme === m
                     ? "border-accent-border bg-accent-muted text-accent"
                     : "border-gh-border text-gh-text-secondary hover:border-accent-border hover:text-gh-text"
                 }`}
               >
-                {t}
+                {m}
               </button>
             ))}
           </div>
