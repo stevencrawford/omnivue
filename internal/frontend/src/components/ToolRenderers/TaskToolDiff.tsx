@@ -6,6 +6,7 @@ import { CopyButton } from "../CopyButton";
 interface TaskInput {
   description?: string;
   subagent_type?: string;
+  agent_type?: string;
 }
 
 export function TaskToolDiff({
@@ -33,7 +34,7 @@ export function TaskToolDiff({
 
   const { navigateToSession } = useSessionNav();
   const description = input.description || "";
-  const agent = input.subagent_type || "";
+  const agent = input.subagent_type || input.agent_type || "";
 
   const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
   const totalCount = summary?.length ?? 0;
