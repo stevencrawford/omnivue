@@ -22,11 +22,13 @@ export function ToolCallList({
   agent,
   compact = false,
   onOpenModal,
+  onPin,
 }: {
   toolCalls: ToolCall[];
   agent?: string;
   compact?: boolean;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const capped = toolCalls.length > TOOL_CALL_VISIBLE_CAP;
@@ -37,7 +39,14 @@ export function ToolCallList({
     return (
       <>
         {visible.map((tool) => (
-          <ToolCallRow key={tool.id} tool={tool} agent={agent} compact onOpenModal={onOpenModal} />
+          <ToolCallRow
+            key={tool.id}
+            tool={tool}
+            agent={agent}
+            compact
+            onOpenModal={onOpenModal}
+            onPin={onPin}
+          />
         ))}
         {capped && (
           <button type="button" className="sess-tool-more" onClick={() => setShowAll((v) => !v)}>
@@ -130,11 +139,13 @@ export function ToolCallRow({
   agent,
   compact = false,
   onOpenModal,
+  onPin,
 }: {
   tool: ToolCall;
   agent?: string;
   compact?: boolean;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { navigateToSession } = useSessionNav();
@@ -169,7 +180,7 @@ export function ToolCallRow({
       case "question":
         return <QuestionToolDiff tool={tool} />;
       case "exit_plan_mode":
-        return <ExitPlanModeToolDiff tool={tool} onOpenModal={onOpenModal} />;
+        return <ExitPlanModeToolDiff tool={tool} onOpenModal={onOpenModal} onPin={onPin} />;
       default:
         return <DefaultToolDiff tool={tool} />;
     }

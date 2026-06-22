@@ -1,4 +1,5 @@
-import { CircleHelp, File } from "lucide-react";
+import { useState } from "react";
+import { CircleHelp, CircleCheckBig } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { CopyButton } from "../CopyButton";
 
@@ -8,15 +9,26 @@ interface QuestionItem {
   options?: Array<{ label: string; description?: string }>;
 }
 
-interface QuestionInput {
-  questions: QuestionItem[];
-}
-
 export function QuestionToolDiff({ tool }: { tool: ToolCall }) {
   let questions: QuestionItem[] = [];
   try {
-    const parsed: QuestionInput = JSON.parse(tool.input);
-    questions = parsed.questions || [];
+    const parsed = JSON.parse(tool.input);
+    if ("questions" in parsed && Array.isArray(parsed.questions)) {
+      questions = parsed.questions;
+    } else if (
+      "choices" in parsed &&
+      Array.isArray(parsed.choices) &&
+      "question" in parsed &&
+      typeof parsed.question === "string"
+    ) {
+      questions = [
+        {
+          question: parsed.question,
+          header: parsed.question,
+          options: parsed.choices.map((label: string) => ({ label })),
+        },
+      ];
+    }
   } catch {
     /* ignore */
   }
@@ -43,17 +55,46 @@ export function QuestionToolDiff({ tool }: { tool: ToolCall }) {
     );
   }
 
-  const q = questions[0];
+  const [activeIdx, setActiveIdx] = useState(0);
+  const q = questions[activeIdx] || questions[0];
+  const userAnswer = tool.output || "";
 
-  const qaText = tool.output
-    ? `Question: ${q.header || q.question}\nAnswer: ${tool.output}`
-    : `Question: ${q.header || q.question}`;
+  const selectedLabel = findSelectedOption(userAnswer, q.options || []);
+  const freeformText = !selectedLabel ? userAnswer : null;
+
+  const qaText = userAnswer
+    ? questions
+        .map((qItem) => {
+          const qLabel = qItem.header || qItem.question;
+          const ans = findSelectedOption(userAnswer, qItem.options || []);
+          return `Question: ${qLabel}\nAnswer: ${ans || userAnswer}`;
+        })
+        .join("\n\n")
+    : questions.map((qItem) => qItem.header || qItem.question).join("\n");
 
   return (
     <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3 group">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <CircleHelp size={14} className="shrink-0" />
-        <span className="font-medium text-gh-text truncate flex-1">{q.header || q.question}</span>
+        {questions.length > 1 ? (
+          <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto">
+            {questions.map((qItem, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveIdx(i)}
+                className={`shrink-0 px-2 py-0.5 rounded text-[11px] cursor-pointer transition-colors ${
+                  i === activeIdx
+                    ? "bg-accent-muted text-accent"
+                    : "text-gh-text-secondary hover:text-gh-text"
+                }`}
+              >
+                {qItem.header || `Question ${i + 1}`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="font-medium text-gh-text truncate flex-1">{q.header || q.question}</span>
+        )}
         <CopyButton text={qaText} />
       </div>
       <div className="px-3 py-2">
@@ -63,35 +104,68 @@ export function QuestionToolDiff({ tool }: { tool: ToolCall }) {
         {q.options && q.options.length > 0 && (
           <div className="space-y-1">
             {q.options.map((opt, i) => {
-              const chosen =
-                tool.output &&
-                (tool.output.toLowerCase().includes(opt.label.toLowerCase()) ||
-                  tool.output.toLowerCase().includes(`option ${i + 1}`));
+              const chosen = selectedLabel === opt.label;
               return (
                 <div
                   key={i}
-                  className={`px-2.5 py-1.5 rounded text-[11px] border ${
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded text-[11px] border ${
                     chosen
-                      ? "border-accent-border bg-accent-muted text-accent"
+                      ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400"
                       : "border-gh-border bg-gh-bg-secondary/30 text-gh-text-secondary"
                   }`}
                 >
+                  {chosen ? (
+                    <CircleCheckBig size={14} className="shrink-0 text-emerald-400" />
+                  ) : (
+                    <span className="w-3.5 shrink-0" />
+                  )}
                   <span className="font-medium">{opt.label}</span>
                   {opt.description && (
-                    <span className="ml-1 text-gh-text-secondary/70">— {opt.description}</span>
+                    <span className="text-gh-text-secondary/70 ml-1">— {opt.description}</span>
                   )}
                 </div>
               );
             })}
           </div>
         )}
-        {tool.output && (
-          <div className="mt-2 border-t border-accent-border pt-2 text-[11px] text-emerald-400 flex items-center gap-1">
-            <File size={12} />
-            <span>User answered: {tool.output}</span>
+        {freeformText && (
+          <div className="mt-2 text-[11px] text-gh-text whitespace-pre-wrap leading-relaxed border-l-2 border-gh-border pl-2">
+            {freeformText}
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function findSelectedOption(output: string, options: Array<{ label: string }>): string | null {
+  if (!output || options.length === 0) return null;
+
+  const userSelectedMatch = output.match(/^User selected:\s*(.+)/);
+  if (userSelectedMatch) {
+    const candidate = userSelectedMatch[1].trim();
+    for (const opt of options) {
+      if (candidate === opt.label || candidate.startsWith(opt.label)) {
+        return opt.label;
+      }
+    }
+    return candidate;
+  }
+
+  for (const opt of options) {
+    if (
+      output.toLowerCase() === opt.label.toLowerCase() ||
+      output.toLowerCase().includes(opt.label.toLowerCase())
+    ) {
+      return opt.label;
+    }
+  }
+
+  for (let i = 0; i < options.length; i++) {
+    if (output.toLowerCase().includes(`option ${i + 1}`)) {
+      return options[i].label;
+    }
+  }
+
+  return null;
 }

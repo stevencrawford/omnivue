@@ -6,9 +6,11 @@ import { CopyButton } from "../CopyButton";
 export function ExitPlanModeToolDiff({
   tool,
   onOpenModal,
+  onPin,
 }: {
   tool: ToolCall;
   onOpenModal?: (content: string, title?: string) => void;
+  onPin?: (content: string) => void;
 }) {
   let summary = "";
 
@@ -33,6 +35,7 @@ export function ExitPlanModeToolDiff({
             content={summary}
             className="markdown-body--wide"
             onOpenModal={onOpenModal ? () => onOpenModal(summary, "Proposed Plan") : undefined}
+            onPin={onPin ? () => onPin(summary) : undefined}
           />
         </div>
       )}

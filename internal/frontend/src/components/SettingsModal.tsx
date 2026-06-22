@@ -74,6 +74,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setRemovingId(id);
     try {
       await removeSource(id);
+      setConfirmingDeleteId(null);
       await loadSources();
     } catch (err) {
       console.error("Failed to remove source:", err);

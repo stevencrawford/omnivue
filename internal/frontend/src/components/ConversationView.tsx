@@ -973,7 +973,13 @@ function AssistantMessageView({
       {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} onPin={onPin} />}
       {tools.length > 0 && (
         <div className={showText ? "mt-2" : ""}>
-          <ToolCallList toolCalls={tools} agent={agent} compact onOpenModal={onOpenModal} />
+          <ToolCallList
+            toolCalls={tools}
+            agent={agent}
+            compact
+            onOpenModal={onOpenModal}
+            onPin={onPin}
+          />
         </div>
       )}
     </div>
