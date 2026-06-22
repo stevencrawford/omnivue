@@ -1,7 +1,6 @@
 import { CircleAlert } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { MarkdownContent } from "../MarkdownContent";
-import { CopyButton } from "../CopyButton";
 
 export function ExitPlanModeToolDiff({
   tool,
@@ -39,7 +38,6 @@ export function ExitPlanModeToolDiff({
           />
         </div>
       )}
-      {summary && <CopyButton text={summary} className="absolute top-1 right-1 z-10" />}
       {feedback && (
         <div className="border-t border-amber-500/20 px-3 py-2">
           <div className="text-[11px] font-semibold text-gh-text-secondary mb-1">USER-RESPONSE</div>

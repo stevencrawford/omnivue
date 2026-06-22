@@ -70,7 +70,6 @@ export function ToolCallList({
 
 function TaskCompleteBlock({ tool }: { tool: ToolCall }) {
   let taskSummary = "";
-  const { copied, copy } = useCopy(2000);
 
   try {
     const parsed = JSON.parse(tool.input);
@@ -80,7 +79,7 @@ function TaskCompleteBlock({ tool }: { tool: ToolCall }) {
   }
 
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] relative group">
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03]">
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
@@ -100,19 +99,6 @@ function TaskCompleteBlock({ tool }: { tool: ToolCall }) {
             </pre>
           </div>
         </div>
-      )}
-      {taskSummary && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            copy(taskSummary);
-          }}
-          className="absolute top-2 right-2 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
-          title="Copy summary"
-        >
-          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-        </button>
       )}
     </div>
   );

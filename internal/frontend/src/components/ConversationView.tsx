@@ -22,7 +22,6 @@ import { ToolCallList } from "./ToolRenderers/ToolCallList";
 import { FileRenderer } from "./DiffRenderer";
 import { CopyButton } from "./CopyButton";
 import { useSessionNav } from "../hooks/useNav";
-import { useCopy } from "../hooks/useCopy";
 import { detectLanguage } from "../utils/detectLanguage";
 
 const MARKER_COLORS: Record<string, string> = {
@@ -1100,7 +1099,6 @@ function SystemReminderView({
 
 function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   let summary = "";
-  const { copied, copy } = useCopy(2000);
 
   try {
     const parsed = JSON.parse(tool.input);
@@ -1110,7 +1108,7 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
   }
 
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3 relative group">
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03] mx-4 mb-3">
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
@@ -1122,16 +1120,6 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
           </div>
         )}
       </div>
-      {summary && (
-        <button
-          type="button"
-          onClick={() => copy(summary)}
-          className="absolute top-2 right-2 size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-all opacity-0 group-hover:opacity-100 border border-gh-border bg-surface-elevated"
-          title="Copy summary"
-        >
-          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-        </button>
-      )}
     </div>
   );
 }
