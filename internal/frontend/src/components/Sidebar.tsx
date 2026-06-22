@@ -17,6 +17,8 @@ interface SidebarProps {
   activeSection: Section;
   onSectionChange: (section: Section) => void;
   onSettingsOpen: () => void;
+  sidebarOpen: boolean;
+  onSidebarToggle: () => void;
 }
 
 const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
@@ -42,6 +44,8 @@ export function Sidebar({
   activeSection,
   onSectionChange,
   onSettingsOpen,
+  sidebarOpen,
+  onSidebarToggle,
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -105,17 +109,20 @@ export function Sidebar({
     ];
   };
 
-  const panelWidth = Math.max(172, width - 48);
+  const renderedWidth = sidebarOpen ? width : 48;
+  const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
 
   return (
-    <aside className="flex shrink-0 relative" style={{ width: `${width}px` }}>
+    <aside className="flex shrink-0 relative" style={{ width: `${renderedWidth}px` }}>
       <IconChannel
         activeSection={activeSection}
         onSectionChange={onSectionChange}
         onSettingsOpen={onSettingsOpen}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
       />
       <div
-        className="flex-1 flex flex-col overflow-hidden bg-gh-bg-sidebar"
+        className={`flex-1 flex flex-col overflow-hidden bg-gh-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
         style={{ width: `${panelWidth}px` }}
       >
         <div
@@ -144,10 +151,12 @@ export function Sidebar({
         </div>
       </div>
       <Toast key={toastKey} message={toastMsg} visible={toastVisible} onHide={hideToast} />
-      <div
-        className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
-        onMouseDown={handleMouseDown}
-      />
+      {sidebarOpen && (
+        <div
+          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
+          onMouseDown={handleMouseDown}
+        />
+      )}
     </aside>
   );
 }

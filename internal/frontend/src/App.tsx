@@ -110,6 +110,12 @@ export function App() {
         }
       }
 
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+        return;
+      }
+
       if (searchOpen || drawerOpen) return;
 
       if ((e.metaKey || e.ctrlKey) && !isInput) {
@@ -393,31 +399,22 @@ export function App() {
       <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
         <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-gh-header-border">
           <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              className="sess-icon-btn shrink-0"
-              onClick={() => setSidebarOpen((v) => !v)}
-              aria-label="Toggle sidebar"
-              aria-expanded={sidebarOpen}
-              title="Toggle sidebar"
-            >
+            <div className="flex items-center gap-1.5 min-w-0">
               <svg
-                className="size-5"
+                className="size-4 shrink-0"
+                viewBox="0 0 16 16"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={1.5}
-                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <rect x="2" y="3" width="20" height="18" rx="2" />
-                <line x1="9" y1="3" x2="9" y2="21" />
-                {sidebarOpen ? (
-                  <polyline points="6,10 4,12 6,14" />
-                ) : (
-                  <polyline points="5,10 7,12 5,14" />
-                )}
+                <path d="M2 3.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2H8.5L6 12.5V10H4a2 2 0 0 1-2-2V3.5z" />
+                <circle cx="5.5" cy="5.5" r=".7" fill="currentColor" stroke="none" />
+                <circle cx="10.5" cy="5.5" r=".7" fill="currentColor" stroke="none" />
+                <path d="M6.5 8.5h3" />
               </svg>
-            </button>
-            <div className="flex items-baseline gap-2 min-w-0">
               <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
             </div>
           </div>
@@ -473,22 +470,22 @@ export function App() {
           }}
         >
           <div className="flex flex-1 overflow-hidden">
-            {sidebarOpen && (
-              <ErrorBoundary>
-                <Sidebar
-                  sessions={sessions}
-                  activeSessionId={activeSessionId}
-                  onSessionSelect={handleSessionSelect}
-                  onScratchFileSelect={handleOpenScratchFile}
-                  onDeleteScratchFile={handleDeleteScratchFile}
-                  onRenameScratchFile={handleRenameScratchFile}
-                  scratchFiles={scratchFiles}
-                  activeSection={activeSection}
-                  onSectionChange={setActiveSection}
-                  onSettingsOpen={() => setSettingsOpen(true)}
-                />
-              </ErrorBoundary>
-            )}
+            <ErrorBoundary>
+              <Sidebar
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onSessionSelect={handleSessionSelect}
+                onScratchFileSelect={handleOpenScratchFile}
+                onDeleteScratchFile={handleDeleteScratchFile}
+                onRenameScratchFile={handleRenameScratchFile}
+                scratchFiles={scratchFiles}
+                activeSection={activeSection}
+                onSectionChange={setActiveSection}
+                onSettingsOpen={() => setSettingsOpen(true)}
+                sidebarOpen={sidebarOpen}
+                onSidebarToggle={() => setSidebarOpen((v) => !v)}
+              />
+            </ErrorBoundary>
             <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
               {activeSession ? (
                 <ErrorBoundary>

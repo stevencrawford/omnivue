@@ -6,6 +6,8 @@ interface IconChannelProps {
   activeSection: Section;
   onSectionChange: (section: Section) => void;
   onSettingsOpen: () => void;
+  sidebarOpen: boolean;
+  onSidebarToggle: () => void;
 }
 
 const sections: {
@@ -19,7 +21,13 @@ const sections: {
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark, disabled: true },
 ];
 
-export function IconChannel({ activeSection, onSectionChange, onSettingsOpen }: IconChannelProps) {
+export function IconChannel({
+  activeSection,
+  onSectionChange,
+  onSettingsOpen,
+  sidebarOpen,
+  onSidebarToggle,
+}: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-gh-border bg-gh-bg-sidebar py-1.5">
       {sections.map(({ id, label, Icon, disabled }) => (
@@ -27,7 +35,14 @@ export function IconChannel({ activeSection, onSectionChange, onSettingsOpen }: 
           key={id}
           type="button"
           disabled={disabled}
-          onClick={() => onSectionChange(id)}
+          onClick={() => {
+            if (id === activeSection) {
+              onSidebarToggle();
+            } else {
+              onSectionChange(id);
+              if (!sidebarOpen) onSidebarToggle();
+            }
+          }}
           title={disabled ? `${label} — coming soon` : label}
           className={`relative flex items-center justify-center w-full h-10 transition-colors ${
             disabled
