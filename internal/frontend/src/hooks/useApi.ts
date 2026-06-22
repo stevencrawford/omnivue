@@ -125,6 +125,7 @@ export interface SearchResult {
   updatedAt?: string;
   fileTitle?: string;
   fileId?: string;
+  messageIndex?: number;
 }
 
 export interface Folder {

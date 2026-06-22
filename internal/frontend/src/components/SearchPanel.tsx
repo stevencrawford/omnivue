@@ -8,7 +8,13 @@ import { renderSnippet } from "../utils/searchUtils";
 interface SearchPanelProps {
   query: string;
   onQueryChange: (q: string) => void;
-  onSelectSession: (sessionId: string, chunkType: string, query: string, fileId?: string) => void;
+  onSelectSession: (
+    sessionId: string,
+    chunkType: string,
+    query: string,
+    fileId?: string,
+    messageIndex?: number,
+  ) => void;
   onOpenDrawer: (query: string) => void;
   onClose: () => void;
   searchScope: string | null;
@@ -21,6 +27,10 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   plan: {
     label: "Plan Content",
     badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  },
+  message: {
+    label: "Session Messages",
+    badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
   },
   messages: {
     label: "Session Messages",
@@ -61,11 +71,11 @@ export function SearchPanel({
   const sections: Section[] = useMemo(() => {
     const groups = new Map<string, SearchResult[]>();
     for (const r of results) {
-      const ct = r.chunkType || "messages";
+      const ct = r.chunkType === "messages" ? "message" : r.chunkType || "message";
       if (!groups.has(ct)) groups.set(ct, []);
       groups.get(ct)!.push(r);
     }
-    const order = ["name", "plan", "messages", "scratch"];
+    const order = ["name", "plan", "message", "scratch"];
     const out: Section[] = [];
     let globalIdx = 0;
     for (const ct of order) {
@@ -155,6 +165,7 @@ export function SearchPanel({
           r.chunkType,
           query,
           r.chunkType === "scratch" ? r.fileId : undefined,
+          r.messageIndex,
         );
       } else if (results.length > 0) {
         onOpenDrawer(query);
@@ -250,29 +261,32 @@ export function SearchPanel({
                             r.chunkType,
                             query,
                             r.chunkType === "scratch" ? r.fileId : undefined,
+                            r.messageIndex,
                           )
                         }
                       >
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="mb-1">
+                          <div className="flex items-center gap-2">
+                            {r.repository && (
+                              <span className="text-[11px] font-mono text-gh-text-secondary truncate">
+                                {r.repository}
+                              </span>
+                            )}
+                            {r.updatedAt && (
+                              <span className="text-[11px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
+                                {relativeTime(r.updatedAt)}
+                              </span>
+                            )}
+                          </div>
                           {r.chunkType !== "name" && r.sessionName && (
-                            <span className="text-[11px] font-semibold text-gh-text truncate">
+                            <div className="text-[11px] font-semibold text-gh-text truncate leading-snug mt-0.5">
                               {r.sessionName}
-                            </span>
+                            </div>
                           )}
                           {r.chunkType === "scratch" && r.fileTitle && (
-                            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate">
+                            <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate leading-snug mt-0.5">
                               {r.fileTitle}
-                            </span>
-                          )}
-                          {r.repository && (
-                            <span className="text-[11px] font-mono text-gh-text-secondary truncate">
-                              {r.repository}
-                            </span>
-                          )}
-                          {r.updatedAt && (
-                            <span className="text-[11px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
-                              {relativeTime(r.updatedAt)}
-                            </span>
+                            </div>
                           )}
                         </div>
                         <div className="text-xs text-gh-text line-clamp-2 search-result">

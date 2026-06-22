@@ -35,6 +35,7 @@ interface SessionViewerProps {
   onNewScratchFile?: () => void;
   onPinMessage?: (content: string) => void;
   focusStepIndex?: number;
+  focusMessageIndex?: number;
   searchHighlightQuery?: string | null;
 }
 
@@ -55,6 +56,7 @@ export function SessionViewer({
   onNewScratchFile,
   onPinMessage,
   focusStepIndex,
+  focusMessageIndex,
   searchHighlightQuery,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
@@ -67,6 +69,8 @@ export function SessionViewer({
   );
   const [createFileOpen, setCreateFileOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [diffLoaded, setDiffLoaded] = useState(false);
+  const [planLoaded, setPlanLoaded] = useState(false);
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -141,7 +145,11 @@ export function SessionViewer({
                 key={meta.tab}
                 type="button"
                 className={`sess-tab-pill shrink-0 ${activeTab === meta.tab ? "sess-tab-pill--active" : ""}`}
-                onClick={() => setActiveTab(meta.tab)}
+                onClick={() => {
+                  if (meta.tab === "diff") setDiffLoaded(true);
+                  if (meta.tab === "plan") setPlanLoaded(true);
+                  setActiveTab(meta.tab);
+                }}
               >
                 {meta.icon}
                 {meta.label}
@@ -190,37 +198,44 @@ export function SessionViewer({
         )}
       </div>
 
-      {/* Tab content */}
-      {activeTab === "session" && (
-        <ConversationView
-          messages={messages}
-          session={session}
-          loading={loading}
-          onOpenModal={(content, title) => setMarkdownModal({ content, title })}
-          onPin={onPinMessage}
-          focusStepIndex={focusStepIndex}
-          searchHighlightQuery={searchHighlightQuery ?? undefined}
-        />
-      )}
-      {activeTab === "diff" && (
-        <div className="flex-1 overflow-y-auto">
-          <DiffView
-            sessionId={session.id}
-            sessionDirectory={session.directory}
-            refreshKey={refreshKey}
-            searchHighlightQuery={searchHighlightQuery}
+      {/* Tab content — all panels are always mounted, inactive ones hidden */}
+      <div className="relative flex-1 min-h-0">
+        <div className={`absolute inset-0 ${activeTab !== "session" ? "hidden" : "flex flex-col"}`}>
+          <ConversationView
+            messages={messages}
+            session={session}
+            loading={loading}
+            onOpenModal={(content, title) => setMarkdownModal({ content, title })}
+            onPin={onPinMessage}
+            focusStepIndex={focusStepIndex}
+            focusMessageIndex={focusMessageIndex}
+            searchHighlightQuery={searchHighlightQuery ?? undefined}
           />
         </div>
-      )}
-      {activeTab === "plan" && (
-        <div className="flex-1 overflow-y-auto">
-          <PlanView
-            sessionId={session.id}
-            refreshKey={refreshKey}
-            searchHighlightQuery={searchHighlightQuery}
-          />
-        </div>
-      )}
+        {(diffLoaded || activeTab === "diff") && (
+          <div className={`absolute inset-0 ${activeTab !== "diff" ? "hidden" : ""}`}>
+            <div className="h-full overflow-y-auto">
+              <DiffView
+                sessionId={session.id}
+                sessionDirectory={session.directory}
+                refreshKey={refreshKey}
+                searchHighlightQuery={searchHighlightQuery}
+              />
+            </div>
+          </div>
+        )}
+        {(planLoaded || activeTab === "plan") && (
+          <div className={`absolute inset-0 ${activeTab !== "plan" ? "hidden" : ""}`}>
+            <div className="h-full overflow-y-auto">
+              <PlanView
+                sessionId={session.id}
+                refreshKey={refreshKey}
+                searchHighlightQuery={searchHighlightQuery}
+              />
+            </div>
+          </div>
+        )}
+      </div>
       {isScratchTab(activeTab) &&
         (() => {
           const fid = scratchFileIdFromTab(activeTab)!;

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CirclePlus,
   ChevronDown,
@@ -104,6 +104,7 @@ export function ConversationView({
   onPin,
   focusStepIndex,
   searchHighlightQuery,
+  focusMessageIndex,
 }: {
   messages: Message[];
   session: Session;
@@ -112,6 +113,7 @@ export function ConversationView({
   onPin?: (content: string) => void;
   focusStepIndex?: number;
   searchHighlightQuery?: string;
+  focusMessageIndex?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
@@ -140,12 +142,12 @@ export function ConversationView({
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (scrollRef.current) {
-        saveScrollPosition(session.id, scrollRef.current.scrollTop);
-      }
-    };
+  // Save scroll position continuously (debounced) — keeps it always up to date
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const doSaveScroll = useCallback(() => {
+    if (scrollRef.current) {
+      saveScrollPosition(session.id, scrollRef.current.scrollTop);
+    }
   }, [session.id, saveScrollPosition]);
 
   useEffect(() => {
@@ -153,7 +155,11 @@ export function ConversationView({
       const saved = scrollPositions.get(session.id);
       const isInitialLoad = prevLengthRef.current === 0;
 
-      if (isInitialLoad) {
+      // Skip restoration if we're navigating to a specific message via search
+      const isSearchNav =
+        focusMessageIndex !== undefined || (searchHighlightQuery && isInitialLoad);
+
+      if (isInitialLoad && !isSearchNav) {
         if (saved !== undefined) {
           scrollRef.current.scrollTop = saved;
         } else {
@@ -168,22 +174,28 @@ export function ConversationView({
       }
     }
     prevLengthRef.current = messages.length;
-  }, [messages.length, session.id, scrollPositions]);
+  }, [messages.length, session.id, scrollPositions, focusMessageIndex, searchHighlightQuery]);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
-  // Scroll listener: toggles button visibility when user scrolls
+  // Scroll listener: saves position + toggles button visibility when user scrolls
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
       setShowScrollTop(el.scrollTop > 200);
       setShowScrollBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
+      // Continuous save (debounced)
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => doSaveScroll(), 300);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [messages.length]);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [messages.length, doSaveScroll]);
 
   // ResizeObserver: recalculates button visibility when content height changes
   // (e.g. async message loading, tab switch) without requiring a scroll event.
@@ -309,13 +321,16 @@ export function ConversationView({
     return result;
   }, [messagesWithoutReminders]);
 
-  const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const searchHighlightKeyRef = useRef<string | undefined>(undefined);
 
-  useEffect(() => {
-    return () => {
-      for (const t of highlightTimers.current) clearTimeout(t);
-      highlightTimers.current = [];
-    };
+  // Scroll to a specific message element (used by focusStepIndex, focusMessageIndex, search)
+  const scrollToMessageEl = useCallback((el: Element) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const rect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    container.scrollTop +=
+      rect.top - containerRect.top - container.clientHeight / 2 + rect.height / 2;
   }, []);
 
   // Scroll to focused step when focusStepIndex is provided
@@ -326,34 +341,82 @@ export function ConversationView({
     for (const el of msgElements) {
       const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
       if (idx === focusStepIndex) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        scrollToMessageEl(el);
         el.classList.add("sess-message-highlight");
         const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
-        highlightTimers.current.push(timer);
-        break;
+        return () => clearTimeout(timer);
       }
     }
-  }, [focusStepIndex, grouped.length]);
+  }, [focusStepIndex, grouped.length, scrollToMessageEl]);
 
-  // Scroll to and highlight first message matching search highlight query
+  // Scroll to exact message index (from search result with exact targeting)
+  const consumedFocusIdx = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!searchHighlightQuery || !scrollRef.current || messagesWithoutReminders.length === 0)
+    if (focusMessageIndex === undefined) return;
+    if (consumedFocusIdx.current === focusMessageIndex) return;
+    if (!scrollRef.current || messagesWithoutReminders.length === 0) return;
+    const el = scrollRef.current.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    if (el) {
+      scrollToMessageEl(el);
+      el.classList.add("sess-message-highlight");
+      consumedFocusIdx.current = focusMessageIndex;
+      const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [focusMessageIndex, messagesWithoutReminders.length, scrollToMessageEl]);
+
+  // Apply persistent search highlighting to ALL matching messages and scroll to first
+  useEffect(() => {
+    // Remove previous search highlights
+    if (scrollRef.current) {
+      scrollRef.current.querySelectorAll(".sess-search-match").forEach((el) => {
+        el.classList.remove("sess-search-match");
+      });
+    }
+    if (scrollRef.current && searchHighlightQuery) {
+      scrollRef.current.querySelectorAll(".sess-search-match").forEach((el) => {
+        el.classList.remove("sess-search-match");
+      });
+      scrollRef.current.querySelectorAll(".search-highlight").forEach((el) => {
+        el.classList.remove("search-highlight");
+      });
+    }
+
+    if (!searchHighlightQuery || !scrollRef.current || messagesWithoutReminders.length === 0) {
+      searchHighlightKeyRef.current = undefined;
       return;
+    }
+
     const q = searchHighlightQuery.toLowerCase();
     const container = scrollRef.current;
     const msgElements = container.querySelectorAll("[data-message-index]");
+    let firstMatch: Element | null = null;
+
     for (const el of msgElements) {
       const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
       const msg = messagesWithoutReminders[idx];
-      if (msg && (msg.content || "").toLowerCase().includes(q)) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.add("sess-message-highlight");
-        const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
-        highlightTimers.current.push(timer);
-        break;
+      if (!msg) continue;
+
+      // Search in message content and tool calls
+      const contentToSearch = [
+        msg.content || "",
+        ...(msg.toolCalls ?? []).flatMap((tc) => [tc.name || "", tc.input || "", tc.output || ""]),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (contentToSearch.includes(q)) {
+        el.classList.add("sess-search-match");
+        if (!firstMatch) firstMatch = el;
       }
     }
-  }, [searchHighlightQuery, messagesWithoutReminders.length]);
+
+    // Scroll to the first matching message (only when the query changes, not on every render)
+    if (firstMatch && searchHighlightQuery !== searchHighlightKeyRef.current) {
+      scrollToMessageEl(firstMatch);
+      searchHighlightKeyRef.current = searchHighlightQuery;
+    }
+  }, [searchHighlightQuery, messagesWithoutReminders.length, scrollToMessageEl]);
 
   useEffect(() => {
     const container = scrollRef.current;

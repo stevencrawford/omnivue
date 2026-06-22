@@ -10,7 +10,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
-import { SessionNavContext } from "./hooks/useNav";
+import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
 import type { Session, SearchResult } from "./hooks/useApi";
 import {
@@ -27,6 +27,7 @@ export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [focusStepIndex, setFocusStepIndex] = useState<number | undefined>(undefined);
+  const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("session");
@@ -211,6 +212,7 @@ export function App() {
   }, [sessions]);
 
   // Clear focusStepIndex when activeSessionId changes (except on initial hash parse)
+  // focusMessageIndex is managed separately by handleSearchSelect
   const isInitialHashRef = useRef(true);
   useEffect(() => {
     if (isInitialHashRef.current) {
@@ -233,6 +235,7 @@ export function App() {
   const handleSessionSelect = useCallback((sessionId: string) => {
     setActiveSessionId(sessionId);
     setFocusStepIndex(undefined);
+    setFocusMessageIndex(undefined);
     setActiveTab("session");
     setSearchHighlightQuery(null);
   }, []);
@@ -340,10 +343,17 @@ export function App() {
   }, []);
 
   const handleSearchSelect = useCallback(
-    (sessionId: string, chunkType: string, query: string, fileId?: string) => {
+    (
+      sessionId: string,
+      chunkType: string,
+      query: string,
+      fileId?: string,
+      messageIndex?: number,
+    ) => {
       setActiveSessionId(sessionId);
       const tabMap: Record<string, Tab> = {
         name: "session",
+        message: "session",
         messages: "session",
         plan: "plan",
       };
@@ -353,6 +363,8 @@ export function App() {
         setActiveTab(tabMap[chunkType] || "session");
       }
       setSearchHighlightQuery(query || null);
+      setFocusStepIndex(undefined);
+      setFocusMessageIndex(messageIndex);
       setSearchOpen(false);
       setDrawerOpen(false);
     },
@@ -489,20 +501,23 @@ export function App() {
             <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
               {activeSession ? (
                 <ErrorBoundary>
-                  <SessionViewer
-                    key={activeSession.id}
-                    session={activeSession}
-                    liveChangedIds={liveChangedIds}
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                    openScratchTabs={openScratchTabs}
-                    scratchFileMap={scratchFileMap}
-                    onCloseScratchTab={handleCloseScratchTab}
-                    onNewScratchFile={handleNewScratchFile}
-                    onPinMessage={handlePinMessage}
-                    focusStepIndex={focusStepIndex}
-                    searchHighlightQuery={searchHighlightQuery}
-                  />
+                  <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
+                    <SessionViewer
+                      key={activeSession.id}
+                      session={activeSession}
+                      liveChangedIds={liveChangedIds}
+                      activeTab={activeTab}
+                      onTabChange={setActiveTab}
+                      openScratchTabs={openScratchTabs}
+                      scratchFileMap={scratchFileMap}
+                      onCloseScratchTab={handleCloseScratchTab}
+                      onNewScratchFile={handleNewScratchFile}
+                      onPinMessage={handlePinMessage}
+                      focusStepIndex={focusStepIndex}
+                      focusMessageIndex={focusMessageIndex}
+                      searchHighlightQuery={searchHighlightQuery}
+                    />
+                  </SearchHighlightContext.Provider>
                 </ErrorBoundary>
               ) : (
                 <div className="sess-empty-state flex-1 h-full">
