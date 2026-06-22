@@ -643,7 +643,7 @@ function SessionRow({
                 }}
                 onClick={() => navigateToSession(session.id)}
                 onContextMenu={(e) => onContextMenu(session.id, e)}
-                title={session.directory || session.title}
+                title={buildChildTooltip(session)}
                 className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
                   subActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
                 }`}
@@ -808,6 +808,15 @@ function VerboseStats({ session }: { session: Session }) {
       )}
     </p>
   );
+}
+
+// buildChildTooltip returns a descriptive tooltip for child/sub-agent sessions.
+function buildChildTooltip(session: Session): string {
+  if (session.subAgent) {
+    const title = session.title?.trim() || session.id.slice(0, 10);
+    return `${session.subAgent}: ${title}`;
+  }
+  return session.directory || session.title || session.id.slice(0, 10);
 }
 
 // ─── Small SVG icons ──────────────────────────────────────────────
