@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/stevencrawford/sess/internal/ingest"
@@ -435,6 +436,21 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					if tc.Name == "atlassian-getJiraIssue" || tc.Name == "atlassian_getJiraIssue" {
 						tc.Name = "jira"
 					}
+					// Normalize apply_patch to edit, transforming input to structured format
+					if tc.Name == "apply_patch" {
+						tc.Name = "edit"
+						var patchText string
+						if err := json.Unmarshal(req.Arguments, &patchText); err == nil && patchText != "" {
+							filePath := extractCopilotPatchPath(patchText)
+							if filePath != "" {
+								newInput, _ := json.Marshal(map[string]string{
+									"filePath": filePath,
+									"content":  patchText,
+								})
+								tc.Input = string(newInput)
+							}
+						}
+					}
 					msg.ToolCalls = append(msg.ToolCalls, tc)
 				}
 
@@ -599,6 +615,21 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 	}
 }
 
+// extractCopilotPatchPath extracts the file path from apply_patch text.
+// Format: "*** Begin Patch\n*** Update File: <path>\n...\n*** End Patch"
+func extractCopilotPatchPath(patch string) string {
+	for _, prefix := range []string{"*** Update File: ", "*** Add File: ", "*** Modify File: "} {
+		if idx := strings.Index(patch, prefix); idx >= 0 {
+			rest := patch[idx+len(prefix):]
+			if nl := strings.IndexAny(rest, "\n\r"); nl >= 0 {
+				return strings.TrimSpace(rest[:nl])
+			}
+			return strings.TrimSpace(rest)
+		}
+	}
+	return ""
+}
+
 // toolEditArgs mirrors the actual arguments in Copilot file edit/create tool requests.
 type toolEditArgs struct {
 	Path    string `json:"path"`
@@ -637,12 +668,30 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 		}
 
 		for _, req := range data.ToolRequests {
+			ts := util.ParseTime(event.Timestamp)
+
+			if req.Name == "apply_patch" {
+				var patchText string
+				if err := json.Unmarshal(req.Arguments, &patchText); err != nil || patchText == "" {
+					continue
+				}
+				filePath := extractCopilotPatchPath(patchText)
+				if filePath == "" {
+					continue
+				}
+				edits = append(edits, ingest.FileEdit{
+					FilePath:  filePath,
+					ToolName:  "edit",
+					Content:   patchText,
+					Timestamp: ts,
+				})
+				continue
+			}
+
 			var args toolEditArgs
 			if err := json.Unmarshal(req.Arguments, &args); err != nil {
 				continue
 			}
-
-			ts := util.ParseTime(event.Timestamp)
 
 			switch req.Name {
 			case "create":

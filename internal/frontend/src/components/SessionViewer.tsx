@@ -1,16 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  Bot,
-  FileText,
-  ListTodo,
-  File,
-  Lock,
-  X,
-  Plus,
-  FilePlus,
-  Check,
-  Copy,
-} from "lucide-react";
+import { Bot, FileText, ListTodo, File, Lock, X, Plus, FilePlus, Check, Copy } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
