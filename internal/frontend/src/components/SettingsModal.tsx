@@ -57,6 +57,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const { themeName, setThemeName, theme, setTheme } = useTheme();
 
+  const [showCostsSetting, setShowCostsSetting] = useState(() => {
+    try {
+      return localStorage.getItem("sess-show-costs") !== "false";
+    } catch {
+      return true;
+    }
+  });
+
   const loadSources = useCallback(async () => {
     setSourcesLoading(true);
     setSourcesError(null);
@@ -317,6 +325,31 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </button>
             ))}
           </div>
+        </div>
+
+        <hr className="border-gh-border" />
+
+        {/* Privacy */}
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-2">
+            Privacy
+          </h3>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showCostsSetting}
+              onChange={(e) => {
+                setShowCostsSetting(e.target.checked);
+                try {
+                  localStorage.setItem("sess-show-costs", e.target.checked ? "true" : "false");
+                } catch {
+                  /* noop */
+                }
+              }}
+              className="accent-accent"
+            />
+            <span className="text-xs text-gh-text">Show costs</span>
+          </label>
         </div>
 
         <hr className="border-gh-border" />
