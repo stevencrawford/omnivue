@@ -1,18 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  CirclePlus,
-  FileText,
-  ListTodo,
-  File,
-  X,
-  Plus,
-  FilePlus,
-  Check,
-  Copy,
-  Pin,
-} from "lucide-react";
+import { CirclePlus, FileText, ListTodo, File, X, Plus, FilePlus, Check, Copy } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
-import { fetchMessages } from "../hooks/useApi";
+import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 import { useCopy } from "../hooks/useCopy";
@@ -71,6 +60,7 @@ export function SessionViewer({
   const [refreshKey, setRefreshKey] = useState(0);
   const [diffLoaded, setDiffLoaded] = useState(false);
   const [planLoaded, setPlanLoaded] = useState(false);
+  const [deleteConfirmFileId, setDeleteConfirmFileId] = useState<string | null>(null);
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -175,7 +165,7 @@ export function SessionViewer({
                 className="ml-1 text-gh-text-secondary hover:text-gh-text cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onCloseScratchTab(fid);
+                  setDeleteConfirmFileId(fid);
                 }}
               >
                 <X size={12} />
@@ -235,19 +225,21 @@ export function SessionViewer({
             </div>
           </div>
         )}
+        {isScratchTab(activeTab) &&
+          (() => {
+            const fid = scratchFileIdFromTab(activeTab)!;
+            return (
+              <div className="absolute inset-0 flex flex-col">
+                <ScratchEditor
+                  key={fid}
+                  sessionId={session.id}
+                  fileId={fid}
+                  onDelete={() => onCloseScratchTab(fid)}
+                />
+              </div>
+            );
+          })()}
       </div>
-      {isScratchTab(activeTab) &&
-        (() => {
-          const fid = scratchFileIdFromTab(activeTab)!;
-          return (
-            <ScratchEditor
-              key={fid}
-              sessionId={session.id}
-              fileId={fid}
-              onDelete={() => onCloseScratchTab(fid)}
-            />
-          );
-        })()}
 
       {/* Markdown modal */}
       <Modal
@@ -256,9 +248,7 @@ export function SessionViewer({
         title={markdownModal?.title}
         size="xl"
       >
-        {markdownModal && (
-          <ModalMarkdownWrapper content={markdownModal.content} onPin={onPinMessage} />
-        )}
+        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
       </Modal>
 
       {/* Create file dialog */}
@@ -285,31 +275,54 @@ export function SessionViewer({
           </button>
         </div>
       </Modal>
+
+      {/* Delete scratch file confirmation */}
+      <Modal
+        isOpen={deleteConfirmFileId !== null}
+        onClose={() => setDeleteConfirmFileId(null)}
+        title="Delete file"
+        size="md"
+      >
+        <div className="p-3 space-y-3">
+          <p className="text-sm text-gh-text-secondary">
+            Are you sure you want to delete this file? This action cannot be undone.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmFileId(null)}
+              className="px-3 py-1.5 text-xs rounded-md text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!deleteConfirmFileId) return;
+                try {
+                  await deleteScratchFile(session.id, deleteConfirmFileId);
+                } catch {
+                  /* ignore */
+                }
+                onCloseScratchTab(deleteConfirmFileId);
+                setDeleteConfirmFileId(null);
+              }}
+              className="px-3 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-500 cursor-pointer transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function ModalMarkdownWrapper({
-  content,
-  onPin,
-}: {
-  content: string;
-  onPin?: (content: string) => void;
-}) {
+function ModalMarkdownWrapper({ content }: { content: string }) {
   const { copied, copy } = useCopy(2000);
   return (
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {onPin && (
-          <button
-            type="button"
-            onClick={() => onPin(content)}
-            className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
-            title="Pin as scratch note"
-          >
-            <Pin size={12} />
-          </button>
-        )}
         <button
           type="button"
           onClick={() => copy(content)}
