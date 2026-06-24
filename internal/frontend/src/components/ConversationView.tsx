@@ -38,6 +38,7 @@ const MARKER_COLORS: Record<string, string> = {
   web: "#ec4899",
   todowrite: "#f59e0b",
   delete: "#ef4444",
+  thinking: "#a78bfa",
   "assistant-text": "#8b949e",
   "sub-agent": "#f472b6",
   tool: "#6b7280",
@@ -55,6 +56,7 @@ const MARKER_DISPLAY_LABELS: Record<string, string> = {
   web: "Web",
   todowrite: "Todo",
   delete: "Deletes",
+  thinking: "Thinking",
   "assistant-text": "Assistant Message",
   "sub-agent": "Sub-agent",
   tool: "Other",
@@ -64,6 +66,7 @@ function markerDisplayType(kind: string): string {
   if (
     kind === "user-request" ||
     kind === "assistant-text" ||
+    kind === "thinking" ||
     kind === "bash" ||
     kind === "read" ||
     kind === "question" ||
@@ -325,6 +328,14 @@ export function ConversationView({
             summary: getToolSummary(domTool, msg.agent),
             color: MARKER_COLORS[displayType] || MARKER_COLORS["tool"],
             label: MARKER_DISPLAY_LABELS[displayType] || MARKER_DISPLAY_LABELS["tool"],
+          });
+        } else if (msg.reasoning) {
+          result.push({
+            id: `msg-${idx}`,
+            type: "thinking",
+            summary: msg.reasoning.slice(0, 120),
+            color: MARKER_COLORS["thinking"],
+            label: MARKER_DISPLAY_LABELS["thinking"],
           });
         } else if (msg.content?.trim()) {
           result.push({

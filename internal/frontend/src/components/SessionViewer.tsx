@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, FileText, ListTodo, File, Lock, X, Plus, FilePlus, Check, Copy } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  ListTodo,
+  File,
+  Lock,
+  X,
+  Plus,
+  FilePlus,
+  Check,
+  Copy,
+  BarChart3,
+} from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
@@ -10,8 +22,9 @@ import { PlanView } from "./PlanView";
 import { ScratchEditor } from "./ScratchEditor";
 import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
+import { SessionSummary } from "./SessionSummary";
 
-export type Tab = "session" | "diff" | "plan" | `scratch:${string}`;
+export type Tab = "session" | "diff" | "plan" | "summary" | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
@@ -35,10 +48,15 @@ interface SessionViewerProps {
   searchHighlightQuery?: string | null;
 }
 
-const MAIN_TABS: { tab: "session" | "diff" | "plan"; label: string; icon: ReactNode }[] = [
+const MAIN_TABS: {
+  tab: "session" | "diff" | "plan" | "summary";
+  label: string;
+  icon: ReactNode;
+}[] = [
   { tab: "session", label: "Session", icon: <Bot size={14} /> },
   { tab: "diff", label: "Diff", icon: <FileText size={14} /> },
   { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
+  { tab: "summary", label: "Summary", icon: <BarChart3 size={14} /> },
 ];
 
 export function SessionViewer({
@@ -69,6 +87,7 @@ export function SessionViewer({
   const [refreshKey, setRefreshKey] = useState(0);
   const [diffLoaded, setDiffLoaded] = useState(false);
   const [planLoaded, setPlanLoaded] = useState(false);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
   const [deleteConfirmFileId, setDeleteConfirmFileId] = useState<string | null>(null);
 
   const loadMessages = useCallback(async () => {
@@ -118,6 +137,7 @@ export function SessionViewer({
     if (tab === "session") return <Bot size={14} />;
     if (tab === "diff") return <FileText size={14} />;
     if (tab === "plan") return <ListTodo size={14} />;
+    if (tab === "summary") return <BarChart3 size={14} />;
     if (tab.startsWith("scratch:")) return <File size={14} />;
     return null;
   };
@@ -147,6 +167,7 @@ export function SessionViewer({
                 onClick={() => {
                   if (meta.tab === "diff") setDiffLoaded(true);
                   if (meta.tab === "plan") setPlanLoaded(true);
+                  if (meta.tab === "summary") setSummaryLoaded(true);
                   setActiveTab(meta.tab);
                 }}
               >
@@ -247,6 +268,11 @@ export function SessionViewer({
                 searchHighlightQuery={searchHighlightQuery}
               />
             </div>
+          </div>
+        )}
+        {(summaryLoaded || activeTab === "summary") && (
+          <div className={`absolute inset-0 ${activeTab !== "summary" ? "hidden" : ""}`}>
+            <SessionSummary session={session} messages={messages} />
           </div>
         )}
         {isScratchTab(activeTab) &&
