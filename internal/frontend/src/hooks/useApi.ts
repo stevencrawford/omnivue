@@ -251,6 +251,21 @@ export async function setConfig(key: string, value: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to set config");
 }
 
+export async function fetchRecentSearches(): Promise<string[]> {
+  const res = await fetch("/_/api/recent-searches");
+  if (!res.ok) throw new Error("Failed to fetch recent searches");
+  return res.json();
+}
+
+export async function addRecentSearches(searches: string[]): Promise<void> {
+  const res = await fetch("/_/api/recent-searches", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(searches),
+  });
+  if (!res.ok) throw new Error("Failed to save recent searches");
+}
+
 export async function fetchStatus(): Promise<StatusInfo> {
   const res = await fetch("/_/api/status");
   if (!res.ok) throw new Error("Failed to fetch status");

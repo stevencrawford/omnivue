@@ -18,6 +18,7 @@ import { fetchSessions, fetchSearch, createScratchFile, fetchBookmarks } from ".
 import type { ScratchFile } from "./hooks/useApi";
 import { fetchAllScratchFiles } from "./hooks/useApi";
 import { createBookmark, deleteBookmark } from "./hooks/useApi";
+import { useRecentSearches } from "./hooks/useRecentSearches";
 
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -41,6 +42,7 @@ export function App() {
   const [pinningContent, setPinningContent] = useState<string | null>(null);
   const [pinTitle, setPinTitle] = useState("");
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const { recentSearches, addSearch, clearSearches } = useRecentSearches();
 
   const bookmarkIdByRef = useMemo(() => {
     const map: Record<string, string> = {};
@@ -383,6 +385,7 @@ export function App() {
       fileId?: string,
       messageIndex?: number,
     ) => {
+      if (query.trim()) addSearch(query);
       setActiveSessionId(sessionId);
       const tabMap: Record<string, Tab> = {
         name: "session",
@@ -401,11 +404,12 @@ export function App() {
       setSearchOpen(false);
       setDrawerOpen(false);
     },
-    [],
+    [addSearch],
   );
 
   const handleSearchOpenDrawer = useCallback(
     async (q: string) => {
+      if (q.trim()) addSearch(q);
       try {
         const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined);
         setDrawerQuery(q);
@@ -416,7 +420,7 @@ export function App() {
         setDrawerResults([]);
       }
     },
-    [searchSessionScope],
+    [searchSessionScope, addSearch],
   );
 
   const handleDrawerClose = useCallback(() => {
@@ -519,6 +523,8 @@ export function App() {
               return s?.title || s?.repository || null;
             })()}
             onClearScope={() => setSearchSessionScope(null)}
+            recentSearches={recentSearches}
+            onClearRecentSearches={clearSearches}
           />
         )}
         <SearchResultsDrawer

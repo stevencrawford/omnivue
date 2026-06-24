@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Folder, X } from "lucide-react";
+import { Search, Folder, X, Clock } from "lucide-react";
 import type { SearchResult } from "../hooks/useApi";
 import { fetchSearch } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
@@ -20,6 +20,8 @@ interface SearchPanelProps {
   searchScope: string | null;
   searchScopeName: string | null;
   onClearScope: () => void;
+  recentSearches: string[];
+  onClearRecentSearches: () => void;
 }
 
 const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
@@ -59,6 +61,8 @@ export function SearchPanel({
   searchScope,
   searchScopeName,
   onClearScope,
+  recentSearches,
+  onClearRecentSearches,
 }: SearchPanelProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,6 +71,9 @@ export function SearchPanel({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userNavigated = useRef(false);
   const [hasNavigated, setHasNavigated] = useState(false);
+
+  const showRecent = !query.trim() && recentSearches.length > 0;
+  const totalItems = showRecent ? recentSearches.length : results.length;
 
   const sections: Section[] = useMemo(() => {
     const groups = new Map<string, SearchResult[]>();
@@ -91,9 +98,6 @@ export function SearchPanel({
     return out;
   }, [results]);
 
-  const totalResults = results.length;
-
-  // Flatten all results into a single array matching keyboard navigation order
   const allFlatResults = useMemo(() => {
     return sections.flatMap((s) => s.results);
   }, [sections]);
@@ -135,6 +139,18 @@ export function SearchPanel({
     [searchScope],
   );
 
+  const handleSelectRecentSearch = useCallback(
+    (recentQuery: string) => {
+      onQueryChange(recentQuery);
+      setSelectedIndex(0);
+      userNavigated.current = false;
+      setHasNavigated(false);
+      doSearch(recentQuery);
+      onOpenDrawer(recentQuery);
+    },
+    [onQueryChange, doSearch, onOpenDrawer],
+  );
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     onQueryChange(val);
@@ -154,7 +170,7 @@ export function SearchPanel({
       e.preventDefault();
       userNavigated.current = true;
       setHasNavigated(true);
-      setSelectedIndex((i) => Math.min(i + 1, totalResults - 1));
+      setSelectedIndex((i) => Math.min(i + 1, totalItems - 1));
       return;
     }
     if (e.key === "ArrowUp") {
@@ -165,7 +181,10 @@ export function SearchPanel({
       return;
     }
     if (e.key === "Enter") {
-      if (userNavigated.current && results[selectedIndex]) {
+      if (showRecent) {
+        const q = recentSearches[selectedIndex];
+        if (q) handleSelectRecentSearch(q);
+      } else if (userNavigated.current && results[selectedIndex]) {
         const r = results[selectedIndex];
         onSelectSession(
           r.sessionId,
@@ -237,7 +256,7 @@ export function SearchPanel({
               </div>
             )}
           </div>
-          {selectedResult && selectedResult.sessionName && (
+          {!showRecent && selectedResult && selectedResult.sessionName && (
             <div className="px-3 py-1.5 bg-gh-bg-secondary/60 border-b border-gh-border text-[11px] font-medium text-gh-text truncate">
               Session: {selectedResult.sessionName}
             </div>
@@ -249,10 +268,43 @@ export function SearchPanel({
                 Searching...
               </div>
             )}
-            {!loading && query && totalResults === 0 && (
+            {!loading && query && totalItems === 0 && (
               <div className="text-xs text-gh-text-secondary p-6 text-center">No results</div>
             )}
+            {!loading && showRecent && (
+              <>
+                <div className="sticky top-0 z-10 bg-gh-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-gh-border flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gh-bg-hover text-gh-text-secondary border-gh-border">
+                    <Clock size={12} />
+                    Recent Searches
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onClearRecentSearches}
+                    className="text-[11px] text-gh-text-secondary hover:text-gh-text cursor-pointer px-1.5 py-0.5 rounded hover:bg-gh-bg-hover transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {recentSearches.map((q, i) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className={`w-full text-left px-4 py-2.5 border-b border-gh-border cursor-pointer transition-colors flex items-center gap-3 ${
+                      i === selectedIndex
+                        ? "search-result--selected text-gh-text"
+                        : "hover:bg-gh-bg-hover text-gh-text-secondary"
+                    }`}
+                    onClick={() => handleSelectRecentSearch(q)}
+                  >
+                    <Clock size={14} className="shrink-0 opacity-50" />
+                    <span className="text-sm truncate">{q}</span>
+                  </button>
+                ))}
+              </>
+            )}
             {!loading &&
+              !showRecent &&
               sections.map((section) => (
                 <div key={section.chunkType}>
                   <div className="sticky top-0 z-10 bg-gh-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-gh-border">
@@ -315,12 +367,12 @@ export function SearchPanel({
                   })}
                 </div>
               ))}
-            {!loading && !query && (
+            {!loading && !showRecent && !query && (
               <div className="text-xs text-gh-text-secondary p-6 text-center leading-relaxed">
                 Search across conversations, tool calls, and plan content
               </div>
             )}
-            {!loading && query && totalResults > 0 && !hasNavigated && (
+            {!loading && !showRecent && query && totalItems > 0 && !hasNavigated && (
               <div className="sticky bottom-0 px-3 py-2 border-t border-gh-border bg-gh-bg-secondary/80 backdrop-blur-sm text-center">
                 <span className="text-[11px] text-gh-text-secondary">
                   Press <span className="sess-kbd mx-0.5">Enter</span> to open results panel
