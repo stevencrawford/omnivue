@@ -201,7 +201,9 @@ export function SearchPanel({
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                  searchScope ? "Search in current session..." : "Search sessions, messages, plans..."
+                  searchScope
+                    ? "Search in current session..."
+                    : "Search sessions, messages, plans..."
                 }
                 className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
               />

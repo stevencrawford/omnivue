@@ -213,6 +213,22 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 	return changedIDs, liveCount
 }
 
+func isSQLiteBusy(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "SQLITE_BUSY")
+}
+
+func retryOnBusy(fn func() error) error {
+	var err error
+	for i := 0; i < 3; i++ {
+		err = fn()
+		if err == nil || !isSQLiteBusy(err) {
+			return err
+		}
+		time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
+	}
+	return err
+}
+
 // indexSessions indexes session content into the FTS5 search index.
 // It runs incrementally: sessions are only re-indexed if their content hash changes.
 func (s *State) indexSessions(ctx context.Context) {
@@ -298,7 +314,7 @@ func (s *State) indexSessions(ctx context.Context) {
 		}
 
 		// Clear old index entries and re-index
-		if err := s.store.ClearSessionIndex(sess.ID); err != nil {
+		if err := retryOnBusy(func() error { return s.store.ClearSessionIndex(sess.ID) }); err != nil {
 			slog.Warn("failed to clear session index", "session", sess.ID, "error", err)
 			continue
 		}
@@ -306,13 +322,13 @@ func (s *State) indexSessions(ctx context.Context) {
 		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
 
 		// Index name chunk
-		if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0); err != nil {
+		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0) }); err != nil {
 			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
 		}
 
 		// Index plan chunk
 		if planContent != "" {
-			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0); err != nil {
+			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0) }); err != nil {
 				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
 			}
 		}
@@ -329,14 +345,14 @@ func (s *State) indexSessions(ctx context.Context) {
 				msgBuilder.WriteString("\n")
 			}
 			msgContent := msgBuilder.String()
-			if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi); err != nil {
+			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi) }); err != nil {
 				slog.Warn("failed to index session message", "session", sess.ID, "idx", mi, "error", err)
 			}
 		}
 
 		// Index scratch files chunk
 		if len(scratchFiles) > 0 {
-			if err := s.store.ClearSessionChunkType(sess.ID, "scratch"); err != nil {
+			if err := retryOnBusy(func() error { return s.store.ClearSessionChunkType(sess.ID, "scratch") }); err != nil {
 				slog.Warn("failed to clear scratch index", "session", sess.ID, "error", err)
 			}
 			for _, sf := range scratchFiles {
@@ -344,14 +360,14 @@ func (s *State) indexSessions(ctx context.Context) {
 					continue
 				}
 				fileContent := sf.Title + "\n" + sf.Content
-				if err := s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0); err != nil {
+				if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
 					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
 				}
 			}
 		}
 
 		// Update index state
-		if err := s.store.UpdateIndexState(sess.ID, sess.SourceID, contentHash); err != nil {
+		if err := retryOnBusy(func() error { return s.store.UpdateIndexState(sess.ID, sess.SourceID, contentHash) }); err != nil {
 			slog.Warn("failed to update index state", "session", sess.ID, "error", err)
 		}
 	}
@@ -691,7 +707,7 @@ func (s *State) reindexSessionScratch(sessionID string) {
 	}
 	s.mu.RUnlock()
 
-	if err := s.store.ClearSessionChunkType(sessionID, "scratch"); err != nil {
+	if err := retryOnBusy(func() error { return s.store.ClearSessionChunkType(sessionID, "scratch") }); err != nil {
 		return
 	}
 	for _, sf := range scratchFiles {
@@ -699,7 +715,7 @@ func (s *State) reindexSessionScratch(sessionID string) {
 			continue
 		}
 		content := sf.Title + "\n" + sf.Content
-		if err := s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0); err != nil {
+		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
 			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
 		}
 	}

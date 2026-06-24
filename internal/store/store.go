@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/stevencrawford/sess/internal/ingest"
@@ -31,7 +32,7 @@ func New() (*Store, error) {
 	}
 
 	dbPath := filepath.Join(stateDir, "sess.db")
-	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=wal&_busy_timeout=5000", dbPath))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=wal&_busy_timeout=10000", dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("opening sess.db: %w", err)
 	}
@@ -481,8 +482,23 @@ func (s *Store) GetIndexState(sessionID string) (string, error) {
 	return hash, err
 }
 
+// sanitizeFTS5Query wraps individual tokens in double quotes to prevent FTS5
+// from interpreting hyphens, AND, OR, NOT, and other operators as syntax.
+func sanitizeFTS5Query(q string) string {
+	fields := strings.Fields(q)
+	if len(fields) == 0 {
+		return q
+	}
+	quoted := make([]string, len(fields))
+	for i, f := range fields {
+		quoted[i] = `"` + strings.NewReplacer(`"`, `""`).Replace(f) + `"`
+	}
+	return strings.Join(quoted, " ")
+}
+
 // Search performs a full-text search across indexed session content.
 func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResult, error) {
+	query = sanitizeFTS5Query(query)
 	if limit <= 0 {
 		limit = 50
 	}
