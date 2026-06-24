@@ -190,6 +190,9 @@ export function SessionViewer({
               </button>
             ),
         )}
+        {(openScratchTabs.length > 0 || !session.parentId) && (
+          <div className="w-px h-4 bg-gh-border mx-1 shrink-0" />
+        )}
         {openScratchTabs.map((fid) => {
           const tab: Tab = `scratch:${fid}`;
           const info = scratchFileMap[fid];
@@ -217,17 +220,14 @@ export function SessionViewer({
           );
         })}
         {!session.parentId && (
-          <>
-            <div className="w-px h-4 bg-gh-border mx-1 shrink-0" />
-            <button
-              type="button"
-              onClick={() => setCreateFileOpen(true)}
-              className="sess-tab-pill text-gh-text-secondary hover:text-gh-text shrink-0"
-              title="New file"
-            >
-              <Plus size={14} />
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => setCreateFileOpen(true)}
+            className="sess-tab-pill text-gh-text-secondary hover:text-gh-text shrink-0"
+            title="New file"
+          >
+            <Plus size={14} />
+          </button>
         )}
       </div>
 
