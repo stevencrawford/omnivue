@@ -1,15 +1,20 @@
 import { CircleAlert } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { MarkdownContent } from "../MarkdownContent";
+import { BookmarkButton } from "./BookmarkButton";
 
 export function ExitPlanModeToolDiff({
   tool,
   onOpenModal,
   onPin,
+  onBookmark,
+  isBookmarked = false,
 }: {
   tool: ToolCall;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
 }) {
   let summary = "";
 
@@ -27,6 +32,11 @@ export function ExitPlanModeToolDiff({
       <div className="px-3 py-1.5 border-b border-amber-500/30 bg-amber-500/[0.06] text-[11px] font-mono text-gh-text-secondary flex items-center gap-2">
         <CircleAlert size={14} className="text-amber-400 shrink-0" />
         <span className="font-medium text-gh-text">Proposed Plan</span>
+        {onBookmark && (
+          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
+        )}
       </div>
       {summary && (
         <div className="px-3 py-2">

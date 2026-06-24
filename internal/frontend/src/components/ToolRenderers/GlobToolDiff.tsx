@@ -2,12 +2,21 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface GlobInput {
   pattern?: string;
 }
 
-export function GlobToolDiff({ tool }: { tool: ToolCall }) {
+export function GlobToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   let input: GlobInput = {};
@@ -32,9 +41,8 @@ export function GlobToolDiff({ tool }: { tool: ToolCall }) {
   }
 
   return (
-    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
-      <button
-        type="button"
+    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50 group">
+      <div
         className={`flex items-center gap-2 w-full px-3 py-1.5 ${
           expanded ? "border-b border-accent-border" : ""
         } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
@@ -53,7 +61,12 @@ export function GlobToolDiff({ tool }: { tool: ToolCall }) {
             {count} file{count === 1 ? "" : "s"}
           </span>
         )}
-      </button>
+        {onBookmark && (
+          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
+        )}
+      </div>
       {expanded && output && (
         <div className="relative group">
           <CopyButton text={output} className="absolute top-1 right-1 z-10" />

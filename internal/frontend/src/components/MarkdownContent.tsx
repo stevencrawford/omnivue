@@ -6,12 +6,15 @@ import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import { useCopy } from "../hooks/useCopy";
 import { useSearchHighlight } from "../hooks/useNav";
+import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
 
 interface MarkdownContentProps {
   content: string;
   className?: string;
   onOpenModal?: (content: string) => void;
   onPin?: (content: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
   modalTitle?: string;
   expandable?: boolean;
   defaultExpanded?: boolean;
@@ -64,6 +67,8 @@ export function MarkdownContent({
   className = "",
   onOpenModal,
   onPin,
+  onBookmark,
+  isBookmarked,
   modalTitle,
   expandable = false,
   defaultExpanded = false,
@@ -111,6 +116,14 @@ export function MarkdownContent({
             >
               <Pin size={12} />
             </button>
+          )}
+          {onBookmark && (
+            <BookmarkButton
+              isBookmarked={!!isBookmarked}
+              onClick={onBookmark}
+              size="sm"
+              className="!border-0 !bg-transparent"
+            />
           )}
           {onOpenModal && !shortContent && (
             <button
@@ -194,6 +207,7 @@ export function MarkdownContent({
             <Pin size={12} />
           </button>
         )}
+        {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} />}
         {onOpenModal && !shortContent && (
           <button
             type="button"

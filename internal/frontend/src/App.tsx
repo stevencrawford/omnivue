@@ -13,10 +13,11 @@ import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
-import type { Session, SearchResult } from "./hooks/useApi";
-import { fetchSessions, fetchSearch, createScratchFile } from "./hooks/useApi";
+import type { Session, SearchResult, Bookmark } from "./hooks/useApi";
+import { fetchSessions, fetchSearch, createScratchFile, fetchBookmarks } from "./hooks/useApi";
 import type { ScratchFile } from "./hooks/useApi";
 import { fetchAllScratchFiles } from "./hooks/useApi";
+import { createBookmark, deleteBookmark } from "./hooks/useApi";
 
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -39,6 +40,16 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pinningContent, setPinningContent] = useState<string | null>(null);
   const [pinTitle, setPinTitle] = useState("");
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+
+  const bookmarkIdByRef = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const bm of bookmarks) {
+      const key = `${bm.sessionId}:${bm.messageIndex}:${bm.toolCallId || ""}`;
+      map[key] = bm.id;
+    }
+    return map;
+  }, [bookmarks]);
   const scrollPositions = useRef(new Map<string, number>());
   const SCROLL_POSITION_CAP = 100;
 
@@ -69,10 +80,20 @@ export function App() {
     }
   }, []);
 
+  const loadBookmarks = useCallback(async () => {
+    try {
+      const data = await fetchBookmarks();
+      setBookmarks(data || []);
+    } catch {
+      setBookmarks([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadSessions();
     loadScratchFiles();
-  }, [loadSessions, loadScratchFiles]);
+    loadBookmarks();
+  }, [loadSessions, loadScratchFiles, loadBookmarks]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -238,6 +259,46 @@ export function App() {
     }
     return map;
   }, [scratchFiles]);
+
+  const handleBookmark = useCallback(
+    async (
+      sessionId: string,
+      messageIndex: number,
+      toolCallId: string | undefined,
+      label: string,
+    ) => {
+      try {
+        await createBookmark({ sessionId, messageIndex, toolCallId, label });
+        await loadBookmarks();
+      } catch {
+        /* ignore */
+      }
+    },
+    [loadBookmarks],
+  );
+
+  const handleBookmarkDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteBookmark(id);
+        await loadBookmarks();
+      } catch {
+        /* ignore */
+      }
+    },
+    [loadBookmarks],
+  );
+
+  const handleBookmarkSelect = useCallback(
+    (sessionId: string, messageIndex: number, _toolCallId?: string) => {
+      setActiveSessionId(sessionId);
+      setFocusMessageIndex(messageIndex);
+      setFocusStepIndex(undefined);
+      setActiveTab("session");
+      setSearchHighlightQuery(null);
+    },
+    [],
+  );
 
   const handleSessionSelect = useCallback((sessionId: string) => {
     setActiveSessionId(sessionId);
@@ -492,6 +553,9 @@ export function App() {
                 onSettingsOpen={() => setSettingsOpen(true)}
                 sidebarOpen={sidebarOpen}
                 onSidebarToggle={() => setSidebarOpen((v) => !v)}
+                bookmarks={bookmarks}
+                onBookmarkSelect={handleBookmarkSelect}
+                onBookmarkDelete={handleBookmarkDelete}
               />
             </ErrorBoundary>
             <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
@@ -509,6 +573,8 @@ export function App() {
                       onCloseScratchTab={handleCloseScratchTab}
                       onNewScratchFile={handleNewScratchFile}
                       onPinMessage={handlePinMessage}
+                      onBookmark={handleBookmark}
+                      bookmarkIdByRef={bookmarkIdByRef}
                       focusStepIndex={focusStepIndex}
                       focusMessageIndex={focusMessageIndex}
                       searchHighlightQuery={searchHighlightQuery}

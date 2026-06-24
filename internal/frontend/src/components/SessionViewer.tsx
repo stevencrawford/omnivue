@@ -23,6 +23,13 @@ interface SessionViewerProps {
   onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
   onPinMessage?: (content: string) => void;
+  onBookmark?: (
+    sessionId: string,
+    messageIndex: number,
+    toolCallId: string | undefined,
+    label: string,
+  ) => void;
+  bookmarkIdByRef?: Record<string, string>;
   focusStepIndex?: number;
   focusMessageIndex?: number;
   searchHighlightQuery?: string | null;
@@ -44,6 +51,8 @@ export function SessionViewer({
   onCloseScratchTab,
   onNewScratchFile,
   onPinMessage,
+  onBookmark,
+  bookmarkIdByRef,
   focusStepIndex,
   focusMessageIndex,
   searchHighlightQuery,
@@ -197,6 +206,8 @@ export function SessionViewer({
             loading={loading}
             onOpenModal={(content, title) => setMarkdownModal({ content, title })}
             onPin={onPinMessage}
+            onBookmark={onBookmark}
+            bookmarkIdByRef={bookmarkIdByRef}
             focusStepIndex={focusStepIndex}
             focusMessageIndex={focusMessageIndex}
             searchHighlightQuery={searchHighlightQuery ?? undefined}

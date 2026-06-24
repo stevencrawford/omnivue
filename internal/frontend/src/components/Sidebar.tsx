@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Session } from "../hooks/useApi";
+import type { Session, Bookmark } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
 import { ProjectPanel } from "./ProjectPanel";
+import { BookmarkPanel } from "./BookmarkPanel";
 import { Toast } from "./Toast";
 
 interface SidebarProps {
@@ -15,6 +16,9 @@ interface SidebarProps {
   onSettingsOpen: () => void;
   sidebarOpen: boolean;
   onSidebarToggle: () => void;
+  bookmarks: Bookmark[];
+  onBookmarkSelect: (sessionId: string, messageIndex: number, toolCallId?: string) => void;
+  onBookmarkDelete: (id: string) => void;
 }
 
 const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
@@ -38,6 +42,9 @@ export function Sidebar({
   onSettingsOpen,
   sidebarOpen,
   onSidebarToggle,
+  bookmarks,
+  onBookmarkSelect,
+  onBookmarkDelete,
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -135,6 +142,16 @@ export function Sidebar({
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
             showToast={showToast}
+          />
+        </div>
+        <div
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "bookmarks" ? "hidden" : ""}`}
+        >
+          <BookmarkPanel
+            bookmarks={bookmarks}
+            sessions={sessions}
+            onBookmarkSelect={onBookmarkSelect}
+            onBookmarkDelete={onBookmarkDelete}
           />
         </div>
       </div>

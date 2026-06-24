@@ -2,6 +2,7 @@ import { Monitor, ArrowRight } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { useSessionNav } from "../../hooks/useNav";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface TaskInput {
   description?: string;
@@ -12,9 +13,13 @@ interface TaskInput {
 export function TaskToolDiff({
   tool,
   onOpenModal,
+  onBookmark,
+  isBookmarked = false,
 }: {
   tool: ToolCall;
   onOpenModal?: (content: string, title?: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
 }) {
   let input: TaskInput = {};
   let childSessionId: string | null = null;
@@ -62,6 +67,11 @@ export function TaskToolDiff({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1 shrink-0">
+          {onBookmark && (
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+            </span>
+          )}
           {tool.output && <CopyButton text={tool.output} />}
           {childSessionId && (
             <button

@@ -5,6 +5,7 @@ import { detectLanguage } from "../../utils/detectLanguage";
 import { computeDiff } from "../../utils/diff";
 import { PatchRenderer, FileRenderer } from "../DiffRenderer";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface EditInput {
   path?: string;
@@ -18,7 +19,15 @@ interface EditInput {
   view_range?: [number, number];
 }
 
-export function EditToolDiff({ tool }: { tool: ToolCall }) {
+export function EditToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const MAX_LINES = 20;
   let input: EditInput = {};
@@ -71,13 +80,18 @@ export function EditToolDiff({ tool }: { tool: ToolCall }) {
   }
 
   return (
-    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
+    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3 group">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
         <File size={14} className="text-accent shrink-0" />
         <span className="font-medium text-gh-text truncate">{filePath}</span>
         {viewRange && (
           <span className="shrink-0 text-gh-text-secondary/70">
             :{viewRange[0]}-{viewRange[1]}
+          </span>
+        )}
+        {onBookmark && (
+          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
           </span>
         )}
       </div>

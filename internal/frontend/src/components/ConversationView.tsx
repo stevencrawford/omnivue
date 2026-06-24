@@ -21,6 +21,8 @@ import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
 import { FileRenderer } from "./DiffRenderer";
 import { CopyButton } from "./CopyButton";
+import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
+
 import { useSessionNav } from "../hooks/useNav";
 import { detectLanguage } from "../utils/detectLanguage";
 
@@ -102,6 +104,8 @@ export function ConversationView({
   loading,
   onOpenModal,
   onPin,
+  onBookmark,
+  bookmarkIdByRef,
   focusStepIndex,
   searchHighlightQuery,
   focusMessageIndex,
@@ -111,6 +115,13 @@ export function ConversationView({
   loading: boolean;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
+  onBookmark?: (
+    sessionId: string,
+    messageIndex: number,
+    toolCallId: string | undefined,
+    label: string,
+  ) => void;
+  bookmarkIdByRef?: Record<string, string>;
   focusStepIndex?: number;
   searchHighlightQuery?: string;
   focusMessageIndex?: number;
@@ -592,7 +603,15 @@ export function ConversationView({
           ) : (
             messagesWithoutReminders.map((msg, idx) => (
               <div key={msg.id} data-marker-id={`msg-${idx}`} data-message-index={idx}>
-                <MessageBlock message={msg} onOpenModal={onOpenModal} onPin={onPin} />
+                <MessageBlock
+                  message={msg}
+                  messageIndex={idx}
+                  onOpenModal={onOpenModal}
+                  onPin={onPin}
+                  onBookmark={onBookmark}
+                  bookmarkIdByRef={bookmarkIdByRef}
+                  sessionId={session.id}
+                />
               </div>
             ))
           )}
@@ -805,13 +824,29 @@ export function ConversationView({
 
 function MessageBlock({
   message,
+  messageIndex,
+  sessionId,
   onOpenModal,
   onPin,
+  onBookmark,
+  bookmarkIdByRef,
 }: {
   message: Message;
+  messageIndex: number;
+  sessionId: string;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
+  onBookmark?: (
+    sessionId: string,
+    messageIndex: number,
+    toolCallId: string | undefined,
+    label: string,
+  ) => void;
+  bookmarkIdByRef?: Record<string, string>;
 }) {
+  const msgKey = `${sessionId}:${messageIndex}:`;
+  const isMsgBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[msgKey] : false;
+
   if (message.role === "user") {
     if (!message.content?.trim()) return null;
     const turnAborted = message.metadata?.type === "turn_aborted";
@@ -828,7 +863,18 @@ function MessageBlock({
         </div>
       );
     }
-    return <UserTurnView content={message.content} onOpenModal={onOpenModal} />;
+    return (
+      <UserTurnView
+        content={message.content}
+        onOpenModal={onOpenModal}
+        onBookmark={
+          onBookmark
+            ? () => onBookmark(sessionId, messageIndex, undefined, message.content.slice(0, 80))
+            : undefined
+        }
+        isBookmarked={isMsgBookmarked}
+      />
+    );
   }
   if (message.role === "system") {
     if (!message.content?.trim()) return null;
@@ -847,10 +893,35 @@ function MessageBlock({
   if (message.role === "assistant") {
     const taskComplete = (message.toolCalls ?? []).find((t) => t.name === "task_complete");
     if (taskComplete) {
-      return <TaskCompleteMessageView tool={taskComplete} />;
+      const tcKey = `${sessionId}:${messageIndex}:${taskComplete.id}`;
+      const tcBookmarked = !!bookmarkIdByRef?.[tcKey];
+      const tcOnBookmark = onBookmark
+        ? () => {
+            let label = "";
+            try {
+              const parsed = JSON.parse(taskComplete.input);
+              label = (parsed.summary || "").slice(0, 80);
+            } catch {
+              label = "task_complete";
+            }
+            onBookmark(sessionId, messageIndex, taskComplete.id, label);
+          }
+        : undefined;
+      return <TaskCompleteMessageView tool={taskComplete} onBookmark={tcOnBookmark} isBookmarked={tcBookmarked} />;
     }
   }
-  return <AssistantMessageView message={message} onOpenModal={onOpenModal} onPin={onPin} />;
+  return (
+    <AssistantMessageView
+      message={message}
+      sessionId={sessionId}
+      messageIndex={messageIndex}
+      onOpenModal={onOpenModal}
+      onPin={onPin}
+      onBookmark={onBookmark}
+      isMsgBookmarked={isMsgBookmarked}
+      bookmarkIdByRef={bookmarkIdByRef}
+    />
+  );
 }
 
 function extractInlineBlocks(content: string) {
@@ -980,9 +1051,13 @@ function FileContextBlock({ block }: { block: { content: string; fileName?: stri
 function UserTurnView({
   content,
   onOpenModal,
+  onBookmark,
+  isBookmarked,
 }: {
   content: string;
   onOpenModal?: (content: string, title?: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
 }) {
   const { blocks, remaining } = extractInlineBlocks(content);
   const lines = content.split("\n");
@@ -1004,6 +1079,8 @@ function UserTurnView({
             className="markdown-body--wide"
             onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
             modalTitle="USER-REQUEST"
+            onBookmark={onBookmark}
+            isBookmarked={isBookmarked}
           />
         </div>
         {isLong && (
@@ -1030,6 +1107,8 @@ function UserTurnView({
           className="markdown-body--wide"
           onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
           modalTitle="USER-REQUEST"
+          onBookmark={onBookmark}
+          isBookmarked={isBookmarked}
         />
       )}
       {blocks.map((block, i) =>
@@ -1077,12 +1156,27 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
 
 function AssistantMessageView({
   message,
+  sessionId,
+  messageIndex,
   onOpenModal,
   onPin,
+  onBookmark,
+  isMsgBookmarked,
+  bookmarkIdByRef,
 }: {
   message: Message;
+  sessionId: string;
+  messageIndex: number;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
+  onBookmark?: (
+    sessionId: string,
+    messageIndex: number,
+    toolCallId: string | undefined,
+    label: string,
+  ) => void;
+  isMsgBookmarked?: boolean;
+  bookmarkIdByRef?: Record<string, string>;
 }) {
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
@@ -1100,7 +1194,19 @@ function AssistantMessageView({
         </span>
       )}
       <ThinkingBlock reasoning={reasoning} />
-      {showText && <AssistantStepContent content={text} onOpenModal={onOpenModal} onPin={onPin} />}
+      {showText && (
+        <AssistantStepContent
+          content={text}
+          onOpenModal={onOpenModal}
+          onPin={onPin}
+          onBookmark={
+            onBookmark
+              ? () => onBookmark(sessionId, messageIndex, undefined, text.slice(0, 80))
+              : undefined
+          }
+          isBookmarked={isMsgBookmarked}
+        />
+      )}
       {tools.length > 0 && (
         <div className={showText ? "mt-2" : ""}>
           <ToolCallList
@@ -1109,6 +1215,15 @@ function AssistantMessageView({
             compact
             onOpenModal={onOpenModal}
             onPin={onPin}
+            onBookmark={
+              onBookmark
+                ? (toolCallId: string, label: string) =>
+                    onBookmark(sessionId, messageIndex, toolCallId, label)
+                : undefined
+            }
+            bookmarkIdByRef={bookmarkIdByRef}
+            sessionId={sessionId}
+            messageIndex={messageIndex}
           />
         </div>
       )}
@@ -1120,10 +1235,14 @@ function AssistantStepContent({
   content,
   onOpenModal,
   onPin,
+  onBookmark,
+  isBookmarked,
 }: {
   content: string;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
 }) {
   const lines = content.split("\n");
   const isLong = lines.length > 20;
@@ -1137,6 +1256,8 @@ function AssistantStepContent({
         className="markdown-body--wide"
         onOpenModal={() => onOpenModal?.(content, "Assistant response")}
         onPin={onPin ? () => onPin(content) : undefined}
+        onBookmark={onBookmark}
+        isBookmarked={isBookmarked}
         modalTitle="Assistant response"
       />
       {isLong && (
@@ -1229,7 +1350,15 @@ function SystemReminderView({
   );
 }
 
-function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
+function TaskCompleteMessageView({
+  tool,
+  onBookmark,
+  isBookmarked,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   let summary = "";
 
   try {
@@ -1245,6 +1374,11 @@ function TaskCompleteMessageView({ tool }: { tool: ToolCall }) {
         <div className="flex items-center gap-2">
           <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
           <span className="font-semibold text-[11px] text-emerald-400">Task Complete</span>
+          {onBookmark && (
+            <span className="ml-auto">
+              <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
+            </span>
+          )}
         </div>
         {summary && (
           <div className="mt-1.5">

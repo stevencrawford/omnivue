@@ -882,6 +882,9 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/folders/{id}/sessions", handleGetFolderSessions(state))
 	mux.HandleFunc("POST /_/api/folders/{id}/sessions/{sessionId}", handleAssignSession(state))
 	mux.HandleFunc("DELETE /_/api/folders/{id}/sessions/{sessionId}", handleUnassignSession(state))
+	mux.HandleFunc("GET /_/api/bookmarks", handleListBookmarks(state))
+	mux.HandleFunc("POST /_/api/bookmarks", handleCreateBookmark(state))
+	mux.HandleFunc("DELETE /_/api/bookmarks/{id}", handleDeleteBookmark(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
@@ -1478,6 +1481,105 @@ func handleUnassignSession(state *State) http.HandlerFunc {
 		folderID := r.PathValue("id")
 		sessionID := r.PathValue("sessionId")
 		if err := state.store.UnassignSession(folderID, sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// --- Bookmark handlers ---
+
+func handleListBookmarks(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]store.Bookmark{})
+			return
+		}
+		bookmarks, err := state.store.ListBookmarks()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if bookmarks == nil {
+			bookmarks = []store.Bookmark{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(bookmarks)
+	}
+}
+
+func handleCreateBookmark(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		var req struct {
+			SessionID    string `json:"sessionId"`
+			MessageIndex int    `json:"messageIndex"`
+			ToolCallID   string `json:"toolCallId"`
+			Label        string `json:"label"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.SessionID == "" || req.Label == "" {
+			http.Error(w, "sessionId and label are required", http.StatusBadRequest)
+			return
+		}
+
+		// Toggle: if bookmark already exists for this ref, delete it
+		existing, err := state.store.GetBookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if existing != nil {
+			if err := state.store.DeleteBookmark(existing.ID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"action": "deleted",
+				"id":     existing.ID,
+			})
+			return
+		}
+
+		now := time.Now()
+		b := store.Bookmark{
+			ID:           fmt.Sprintf("bm_%d", now.UnixNano()),
+			SessionID:    req.SessionID,
+			MessageIndex: req.MessageIndex,
+			ToolCallID:   req.ToolCallID,
+			Label:        req.Label,
+			CreatedAt:    now,
+		}
+		if err := state.store.CreateBookmark(b); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"action":   "created",
+			"bookmark": b,
+		})
+	}
+}
+
+func handleDeleteBookmark(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		id := r.PathValue("id")
+		if err := state.store.DeleteBookmark(id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

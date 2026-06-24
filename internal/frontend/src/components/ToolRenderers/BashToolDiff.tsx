@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, X } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface BashMetadata {
   output?: string;
@@ -19,7 +20,15 @@ function trimBashOutput(output: string): string {
   return output;
 }
 
-export function BashToolDiff({ tool }: { tool: ToolCall }) {
+export function BashToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   let command = "";
   let description = "";
@@ -46,9 +55,8 @@ export function BashToolDiff({ tool }: { tool: ToolCall }) {
   const success = exitCode == null || exitCode === 0;
 
   return (
-    <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3">
-      <button
-        type="button"
+    <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3 group">
+      <div
         className={`flex items-center gap-2 w-full px-3 py-1.5 ${expanded ? "border-b border-accent-border " : ""}bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
         onClick={() => setExpanded(!expanded)}
       >
@@ -57,8 +65,13 @@ export function BashToolDiff({ tool }: { tool: ToolCall }) {
         </span>
         {description && <span className="text-gh-text/70 truncate">{description}</span>}
         <span className="text-gh-text shrink-0 font-mono">$ {command}</span>
-        {truncated && <span className="shrink-0 ml-auto text-gh-text-secondary/60">truncated</span>}
-      </button>
+        {truncated && <span className="shrink-0 text-gh-text-secondary/60">truncated</span>}
+        {onBookmark && (
+          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
+        )}
+      </div>
       {expanded && (
         <>
           <div className="relative group px-3 py-2 bg-gh-bg-secondary/30">

@@ -4,6 +4,7 @@ import type { ToolCall } from "../../hooks/useApi";
 import { detectLanguage } from "../../utils/detectLanguage";
 import { FileRenderer } from "../DiffRenderer";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface ReadInput {
   filePath?: string;
@@ -13,7 +14,15 @@ interface ReadInput {
   limit?: number;
 }
 
-export function ReadToolDiff({ tool }: { tool: ToolCall }) {
+export function ReadToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   let input: ReadInput = {};
@@ -42,9 +51,8 @@ export function ReadToolDiff({ tool }: { tool: ToolCall }) {
   const baseName = filePath.split("/").pop() || filePath;
 
   return (
-    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
-      <button
-        type="button"
+    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50 group">
+      <div
         className={`flex items-center gap-2 w-full px-3 py-1.5 ${
           expanded ? "border-b border-accent-border" : ""
         } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
@@ -63,7 +71,12 @@ export function ReadToolDiff({ tool }: { tool: ToolCall }) {
             :{offset}-{offset + limit}
           </span>
         )}
-      </button>
+        {onBookmark && (
+          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
+        )}
+      </div>
       {expanded && cleanContent && (
         <div className="relative group">
           <CopyButton text={cleanContent} className="absolute top-1 right-1 z-10" />

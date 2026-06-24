@@ -1,6 +1,7 @@
 import { ListTodo, CircleCheckBig, CircleDot, Circle } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface TodoItem {
   content: string;
@@ -13,7 +14,15 @@ interface TodowriteInput {
   todos: TodoItem[];
 }
 
-export function TodoWriteToolDiff({ tool }: { tool: ToolCall }) {
+export function TodoWriteToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   let todos: TodoItem[] = [];
   try {
     const parsed: TodowriteInput = JSON.parse(tool.input);
@@ -43,6 +52,11 @@ export function TodoWriteToolDiff({ tool }: { tool: ToolCall }) {
           {completed}/{todos.length} done
         </span>
         {inProgress > 0 && <span className="text-amber-400">{inProgress} in progress</span>}
+        {onBookmark && (
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
+        )}
         <div className="ml-auto">
           <CopyButton text={todoText} />
         </div>

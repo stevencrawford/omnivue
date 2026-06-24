@@ -283,6 +283,75 @@ func (s *Store) GetSessionFolders(sessionID string) ([]string, error) {
 	return ids, rows.Err()
 }
 
+// --- Bookmark CRUD ---
+
+// Bookmark represents a bookmarked message or tool call within a session.
+type Bookmark struct {
+	ID           string    `json:"id"`
+	SessionID    string    `json:"sessionId"`
+	MessageIndex int       `json:"messageIndex"`
+	ToolCallID   string    `json:"toolCallId,omitempty"`
+	Label        string    `json:"label"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// CreateBookmark creates a new bookmark. Silently ignores duplicates.
+func (s *Store) CreateBookmark(b Bookmark) error {
+	_, err := s.db.Exec(`
+		INSERT INTO bookmarks (id, session_id, message_index, tool_call_id, label, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO NOTHING
+	`, b.ID, b.SessionID, b.MessageIndex, b.ToolCallID, b.Label, b.CreatedAt.Format(time.RFC3339))
+	return err
+}
+
+// ListBookmarks returns all bookmarks ordered by creation time (newest first).
+func (s *Store) ListBookmarks() ([]Bookmark, error) {
+	rows, err := s.db.Query(`SELECT id, session_id, message_index, tool_call_id, label, created_at FROM bookmarks ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var bookmarks []Bookmark
+	for rows.Next() {
+		var (
+			b         Bookmark
+			createdAt string
+		)
+		if err := rows.Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.Label, &createdAt); err != nil {
+			return nil, err
+		}
+		b.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		bookmarks = append(bookmarks, b)
+	}
+	return bookmarks, rows.Err()
+}
+
+// GetBookmarkByRef finds a bookmark by its composite reference key.
+func (s *Store) GetBookmarkByRef(sessionID string, messageIndex int, toolCallID string) (*Bookmark, error) {
+	var b Bookmark
+	var createdAt string
+	err := s.db.QueryRow(
+		`SELECT id, session_id, message_index, tool_call_id, label, created_at FROM bookmarks WHERE session_id = ? AND message_index = ? AND tool_call_id = ?`,
+		sessionID, messageIndex, toolCallID,
+	).Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.Label, &createdAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	b.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	return &b, nil
+}
+
+// DeleteBookmark removes a bookmark by ID.
+func (s *Store) DeleteBookmark(id string) error {
+	_, err := s.db.Exec(`DELETE FROM bookmarks WHERE id = ?`, id)
+	return err
+}
+
 // --- Session Name Overrides ---
 
 // SetSessionName sets or updates the display name override for a session.
@@ -637,7 +706,21 @@ func (s *Store) migrate() error {
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS bookmarks (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			message_index INTEGER NOT NULL,
+			tool_call_id TEXT,
+			label TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		);
 	`)
+
+	// Migration: ensure bookmarks unique index
+	if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_ref ON bookmarks(session_id, message_index, tool_call_id)`); err != nil {
+		return err
+	}
 
 	// Migration: ensure message_index, updated_at, file_title, file_id columns exist on search_index.
 	// FTS5 ALTER TABLE ADD COLUMN may fail on some platforms, so we

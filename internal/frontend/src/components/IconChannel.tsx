@@ -14,11 +14,10 @@ const sections: {
   id: Section;
   label: string;
   Icon: typeof MessageSquareText;
-  disabled?: boolean;
 }[] = [
   { id: "sessions", label: "Sessions", Icon: MessageSquareText },
   { id: "projects", label: "Projects", Icon: Folder },
-  { id: "bookmarks", label: "Bookmarks", Icon: Bookmark, disabled: true },
+  { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
 ];
 
 export function IconChannel({
@@ -30,11 +29,10 @@ export function IconChannel({
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-gh-border bg-gh-bg-sidebar py-1.5">
-      {sections.map(({ id, label, Icon, disabled }) => (
+      {sections.map(({ id, label, Icon }) => (
         <button
           key={id}
           type="button"
-          disabled={disabled}
           onClick={() => {
             if (id === activeSection) {
               onSidebarToggle();
@@ -43,13 +41,11 @@ export function IconChannel({
               if (!sidebarOpen) onSidebarToggle();
             }
           }}
-          title={disabled ? `${label} — coming soon` : label}
+          title={label}
           className={`relative flex items-center justify-center w-full h-10 transition-colors ${
-            disabled
-              ? "opacity-25 cursor-not-allowed"
-              : activeSection === id
-                ? "text-accent cursor-pointer"
-                : "text-gh-text-secondary hover:text-gh-text cursor-pointer"
+            activeSection === id
+              ? "text-accent cursor-pointer"
+              : "text-gh-text-secondary hover:text-gh-text cursor-pointer"
           }`}
         >
           {activeSection === id && (

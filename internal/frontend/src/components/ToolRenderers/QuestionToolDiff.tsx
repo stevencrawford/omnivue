@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CircleHelp, CircleCheckBig } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface QuestionItem {
   question: string;
@@ -9,7 +10,15 @@ interface QuestionItem {
   options?: Array<{ label: string; description?: string }>;
 }
 
-export function QuestionToolDiff({ tool }: { tool: ToolCall }) {
+export function QuestionToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   let questions: QuestionItem[] = [];
   try {
     const parsed = JSON.parse(tool.input);
@@ -94,6 +103,11 @@ export function QuestionToolDiff({ tool }: { tool: ToolCall }) {
           </div>
         ) : (
           <span className="font-medium text-gh-text truncate flex-1">{q.header || q.question}</span>
+        )}
+        {onBookmark && (
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
         )}
         <CopyButton text={qaText} />
       </div>

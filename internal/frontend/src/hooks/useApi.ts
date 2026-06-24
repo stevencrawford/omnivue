@@ -410,3 +410,40 @@ export async function fetchAllScratchFiles(): Promise<ScratchFile[]> {
   if (!res.ok) throw new Error("Failed to fetch scratch files");
   return res.json();
 }
+
+// --- Bookmarks ---
+
+export interface Bookmark {
+  id: string;
+  sessionId: string;
+  messageIndex: number;
+  toolCallId?: string;
+  label: string;
+  createdAt: string;
+}
+
+export async function fetchBookmarks(): Promise<Bookmark[]> {
+  const res = await fetch("/_/api/bookmarks");
+  if (!res.ok) throw new Error("Failed to fetch bookmarks");
+  return res.json();
+}
+
+export async function createBookmark(data: {
+  sessionId: string;
+  messageIndex: number;
+  toolCallId?: string;
+  label: string;
+}): Promise<{ action: "created" | "deleted"; bookmark?: Bookmark; id?: string }> {
+  const res = await fetch("/_/api/bookmarks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to toggle bookmark");
+  return res.json();
+}
+
+export async function deleteBookmark(id: string): Promise<void> {
+  const res = await fetch(`/_/api/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete bookmark");
+}

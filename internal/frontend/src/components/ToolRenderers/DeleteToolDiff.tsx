@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { CopyButton } from "../CopyButton";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface DeleteInput {
   filePath?: string;
@@ -8,7 +9,15 @@ interface DeleteInput {
   path?: string;
 }
 
-export function DeleteToolDiff({ tool }: { tool: ToolCall }) {
+export function DeleteToolDiff({
+  tool,
+  onBookmark,
+  isBookmarked = false,
+}: {
+  tool: ToolCall;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+}) {
   let input: DeleteInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -28,6 +37,11 @@ export function DeleteToolDiff({ tool }: { tool: ToolCall }) {
         <span className="text-gh-text-secondary/60 truncate flex-1 min-w-0" title={filePath}>
           {filePath}
         </span>
+        {onBookmark && (
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+          </span>
+        )}
         <CopyButton text={filePath} />
       </div>
     </div>
