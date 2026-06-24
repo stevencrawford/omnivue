@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
-import { formatCost } from "../utils/buildTree";
+import { formatCost, formatTokens } from "../utils/sessionUtils";
 import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
 
 import { MarkdownContent } from "./MarkdownContent";
@@ -96,6 +96,14 @@ function groupMessages(messages: Message[]): Message[] {
     result.push({ ...msg, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined });
   }
   return result;
+}
+
+function showCosts(): boolean {
+  try {
+    return localStorage.getItem("sess-show-costs") !== "false";
+  } catch {
+    return true;
+  }
 }
 
 export function ConversationView({
@@ -768,19 +776,16 @@ export function ConversationView({
           )}
 
           {totalTokens > 0 && (
-            <span className="text-[11px] text-gh-text-secondary" title="Tokens">
-              {(totalTokens / 1000).toFixed(0)}k tokens
+            <span
+              className="text-[11px] text-gh-text-secondary"
+              title={`${totalTokens.toLocaleString()} tokens`}
+            >
+              {formatTokens(totalTokens)}
             </span>
           )}
-          {session.cost > 0 && (
+          {session.cost > 0 && showCosts() && (
             <span className="text-[11px] text-gh-text-secondary" title="Cost">
               {formatCost(session.cost)}
-            </span>
-          )}
-          {session.diffFiles > 0 && (
-            <span className="text-[11px] text-gh-text-secondary" title="Files changed">
-              {session.diffFiles}f<span className="text-green-500">+{session.diffAdditions}</span>
-              <span className="text-red-500">-{session.diffDeletions}</span>
             </span>
           )}
 
@@ -907,7 +912,13 @@ function MessageBlock({
             onBookmark(sessionId, messageIndex, taskComplete.id, label);
           }
         : undefined;
-      return <TaskCompleteMessageView tool={taskComplete} onBookmark={tcOnBookmark} isBookmarked={tcBookmarked} />;
+      return (
+        <TaskCompleteMessageView
+          tool={taskComplete}
+          onBookmark={tcOnBookmark}
+          isBookmarked={tcBookmarked}
+        />
+      );
     }
   }
   return (

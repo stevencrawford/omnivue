@@ -1,6 +1,6 @@
 import type { Session } from "../hooks/useApi";
 
-export type SortMode = "recent" | "name" | "agent";
+export type SortMode = "recent" | "name" | "agent" | "cost-asc" | "cost-desc";
 
 export interface TreeNode {
   name: string;
@@ -67,6 +67,10 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
             a.agent.localeCompare(b.agent) ||
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           );
+        case "cost-asc":
+          return a.cost - b.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        case "cost-desc":
+          return b.cost - a.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         default:
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       }
@@ -112,6 +116,16 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
         const aAgent = a.children[0]?.session?.agent || "";
         const bAgent = b.children[0]?.session?.agent || "";
         return aAgent.localeCompare(bAgent) || a.name.localeCompare(b.name);
+      }
+      case "cost-asc": {
+        const aCost = a.children[0]?.session?.cost ?? 0;
+        const bCost = b.children[0]?.session?.cost ?? 0;
+        return aCost - bCost || a.name.localeCompare(b.name);
+      }
+      case "cost-desc": {
+        const aCost = a.children[0]?.session?.cost ?? 0;
+        const bCost = b.children[0]?.session?.cost ?? 0;
+        return bCost - aCost || a.name.localeCompare(b.name);
       }
       default: {
         const aLatest = a.children[0]?.session?.updatedAt || "";

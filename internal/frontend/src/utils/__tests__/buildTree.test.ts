@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildTree, shortRepoName, relativeTime, formatCost } from "../buildTree";
+import { buildTree, shortRepoName, relativeTime } from "../buildTree";
+import { formatCost } from "../sessionUtils";
 import type { Session } from "../../hooks/useApi";
 
 const baseSession = (overrides: Partial<Session>): Session => ({

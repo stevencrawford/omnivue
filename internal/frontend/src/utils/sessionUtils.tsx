@@ -7,7 +7,7 @@ export function sessionTitle(session: Session): string {
   return session.id.slice(0, 10);
 }
 
-function shortDir(directory: string): string {
+export function shortDir(directory: string): string {
   if (!directory) return "";
   const parts = directory.replace(/\\/g, "/").replace(/\/$/, "").split("/").filter(Boolean);
   return parts.length > 0 ? parts[parts.length - 1]! : directory;
@@ -40,6 +40,19 @@ export function sessionMetaParts(session: Session): string[] {
   const model = shortModel(session.model);
   if (model) parts.push(model);
   return parts;
+}
+
+export function formatCost(cost: number): string {
+  if (cost === 0) return "";
+  if (cost < 0.01) return "<$0.01";
+  return `$${cost.toFixed(2)}`;
+}
+
+export function formatTokens(tokens: number): string {
+  if (tokens === 0) return "";
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tok`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}k tok`;
+  return `${tokens} tok`;
 }
 
 export { relativeTime };

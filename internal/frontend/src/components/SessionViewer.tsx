@@ -155,6 +155,17 @@ export function SessionViewer({
                 {meta.tab === "session" && messageCount.total > 0 && (
                   <span className="text-[11px] opacity-70 tabular-nums">{messageCount.total}</span>
                 )}
+                {meta.tab === "diff" && session.diffFiles > 0 && (
+                  <span className="text-[11px] opacity-70 tabular-nums">
+                    {session.diffFiles}f
+                    {session.diffAdditions > 0 && (
+                      <span className="text-green-500 ml-0.5">+{session.diffAdditions}</span>
+                    )}
+                    {session.diffDeletions > 0 && (
+                      <span className="text-red-500 ml-0.5">-{session.diffDeletions}</span>
+                    )}
+                  </span>
+                )}
               </button>
             ),
         )}

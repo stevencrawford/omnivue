@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
 import type { Session } from "../hooks/useApi";
-import { buildTree, formatCost } from "../utils/buildTree";
+import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
-import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
+import {
+  sessionTitle,
+  sessionMetaParts,
+  relativeTime,
+  formatCost,
+  formatTokens,
+  shortDir,
+} from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
 import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
 import { ContextMenu } from "./ContextMenu";
@@ -253,6 +260,7 @@ export function SessionPanel({
             value={filters.project}
             options={projects}
             onChange={(v) => setFilter("project", v)}
+            formatOption={shortDir}
           />
           <FilterChip
             label="Repo"
@@ -340,11 +348,13 @@ function FilterChip({
   value,
   options,
   onChange,
+  formatOption,
 }: {
   label: string;
   value: string | null;
   options: string[];
   onChange: (value: string | null) => void;
+  formatOption?: (opt: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -358,7 +368,7 @@ function FilterChip({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const displayLabel = value || `All ${label}s`;
+  const displayLabel = value ? (formatOption ? formatOption(value) : value) : `All ${label}s`;
 
   return (
     <div className="relative" ref={ref}>
@@ -403,7 +413,7 @@ function FilterChip({
                 setOpen(false);
               }}
             >
-              {opt}
+              {formatOption ? formatOption(opt) : opt}
             </button>
           ))}
         </div>
@@ -606,42 +616,30 @@ function SessionRow({
 
 // ─── VerboseStats ────────────────────────────────────────────────
 
+function showCosts(): boolean {
+  try {
+    return localStorage.getItem("sess-show-costs") !== "false";
+  } catch {
+    return true;
+  }
+}
+
 function VerboseStats({ session }: { session: Session }) {
   const totalTokens = session.tokensInput + session.tokensOutput;
   const parts: ReactNode[] = [];
+  const costsVisible = showCosts();
 
   if (totalTokens > 0) {
-    const display =
-      totalTokens >= 1_000_000
-        ? `${(totalTokens / 1_000_000).toFixed(1)}M tok`
-        : totalTokens >= 1_000
-          ? `${(totalTokens / 1_000).toFixed(0)}k tok`
-          : `${totalTokens} tok`;
     parts.push(
       <span key="tokens" title={`${totalTokens.toLocaleString()} tokens`}>
-        {display}
+        {formatTokens(totalTokens)}
       </span>,
     );
   }
-  if (session.cost > 0) {
+  if (session.cost > 0 && costsVisible) {
     parts.push(
       <span key="cost" title="Cost">
         {formatCost(session.cost)}
-      </span>,
-    );
-  }
-  if (session.messageCount > 0) {
-    parts.push(
-      <span key="msgs" title="Messages">
-        {session.messageCount} msgs
-      </span>,
-    );
-  }
-  if (session.diffFiles > 0) {
-    parts.push(
-      <span key="files" title="Files changed">
-        {session.diffFiles}f <span className="text-green-500">+{session.diffAdditions}</span>
-        <span className="text-red-500">-{session.diffDeletions}</span>
       </span>,
     );
   }
