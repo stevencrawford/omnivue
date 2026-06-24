@@ -987,21 +987,19 @@ function CollapsibleBlock({
         {icon}
         <span className="font-semibold text-[11px]">{label}</span>
       </div>
-      {expanded && (
-        <div className="px-3 py-2">
-          <div className="relative">
-            {!expanded && isLong && (
-              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
-            )}
-            <MarkdownContent
-              content={display}
-              className="markdown-body--wide"
-              onOpenModal={onOpenModal ? () => onOpenModal(content, label) : undefined}
-              modalTitle={label}
-            />
-          </div>
+      <div className="px-3 py-2">
+        <div className="relative">
+          {!expanded && isLong && (
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
+          )}
+          <MarkdownContent
+            content={display}
+            className="markdown-body--wide"
+            onOpenModal={onOpenModal ? () => onOpenModal(content, label) : undefined}
+            modalTitle={label}
+          />
         </div>
-      )}
+      </div>
       {isLong && (
         <div className="flex justify-center border-t border-inherit">
           <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
