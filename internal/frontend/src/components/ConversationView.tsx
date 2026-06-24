@@ -987,7 +987,7 @@ function UserTurnView({
   const { blocks, remaining } = extractInlineBlocks(content);
   const lines = content.split("\n");
   const isLong = lines.length > 20;
-  const [expanded, setExpanded] = useState(!isLong);
+  const [expanded, setExpanded] = useState(false);
 
   if (blocks.length === 0) {
     const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
@@ -1041,6 +1041,7 @@ function UserTurnView({
             icon={<Info size={16} className="text-sky-400 shrink-0" />}
             className="border-sky-500/30 bg-sky-500/[0.03]"
             onOpenModal={onOpenModal}
+            defaultCollapsed={true}
           />
         ) : block.type === "file-context" ? (
           <FileContextBlock key={i} block={block} />
@@ -1124,9 +1125,10 @@ function AssistantStepContent({
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
-  const isLong = content.length > 4000;
-  const display = !expanded && isLong ? content.slice(0, 4000) + "\n\n…" : content;
+  const lines = content.split("\n");
+  const isLong = lines.length > 20;
+  const [expanded, setExpanded] = useState(false);
+  const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
 
   return (
     <div>
@@ -1157,10 +1159,10 @@ function UserPromptBubble({
   message: Message;
   onOpenModal?: (content: string, title?: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
-  const isLong = message.content.length > 3000;
-  const display =
-    !expanded && isLong ? message.content.slice(0, 3000) + "\n\n..." : message.content;
+  const lines = message.content.split("\n");
+  const isLong = lines.length > 20;
+  const [expanded, setExpanded] = useState(false);
+  const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n..." : message.content;
 
   return (
     <div>
@@ -1192,7 +1194,7 @@ function SystemReminderView({
   fileName: string;
   onOpenModal?: (content: string, title?: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const lines = content.split("\n");
   const isLong = lines.length > 20;
   const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
