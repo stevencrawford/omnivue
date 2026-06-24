@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Session, ScratchFile } from "../hooks/useApi";
+import type { Session } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
@@ -10,10 +10,6 @@ interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
-  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
-  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
-  scratchFiles?: ScratchFile[];
   activeSection: Section;
   onSectionChange: (section: Section) => void;
   onSettingsOpen: () => void;
@@ -37,10 +33,6 @@ export function Sidebar({
   sessions,
   activeSessionId,
   onSessionSelect,
-  onScratchFileSelect,
-  onDeleteScratchFile,
-  onRenameScratchFile,
-  scratchFiles = [],
   activeSection,
   onSectionChange,
   onSettingsOpen,
@@ -132,10 +124,6 @@ export function Sidebar({
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
-            onScratchFileSelect={onScratchFileSelect}
-            onDeleteScratchFile={onDeleteScratchFile}
-            onRenameScratchFile={onRenameScratchFile}
-            scratchFiles={scratchFiles}
             showToast={showToast}
           />
         </div>

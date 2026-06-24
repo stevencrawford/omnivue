@@ -14,13 +14,7 @@ import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
 import type { Session, SearchResult } from "./hooks/useApi";
-import {
-  fetchSessions,
-  fetchSearch,
-  createScratchFile,
-  deleteScratchFile,
-  renameScratchFile,
-} from "./hooks/useApi";
+import { fetchSessions, fetchSearch, createScratchFile } from "./hooks/useApi";
 import type { ScratchFile } from "./hooks/useApi";
 import { fetchAllScratchFiles } from "./hooks/useApi";
 
@@ -320,41 +314,6 @@ export function App() {
     [activeTab, activeSession],
   );
 
-  const handleDeleteScratchFile = useCallback(
-    async (sessionId: string, fileId: string) => {
-      try {
-        await deleteScratchFile(sessionId, fileId);
-      } catch {
-        return;
-      }
-      setScratchFiles((prev) => prev.filter((f) => f.id !== fileId));
-      setOpenScratchTabs((prev) => prev.filter((id) => id !== fileId));
-      const tab: Tab = `scratch:${fileId}`;
-      if (activeTab === tab && activeSession) {
-        setActiveTab("session");
-      }
-    },
-    [activeTab, activeSession],
-  );
-
-  const handleRenameScratchFile = useCallback(
-    async (sessionId: string, fileId: string, newTitle: string) => {
-      try {
-        await renameScratchFile(sessionId, fileId, newTitle);
-      } catch {
-        return;
-      }
-      setScratchFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, title: newTitle } : f)));
-    },
-    [],
-  );
-
-  const handleOpenScratchFile = useCallback((sessionId: string, fileId: string) => {
-    setActiveSessionId(sessionId);
-    setOpenScratchTabs((prev) => (prev.includes(fileId) ? prev : [...prev, fileId]));
-    setActiveTab(`scratch:${fileId}`);
-  }, []);
-
   const handleSearchSelect = useCallback(
     (
       sessionId: string,
@@ -528,10 +487,6 @@ export function App() {
                 sessions={sessions}
                 activeSessionId={activeSessionId}
                 onSessionSelect={handleSessionSelect}
-                onScratchFileSelect={handleOpenScratchFile}
-                onDeleteScratchFile={handleDeleteScratchFile}
-                onRenameScratchFile={handleRenameScratchFile}
-                scratchFiles={scratchFiles}
                 activeSection={activeSection}
                 onSectionChange={setActiveSection}
                 onSettingsOpen={() => setSettingsOpen(true)}

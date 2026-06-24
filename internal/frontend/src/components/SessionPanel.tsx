@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  ChevronRight,
-  Folder,
-  File,
-  Pencil,
-  Trash2,
-  Plus,
-  Minus,
-  ArrowUpDown,
-  ArrowRight,
-} from "lucide-react";
-import type { Session, ScratchFile } from "../hooks/useApi";
+import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
+import type { Session } from "../hooks/useApi";
 import { buildTree, formatCost } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
@@ -23,10 +13,6 @@ interface SessionPanelProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
-  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
-  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
-  scratchFiles?: ScratchFile[];
   showToast: (msg: string) => void;
 }
 
@@ -76,10 +62,6 @@ export function SessionPanel({
   sessions,
   activeSessionId,
   onSessionSelect,
-  onScratchFileSelect,
-  onDeleteScratchFile,
-  onRenameScratchFile,
-  scratchFiles = [],
   showToast,
 }: SessionPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
@@ -133,16 +115,6 @@ export function SessionPanel({
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
 
   const tree = useMemo(() => buildTree(filteredSessions, sortMode), [filteredSessions, sortMode]);
-
-  const scratchFilesBySession = useMemo(() => {
-    const map = new Map<string, ScratchFile[]>();
-    for (const f of scratchFiles) {
-      const list = map.get(f.sessionId) || [];
-      list.push(f);
-      map.set(f.sessionId, list);
-    }
-    return map;
-  }, [scratchFiles]);
 
   const agents = useMemo(() => getDistinctValues(sessions, "agent"), [sessions]);
   const projects = useMemo(() => getDistinctValues(sessions, "directory"), [sessions]);
@@ -322,12 +294,8 @@ export function SessionPanel({
                 onToggleCollapse={toggleCollapse}
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
-                onScratchFileSelect={onScratchFileSelect}
-                onDeleteScratchFile={onDeleteScratchFile}
-                onRenameScratchFile={onRenameScratchFile}
                 expandedParentId={expandedParentId}
                 onExpandParent={setExpandedParentId}
-                scratchFilesBySession={scratchFilesBySession}
                 onContextMenu={handleContextMenu}
                 displayMode={displayMode}
               />
@@ -452,12 +420,8 @@ function RepoNode({
   onToggleCollapse,
   activeSessionId,
   onSessionSelect,
-  onScratchFileSelect,
-  onDeleteScratchFile,
-  onRenameScratchFile,
   expandedParentId,
   onExpandParent,
-  scratchFilesBySession,
   onContextMenu,
   displayMode,
 }: {
@@ -466,12 +430,8 @@ function RepoNode({
   onToggleCollapse: (path: string) => void;
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
-  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
-  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
-  scratchFilesBySession: Map<string, ScratchFile[]>;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
 }) {
@@ -501,7 +461,6 @@ function RepoNode({
           {visible.map((child) => {
             const session = child.session;
             if (!session) return null;
-            const sessionScratchFiles = scratchFilesBySession.get(session.id) || [];
             return (
               <SessionRow
                 key={session.id}
@@ -512,10 +471,6 @@ function RepoNode({
                 onSelect={() => onSessionSelect(session.id)}
                 expandedParentId={expandedParentId}
                 onExpandParent={onExpandParent}
-                scratchFiles={sessionScratchFiles}
-                onScratchFileSelect={onScratchFileSelect}
-                onDeleteScratchFile={onDeleteScratchFile}
-                onRenameScratchFile={onRenameScratchFile}
                 onContextMenu={onContextMenu}
                 displayMode={displayMode}
               />
@@ -546,10 +501,6 @@ function SessionRow({
   onSelect,
   expandedParentId,
   onExpandParent,
-  scratchFiles = [],
-  onScratchFileSelect,
-  onDeleteScratchFile,
-  onRenameScratchFile,
   onContextMenu,
   displayMode,
 }: {
@@ -560,26 +511,12 @@ function SessionRow({
   onSelect: () => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
-  scratchFiles?: ScratchFile[];
-  onScratchFileSelect?: (sessionId: string, fileId: string) => void;
-  onDeleteScratchFile?: (sessionId: string, fileId: string) => void;
-  onRenameScratchFile?: (sessionId: string, fileId: string, newTitle: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
   const subsVisible = session.id === expandedParentId;
-  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const renameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (renamingFileId && renameInputRef.current) {
-      renameInputRef.current.focus();
-      renameInputRef.current.select();
-    }
-  }, [renamingFileId]);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
@@ -610,9 +547,9 @@ function SessionRow({
           >
             {sessionTitle(session)}
           </span>
-          {(subCount > 0 || scratchFiles.length > 0) && !subsVisible && (
+          {subCount > 0 && !subsVisible && (
             <span className="shrink-0 text-[11px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
-              {subCount > 0 ? subCount : <Pencil size={11} className="inline" />}
+              {subCount}
             </span>
           )}
           <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
@@ -663,95 +600,6 @@ function SessionRow({
           })}
         </div>
       )}
-
-      {scratchFiles.length > 0 && subsVisible && onScratchFileSelect && (
-        <div className="ml-2 mt-px mb-1 space-y-px border-l border-gh-border/40">
-          {scratchFiles.map((sf) => (
-            <div
-              key={sf.id}
-              className="group flex items-center rounded-r-md transition-colors hover:bg-gh-bg-hover"
-            >
-              {renamingFileId === sf.id ? (
-                <div className="flex-1 flex items-center pl-1 py-0.5">
-                  <input
-                    ref={renameInputRef}
-                    type="text"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
-                        const val = renameValue.trim();
-                        if (val) {
-                          onRenameScratchFile?.(session.id, sf.id, val);
-                        }
-                        setRenamingFileId(null);
-                      } else if (e.key === "Escape") {
-                        e.stopPropagation();
-                        setRenamingFileId(null);
-                      }
-                    }}
-                    onBlur={() => {
-                      const val = renameValue.trim();
-                      if (val && val !== sf.title) {
-                        onRenameScratchFile?.(session.id, sf.id, val);
-                      }
-                      setRenamingFileId(null);
-                    }}
-                    className="flex-1 bg-gh-bg-secondary text-[11px] text-gh-text outline-none border border-accent-border rounded px-1 py-0.5 min-w-0"
-                  />
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onScratchFileSelect?.(session.id, sf.id)}
-                    className="flex-1 flex items-center gap-1.5 pl-1 py-0.5 text-left min-w-0"
-                    title={sf.title}
-                  >
-                    <File size={12} className="text-gh-text-secondary shrink-0" />
-                    <span className="text-[11px] truncate flex-1 text-gh-text-secondary">
-                      {sf.title}
-                    </span>
-                    <span className="text-[11px] opacity-60 tabular-nums shrink-0">
-                      {new Date(sf.updatedAt).toLocaleDateString()}
-                    </span>
-                  </button>
-                  <div className="flex items-center gap-px opacity-0 group-hover:opacity-100 transition-opacity">
-                    {onRenameScratchFile && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenameValue(sf.title);
-                          setRenamingFileId(sf.id);
-                        }}
-                        className="shrink-0 p-1 text-gh-text-secondary hover:text-accent cursor-pointer"
-                        title="Rename"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                    )}
-                    {onDeleteScratchFile && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteScratchFile(session.id, sf.id);
-                        }}
-                        className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 cursor-pointer"
-                        title="Delete scratch file"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -763,9 +611,15 @@ function VerboseStats({ session }: { session: Session }) {
   const parts: ReactNode[] = [];
 
   if (totalTokens > 0) {
+    const display =
+      totalTokens >= 1_000_000
+        ? `${(totalTokens / 1_000_000).toFixed(1)}M tok`
+        : totalTokens >= 1_000
+          ? `${(totalTokens / 1_000).toFixed(0)}k tok`
+          : `${totalTokens} tok`;
     parts.push(
-      <span key="tokens" title="Tokens">
-        {(totalTokens / 1000).toFixed(0)}k tok
+      <span key="tokens" title={`${totalTokens.toLocaleString()} tokens`}>
+        {display}
       </span>,
     );
   }
