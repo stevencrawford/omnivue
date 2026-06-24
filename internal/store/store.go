@@ -432,23 +432,28 @@ type ScratchFile struct {
 	SessionID string    `json:"sessionId"`
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
+	Mode      string    `json:"mode"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // CreateScratchFile creates a new scratch file.
 func (s *Store) CreateScratchFile(f ScratchFile) error {
+	mode := f.Mode
+	if mode == "" {
+		mode = "writable"
+	}
 	_, err := s.db.Exec(`
-		INSERT INTO scratch_files (id, session_id, title, content, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, f.ID, f.SessionID, f.Title, f.Content, f.CreatedAt.Format(time.RFC3339), f.UpdatedAt.Format(time.RFC3339))
+		INSERT INTO scratch_files (id, session_id, title, content, mode, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, f.ID, f.SessionID, f.Title, f.Content, mode, f.CreatedAt.Format(time.RFC3339), f.UpdatedAt.Format(time.RFC3339))
 	return err
 }
 
 // ListScratchFiles returns all scratch files for a session, ordered by updated_at desc.
 func (s *Store) ListScratchFiles(sessionID string) ([]ScratchFile, error) {
 	rows, err := s.db.Query(`
-		SELECT id, session_id, title, content, created_at, updated_at
+		SELECT id, session_id, title, content, mode, created_at, updated_at
 		FROM scratch_files
 		WHERE session_id = ?
 		ORDER BY updated_at DESC
@@ -462,7 +467,7 @@ func (s *Store) ListScratchFiles(sessionID string) ([]ScratchFile, error) {
 	for rows.Next() {
 		var f ScratchFile
 		var createdAt, updatedAt string
-		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &f.Mode, &createdAt, &updatedAt); err != nil {
 			continue
 		}
 		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
@@ -475,7 +480,7 @@ func (s *Store) ListScratchFiles(sessionID string) ([]ScratchFile, error) {
 // ListAllScratchFiles returns all scratch files across all sessions.
 func (s *Store) ListAllScratchFiles() ([]ScratchFile, error) {
 	rows, err := s.db.Query(`
-		SELECT id, session_id, title, content, created_at, updated_at
+		SELECT id, session_id, title, content, mode, created_at, updated_at
 		FROM scratch_files
 		ORDER BY updated_at DESC
 	`)
@@ -488,7 +493,7 @@ func (s *Store) ListAllScratchFiles() ([]ScratchFile, error) {
 	for rows.Next() {
 		var f ScratchFile
 		var createdAt, updatedAt string
-		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &f.Mode, &createdAt, &updatedAt); err != nil {
 			continue
 		}
 		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
@@ -503,9 +508,9 @@ func (s *Store) GetScratchFile(id string) (*ScratchFile, error) {
 	var f ScratchFile
 	var createdAt, updatedAt string
 	err := s.db.QueryRow(`
-		SELECT id, session_id, title, content, created_at, updated_at
+		SELECT id, session_id, title, content, mode, created_at, updated_at
 		FROM scratch_files WHERE id = ?
-	`, id).Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &createdAt, &updatedAt)
+	`, id).Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &f.Mode, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -724,6 +729,7 @@ func (s *Store) migrate() error {
 			session_id TEXT NOT NULL,
 			title TEXT NOT NULL DEFAULT 'Untitled',
 			content TEXT NOT NULL DEFAULT '',
+			mode TEXT NOT NULL DEFAULT 'writable',
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		);
@@ -746,6 +752,11 @@ func (s *Store) migrate() error {
 	// Migration: ensure bookmarks unique index
 	if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_ref ON bookmarks(session_id, message_index, tool_call_id)`); err != nil {
 		return err
+	}
+
+	// Migration: add mode column to scratch_files for existing databases.
+	if _, err := s.db.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
+		// ignore — column may already exist
 	}
 
 	// Migration: ensure message_index, updated_at, file_title, file_id columns exist on search_index.

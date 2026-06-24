@@ -1238,6 +1238,7 @@ func handleCreateScratchFile(state *State) http.HandlerFunc {
 		var body struct {
 			Title   string `json:"title"`
 			Content string `json:"content"`
+			Mode    string `json:"mode"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -1246,12 +1247,16 @@ func handleCreateScratchFile(state *State) http.HandlerFunc {
 		if body.Title == "" {
 			body.Title = "Untitled"
 		}
+		if body.Mode == "" {
+			body.Mode = "writable"
+		}
 		now := time.Now()
 		f := store.ScratchFile{
 			ID:        fmt.Sprintf("scratch_%d", now.UnixNano()),
 			SessionID: sessionID,
 			Title:     body.Title,
 			Content:   body.Content,
+			Mode:      body.Mode,
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
