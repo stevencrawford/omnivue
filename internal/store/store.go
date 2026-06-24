@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -143,6 +144,31 @@ func (s *Store) SetConfig(key, value string) error {
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value
 	`, key, value)
 	return err
+}
+
+// GetRecentSearches returns the list of recent search queries.
+func (s *Store) GetRecentSearches() ([]string, error) {
+	val, err := s.GetConfig("recent_searches")
+	if err != nil {
+		return nil, err
+	}
+	if val == "" {
+		return nil, nil
+	}
+	var searches []string
+	if err := json.Unmarshal([]byte(val), &searches); err != nil {
+		return nil, nil
+	}
+	return searches, nil
+}
+
+// SetRecentSearches stores the list of recent search queries.
+func (s *Store) SetRecentSearches(searches []string) error {
+	data, err := json.Marshal(searches)
+	if err != nil {
+		return err
+	}
+	return s.SetConfig("recent_searches", string(data))
 }
 
 // GetAllConfig returns all config key-value pairs.

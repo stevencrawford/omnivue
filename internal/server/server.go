@@ -779,6 +779,22 @@ func (s *State) SetConfig(key, value string) error {
 	return s.store.SetConfig(key, value)
 }
 
+// GetRecentSearches returns the list of recent search queries.
+func (s *State) GetRecentSearches() ([]string, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store not available")
+	}
+	return s.store.GetRecentSearches()
+}
+
+// SetRecentSearches stores the list of recent search queries.
+func (s *State) SetRecentSearches(searches []string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.SetRecentSearches(searches)
+}
+
 // SetSessionName overrides the display name for a session.
 func (s *State) SetSessionName(sessionID, displayName string) error {
 	if s.store == nil {
@@ -892,6 +908,8 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(state))
 	mux.HandleFunc("GET /_/api/scratch", handleListAllScratchFiles(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(state))
+	mux.HandleFunc("GET /_/api/recent-searches", handleGetRecentSearches(state))
+	mux.HandleFunc("POST /_/api/recent-searches", handleSetRecentSearches(state))
 	mux.HandleFunc("GET /_/api/search", handleSearch(state))
 	mux.HandleFunc("GET /_/api/folders", handleListFolders(state))
 	mux.HandleFunc("POST /_/api/folders", handleCreateFolder(state))
@@ -1311,6 +1329,37 @@ func handleListAllScratchFiles(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(files)
+	}
+}
+
+func handleGetRecentSearches(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		searches, err := state.GetRecentSearches()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if searches == nil {
+			searches = []string{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(searches)
+	}
+}
+
+func handleSetRecentSearches(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var searches []string
+		if err := json.NewDecoder(r.Body).Decode(&searches); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := state.SetRecentSearches(searches); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
