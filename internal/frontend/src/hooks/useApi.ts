@@ -81,6 +81,7 @@ export interface ScratchFile {
   sessionId: string;
   title: string;
   content: string;
+  mode: "writable" | "readonly";
   createdAt: string;
   updatedAt: string;
 }
@@ -356,11 +357,12 @@ export async function createScratchFile(
   sessionId: string,
   title: string,
   content?: string,
+  mode?: "writable" | "readonly",
 ): Promise<ScratchFile> {
   const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, content: content || "" }),
+    body: JSON.stringify({ title, content: content || "", mode: mode || "writable" }),
   });
   if (!res.ok) throw new Error("Failed to create scratch file");
   return res.json();

@@ -255,9 +255,9 @@ export function App() {
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
   const scratchFileMap = useMemo(() => {
-    const map: Record<string, { title: string }> = {};
+    const map: Record<string, { title: string; mode: string }> = {};
     for (const f of scratchFiles) {
-      map[f.id] = { title: f.title };
+      map[f.id] = { title: f.title, mode: f.mode };
     }
     return map;
   }, [scratchFiles]);
@@ -310,6 +310,24 @@ export function App() {
     setSearchHighlightQuery(null);
   }, []);
 
+  const prevSessionIdRef = useRef<string | null>(null);
+
+  // Auto-open scratch tabs when a session is selected
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (prevSessionIdRef.current === activeSessionId) return;
+    prevSessionIdRef.current = activeSessionId;
+    const sessionFileIds = scratchFiles
+      .filter((f) => f.sessionId === activeSessionId)
+      .map((f) => f.id);
+    setOpenScratchTabs((prev) => {
+      const existing = new Set(prev);
+      const added = sessionFileIds.filter((id) => !existing.has(id));
+      if (added.length === 0) return prev;
+      return [...prev, ...added];
+    });
+  }, [activeSessionId, scratchFiles]);
+
   const handleNewScratchFile = useCallback(async () => {
     if (!activeSessionId) return;
     try {
@@ -346,7 +364,7 @@ export function App() {
     if (!activeSessionId || !pinningContent) return;
     try {
       const title = pinTitle.trim() || "Pinned message";
-      const f = await createScratchFile(activeSessionId, title, pinningContent);
+      const f = await createScratchFile(activeSessionId, title, pinningContent, "readonly");
       setScratchFiles((prev) => [f, ...prev]);
       setOpenScratchTabs((prev) => (prev.includes(f.id) ? prev : [...prev, f.id]));
       setActiveTab(`scratch:${f.id}`);

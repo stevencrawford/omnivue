@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CirclePlus, FileText, ListTodo, File, X, Plus, FilePlus, Check, Copy } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  ListTodo,
+  File,
+  Lock,
+  X,
+  Plus,
+  FilePlus,
+  Check,
+  Copy,
+} from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
@@ -19,7 +30,7 @@ interface SessionViewerProps {
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
   openScratchTabs: string[];
-  scratchFileMap: Record<string, { title: string }>;
+  scratchFileMap: Record<string, { title: string; mode: string }>;
   onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
   onPinMessage?: (content: string) => void;
@@ -36,7 +47,7 @@ interface SessionViewerProps {
 }
 
 const MAIN_TABS: { tab: "session" | "diff" | "plan"; label: string; icon: ReactNode }[] = [
-  { tab: "session", label: "Session", icon: <CirclePlus size={14} /> },
+  { tab: "session", label: "Session", icon: <Bot size={14} /> },
   { tab: "diff", label: "Diff", icon: <FileText size={14} /> },
   { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
 ];
@@ -115,7 +126,7 @@ export function SessionViewer({
   }, [activeTab, openScratchTabs]);
 
   const tabIcon = (tab: Tab): ReactNode => {
-    if (tab === "session") return <CirclePlus size={14} />;
+    if (tab === "session") return <Bot size={14} />;
     if (tab === "diff") return <FileText size={14} />;
     if (tab === "plan") return <ListTodo size={14} />;
     if (tab.startsWith("scratch:")) return <File size={14} />;
@@ -171,6 +182,8 @@ export function SessionViewer({
         )}
         {openScratchTabs.map((fid) => {
           const tab: Tab = `scratch:${fid}`;
+          const info = scratchFileMap[fid];
+          const isReadOnly = info?.mode === "readonly";
           return (
             <button
               key={fid}
@@ -178,7 +191,7 @@ export function SessionViewer({
               className={`sess-tab-pill shrink-0 ${activeTab === tab ? "sess-tab-pill--active" : ""}`}
               onClick={() => setActiveTab(tab)}
             >
-              {tabIcon(tab)}
+              {isReadOnly ? <Lock size={12} /> : tabIcon(tab)}
               <span className="truncate max-w-28">{scratchTabLabel(fid)}</span>
               <span
                 role="button"

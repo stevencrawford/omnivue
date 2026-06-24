@@ -11,7 +11,7 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
-import { Minimize2, Maximize2, X } from "lucide-react";
+import { Lock, Minimize2, Maximize2, X } from "lucide-react";
 import { getScratchFile, updateScratchFile } from "../hooks/useApi";
 
 marked.use({ gfm: true, breaks: true });
@@ -53,17 +53,19 @@ turndownService.addRule("table", {
   },
 });
 
-const monacoEditorOptions = {
-  minimap: { enabled: false },
-  fontSize: 13,
-  lineNumbers: "on" as const,
-  wordWrap: "on" as const,
-  scrollBeyondLastLine: false,
-  automaticLayout: true,
-  tabSize: 2,
-  renderWhitespace: "selection" as const,
-  padding: { top: 8 },
-} as const;
+const monacoEditorOptions = (readOnly: boolean) =>
+  ({
+    minimap: { enabled: false },
+    fontSize: 13,
+    lineNumbers: "on" as const,
+    wordWrap: "on" as const,
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    tabSize: 2,
+    renderWhitespace: "selection" as const,
+    padding: { top: 8 },
+    readOnly,
+  }) as const;
 
 const DEBOUNCE_MS = 800;
 
@@ -93,6 +95,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const originalTitleRef = useRef("Untitled");
   const lastSavedMarkdownRef = useRef("");
   const isUpdatingRef = useRef(false);
@@ -104,6 +107,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
       setSourceContent(f.content);
       originalTitleRef.current = f.title;
       lastSavedMarkdownRef.current = f.content;
+      setIsReadOnly(f.mode === "readonly");
     } catch {
       /* ignore */
     } finally {
@@ -130,7 +134,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
       CodeBlockLowlight.configure({ lowlight }),
     ],
     content: "",
-    editable: true,
+    editable: !isReadOnly,
     immediatelyRender: false,
     onUpdate: () => {
       if (!isUpdatingRef.current && editor) {
@@ -175,31 +179,32 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   useEffect(() => {
     if (!editor || loading) return;
     isUpdatingRef.current = true;
+    editor.setEditable(!isReadOnly);
     const html = marked.parse(sourceContent) as string;
     editor.commands.setContent(html);
     isUpdatingRef.current = false;
-  }, [fileId, editor, loading]);
+  }, [fileId, editor, loading, isReadOnly]);
 
   // Auto-save WYSIWYG mode
   useEffect(() => {
-    if (!fileId || !editor || editorMode !== "wysiwyg") return;
+    if (!fileId || !editor || editorMode !== "wysiwyg" || isReadOnly) return;
     const md = turndownService.turndown(editor.getHTML());
     if (md === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
       doSave(fileId, md);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [editor?.getHTML(), fileId, editorMode]);
+  }, [editor?.getHTML(), fileId, editorMode, isReadOnly]);
 
   // Auto-save source mode
   useEffect(() => {
-    if (!fileId || editorMode !== "source") return;
+    if (!fileId || editorMode !== "source" || isReadOnly) return;
     if (sourceContent === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
       doSave(fileId, sourceContent);
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [sourceContent, fileId, editorMode]);
+  }, [sourceContent, fileId, editorMode, isReadOnly]);
 
   const doSave = useCallback(
     async (fid: string, md: string) => {
@@ -305,98 +310,113 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
     >
       {/* Toolbar */}
       <div className="flex items-center justify-between px-2 py-1 border-b border-gh-border shrink-0 bg-gh-bg-secondary/50">
-        <div className="flex items-center gap-0.5">
-          <ToolBtn
-            icon="bold"
-            active={activeFormats.bold}
-            onClick={() => handleToolbarAction("bold")}
-            title="Bold"
-          />
-          <ToolBtn
-            icon="italic"
-            active={activeFormats.italic}
-            onClick={() => handleToolbarAction("italic")}
-            title="Italic"
-          />
-          <ToolBtn
-            icon="strikethrough"
-            active={activeFormats.strike}
-            onClick={() => handleToolbarAction("strike")}
-            title="Strikethrough"
-          />
-          <ToolBtn
-            icon="code"
-            active={activeFormats.code}
-            onClick={() => handleToolbarAction("code")}
-            title="Code"
-          />
-          <div className="w-px h-4 bg-gh-border mx-1" />
-          <ToolBtn
-            icon="bullet-list"
-            active={activeFormats.bulletList}
-            onClick={() => handleToolbarAction("bullet")}
-            title="Bullet List"
-          />
-          <ToolBtn
-            icon="ordered-list"
-            active={activeFormats.orderedList}
-            onClick={() => handleToolbarAction("ordered")}
-            title="Ordered List"
-          />
-          <div className="w-px h-4 bg-gh-border mx-1" />
-          <ToolBtn
-            icon="h1"
-            active={activeFormats.heading1}
-            onClick={() => handleToolbarAction("h1")}
-            title="Heading 1"
-          />
-          <ToolBtn
-            icon="h2"
-            active={activeFormats.heading2}
-            onClick={() => handleToolbarAction("h2")}
-            title="Heading 2"
-          />
-          <ToolBtn
-            icon="quote"
-            active={activeFormats.blockquote}
-            onClick={() => handleToolbarAction("quote")}
-            title="Quote"
-          />
-          <div className="w-px h-4 bg-gh-border mx-1" />
-          <ToolBtn icon="table" onClick={() => handleToolbarAction("table")} title="Insert Table" />
-          <ToolBtn
-            icon="code-block"
-            active={activeFormats.codeBlock}
-            onClick={() => handleToolbarAction("codeblock")}
-            title="Code Block"
-          />
-        </div>
+        {isReadOnly ? (
+          <div className="flex items-center gap-1.5 text-xs text-gh-text-secondary">
+            <Lock size={12} />
+            <span>Read-only</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-0.5">
+            <ToolBtn
+              icon="bold"
+              active={activeFormats.bold}
+              onClick={() => handleToolbarAction("bold")}
+              title="Bold"
+            />
+            <ToolBtn
+              icon="italic"
+              active={activeFormats.italic}
+              onClick={() => handleToolbarAction("italic")}
+              title="Italic"
+            />
+            <ToolBtn
+              icon="strikethrough"
+              active={activeFormats.strike}
+              onClick={() => handleToolbarAction("strike")}
+              title="Strikethrough"
+            />
+            <ToolBtn
+              icon="code"
+              active={activeFormats.code}
+              onClick={() => handleToolbarAction("code")}
+              title="Code"
+            />
+            <div className="w-px h-4 bg-gh-border mx-1" />
+            <ToolBtn
+              icon="bullet-list"
+              active={activeFormats.bulletList}
+              onClick={() => handleToolbarAction("bullet")}
+              title="Bullet List"
+            />
+            <ToolBtn
+              icon="ordered-list"
+              active={activeFormats.orderedList}
+              onClick={() => handleToolbarAction("ordered")}
+              title="Ordered List"
+            />
+            <div className="w-px h-4 bg-gh-border mx-1" />
+            <ToolBtn
+              icon="h1"
+              active={activeFormats.heading1}
+              onClick={() => handleToolbarAction("h1")}
+              title="Heading 1"
+            />
+            <ToolBtn
+              icon="h2"
+              active={activeFormats.heading2}
+              onClick={() => handleToolbarAction("h2")}
+              title="Heading 2"
+            />
+            <ToolBtn
+              icon="quote"
+              active={activeFormats.blockquote}
+              onClick={() => handleToolbarAction("quote")}
+              title="Quote"
+            />
+            <div className="w-px h-4 bg-gh-border mx-1" />
+            <ToolBtn
+              icon="table"
+              onClick={() => handleToolbarAction("table")}
+              title="Insert Table"
+            />
+            <ToolBtn
+              icon="code-block"
+              active={activeFormats.codeBlock}
+              onClick={() => handleToolbarAction("codeblock")}
+              title="Code Block"
+            />
+          </div>
+        )}
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={toggleMode}
-            className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-              editorMode === "wysiwyg"
-                ? "bg-accent-muted text-accent"
-                : "text-gh-text-secondary hover:text-gh-text"
-            }`}
-            title="WYSIWYG"
-          >
-            Visual
-          </button>
-          <button
-            type="button"
-            onClick={toggleMode}
-            className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-              editorMode === "source"
-                ? "bg-accent-muted text-accent"
-                : "text-gh-text-secondary hover:text-gh-text"
-            }`}
-            title="Source"
-          >
-            Code
-          </button>
-          <div className="w-px h-4 bg-gh-border mx-1" />
+          {!isReadOnly && (
+            <>
+              <button
+                type="button"
+                onClick={toggleMode}
+                className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  editorMode === "wysiwyg"
+                    ? "bg-accent-muted text-accent"
+                    : "text-gh-text-secondary hover:text-gh-text"
+                }`}
+                title="WYSIWYG"
+              >
+                Visual
+              </button>
+              <button
+                type="button"
+                onClick={toggleMode}
+                className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  editorMode === "source"
+                    ? "bg-accent-muted text-accent"
+                    : "text-gh-text-secondary hover:text-gh-text"
+                }`}
+                title="Source"
+              >
+                Code
+              </button>
+              <div className="w-px h-4 bg-gh-border mx-1" />
+            </>
+          )}
           <button
             type="button"
             onClick={() => setIsFullscreen((v) => !v)}
@@ -425,7 +445,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
             theme="vs-dark"
             value={sourceContent}
             onChange={handleSourceChange}
-            options={monacoEditorOptions}
+            options={monacoEditorOptions(isReadOnly)}
           />
         ) : (
           <div className="h-full overflow-y-auto px-4 py-2 markdown-ayu">
@@ -435,24 +455,26 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-gh-border text-[11px] text-gh-text-secondary">
-        <div className="flex items-center gap-3">
-          <span>
-            {stats.words.toLocaleString()} word{stats.words !== 1 ? "s" : ""}
-          </span>
-          <span>
-            {stats.lines.toLocaleString()} line{stats.lines !== 1 ? "s" : ""}
-          </span>
-          <span>
-            ~{stats.tokens.toLocaleString()} token{stats.tokens !== 1 ? "s" : ""}
-          </span>
+      {!isReadOnly && (
+        <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-gh-border text-[11px] text-gh-text-secondary">
+          <div className="flex items-center gap-3">
+            <span>
+              {stats.words.toLocaleString()} word{stats.words !== 1 ? "s" : ""}
+            </span>
+            <span>
+              {stats.lines.toLocaleString()} line{stats.lines !== 1 ? "s" : ""}
+            </span>
+            <span>
+              ~{stats.tokens.toLocaleString()} token{stats.tokens !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {saveStatus === "saved" && <span className="text-emerald-500">Saved</span>}
+            {saveStatus === "saving" && <span className="text-amber-500">Saving...</span>}
+            {saveStatus === "error" && <span className="text-red-500">Save failed</span>}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          {saveStatus === "saved" && <span className="text-emerald-500">Saved</span>}
-          {saveStatus === "saving" && <span className="text-amber-500">Saving...</span>}
-          {saveStatus === "error" && <span className="text-red-500">Save failed</span>}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
