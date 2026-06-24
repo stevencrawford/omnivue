@@ -63,6 +63,8 @@ const SORT_LABELS: Record<SortMode, string> = {
   recent: "Recent",
   name: "Name",
   agent: "Agent",
+  "cost-asc": "Cost ↑",
+  "cost-desc": "Cost ↓",
 };
 
 export function SessionPanel({
@@ -212,7 +214,7 @@ export function SessionPanel({
             </IconBtn>
             {sortOpen && (
               <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
-                {(["recent", "name", "agent"] as SortMode[]).map((mode) => (
+                {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
                   <button
                     key={mode}
                     type="button"

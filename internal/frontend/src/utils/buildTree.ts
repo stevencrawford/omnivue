@@ -68,9 +68,13 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           );
         case "cost-asc":
-          return a.cost - b.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          return (
+            a.cost - b.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
         case "cost-desc":
-          return b.cost - a.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          return (
+            b.cost - a.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
         default:
           return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       }
