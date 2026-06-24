@@ -590,7 +590,6 @@ func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*inge
 	if err != nil {
 		return nil, fmt.Errorf("querying plan parts: %w", err)
 	}
-	defer rows.Close()
 
 	var sections []string
 	for rows.Next() {
@@ -606,8 +605,69 @@ func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*inge
 			sections = append(sections, p.Text)
 		}
 	}
+	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	// Also include plan items from todowrite tool call inputs
+	todoRows, err := a.db.QueryContext(ctx, `
+		SELECT p.data
+		FROM part p
+		WHERE p.session_id = ?
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') = 'todowrite'
+		ORDER BY p.time_created ASC
+	`, sessionID)
+	if err == nil {
+		var todoSections []string
+		for todoRows.Next() {
+			var dataJSON string
+			if err := todoRows.Scan(&dataJSON); err != nil {
+				continue
+			}
+			var p partData
+			if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+				continue
+			}
+			if p.State.Input == nil {
+				continue
+			}
+			inputJSON := util.MarshalJSON(p.State.Input)
+			if inputJSON == "" {
+				continue
+			}
+			var items []struct {
+				Content  string `json:"content"`
+				Status   string `json:"status"`
+				Priority string `json:"priority"`
+			}
+			if err := json.Unmarshal([]byte(inputJSON), &items); err != nil {
+				continue
+			}
+			for _, item := range items {
+				if item.Content != "" {
+					prefix := "- [ ]"
+					switch item.Status {
+					case "completed":
+						prefix = "- [x]"
+					case "in_progress":
+						prefix = "- [/]"
+					case "cancelled":
+						prefix = "- [-]"
+					}
+					content := item.Content
+					if !strings.HasPrefix(strings.TrimSpace(content), "- [") {
+						content = prefix + " " + content
+					}
+					todoSections = append(todoSections, content)
+				}
+			}
+		}
+		todoRows.Close()
+		if len(todoSections) > 0 {
+			sections = append(sections, "## Plan Items\n\n"+strings.Join(todoSections, "\n"))
+		}
 	}
 
 	if len(sections) == 0 {

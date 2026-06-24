@@ -229,6 +229,16 @@ func retryOnBusy(fn func() error) error {
 	return err
 }
 
+// isPlanTool returns true for tool call names whose Input should be included
+// in the search index along with Name and Output.
+func isPlanTool(name string) bool {
+	switch name {
+	case "todowrite", "task", "task_complete", "task-complete":
+		return true
+	}
+	return false
+}
+
 // indexSessions indexes session content into the FTS5 search index.
 // It runs incrementally: sessions are only re-indexed if their content hash changes.
 func (s *State) indexSessions(ctx context.Context) {
@@ -273,6 +283,10 @@ func (s *State) indexSessions(ctx context.Context) {
 			for _, tc := range msg.ToolCalls {
 				messagesBuilder.WriteString(tc.Name)
 				messagesBuilder.WriteString(" ")
+				if isPlanTool(tc.Name) && tc.Input != "" {
+					messagesBuilder.WriteString(tc.Input)
+					messagesBuilder.WriteString(" ")
+				}
 				messagesBuilder.WriteString(tc.Output)
 				messagesBuilder.WriteString("\n")
 			}
@@ -341,6 +355,10 @@ func (s *State) indexSessions(ctx context.Context) {
 			for _, tc := range msg.ToolCalls {
 				msgBuilder.WriteString(tc.Name)
 				msgBuilder.WriteString(" ")
+				if isPlanTool(tc.Name) && tc.Input != "" {
+					msgBuilder.WriteString(tc.Input)
+					msgBuilder.WriteString(" ")
+				}
 				msgBuilder.WriteString(tc.Output)
 				msgBuilder.WriteString("\n")
 			}

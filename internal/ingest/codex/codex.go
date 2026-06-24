@@ -404,16 +404,18 @@ type turnContextPayload struct {
 }
 
 type eventMsgPayload struct {
-	Type      string          `json:"type"`
-	TurnID    string          `json:"turn_id,omitempty"`
-	Message   string          `json:"message,omitempty"`
-	Phase     string          `json:"phase,omitempty"`
-	StartedAt int64           `json:"started_at,omitempty"`
-	Info      *tokenCountInfo `json:"info,omitempty"`
-	Item      *itemComplete   `json:"item,omitempty"`
-	Changes   json.RawMessage `json:"changes,omitempty"`
-	CallID    string          `json:"call_id,omitempty"`
-	Success   bool            `json:"success,omitempty"`
+	Type        string          `json:"type"`
+	TurnID      string          `json:"turn_id,omitempty"`
+	Message     string          `json:"message,omitempty"`
+	Phase       string          `json:"phase,omitempty"`
+	StartedAt   int64           `json:"started_at,omitempty"`
+	CompletedAt int64           `json:"completed_at,omitempty"`
+	DurationMs  int64           `json:"duration_ms,omitempty"`
+	Info        *tokenCountInfo `json:"info,omitempty"`
+	Item        *itemComplete   `json:"item,omitempty"`
+	Changes     json.RawMessage `json:"changes,omitempty"`
+	CallID      string          `json:"call_id,omitempty"`
+	Success     bool            `json:"success,omitempty"`
 }
 
 type tokenCountInfo struct {
@@ -594,6 +596,16 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				msg.ToolCalls = msgToolCalls
 				messages = append(messages, msg)
 				toolCallsByID = make(map[string]*ingest.ToolCall)
+
+			case "task_complete":
+				tc := &ingest.ToolCall{
+					ID:     pl.TurnID,
+					Name:   "task_complete",
+					Status: "completed",
+					Output: "completed",
+					Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d}`, pl.TurnID, pl.CompletedAt, pl.DurationMs),
+				}
+				toolCallsByID[pl.TurnID] = tc
 			}
 		}
 	}
