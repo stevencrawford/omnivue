@@ -32,6 +32,7 @@ export function effectiveToolKind(tool: ToolCall): string {
     case "websearch":
     case "codesearch":
     case "delete":
+    case "jira":
       return tool.name;
     case "view":
       return "read";
@@ -144,6 +145,28 @@ export function getToolSummary(tool: ToolCall, agent?: string): string {
     const q = extractJSONField(input, "query") || "";
     if (q) return q.length > 80 ? q.slice(0, 80) + "…" : q;
     return "codesearch";
+  }
+
+  if (kind === "jira") {
+    let label = "";
+    if (tool.output) {
+      try {
+        const parsed = JSON.parse(tool.output);
+        const key = parsed.key || "";
+        const summary = parsed.fields?.summary || "";
+        if (key && summary) label = `jira: ${key} ${summary.slice(0, 60)}`;
+        else if (key) label = `jira: ${key}`;
+        else if (summary) label = `jira: ${summary.slice(0, 80)}`;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!label) {
+      const key =
+        extractJSONField(input, "issueIdOrKey") || extractJSONField(input, "issueKey") || "";
+      if (key) label = `jira: ${key}`;
+    }
+    return label.slice(0, 200) || "jira";
   }
 
   if (tool.name === "tool") {

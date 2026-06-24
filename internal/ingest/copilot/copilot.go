@@ -431,6 +431,10 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 						tc.Name = "question"
 						tc.Input = normalizeAskUserInput(tc.Input)
 					}
+					// Normalize Copilot JIRA tool call to standard kind
+					if tc.Name == "atlassian-getJiraIssue" || tc.Name == "atlassian_getJiraIssue" {
+						tc.Name = "jira"
+					}
 					msg.ToolCalls = append(msg.ToolCalls, tc)
 				}
 

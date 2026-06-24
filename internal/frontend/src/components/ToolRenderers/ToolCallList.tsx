@@ -15,6 +15,7 @@ import { TaskToolDiff } from "./TaskToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { DeleteToolDiff } from "./DeleteToolDiff";
+import { JiraToolDiff } from "./JiraToolDiff";
 
 const TOOL_CALL_VISIBLE_CAP = 5;
 
@@ -232,6 +233,8 @@ export function ToolCallRow({
             isBookmarked={isBookmarked}
           />
         );
+      case "jira":
+        return <JiraToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
       default:
         return <DefaultToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
     }
