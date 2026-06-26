@@ -255,7 +255,12 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
 
       {/* Folder list */}
       {sortedFolders.length === 0 && !creating && (
-        <div className="text-[11px] text-gh-text-secondary px-2 py-1">No folders yet</div>
+        <div className="flex flex-col items-center text-center px-6 py-6">
+          <FolderIcon size={24} className="text-gh-text-secondary/40 mb-3" />
+          <p className="text-xs text-gh-text-secondary/60 max-w-36 leading-relaxed">
+            Group related sessions into folders to stay organized.
+          </p>
+        </div>
       )}
       {sortedFolders.map((folder) => (
         <div key={folder.id} className="group">

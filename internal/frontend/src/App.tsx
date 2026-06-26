@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { X, Copy, Check } from "lucide-react";
+import { useCopy } from "./hooks/useCopy";
 import { Sidebar } from "./components/Sidebar";
 import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
@@ -459,6 +460,7 @@ export function App() {
     }
   }, [drawerQuery]);
 
+  const { copied: initCopied, copy: copyInit } = useCopy(1500);
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
   return (
@@ -619,7 +621,7 @@ export function App() {
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                         />
                       </svg>
                       <p className="text-sm font-medium text-gh-text">No sessions yet</p>
@@ -630,21 +632,22 @@ export function App() {
                         Supported: OpenCode, Copilot, Cursor, Pi, Codex
                       </p>
                       <div className="w-full">
-                        <div
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gh-border bg-gh-bg-secondary text-xs font-mono text-gh-text select-all cursor-pointer"
-                          onClick={() => navigator.clipboard.writeText("sess init")}
-                          title="Click to copy"
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyInit("sess init");
+                          }}
+                          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-gh-border bg-gh-bg-secondary text-xs font-mono text-gh-text select-none cursor-pointer transition-colors hover:bg-gh-bg-hover"
+                          title="Copy command"
                         >
-                          <span className="flex-1">$ sess init</span>
-                          <svg
-                            className="size-3.5 shrink-0 opacity-60 hover:opacity-100"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                          >
-                            <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z" />
-                            <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Z" />
-                          </svg>
-                        </div>
+                          <span className="flex-1 text-left">$ sess init</span>
+                          {initCopied ? (
+                            <Check className="size-3.5 shrink-0 text-emerald-400" />
+                          ) : (
+                            <Copy className="size-3.5 shrink-0 text-gh-text-secondary" />
+                          )}
+                        </button>
                       </div>
                       <p className="text-xs text-gh-text-secondary">or</p>
                       <button

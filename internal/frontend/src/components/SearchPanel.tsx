@@ -222,7 +222,7 @@ export function SearchPanel({
                 placeholder={
                   searchScope
                     ? "Search in current session..."
-                    : "Search sessions, messages, plans..."
+                    : "Search conversations, tool calls, and plans..."
                 }
                 className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
               />

@@ -334,7 +334,12 @@ export function ProjectPanel({
       {/* Folder list */}
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {sortedFolders.length === 0 && !creating && (
-          <div className="text-[11px] text-gh-text-secondary px-1 py-2">No folders yet</div>
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <FolderIcon size={24} className="text-gh-text-secondary/40 mb-3" />
+            <p className="text-xs text-gh-text-secondary/60 max-w-36 leading-relaxed">
+              Group related sessions into folders to stay organized.
+            </p>
+          </div>
         )}
         {sortedFolders.map((folder) => (
           <div key={folder.id} className="group">
