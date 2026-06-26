@@ -237,6 +237,11 @@ export async function updateSource(
   if (!res.ok) throw new Error("Failed to update source");
 }
 
+export async function resetApp(): Promise<void> {
+  const res = await fetch("/_/api/reset", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to reset");
+}
+
 export async function fetchConfig(): Promise<Record<string, string>> {
   const res = await fetch("/_/api/config");
   if (!res.ok) throw new Error("Failed to fetch config");

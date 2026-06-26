@@ -41,6 +41,10 @@ export function useSSE(callbacks: SSECallbacks) {
         callbacksRef.current.onUpdate();
       });
 
+      es.addEventListener("reset", () => {
+        window.location.reload();
+      });
+
       es.addEventListener("session-changed", (e) => {
         try {
           const data = JSON.parse(e.data);

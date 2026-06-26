@@ -668,6 +668,28 @@ type SearchResult struct {
 	MessageIndex  int    `json:"messageIndex,omitempty"`
 }
 
+// Reset removes all user data from the store (sources, folders, search index,
+// session names, scratch files, config, bookmarks). Agent data is unaffected.
+func (s *Store) Reset() error {
+	tables := []string{
+		"bookmarks",
+		"scratch_files",
+		"session_names",
+		"index_state",
+		"search_index",
+		"folder_sessions",
+		"folders",
+		"sources",
+		"config",
+	}
+	for _, t := range tables {
+		if _, err := s.db.Exec(`DELETE FROM ` + t); err != nil {
+			return fmt.Errorf("reset: delete %s: %w", t, err)
+		}
+	}
+	return nil
+}
+
 // migrate runs database migrations.
 func (s *Store) migrate() error {
 	_, err := s.db.Exec(`

@@ -923,6 +923,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("DELETE /_/api/bookmarks/{id}", handleDeleteBookmark(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
+	mux.HandleFunc("POST /_/api/reset", handleReset(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
 
 	// SPA fallback
@@ -1689,6 +1690,32 @@ func handleRestart(state *State) http.HandlerFunc {
 			time.Sleep(100 * time.Millisecond)
 			state.restartCh <- ""
 		}()
+	}
+}
+
+func handleReset(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		if err := state.store.Reset(); err != nil {
+			slog.Error("reset failed", "error", err)
+			http.Error(w, "reset failed", http.StatusInternalServerError)
+			return
+		}
+		// Close all adapters
+		state.mu.Lock()
+		for id, adapter := range state.adapters {
+			adapter.Close()
+			delete(state.adapters, id)
+		}
+		state.sessions = nil
+		state.mu.Unlock()
+		// Notify frontend to reload
+		state.sendEvent(sseEvent{Name: "reset"})
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
