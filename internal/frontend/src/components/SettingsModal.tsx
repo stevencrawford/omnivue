@@ -72,7 +72,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSourcesError(null);
     try {
       const data = await fetchSources();
-      setSources(data);
+      setSources(data || []);
     } catch {
       setSourcesError("Failed to load sources");
     } finally {

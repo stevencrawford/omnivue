@@ -947,6 +947,9 @@ func handleStatus(state *State) http.HandlerFunc {
 func handleSources(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sources := state.GetSources()
+		if sources == nil {
+			sources = []ingest.Source{}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sources)
 	}
