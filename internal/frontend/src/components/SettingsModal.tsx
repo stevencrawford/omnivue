@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { Trash2, Plus, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Trash2, Plus, Loader2, TriangleAlert } from "lucide-react";
 import { Modal } from "./Modal";
-import { fetchSources, addSource, removeSource, setConfig } from "../hooks/useApi";
+import { fetchSources, addSource, removeSource, setConfig, resetApp } from "../hooks/useApi";
 import type { Source } from "../hooks/useApi";
 import { useTheme, THEMES } from "../hooks/useTheme";
 import type { ThemeName, ThemeMode } from "../hooks/useTheme";
@@ -54,6 +54,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
 
   const { themeName, setThemeName, theme, setTheme } = useTheme();
 
@@ -66,6 +67,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return true;
     }
   });
+
+  const [resetting, setResetting] = useState(false);
+  const [resetStep, setResetStep] = useState<0 | 1 | 2>(0);
+  const [resetConfirmText, setResetConfirmText] = useState("");
 
   const loadSources = useCallback(async () => {
     setSourcesLoading(true);
@@ -86,8 +91,21 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setAddingPath("");
       setAddingType("opencode");
       setConfirmingDeleteId(null);
+      setAgentFilter(null);
+      setResetStep(0);
+      setResetConfirmText("");
     }
   }, [isOpen, loadSources]);
+
+  const agentTypes = useMemo(() => {
+    const types = new Set(sources.map((s) => s.agentType));
+    return Array.from(types).sort();
+  }, [sources]);
+
+  const filteredSources = useMemo(() => {
+    if (!agentFilter) return sources;
+    return sources.filter((s) => s.agentType === agentFilter);
+  }, [sources, agentFilter]);
 
   const handleAdd = async () => {
     const path = addingPath.trim();
@@ -135,8 +153,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      await resetApp();
+    } catch (err) {
+      console.error("Failed to reset:", err);
+      setResetting(false);
+      setResetStep(0);
+      setResetConfirmText("");
+    }
+  };
+
+  const handleResetClose = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settings" size="lg">
+    <Modal isOpen={isOpen} onClose={handleResetClose} title="Settings" size="lg">
       <div className="flex gap-0 h-[460px]">
         {/* Sidebar tabs */}
         <div className="w-40 shrink-0 border-r border-gh-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
@@ -162,82 +196,99 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex-1 min-w-0 pl-5 pr-5 overflow-y-auto">
           {activeTab === "agent" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-2">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 Agent Directories
               </h3>
+              <p className="text-[11px] text-gh-text-secondary mb-3">
+                Add or remove agent data directories. sess reads from these paths to discover sessions.
+              </p>
 
               {sourcesLoading ? (
                 <p className="text-xs text-gh-text-secondary">Loading...</p>
               ) : sourcesError ? (
                 <p className="text-xs text-red-400">{sourcesError}</p>
               ) : (
-                <div className="space-y-1">
-                  {sources.map((source) =>
-                    confirmingDeleteId === source.id ? (
-                      <div
-                        key={source.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-red-500/[0.08] border border-red-500/30"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-gh-text">
-                            {source.agentType}
-                            {source.label && ` · ${source.label}`}
-                          </p>
-                          <p className="truncate text-[11px] text-red-400/80">
-                            Removes all information local to sess. Agent data unaffected. Confirm?
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmingDeleteId(null)}
-                          className="shrink-0 px-2 py-1 text-xs rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          disabled={removingId === source.id}
-                          onClick={() => handleRemove(source.id)}
-                          className="shrink-0 px-2 py-1 text-xs rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-40 cursor-pointer transition-colors"
-                        >
-                          {removingId === source.id ? (
-                            <Loader2 className="size-3 animate-spin" />
-                          ) : (
-                            "Delete"
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        key={source.id}
-                        className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-gh-bg-secondary border border-gh-border text-xs"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-gh-text">
-                            {source.agentType}
-                            {source.label && ` · ${source.label}`}
-                          </p>
-                          <p className="truncate text-[11px] text-gh-text-secondary font-mono">
-                            {source.path}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={removingId === source.id}
-                          onClick={() => setConfirmingDeleteId(source.id)}
-                          className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 disabled:opacity-40 cursor-pointer transition-colors"
-                          title="Remove source"
-                        >
-                          {removingId === source.id ? (
-                            <Loader2 className="size-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-3" />
-                          )}
-                        </button>
-                      </div>
-                    ),
+                <>
+                  {/* Agent type filter */}
+                  {agentTypes.length > 1 && (
+                    <div className="flex items-center gap-1 mb-2 flex-wrap">
+                      <FilterChip
+                        label="Type"
+                        value={agentFilter}
+                        options={agentTypes}
+                        onChange={setAgentFilter}
+                      />
+                    </div>
                   )}
-                </div>
+
+                  <div className="space-y-1">
+                    {filteredSources.map((source) =>
+                      confirmingDeleteId === source.id ? (
+                        <div
+                          key={source.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-red-500/[0.08] border border-red-500/30"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gh-text">
+                              {source.agentType}
+                              {source.label && ` · ${source.label}`}
+                            </p>
+                            <p className="truncate text-[11px] text-red-400/80">
+                              Removes all information local to sess. Agent data unaffected. Confirm?
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingDeleteId(null)}
+                            className="shrink-0 px-2 py-1 text-xs rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={removingId === source.id}
+                            onClick={() => handleRemove(source.id)}
+                            className="shrink-0 px-2 py-1 text-xs rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-40 cursor-pointer transition-colors"
+                          >
+                            {removingId === source.id ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              "Delete"
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          key={source.id}
+                          className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-gh-bg-secondary border border-gh-border text-xs"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gh-text">
+                              {source.agentType}
+                              {source.label && ` · ${source.label}`}
+                            </p>
+                            <p className="truncate text-[11px] text-gh-text-secondary font-mono">
+                              {source.path}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={removingId === source.id}
+                            onClick={() => setConfirmingDeleteId(source.id)}
+                            className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 disabled:opacity-40 cursor-pointer transition-colors"
+                            title="Remove source"
+                          >
+                            {removingId === source.id ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3" />
+                            )}
+                          </button>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </>
               )}
 
               {sources.length === 0 && !sourcesLoading && (
@@ -285,9 +336,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === "appearance" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 Appearance
               </h3>
+              <p className="text-[11px] text-gh-text-secondary mb-3">
+                Customize the look and feel of your sess interface.
+              </p>
 
               <p className="text-[11px] font-medium text-gh-text-secondary mb-2">Theme</p>
               <div className="grid grid-cols-2 gap-2">
@@ -353,9 +407,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === "privacy" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-2">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 Privacy
               </h3>
+              <p className="text-[11px] text-gh-text-secondary mb-3">
+                Control what data is displayed in the UI.
+              </p>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -377,16 +434,213 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === "about" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-2">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 About
               </h3>
-              <p className="text-xs text-gh-text-secondary">
-                sess — AI coding session viewer. Browse, search, and manage your AI agent sessions.
+              <p className="text-[11px] text-gh-text-secondary mb-3">
+                sess — AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.
               </p>
+
+              <p className="text-xs text-gh-text-secondary leading-relaxed mb-4">
+                Browse, search, and manage all your AI coding sessions from one place.
+                sess reads agent session databases in read-only mode, indexes their content for
+                full-text search, and displays conversations, plans, diffs, and tool calls in a
+                unified browser UI. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
+              </p>
+
+              <div className="text-xs text-gh-text-secondary space-y-1 mb-4">
+                <p>
+                  <span className="text-gh-text">Repository:</span>{" "}
+                  <a
+                    href="https://github.com/stevencrawford/sess"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    github.com/stevencrawford/sess
+                  </a>
+                </p>
+              </div>
+
+              {/* Factory Reset */}
+              <div className="border-t border-gh-border pt-4 mt-4">
+                <h4 className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-1">
+                  Factory Reset
+                </h4>
+                <p className="text-[11px] text-gh-text-secondary mb-3">
+                  Remove all sess-local data including sources, folders, scratch notes, bookmarks,
+                  search index, and configuration. Agent data on disk is unaffected.
+                </p>
+
+                {resetStep === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setResetStep(1)}
+                    className="text-xs px-3 py-1.5 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
+                  >
+                    Reset sess
+                  </button>
+                )}
+
+                {resetStep === 1 && (
+                  <div className="p-3 rounded-md border border-red-500/30 bg-red-500/[0.08] space-y-2">
+                    <div className="flex items-start gap-2">
+                      <TriangleAlert className="size-4 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-400/90">
+                        This will permanently remove all local data: sources, folders, bookmarks, scratch
+                        notes, search index, and settings. Agent data on disk is safe and can be re-added.
+                        This action cannot be undone.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetStep(0);
+                          setResetConfirmText("");
+                        }}
+                        className="text-xs px-2 py-1 rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setResetStep(2)}
+                        className="text-xs px-2 py-1 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
+                      >
+                        Continue
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {resetStep === 2 && (
+                  <div className="p-3 rounded-md border border-red-500/30 bg-red-500/[0.08] space-y-2">
+                    <p className="text-xs text-red-400/90">
+                      Type <span className="font-mono font-bold">RESET</span> to confirm.
+                    </p>
+                    <input
+                      type="text"
+                      value={resetConfirmText}
+                      onChange={(e) => setResetConfirmText(e.target.value)}
+                      placeholder="Type RESET"
+                      className="w-full text-xs bg-gh-bg border border-red-500/30 rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-red-400 font-mono"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && resetConfirmText === "RESET" && !resetting) {
+                          handleReset();
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetStep(0);
+                          setResetConfirmText("");
+                        }}
+                        className="text-xs px-2 py-1 rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={resetConfirmText !== "RESET" || resetting}
+                        onClick={handleReset}
+                        className="text-xs px-2 py-1 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-40 cursor-pointer transition-colors"
+                      >
+                        {resetting ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          "Confirm Reset"
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── Filter Chip ──────────────────────────────────────────────────
+
+function FilterChip({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  options: string[];
+  onChange: (value: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const displayLabel = value ?? `All ${label}s`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`text-[11px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
+          value
+            ? "border-accent-border bg-accent-muted text-accent"
+            : "border-gh-border text-gh-text-secondary hover:border-accent-border hover:text-gh-text"
+        }`}
+      >
+        {label}: {displayLabel}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
+          <button
+            type="button"
+            className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
+              !value
+                ? "text-gh-text bg-gh-bg-active"
+                : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+            }`}
+            onClick={() => {
+              onChange(null);
+              setOpen(false);
+            }}
+          >
+            All {label}s
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors truncate capitalize ${
+                value === opt
+                  ? "text-gh-text bg-gh-bg-active"
+                  : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+              }`}
+              onClick={() => {
+                onChange(opt);
+                setOpen(false);
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
