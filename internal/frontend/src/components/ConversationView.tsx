@@ -16,6 +16,7 @@ import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost, formatTokens } from "../utils/sessionUtils";
 import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
+import { toolRendererRegistry } from "./ToolRenderers/registry";
 
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
@@ -26,62 +27,18 @@ import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
 import { useSessionNav } from "../hooks/useNav";
 import { detectLanguage } from "../utils/detectLanguage";
 
-const MARKER_COLORS: Record<string, string> = {
+const LEGACY_MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
-  edit: "#ef4444",
-  read: "#06b6d4",
-  bash: "#eab308",
-  "task-complete": "#10b981",
-  plan: "#a855f7",
-  question: "#f97316",
-  search: "#8b5cf6",
-  web: "#ec4899",
-  todowrite: "#f59e0b",
-  delete: "#ef4444",
   thinking: "#a78bfa",
   "assistant-text": "#8b949e",
-  "sub-agent": "#f472b6",
-  tool: "#6b7280",
 };
 
-const MARKER_DISPLAY_LABELS: Record<string, string> = {
+const LEGACY_MARKER_LABELS: Record<string, string> = {
   "user-request": "User requests",
-  edit: "Edits",
-  read: "Reads",
-  bash: "Shell",
-  "task-complete": "Task complete",
-  plan: "Plans",
-  question: "Questions",
-  search: "Search",
-  web: "Web",
-  todowrite: "Todo",
-  delete: "Deletes",
   thinking: "Thinking",
   "assistant-text": "Assistant Message",
-  "sub-agent": "Sub-agent",
-  tool: "Other",
 };
 
-function markerDisplayType(kind: string): string {
-  if (
-    kind === "user-request" ||
-    kind === "assistant-text" ||
-    kind === "thinking" ||
-    kind === "bash" ||
-    kind === "read" ||
-    kind === "question" ||
-    kind === "todowrite" ||
-    kind === "delete"
-  )
-    return kind;
-  if (kind === "edit" || kind === "write") return "edit";
-  if (kind === "task_complete" || kind === "task-complete") return "task-complete";
-  if (kind === "task") return "sub-agent";
-  if (kind === "exit_plan_mode") return "plan";
-  if (kind === "grep" || kind === "glob" || kind === "codesearch") return "search";
-  if (kind === "webfetch" || kind === "websearch") return "web";
-  return "tool";
-}
 
 function groupMessages(messages: Message[]): Message[] {
   const result: Message[] = [];
@@ -286,70 +243,82 @@ export function ConversationView({
           id: `msg-${idx}`,
           type: "user-request",
           summary: msg.content?.slice(0, 120) || "",
-          color: MARKER_COLORS["user-request"],
-          label: MARKER_DISPLAY_LABELS["user-request"],
+          color: LEGACY_MARKER_COLORS["user-request"],
+          label: LEGACY_MARKER_LABELS["user-request"],
         });
         return;
       }
       if (msg.role === "assistant") {
         const tools = (msg.toolCalls ?? []).filter((t) => t.name !== "report_intent");
         if (tools.length > 0) {
-          const priority = [
-            "task_complete",
-            "task",
-            "edit",
-            "write",
-            "read",
-            "bash",
-            "exit_plan_mode",
-            "question",
-            "grep",
-            "glob",
-            "codesearch",
-            "webfetch",
-            "websearch",
-            "todowrite",
-            "delete",
-          ];
+          const dtList = toolRendererRegistry.allMarkerDisplayTypes();
           const toolKinds = tools.map((t) => effectiveToolKind(t));
           let dominantKind = "tool";
-          for (const p of priority) {
-            if (toolKinds.includes(p)) {
-              dominantKind = p;
+          for (const { displayType } of dtList) {
+            const matched = toolKinds.find(
+              (k) => toolRendererRegistry.markerForKind(k).displayType === displayType,
+            );
+            if (matched) {
+              dominantKind = matched;
               break;
             }
           }
           const domToolIdx = toolKinds.indexOf(dominantKind);
           const domTool = domToolIdx >= 0 ? tools[domToolIdx] : tools[0];
-          const displayType = markerDisplayType(dominantKind);
+          const marker = toolRendererRegistry.markerForKind(dominantKind);
           result.push({
             id: `msg-${idx}`,
-            type: displayType,
+            type: marker.displayType,
             summary: getToolSummary(domTool, msg.agent),
-            color: MARKER_COLORS[displayType] || MARKER_COLORS["tool"],
-            label: MARKER_DISPLAY_LABELS[displayType] || MARKER_DISPLAY_LABELS["tool"],
+            color: marker.color,
+            label: marker.label,
           });
         } else if (msg.reasoning) {
           result.push({
             id: `msg-${idx}`,
             type: "thinking",
             summary: msg.reasoning.slice(0, 120),
-            color: MARKER_COLORS["thinking"],
-            label: MARKER_DISPLAY_LABELS["thinking"],
+            color: LEGACY_MARKER_COLORS["thinking"],
+            label: LEGACY_MARKER_LABELS["thinking"],
           });
         } else if (msg.content?.trim()) {
           result.push({
             id: `msg-${idx}`,
             type: "assistant-text",
             summary: msg.content.slice(0, 120),
-            color: MARKER_COLORS["assistant-text"],
-            label: MARKER_DISPLAY_LABELS["assistant-text"],
+            color: LEGACY_MARKER_COLORS["assistant-text"],
+            label: LEGACY_MARKER_LABELS["assistant-text"],
           });
         }
       }
     });
     return result;
   }, [messagesWithoutReminders]);
+
+  const allMarkerLegendTypes = useMemo(() => {
+    const map = new Map<string, { label: string; color: string }>();
+    map.set("user-request", {
+      label: LEGACY_MARKER_LABELS["user-request"],
+      color: LEGACY_MARKER_COLORS["user-request"],
+    });
+    map.set("thinking", {
+      label: LEGACY_MARKER_LABELS["thinking"],
+      color: LEGACY_MARKER_COLORS["thinking"],
+    });
+    for (const { displayType } of toolRendererRegistry.allMarkerDisplayTypes()) {
+      const marker = toolRendererRegistry.markerForKind(displayType);
+      map.set(displayType, { label: marker.label, color: marker.color });
+    }
+    map.set("assistant-text", {
+      label: LEGACY_MARKER_LABELS["assistant-text"],
+      color: LEGACY_MARKER_COLORS["assistant-text"],
+    });
+    return Array.from(map.entries()).map(([type, { label, color }]) => ({
+      type,
+      label,
+      color,
+    }));
+  }, []);
 
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
 
@@ -685,14 +654,14 @@ export function ConversationView({
                             setHiddenMarkerTypes(
                               hiddenMarkerTypes.size > 0
                                 ? new Set()
-                                : new Set(Object.keys(MARKER_DISPLAY_LABELS)),
+                                : new Set(allMarkerLegendTypes.map((t) => t.type)),
                             );
                           }}
                           className="w-full text-left px-3 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover transition-colors cursor-pointer border-b border-gh-border"
                         >
                           {hiddenMarkerTypes.size > 0 ? "Select all" : "Deselect all"}
                         </button>
-                        {Object.entries(MARKER_DISPLAY_LABELS).map(([type, label]) => (
+                        {allMarkerLegendTypes.map(({ type, label, color }) => (
                           <label
                             key={type}
                             className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-gh-bg-hover transition-colors whitespace-nowrap"
@@ -712,7 +681,7 @@ export function ConversationView({
                             />
                             <span
                               className="w-2 h-2 rounded-sm shrink-0"
-                              style={{ backgroundColor: MARKER_COLORS[type] }}
+                              style={{ backgroundColor: color }}
                             />
                             {label}
                           </label>
