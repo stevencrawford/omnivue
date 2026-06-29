@@ -3,6 +3,8 @@ import type { ToolCall } from "../../hooks/useApi";
 
 export interface ToolRendererProps {
   tool: ToolCall;
+  /** Full, untruncated output text (when tool.output may be truncated for display). */
+  rawOutput?: string;
   compact: boolean;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;

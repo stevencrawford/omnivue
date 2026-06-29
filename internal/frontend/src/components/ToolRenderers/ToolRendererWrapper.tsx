@@ -83,6 +83,7 @@ export function ToolRendererWrapper({
 
   const rendererProps: ToolRendererProps = {
     tool,
+    rawOutput: tool.output,
     compact,
     onOpenModal,
     onPin,
@@ -144,6 +145,7 @@ export function ToolRendererWrapper({
 
     const expandedRendererProps: ToolRendererProps = {
       tool: displayTool,
+      rawOutput: tool.output,
       compact: false,
       onOpenModal,
       onPin,
