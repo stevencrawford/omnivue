@@ -32,36 +32,36 @@ Each discovered module must export a `definitions: ToolRendererDefinition[]` arr
 
 ```typescript
 interface ToolRendererDefinition {
-  kind: string;            // canonical kind (e.g. "bash", "edit")
-  names: string[];         // tool names mapping to this kind
+  kind: string; // canonical kind (e.g. "bash", "edit")
+  names: string[]; // tool names mapping to this kind
   Component: ComponentType<ToolRendererProps>;
   summary?: (tool: ToolCall, agent?: string) => string;
-  markerColor?: string;    // hex color for scrollbar marker
-  markerLabel?: string;    // human-readable label for marker legend
-  markerDisplayType?: string;  // grouping key for markers
+  markerColor?: string; // hex color for scrollbar marker
+  markerLabel?: string; // human-readable label for marker legend
+  markerDisplayType?: string; // grouping key for markers
   markerPriority?: number; // lower = higher in marker bar
-  priority?: number;       // override priority (builtin=0, vendor=10)
-  truncateOutput?: number; // max output lines (default 200, 0 = no truncation)
+  priority?: number; // override priority (builtin=0, vendor=10)
+  truncateOutput?: number; // max output lines (default 50, 0 = no truncation)
 }
 ```
 
 ### Override Rules
 
-| Scenario | Outcome |
-|----------|---------|
-| Vendor registers `kind: "bash"` with `priority: 10` | Replaces builtin `bash` (priority 0) |
-| Vendor registers `kind: "bash"` with `priority: 0` | `console.warn("Clash")` — builtin wins |
-| Vendor registers new `kind: "jira_create_issue"` | Registered as new kind |
-| Tool name `"jira_create_issue"` | Maps to kind `"jira_create_issue"` |
+| Scenario                                            | Outcome                                |
+| --------------------------------------------------- | -------------------------------------- |
+| Vendor registers `kind: "bash"` with `priority: 10` | Replaces builtin `bash` (priority 0)   |
+| Vendor registers `kind: "bash"` with `priority: 0`  | `console.warn("Clash")` — builtin wins |
+| Vendor registers new `kind: "jira_create_issue"`    | Registered as new kind                 |
+| Tool name `"jira_create_issue"`                     | Maps to kind `"jira_create_issue"`     |
 
 ### Compact Mode Contract
 
 Every renderer is a single component that handles both modes via the required `compact` prop:
 
-| Prop value | Expected output |
-|------------|-----------------|
-| `compact: true` | Single-line summary (text + icon), no borders/cards |
-| `compact: false` | Full card with rich detail |
+| Prop value       | Expected output                                     |
+| ---------------- | --------------------------------------------------- |
+| `compact: true`  | Single-line summary (text + icon), no borders/cards |
+| `compact: false` | Full card with rich detail                          |
 
 If a renderer has no meaningful compact representation, render a minimal one-line fallback (e.g., kind label with truncated summary).
 
@@ -69,7 +69,7 @@ If a renderer has no meaningful compact representation, render a minimal one-lin
 
 Truncation is always system-level via `ToolRendererWrapper`:
 
-- `truncateOutput` field (default 200) controls max output lines
+- `truncateOutput` field (default 50) controls max output lines
 - The system truncates `tool.output` before the component receives it
 - Renderers must never truncate their own output
 - System handles "Show more/less" expand/collapse UI uniformly
@@ -107,36 +107,36 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 
 ## Builtin Renderer Reference
 
-| Kind | Component | `truncateOutput` | `markerPriority` |
-|------|-----------|-----------------|-----------------|
-| `task_complete` | `TaskCompleteToolDiff` | 200 (default) | 0 |
-| `task` | `TaskToolDiff` | 200 (default) | 10 |
-| `edit`, `write` | `EditToolDiff` | 20 | 20 |
-| `exit_plan_mode` | `ExitPlanModeToolDiff` | 200 (default) | 30 |
-| `question` | `QuestionToolDiff` | 200 (default) | 40 |
-| `read` | `ReadToolDiff` | 200 (default) | 50 |
-| `bash` | `BashToolDiff` | 200 | 60 |
-| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | 200 | 70 |
-| `webfetch`, `websearch` | `DefaultToolDiff` | 200 (default) | 80 |
-| `todowrite` | `TodoWriteToolDiff` | 200 (default) | 90 |
-| `delete` | `DeleteToolDiff` | 200 (default) | 100 |
+| Kind                         | Component                                       | `truncateOutput` | `markerPriority` |
+| ---------------------------- | ----------------------------------------------- | ---------------- | ---------------- |
+| `task_complete`              | `TaskCompleteToolDiff`                          | 50 (default)     | 0                |
+| `task`                       | `TaskToolDiff`                                  | 50 (default)     | 10               |
+| `edit`, `write`              | `EditToolDiff`                                  | 20               | 20               |
+| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 50 (default)     | 30               |
+| `question`                   | `QuestionToolDiff`                              | 50 (default)     | 40               |
+| `read`                       | `ReadToolDiff`                                  | 50 (default)     | 50               |
+| `bash`                       | `BashToolDiff`                                  | 50               | 60               |
+| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | 50               | 70               |
+| `webfetch`, `websearch`      | `DefaultToolDiff`                               | 50 (default)     | 80               |
+| `todowrite`                  | `TodoWriteToolDiff`                             | 50 (default)     | 90               |
+| `delete`                     | `DeleteToolDiff`                                | 50 (default)     | 100              |
 
 ## Styling Conventions
 
 Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). Each kind can use a distinct border/icon color:
 
-| Kind(s) | Border/Accent |
-|---------|--------------|
-| `bash` | amber |
-| `edit`/`write` | accent (green/blue) |
-| `read` | cyan |
-| `grep`/`glob` | violet |
-| `delete` | red |
-| `todowrite` | amber |
-| `task` | violet |
-| `question` | orange |
-| `exit_plan_mode` | amber |
-| `task_complete` | emerald |
+| Kind(s)          | Border/Accent       |
+| ---------------- | ------------------- |
+| `bash`           | amber               |
+| `edit`/`write`   | accent (green/blue) |
+| `read`           | cyan                |
+| `grep`/`glob`    | violet              |
+| `delete`         | red                 |
+| `todowrite`      | amber               |
+| `task`           | violet              |
+| `question`       | orange              |
+| `exit_plan_mode` | amber               |
+| `task_complete`  | emerald             |
 
 ## CopyButton Usage
 
