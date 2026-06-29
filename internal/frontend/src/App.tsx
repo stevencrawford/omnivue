@@ -104,7 +104,7 @@ export function App() {
       const isInput =
         target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
-      if ((e.metaKey || e.ctrlKey) && (e.key === "p" || e.key === "k")) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "k")) {
         e.preventDefault();
         if (drawerOpen) {
           setDrawerOpen(false);
@@ -521,7 +521,7 @@ export function App() {
                 <X size={12} />
               </span>
             )}
-            <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}P</span>
+            <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}F</span>
           </button>
 
           <div className="flex items-center justify-end gap-2">
