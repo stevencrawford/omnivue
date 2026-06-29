@@ -7,8 +7,6 @@ import { useCopy } from "../../hooks/useCopy";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
 
-const TOOL_CALL_VISIBLE_CAP = 5;
-
 export function ToolCallList({
   toolCalls,
   agent,
@@ -30,11 +28,6 @@ export function ToolCallList({
   sessionId?: string;
   messageIndex?: number;
 }) {
-  const [showAll, setShowAll] = useState(false);
-  const capped = toolCalls.length > TOOL_CALL_VISIBLE_CAP;
-  const visible = capped && !showAll ? toolCalls.slice(0, TOOL_CALL_VISIBLE_CAP) : toolCalls;
-  const hiddenCount = toolCalls.length - visible.length;
-
   const toolBookmarkIds = useMemo(() => {
     if (!bookmarkIdByRef || !sessionId || messageIndex === undefined) return new Set<string>();
     const ids = new Set<string>();
@@ -48,7 +41,7 @@ export function ToolCallList({
   if (compact) {
     return (
       <>
-        {visible.map((tool) => (
+        {toolCalls.map((tool) => (
           <ToolCallRow
             key={tool.id}
             tool={tool}
@@ -60,13 +53,6 @@ export function ToolCallList({
             isBookmarked={toolBookmarkIds.has(tool.id)}
           />
         ))}
-        {capped && (
-          <button type="button" className="sess-tool-more" onClick={() => setShowAll((v) => !v)}>
-            {showAll
-              ? "Show fewer"
-              : `Show ${hiddenCount} more tool call${hiddenCount === 1 ? "" : "s"}`}
-          </button>
-        )}
       </>
     );
   }
@@ -74,7 +60,14 @@ export function ToolCallList({
   return (
     <div className="space-y-1">
       {toolCalls.map((tool) => (
-        <ToolCallRow key={tool.id} tool={tool} agent={agent} onOpenModal={onOpenModal} onBookmark={onBookmark} isBookmarked={toolBookmarkIds.has(tool.id)} />
+        <ToolCallRow
+          key={tool.id}
+          tool={tool}
+          agent={agent}
+          onOpenModal={onOpenModal}
+          onBookmark={onBookmark}
+          isBookmarked={toolBookmarkIds.has(tool.id)}
+        />
       ))}
     </div>
   );
@@ -185,7 +178,11 @@ export function ToolCallRow({
   return (
     <div className={wrapperClass}>
       <div className="flex items-center w-full">
-        <button type="button" className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors" onClick={() => setExpanded(!expanded)}>
+        <button
+          type="button"
+          className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+          onClick={() => setExpanded(!expanded)}
+        >
           <ChevronRight
             size={12}
             className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}

@@ -20,7 +20,9 @@ export function ExampleToolDiff({ tool, compact, onCopy }: ToolRendererProps) {
       <div className="px-3 py-2 space-y-2">
         {tool.input && (
           <div>
-            <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">Input</span>
+            <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">
+              Input
+            </span>
             <pre className="mt-0.5 p-2 bg-gh-bg rounded text-[11px] font-mono overflow-x-auto text-gh-text">
               {tool.input}
             </pre>
@@ -28,7 +30,9 @@ export function ExampleToolDiff({ tool, compact, onCopy }: ToolRendererProps) {
         )}
         {tool.output && (
           <div>
-            <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">Output</span>
+            <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">
+              Output
+            </span>
             {onCopy && (
               <button
                 type="button"

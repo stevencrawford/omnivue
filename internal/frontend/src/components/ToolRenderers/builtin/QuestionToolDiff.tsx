@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { CircleHelp, CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { CopyButton } from "../../CopyButton";
-import { BookmarkButton } from "../BookmarkButton";
 
 interface QuestionItem {
   question: string;
@@ -10,7 +8,13 @@ interface QuestionItem {
   options?: Array<{ label: string; description?: string }>;
 }
 
-export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
+export function QuestionToolDiff({
+  tool,
+  compact,
+  onCopy: _onCopy,
+  onBookmark: _onBookmark,
+  isBookmarked: _isBookmarked,
+}: ToolRendererProps) {
   let questions: QuestionItem[] = [];
   try {
     const parsed = JSON.parse(tool.input);
@@ -50,32 +54,17 @@ export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmark
       );
     }
 
-    const simpleText = [text, tool.output].filter(Boolean).join("\n");
     return (
-      <div className="overflow-hidden group">
+      <>
         <div className="flex items-start gap-2 px-3 py-2">
           <span className="flex-1 text-[11px] text-gh-text">{text}</span>
-          <div className="flex items-center gap-1 shrink-0">
-            {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
-            {onCopy ? (
-              <button
-                type="button"
-                onClick={() => onCopy(simpleText)}
-                title="Copy"
-              >
-                <CopyButton text={simpleText} />
-              </button>
-            ) : (
-              <CopyButton text={simpleText} />
-            )}
-          </div>
         </div>
         {tool.output && (
           <div className="border-t border-accent-border px-3 py-1.5 text-[11px] text-emerald-400">
             → {tool.output}
           </div>
         )}
-      </div>
+      </>
     );
   }
 
@@ -85,16 +74,6 @@ export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmark
 
   const selectedLabel = findSelectedOption(userAnswer, q.options || []);
   const freeformText = !selectedLabel ? userAnswer : null;
-
-  const qaText = userAnswer
-    ? questions
-        .map((qItem) => {
-          const qLabel = qItem.header || qItem.question;
-          const ans = findSelectedOption(userAnswer, qItem.options || []);
-          return `Question: ${qLabel}\nAnswer: ${ans || userAnswer}`;
-        })
-        .join("\n\n")
-    : questions.map((qItem) => qItem.header || qItem.question).join("\n");
 
   if (compact) {
     return (
@@ -108,9 +87,8 @@ export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmark
   }
 
   return (
-    <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3 group">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
-        <CircleHelp size={14} className="shrink-0" />
+    <>
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-mono text-gh-text-secondary">
         {questions.length > 1 ? (
           <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto">
             {questions.map((qItem, i) => (
@@ -130,20 +108,6 @@ export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmark
         ) : (
           <span className="font-medium text-gh-text truncate flex-1">{q.header || q.question}</span>
         )}
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
-          {onCopy ? (
-            <button
-              type="button"
-              onClick={() => onCopy(qaText)}
-              title="Copy"
-            >
-              <CopyButton text={qaText} />
-            </button>
-          ) : (
-            <CopyButton text={qaText} />
-          )}
-        </div>
       </div>
       <div className="px-3 py-2">
         {q.question && q.header !== q.question && (
@@ -182,7 +146,7 @@ export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmark
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
 

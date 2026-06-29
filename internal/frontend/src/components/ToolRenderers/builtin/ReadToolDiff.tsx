@@ -2,8 +2,6 @@ import { BookOpen } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { detectLanguage } from "../../../utils/detectLanguage";
 import { FileRenderer } from "../../DiffRenderer";
-import { CopyButton } from "../../CopyButton";
-import { BookmarkButton } from "../BookmarkButton";
 
 interface ReadInput {
   filePath?: string;
@@ -13,7 +11,13 @@ interface ReadInput {
   limit?: number;
 }
 
-export function ReadToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
+export function ReadToolDiff({
+  tool,
+  compact,
+  onCopy: _onCopy,
+  onBookmark: _onBookmark,
+  isBookmarked: _isBookmarked,
+}: ToolRendererProps) {
   let input: ReadInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -57,39 +61,8 @@ export function ReadToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }
   }
 
   return (
-    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
-        <BookOpen size={12} className="text-cyan-400 shrink-0" />
-        <span className="text-gh-text-secondary/70 font-medium shrink-0">read:</span>
-        <span className="font-medium text-gh-text truncate min-w-0" title={filePath}>
-          {baseName}
-        </span>
-        {showLineRange && (
-          <span className="text-gh-text-secondary/70 shrink-0">
-            :{offset}-{offset + limit}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
-          {onCopy ? (
-            <button
-              type="button"
-              onClick={() => onCopy(cleanContent)}
-              title="Copy content"
-            >
-              <CopyButton text={cleanContent} />
-            </button>
-          ) : (
-            <CopyButton text={cleanContent} />
-          )}
-        </div>
-      </div>
-      {cleanContent && (
-        <div className="relative group">
-          <CopyButton text={cleanContent} className="absolute top-1 right-1 z-10" />
-          <FileRenderer content={cleanContent} lang={lang} />
-        </div>
-      )}
+    <div className="relative group">
+      {cleanContent && <FileRenderer content={cleanContent} lang={lang} />}
     </div>
   );
 }

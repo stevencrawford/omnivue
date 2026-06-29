@@ -1,8 +1,6 @@
 import { Monitor, ArrowRight } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { useSessionNav } from "../../../hooks/useNav";
-import { CopyButton } from "../../CopyButton";
-import { BookmarkButton } from "../BookmarkButton";
 
 interface TaskInput {
   description?: string;
@@ -10,7 +8,14 @@ interface TaskInput {
   agent_type?: string;
 }
 
-export function TaskToolDiff({ tool, compact, onOpenModal, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
+export function TaskToolDiff({
+  tool,
+  compact,
+  onOpenModal,
+  onCopy: _onCopy,
+  onBookmark: _onBookmark,
+  isBookmarked: _isBookmarked,
+}: ToolRendererProps) {
   let input: TaskInput = {};
   let childSessionId: string | null = null;
   let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
@@ -42,63 +47,46 @@ export function TaskToolDiff({ tool, compact, onOpenModal, onCopy, onBookmark, i
         <span className="text-gh-text truncate min-w-0" title={description}>
           {description || "Sub-task"}
         </span>
-        {agent && (
-          <span className="text-violet-400/70 shrink-0 ml-auto">{agent}</span>
-        )}
+        {agent && <span className="text-violet-400/70 shrink-0 ml-auto">{agent}</span>}
       </div>
     );
   }
 
   return (
-    <div className="border border-violet-500/30 rounded-lg bg-violet-500/[0.03] overflow-hidden mb-3 group">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-violet-500/20 bg-violet-500/[0.04] text-[11px] font-mono text-violet-400">
-        <Monitor size={14} className="shrink-0" />
-        <span
-          className={`font-medium text-violet-300 truncate ${tool.output && onOpenModal ? "cursor-pointer hover:text-violet-200" : ""}`}
-          title={description || "Sub-task"}
-          onClick={(e) => {
-            if (tool.output && onOpenModal) {
-              e.stopPropagation();
-              onOpenModal(tool.output, description);
-            }
-          }}
-        >
-          {description || "Sub-task"}
+    <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-mono text-violet-400">
+      <span
+        className={`font-medium text-violet-300 truncate ${tool.output && onOpenModal ? "cursor-pointer hover:text-violet-200" : ""}`}
+        title={description || "Sub-task"}
+        onClick={(e) => {
+          if (tool.output && onOpenModal) {
+            e.stopPropagation();
+            onOpenModal(tool.output, description);
+          }
+        }}
+      >
+        {description || "Sub-task"}
+      </span>
+      {agent && <span className="text-violet-400/70">{agent}</span>}
+      {totalCount > 0 && (
+        <span className="text-violet-400/70">
+          {completedCount}/{totalCount} steps
         </span>
-        {agent && <span className="text-violet-400/70">{agent}</span>}
-        {totalCount > 0 && (
-          <span className="text-violet-400/70">
-            {completedCount}/{totalCount} steps
-          </span>
+      )}
+      <div className="ml-auto flex items-center gap-1 shrink-0">
+        {childSessionId && (
+          <button
+            type="button"
+            className="text-violet-400 hover:text-violet-300 cursor-pointer text-[11px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToSession(childSessionId!);
+            }}
+          >
+            <span className="inline-flex items-center gap-1">
+              View session <ArrowRight size={11} />
+            </span>
+          </button>
         )}
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
-          {onCopy && tool.output ? (
-            <button
-              type="button"
-              onClick={() => onCopy(tool.output)}
-              title="Copy output"
-            >
-              <CopyButton text={tool.output} />
-            </button>
-          ) : (
-            tool.output && <CopyButton text={tool.output} />
-          )}
-          {childSessionId && (
-            <button
-              type="button"
-              className="text-violet-400 hover:text-violet-300 cursor-pointer text-[11px]"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigateToSession(childSessionId!);
-              }}
-            >
-              <span className="inline-flex items-center gap-1">
-                View session <ArrowRight size={11} />
-              </span>
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

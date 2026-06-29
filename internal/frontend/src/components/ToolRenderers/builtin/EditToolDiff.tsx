@@ -4,8 +4,6 @@ import type { ToolRendererProps } from "../types";
 import { detectLanguage } from "../../../utils/detectLanguage";
 import { computeDiff } from "../../../utils/diff";
 import { PatchRenderer, FileRenderer } from "../../DiffRenderer";
-import { CopyButton } from "../../CopyButton";
-import { BookmarkButton } from "../BookmarkButton";
 
 interface EditInput {
   path?: string;
@@ -19,8 +17,14 @@ interface EditInput {
   view_range?: [number, number];
 }
 
-export function EditToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
-  const [expanded, setExpanded] = useState(false);
+export function EditToolDiff({
+  tool,
+  compact,
+  onCopy: _onCopy,
+  onBookmark: _onBookmark,
+  isBookmarked: _isBookmarked,
+}: ToolRendererProps) {
+  const [showAll, setShowAll] = useState(false);
   let input: EditInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -82,41 +86,13 @@ export function EditToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }
   }
 
   const showFile = !diffPatch && !!displayContent;
-  const contentToCopy = diffPatch || displayContent;
 
   return (
-    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
-        {isWrite ? (
-          <FilePen size={14} className="text-accent shrink-0" />
-        ) : (
-          <File size={14} className="text-accent shrink-0" />
-        )}
-        <span className="font-medium text-gh-text truncate">{filePath}</span>
-        {viewRange && (
-          <span className="shrink-0 text-gh-text-secondary/70">
-            :{viewRange[0]}-{viewRange[1]}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
-          {onCopy ? (
-            <button
-              type="button"
-              onClick={() => onCopy(contentToCopy)}
-              title="Copy diff"
-            >
-              <CopyButton text={contentToCopy} />
-            </button>
-          ) : (
-            <CopyButton text={contentToCopy} />
-          )}
-        </div>
-      </div>
+    <>
       {diffPatch ? (
         <div
           className={
-            "relative group " + (!expanded && totalLines > 20 ? "max-h-[440px] overflow-hidden" : "")
+            "relative group " + (!showAll && totalLines > 20 ? "max-h-[440px] overflow-hidden" : "")
           }
         >
           <PatchRenderer patch={diffPatch} lang={lang} />
@@ -130,13 +106,13 @@ export function EditToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }
         <div className="text-center border-t border-accent-border">
           <button
             type="button"
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => setShowAll(!showAll)}
             className="text-[11px] font-medium text-accent hover:underline py-2 cursor-pointer"
           >
-            {expanded ? "Show less" : `Show more (${totalLines} lines)`}
+            {showAll ? "Show less" : "Show all"}
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 }

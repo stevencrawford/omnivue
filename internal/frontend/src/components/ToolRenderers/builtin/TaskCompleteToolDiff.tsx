@@ -26,7 +26,7 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
   }
 
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03]">
+    <>
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
@@ -47,6 +47,6 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
