@@ -306,7 +306,9 @@ export function SessionPanel({
               />
             </svg>
             <p className="text-xs text-gh-text-secondary/60 max-w-36 leading-relaxed">
-              {hasFilters ? "No sessions match filters" : "Run sess init or add agents in Settings to discover sessions."}
+              {hasFilters
+                ? "No sessions match filters"
+                : "Run sess init or add agents in Settings to discover sessions."}
             </p>
           </div>
         ) : (

@@ -118,12 +118,7 @@ export function MarkdownContent({
             </button>
           )}
           {onBookmark && (
-            <BookmarkButton
-              isBookmarked={!!isBookmarked}
-              onClick={onBookmark}
-              size="sm"
-              className="!border-0 !bg-transparent"
-            />
+            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
           )}
           {onOpenModal && !shortContent && (
             <button
@@ -207,7 +202,13 @@ export function MarkdownContent({
             <Pin size={12} />
           </button>
         )}
-        {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} />}
+        {onBookmark && (
+          <BookmarkButton
+            isBookmarked={!!isBookmarked}
+            onClick={onBookmark}
+            className="border border-gh-border bg-surface-elevated"
+          />
+        )}
         {onOpenModal && !shortContent && (
           <button
             type="button"

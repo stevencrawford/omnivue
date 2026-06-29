@@ -1,23 +1,11 @@
 import { useState, useMemo } from "react";
-import { ChevronRight, CircleCheckBig, Check, Copy, ArrowRight, Circle } from "lucide-react";
+import { ChevronRight, Check, Copy, ArrowRight, Circle } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { useSessionNav } from "../../hooks/useNav";
 import { useCopy } from "../../hooks/useCopy";
-import { BookmarkButton } from "./BookmarkButton";
-import { BashToolDiff } from "./BashToolDiff";
-import { EditToolDiff } from "./EditToolDiff";
-import { ReadToolDiff } from "./ReadToolDiff";
-import { GrepToolDiff } from "./GrepToolDiff";
-import { GlobToolDiff } from "./GlobToolDiff";
-import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
-import { TaskToolDiff } from "./TaskToolDiff";
-import { QuestionToolDiff } from "./QuestionToolDiff";
-import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
-import { DeleteToolDiff } from "./DeleteToolDiff";
-import { JiraToolDiff } from "./JiraToolDiff";
-
-const TOOL_CALL_VISIBLE_CAP = 5;
+import { toolRendererRegistry } from "./registry";
+import { ToolRendererWrapper } from "./ToolRendererWrapper";
 
 export function ToolCallList({
   toolCalls,
@@ -40,11 +28,6 @@ export function ToolCallList({
   sessionId?: string;
   messageIndex?: number;
 }) {
-  const [showAll, setShowAll] = useState(false);
-  const capped = toolCalls.length > TOOL_CALL_VISIBLE_CAP;
-  const visible = capped && !showAll ? toolCalls.slice(0, TOOL_CALL_VISIBLE_CAP) : toolCalls;
-  const hiddenCount = toolCalls.length - visible.length;
-
   const toolBookmarkIds = useMemo(() => {
     if (!bookmarkIdByRef || !sessionId || messageIndex === undefined) return new Set<string>();
     const ids = new Set<string>();
@@ -58,7 +41,7 @@ export function ToolCallList({
   if (compact) {
     return (
       <>
-        {visible.map((tool) => (
+        {toolCalls.map((tool) => (
           <ToolCallRow
             key={tool.id}
             tool={tool}
@@ -70,13 +53,6 @@ export function ToolCallList({
             isBookmarked={toolBookmarkIds.has(tool.id)}
           />
         ))}
-        {capped && (
-          <button type="button" className="sess-tool-more" onClick={() => setShowAll((v) => !v)}>
-            {showAll
-              ? "Show fewer"
-              : `Show ${hiddenCount} more tool call${hiddenCount === 1 ? "" : "s"}`}
-          </button>
-        )}
       </>
     );
   }
@@ -84,57 +60,15 @@ export function ToolCallList({
   return (
     <div className="space-y-1">
       {toolCalls.map((tool) => (
-        <ToolCallRow key={tool.id} tool={tool} agent={agent} onOpenModal={onOpenModal} />
+        <ToolCallRow
+          key={tool.id}
+          tool={tool}
+          agent={agent}
+          onOpenModal={onOpenModal}
+          onBookmark={onBookmark}
+          isBookmarked={toolBookmarkIds.has(tool.id)}
+        />
       ))}
-    </div>
-  );
-}
-
-function TaskCompleteBlock({
-  tool,
-  onBookmark,
-  isBookmarked,
-}: {
-  tool: ToolCall;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
-  let taskSummary = "";
-
-  try {
-    const parsed = JSON.parse(tool.input);
-    taskSummary = parsed.summary || "";
-  } catch {
-    /* ignore */
-  }
-
-  return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.03]">
-      <div className="px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
-          <span className="font-semibold text-[11px] text-emerald-400">Task Complete</span>
-          {onBookmark && (
-            <span className="ml-auto">
-              <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
-            </span>
-          )}
-        </div>
-        {taskSummary && (
-          <p className="mt-1 text-[11px] text-gh-text-secondary leading-relaxed">
-            {taskSummary.split("\n")[0]}
-          </p>
-        )}
-      </div>
-      {tool.output && (
-        <div className="border-t border-emerald-500/20">
-          <div className="px-3 py-2">
-            <pre className="text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap">
-              {tool.output}
-            </pre>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -174,70 +108,55 @@ export function ToolCallRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { navigateToSession } = useSessionNav();
-  const completed = tool.status === "completed";
-  const statusColor = completed ? "text-emerald-400" : "text-amber-400";
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
 
-  if (tool.name === "task_complete" && !compact) {
-    const label = getToolSummary(tool, agent);
-    const bmOnClick = onBookmark
-      ? () => {
-          onBookmark(tool.id, label);
-        }
-      : undefined;
-    return <TaskCompleteBlock tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-  }
+  const renderer = toolRendererRegistry.getRenderer(kind);
+  const isTask = kind === "task";
+  const isTaskComplete = kind === "task_complete";
+
+  const bmOnClick = onBookmark
+    ? () => {
+        onBookmark(tool.id, summary);
+      }
+    : undefined;
 
   if (compact) {
-    const label = getToolSummary(tool, agent);
-    const bmOnClick = onBookmark
-      ? () => {
-          onBookmark(tool.id, label);
-        }
-      : undefined;
-    switch (kind) {
-      case "bash":
-        return <BashToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "edit":
-      case "write":
-        return <EditToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "read":
-        return <ReadToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "grep":
-        return <GrepToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "glob":
-        return <GlobToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "delete":
-        return <DeleteToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "todowrite":
-        return <TodoWriteToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "task":
-        return (
-          <TaskToolDiff
-            tool={tool}
-            onOpenModal={onOpenModal}
-            onBookmark={bmOnClick}
-            isBookmarked={isBookmarked}
-          />
-        );
-      case "question":
-        return <QuestionToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      case "exit_plan_mode":
-        return (
-          <ExitPlanModeToolDiff
-            tool={tool}
-            onOpenModal={onOpenModal}
-            onPin={onPin}
-            onBookmark={bmOnClick}
-            isBookmarked={isBookmarked}
-          />
-        );
-      case "jira":
-        return <JiraToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
-      default:
-        return <DefaultToolDiff tool={tool} onBookmark={bmOnClick} isBookmarked={isBookmarked} />;
+    if (renderer) {
+      return (
+        <ToolRendererWrapper
+          renderer={renderer}
+          tool={tool}
+          compact
+          onOpenModal={onOpenModal}
+          onPin={onPin}
+          onBookmark={bmOnClick}
+          isBookmarked={isBookmarked}
+        />
+      );
     }
+    // Fallback: plain summary line
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+        <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
+        <span className="text-gh-text truncate min-w-0">{summary}</span>
+      </div>
+    );
+  }
+
+  // Non-compact: task_complete doesn't use the expandable wrapper
+  if (isTaskComplete && renderer) {
+    return (
+      <ToolRendererWrapper
+        renderer={renderer}
+        tool={tool}
+        compact={false}
+        onOpenModal={onOpenModal}
+        onPin={onPin}
+        onBookmark={bmOnClick}
+        isBookmarked={isBookmarked}
+      />
+    );
   }
 
   let childSessionId: string | null = null;
@@ -250,10 +169,8 @@ export function ToolCallRow({
     }
   }
 
-  const isTask = kind === "task";
-  const rowClass =
-    "flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors";
-
+  const completed = tool.status === "completed";
+  const statusColor = completed ? "text-emerald-400" : "text-amber-400";
   const wrapperClass = isTask
     ? "border border-violet-500/30 rounded-lg overflow-hidden mb-3 bg-violet-500/[0.03]"
     : "border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
@@ -261,13 +178,15 @@ export function ToolCallRow({
   return (
     <div className={wrapperClass}>
       <div className="flex items-center w-full">
-        <button type="button" className={rowClass} onClick={() => setExpanded(!expanded)}>
-          {!compact && (
-            <ChevronRight
-              size={12}
-              className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
-            />
-          )}
+        <button
+          type="button"
+          className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <ChevronRight
+            size={12}
+            className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+          />
           <span className={`text-[11px] ${statusColor} font-bold shrink-0`}>
             {completed ? (
               <Check size={11} className="text-emerald-400 shrink-0" />
@@ -280,7 +199,7 @@ export function ToolCallRow({
           >
             {summary}
           </span>
-          {!compact && tool.duration && tool.duration > 0 ? (
+          {tool.duration && tool.duration > 0 ? (
             <span className="text-[11px] text-gh-text-secondary shrink-0">
               {tool.duration < 1000
                 ? `${tool.duration}ms`
@@ -288,17 +207,7 @@ export function ToolCallRow({
             </span>
           ) : null}
         </button>
-        {!compact && (
-          <>
-            {onBookmark && (
-              <BookmarkButton
-                isBookmarked={!!isBookmarked}
-                onClick={() => onBookmark(tool.id, getToolSummary(tool, agent))}
-              />
-            )}
-            <NonCompactCopyBtn tool={tool} />
-          </>
-        )}
+        <NonCompactCopyBtn tool={tool} />
         {isTask && childSessionId && (
           <button
             type="button"
@@ -316,51 +225,22 @@ export function ToolCallRow({
         <div
           className={`border-t ${isTask ? "border-violet-500/20" : "border-gh-border"} px-3 py-2 space-y-2 bg-gh-bg-secondary/50`}
         >
-          {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
-          {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DefaultToolDiff({
-  tool,
-  onBookmark,
-  isBookmarked,
-}: {
-  tool: ToolCall;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const kind = effectiveToolKind(tool);
-  const summary = getToolSummary(tool);
-
-  return (
-    <div className="border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50 group">
-      <div
-        className={`flex items-center gap-2 w-full px-3 py-1.5 ${
-          expanded ? "border-b border-accent-border" : ""
-        } bg-gh-bg-secondary/50 text-[11px] font-mono text-left cursor-pointer hover:bg-gh-bg-hover transition-colors`}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <ChevronRight
-          size={12}
-          className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
-        />
-        <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
-        <span className="font-medium text-gh-text truncate min-w-0">{summary}</span>
-        {onBookmark && (
-          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} />
-          </span>
-        )}
-      </div>
-      {expanded && (
-        <div className="px-3 py-2 space-y-2">
-          {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
-          {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
+          {renderer ? (
+            <ToolRendererWrapper
+              renderer={renderer}
+              tool={tool}
+              compact={false}
+              onOpenModal={onOpenModal}
+              onPin={onPin}
+              onBookmark={bmOnClick}
+              isBookmarked={isBookmarked}
+            />
+          ) : (
+            <>
+              {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
+              {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
+            </>
+          )}
         </div>
       )}
     </div>

@@ -16,6 +16,7 @@ import type { Session, Message, ToolCall } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost, formatTokens } from "../utils/sessionUtils";
 import { effectiveToolKind, getToolSummary, shouldShowStepContent } from "../utils/toolDisplay";
+import { toolRendererRegistry } from "./ToolRenderers/registry";
 
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
@@ -26,62 +27,17 @@ import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
 import { useSessionNav } from "../hooks/useNav";
 import { detectLanguage } from "../utils/detectLanguage";
 
-const MARKER_COLORS: Record<string, string> = {
+const LEGACY_MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
-  edit: "#ef4444",
-  read: "#06b6d4",
-  bash: "#eab308",
-  "task-complete": "#10b981",
-  plan: "#a855f7",
-  question: "#f97316",
-  search: "#8b5cf6",
-  web: "#ec4899",
-  todowrite: "#f59e0b",
-  delete: "#ef4444",
   thinking: "#a78bfa",
   "assistant-text": "#8b949e",
-  "sub-agent": "#f472b6",
-  tool: "#6b7280",
 };
 
-const MARKER_DISPLAY_LABELS: Record<string, string> = {
+const LEGACY_MARKER_LABELS: Record<string, string> = {
   "user-request": "User requests",
-  edit: "Edits",
-  read: "Reads",
-  bash: "Shell",
-  "task-complete": "Task complete",
-  plan: "Plans",
-  question: "Questions",
-  search: "Search",
-  web: "Web",
-  todowrite: "Todo",
-  delete: "Deletes",
   thinking: "Thinking",
   "assistant-text": "Assistant Message",
-  "sub-agent": "Sub-agent",
-  tool: "Other",
 };
-
-function markerDisplayType(kind: string): string {
-  if (
-    kind === "user-request" ||
-    kind === "assistant-text" ||
-    kind === "thinking" ||
-    kind === "bash" ||
-    kind === "read" ||
-    kind === "question" ||
-    kind === "todowrite" ||
-    kind === "delete"
-  )
-    return kind;
-  if (kind === "edit" || kind === "write") return "edit";
-  if (kind === "task_complete" || kind === "task-complete") return "task-complete";
-  if (kind === "task") return "sub-agent";
-  if (kind === "exit_plan_mode") return "plan";
-  if (kind === "grep" || kind === "glob" || kind === "codesearch") return "search";
-  if (kind === "webfetch" || kind === "websearch") return "web";
-  return "tool";
-}
 
 function groupMessages(messages: Message[]): Message[] {
   const result: Message[] = [];
@@ -286,70 +242,82 @@ export function ConversationView({
           id: `msg-${idx}`,
           type: "user-request",
           summary: msg.content?.slice(0, 120) || "",
-          color: MARKER_COLORS["user-request"],
-          label: MARKER_DISPLAY_LABELS["user-request"],
+          color: LEGACY_MARKER_COLORS["user-request"],
+          label: LEGACY_MARKER_LABELS["user-request"],
         });
         return;
       }
       if (msg.role === "assistant") {
         const tools = (msg.toolCalls ?? []).filter((t) => t.name !== "report_intent");
         if (tools.length > 0) {
-          const priority = [
-            "task_complete",
-            "task",
-            "edit",
-            "write",
-            "read",
-            "bash",
-            "exit_plan_mode",
-            "question",
-            "grep",
-            "glob",
-            "codesearch",
-            "webfetch",
-            "websearch",
-            "todowrite",
-            "delete",
-          ];
+          const dtList = toolRendererRegistry.allMarkerDisplayTypes();
           const toolKinds = tools.map((t) => effectiveToolKind(t));
           let dominantKind = "tool";
-          for (const p of priority) {
-            if (toolKinds.includes(p)) {
-              dominantKind = p;
+          for (const { displayType } of dtList) {
+            const matched = toolKinds.find(
+              (k) => toolRendererRegistry.markerForKind(k).displayType === displayType,
+            );
+            if (matched) {
+              dominantKind = matched;
               break;
             }
           }
           const domToolIdx = toolKinds.indexOf(dominantKind);
           const domTool = domToolIdx >= 0 ? tools[domToolIdx] : tools[0];
-          const displayType = markerDisplayType(dominantKind);
+          const marker = toolRendererRegistry.markerForKind(dominantKind);
           result.push({
             id: `msg-${idx}`,
-            type: displayType,
+            type: marker.displayType,
             summary: getToolSummary(domTool, msg.agent),
-            color: MARKER_COLORS[displayType] || MARKER_COLORS["tool"],
-            label: MARKER_DISPLAY_LABELS[displayType] || MARKER_DISPLAY_LABELS["tool"],
+            color: marker.color,
+            label: marker.label,
           });
         } else if (msg.reasoning) {
           result.push({
             id: `msg-${idx}`,
             type: "thinking",
             summary: msg.reasoning.slice(0, 120),
-            color: MARKER_COLORS["thinking"],
-            label: MARKER_DISPLAY_LABELS["thinking"],
+            color: LEGACY_MARKER_COLORS["thinking"],
+            label: LEGACY_MARKER_LABELS["thinking"],
           });
         } else if (msg.content?.trim()) {
           result.push({
             id: `msg-${idx}`,
             type: "assistant-text",
             summary: msg.content.slice(0, 120),
-            color: MARKER_COLORS["assistant-text"],
-            label: MARKER_DISPLAY_LABELS["assistant-text"],
+            color: LEGACY_MARKER_COLORS["assistant-text"],
+            label: LEGACY_MARKER_LABELS["assistant-text"],
           });
         }
       }
     });
     return result;
   }, [messagesWithoutReminders]);
+
+  const allMarkerLegendTypes = useMemo(() => {
+    const map = new Map<string, { label: string; color: string }>();
+    map.set("user-request", {
+      label: LEGACY_MARKER_LABELS["user-request"],
+      color: LEGACY_MARKER_COLORS["user-request"],
+    });
+    map.set("thinking", {
+      label: LEGACY_MARKER_LABELS["thinking"],
+      color: LEGACY_MARKER_COLORS["thinking"],
+    });
+    for (const { displayType } of toolRendererRegistry.allMarkerDisplayTypes()) {
+      const marker = toolRendererRegistry.markerForKind(displayType);
+      map.set(displayType, { label: marker.label, color: marker.color });
+    }
+    map.set("assistant-text", {
+      label: LEGACY_MARKER_LABELS["assistant-text"],
+      color: LEGACY_MARKER_COLORS["assistant-text"],
+    });
+    return Array.from(map.entries()).map(([type, { label, color }]) => ({
+      type,
+      label,
+      color,
+    }));
+  }, []);
 
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
 
@@ -685,14 +653,14 @@ export function ConversationView({
                             setHiddenMarkerTypes(
                               hiddenMarkerTypes.size > 0
                                 ? new Set()
-                                : new Set(Object.keys(MARKER_DISPLAY_LABELS)),
+                                : new Set(allMarkerLegendTypes.map((t) => t.type)),
                             );
                           }}
                           className="w-full text-left px-3 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover transition-colors cursor-pointer border-b border-gh-border"
                         >
                           {hiddenMarkerTypes.size > 0 ? "Select all" : "Deselect all"}
                         </button>
-                        {Object.entries(MARKER_DISPLAY_LABELS).map(([type, label]) => (
+                        {allMarkerLegendTypes.map(({ type, label, color }) => (
                           <label
                             key={type}
                             className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-gh-bg-hover transition-colors whitespace-nowrap"
@@ -712,7 +680,7 @@ export function ConversationView({
                             />
                             <span
                               className="w-2 h-2 rounded-sm shrink-0"
-                              style={{ backgroundColor: MARKER_COLORS[type] }}
+                              style={{ backgroundColor: color }}
                             />
                             {label}
                           </label>
@@ -882,13 +850,14 @@ function MessageBlock({
     return (
       <UserTurnView
         content={message.content}
+        toolCalls={message.toolCalls}
+        sessionId={sessionId}
+        messageIndex={messageIndex}
         onOpenModal={onOpenModal}
-        onBookmark={
-          onBookmark
-            ? () => onBookmark(sessionId, messageIndex, undefined, message.content.slice(0, 80))
-            : undefined
-        }
+        onPin={onPin}
+        onBookmark={onBookmark}
         isBookmarked={isMsgBookmarked}
+        bookmarkIdByRef={bookmarkIdByRef}
       />
     );
   }
@@ -1070,19 +1039,60 @@ function FileContextBlock({ block }: { block: { content: string; fileName?: stri
 
 function UserTurnView({
   content,
+  toolCalls,
+  sessionId,
+  messageIndex,
   onOpenModal,
+  onPin,
   onBookmark,
   isBookmarked,
+  bookmarkIdByRef,
 }: {
   content: string;
+  toolCalls?: ToolCall[];
+  sessionId?: string;
+  messageIndex?: number;
   onOpenModal?: (content: string, title?: string) => void;
-  onBookmark?: () => void;
+  onPin?: (content: string) => void;
+  onBookmark?: (
+    sessionId: string,
+    messageIndex: number,
+    toolCallId: string | undefined,
+    label: string,
+  ) => void;
   isBookmarked?: boolean;
+  bookmarkIdByRef?: Record<string, string>;
 }) {
   const { blocks, remaining } = extractInlineBlocks(content);
   const lines = content.split("\n");
   const isLong = lines.length > 20;
   const [expanded, setExpanded] = useState(false);
+
+  const readTools = useMemo(
+    () =>
+      (toolCalls ?? []).filter((t) => {
+        const kind = effectiveToolKind(t);
+        return kind === "read";
+      }),
+    [toolCalls],
+  );
+
+  const msgOnBookmark = useMemo(
+    () =>
+      onBookmark && sessionId && messageIndex !== undefined
+        ? () => onBookmark(sessionId, messageIndex, undefined, content.slice(0, 80))
+        : undefined,
+    [onBookmark, sessionId, messageIndex, content],
+  );
+
+  const toolOnBookmark = useMemo(
+    () =>
+      onBookmark && sessionId && messageIndex !== undefined
+        ? (toolCallId: string, label: string) =>
+            onBookmark(sessionId, messageIndex, toolCallId, label)
+        : undefined,
+    [onBookmark, sessionId, messageIndex],
+  );
 
   if (blocks.length === 0) {
     const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
@@ -1099,7 +1109,7 @@ function UserTurnView({
             className="markdown-body--wide"
             onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
             modalTitle="USER-REQUEST"
-            onBookmark={onBookmark}
+            onBookmark={msgOnBookmark}
             isBookmarked={isBookmarked}
           />
         </div>
@@ -1108,6 +1118,21 @@ function UserTurnView({
             <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
               {expanded ? "Show less" : "Show more"}
             </button>
+          </div>
+        )}
+        {readTools.length > 0 && (
+          <div className="mt-2 space-y-2">
+            <ToolCallList
+              toolCalls={readTools}
+              agent={undefined}
+              compact
+              onOpenModal={onOpenModal}
+              onPin={onPin}
+              onBookmark={toolOnBookmark}
+              bookmarkIdByRef={bookmarkIdByRef}
+              sessionId={sessionId}
+              messageIndex={messageIndex}
+            />
           </div>
         )}
       </div>
@@ -1127,7 +1152,7 @@ function UserTurnView({
           className="markdown-body--wide"
           onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
           modalTitle="USER-REQUEST"
-          onBookmark={onBookmark}
+          onBookmark={msgOnBookmark}
           isBookmarked={isBookmarked}
         />
       )}
@@ -1145,6 +1170,21 @@ function UserTurnView({
         ) : block.type === "file-context" ? (
           <FileContextBlock key={i} block={block} />
         ) : null,
+      )}
+      {readTools.length > 0 && (
+        <div className="mt-2 space-y-2">
+          <ToolCallList
+            toolCalls={readTools}
+            agent={undefined}
+            compact
+            onOpenModal={onOpenModal}
+            onPin={onPin}
+            onBookmark={toolOnBookmark}
+            bookmarkIdByRef={bookmarkIdByRef}
+            sessionId={sessionId}
+            messageIndex={messageIndex}
+          />
+        </div>
       )}
     </div>
   );

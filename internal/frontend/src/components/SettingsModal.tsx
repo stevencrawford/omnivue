@@ -186,7 +186,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     : "text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-secondary"
                 }`}
               >
-                {tab === "agent" ? "Agent" : tab === "appearance" ? "Appearance" : tab === "privacy" ? "Privacy" : "About"}
+                {tab === "agent"
+                  ? "Agent"
+                  : tab === "appearance"
+                    ? "Appearance"
+                    : tab === "privacy"
+                      ? "Privacy"
+                      : "About"}
               </button>
             ))}
           </nav>
@@ -200,7 +206,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Agent Directories
               </h3>
               <p className="text-[11px] text-gh-text-secondary mb-3">
-                Add or remove agent data directories. sess reads from these paths to discover sessions.
+                Add or remove agent data directories. sess reads from these paths to discover
+                sessions.
               </p>
 
               {sourcesLoading ? (
@@ -327,7 +334,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   onClick={handleAdd}
                   className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-accent-border bg-accent-muted text-accent hover:bg-accent/20"
                 >
-                  {adding ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />}
+                  {adding ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Plus className="size-3" />
+                  )}
                   Add
                 </button>
               </div>
@@ -442,10 +453,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </p>
 
               <p className="text-xs text-gh-text-secondary leading-relaxed mb-4">
-                Browse, search, and manage all your AI coding sessions from one place.
-                sess reads agent session databases in read-only mode, indexes their content for
-                full-text search, and displays conversations, plans, diffs, and tool calls in a
-                unified browser UI. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
+                Browse, search, and manage all your AI coding sessions from one place. sess reads
+                agent session databases in read-only mode, indexes their content for full-text
+                search, and displays conversations, plans, diffs, and tool calls in a unified
+                browser UI. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
               </p>
 
               <div className="text-xs text-gh-text-secondary space-y-1 mb-4">
@@ -487,9 +498,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div className="flex items-start gap-2">
                       <TriangleAlert className="size-4 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-xs text-red-400/90">
-                        This will permanently remove all local data: sources, folders, bookmarks, scratch
-                        notes, search index, and settings. Agent data on disk is safe and can be re-added.
-                        This action cannot be undone.
+                        This will permanently remove all local data: sources, folders, bookmarks,
+                        scratch notes, search index, and settings. Agent data on disk is safe and
+                        can be re-added. This action cannot be undone.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -548,11 +559,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         onClick={handleReset}
                         className="text-xs px-2 py-1 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-40 cursor-pointer transition-colors"
                       >
-                        {resetting ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          "Confirm Reset"
-                        )}
+                        {resetting ? <Loader2 className="size-3 animate-spin" /> : "Confirm Reset"}
                       </button>
                     </div>
                   </div>
