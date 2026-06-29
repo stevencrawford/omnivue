@@ -79,7 +79,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Edits",
     markerDisplayType: "edit",
     markerPriority: 20,
-    truncateOutput: 20,
+    truncateOutput: 0,
     defaultExpanded: true,
   },
   {
@@ -91,7 +91,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Edits",
     markerDisplayType: "edit",
     markerPriority: 20,
-    truncateOutput: 20,
+    truncateOutput: 0,
     defaultExpanded: true,
   },
   {

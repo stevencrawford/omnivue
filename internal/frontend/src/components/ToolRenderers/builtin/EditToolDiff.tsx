@@ -1,8 +1,11 @@
+import { useState, type ReactNode } from "react";
 import { File, FilePen } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { detectLanguage } from "../../../utils/detectLanguage";
 import { computeDiff } from "../../../utils/diff";
 import { PatchRenderer, FileRenderer } from "../../DiffRenderer";
+
+const MAX_VISIBLE_LINES = 35;
 
 interface EditInput {
   path?: string;
@@ -23,6 +26,8 @@ export function EditToolDiff({
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
+  const [showAll, setShowAll] = useState(false);
+
   let input: EditInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -68,15 +73,16 @@ export function EditToolDiff({
   }
 
   const displayContent = newStr || content;
-  const totalLines = displayContent ? displayContent.split("\n").length : 0;
 
   let diffPatch: string | null = null;
+  let diffLines: string[] | null = null;
   if (!isAddition && oldStr && newStr && !skipDiff) {
     try {
       const hunks = computeDiff(oldStr, newStr);
       if (hunks.length > 0) {
         const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
         diffPatch = header + hunks.flatMap((h) => h.lines).join("\n") + "\n";
+        diffLines = diffPatch.split("\n");
       }
     } catch {
       /* ignore */
@@ -84,20 +90,50 @@ export function EditToolDiff({
   }
 
   const showFile = !diffPatch && !!displayContent;
+  const fileLines = displayContent ? displayContent.split("\n") : null;
+  const contentLines = diffLines || fileLines || [];
+  const totalLines = contentLines.length;
+  const isLong = totalLines > MAX_VISIBLE_LINES;
+
+  let renderedContent: ReactNode = null;
+  if (diffPatch) {
+    const displayPatch =
+      !showAll && isLong
+        ? contentLines.slice(0, MAX_VISIBLE_LINES).join("\n") +
+          `\n\n... (${totalLines - MAX_VISIBLE_LINES} more lines)`
+        : diffPatch;
+    renderedContent = (
+      <div className="relative group">
+        <PatchRenderer patch={displayPatch} lang={lang} />
+      </div>
+    );
+  } else if (showFile) {
+    const displayFile =
+      !showAll && isLong && fileLines
+        ? fileLines.slice(0, MAX_VISIBLE_LINES).join("\n") +
+          `\n\n... (${totalLines - MAX_VISIBLE_LINES} more lines)`
+        : displayContent;
+    renderedContent = (
+      <div className="relative group">
+        <FileRenderer content={displayFile} lang={lang} />
+      </div>
+    );
+  }
 
   return (
     <>
-      {diffPatch ? (
-        <div
-          className={"relative group " + (totalLines > 20 ? "max-h-[440px] overflow-y-auto" : "")}
-        >
-          <PatchRenderer patch={diffPatch} lang={lang} />
+      {renderedContent}
+      {renderedContent && isLong && (
+        <div className="text-center border-t border-gh-border">
+          <button
+            type="button"
+            onClick={() => setShowAll(!showAll)}
+            className="text-[11px] font-medium text-accent hover:underline py-2 cursor-pointer"
+          >
+            {showAll ? "Show less" : "Show more"}
+          </button>
         </div>
-      ) : showFile ? (
-        <div className="relative group">
-          <FileRenderer content={displayContent} lang={lang} />
-        </div>
-      ) : null}
+      )}
     </>
   );
 }
