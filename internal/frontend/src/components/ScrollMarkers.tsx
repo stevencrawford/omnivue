@@ -95,7 +95,7 @@ function allMarkerLegendTypes() {
     color: LEGACY_MARKER_COLORS["thinking"],
   });
   for (const { displayType } of toolRendererRegistry.allMarkerDisplayTypes()) {
-    const marker = toolRendererRegistry.markerForKind(displayType);
+    const marker = toolRendererRegistry.markerForDisplayType(displayType);
     map.set(displayType, { label: marker.label, color: marker.color });
   }
   map.set("assistant-text", {

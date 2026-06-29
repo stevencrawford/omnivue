@@ -72,7 +72,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "edit",
-    names: ["edit", "edit_file_v2", "edit_file"],
+    names: ["edit", "edit_file_v2", "edit_file", "apply_patch"],
     Component: EditToolDiff,
     summary: (tool) => `edit: ${fp(tool)}`,
     markerColor: "#ef4444",

@@ -101,7 +101,7 @@ function getStatusColor(status?: JiraStatus): string {
 
 const DESCRIPTION_LINE_LIMIT = 20;
 
-export function JiraToolDiff({ tool, compact, onBookmark, isBookmarked }: ToolRendererProps) {
+export function JiraToolDiff({ tool, rawOutput, compact, onBookmark, isBookmarked }: ToolRendererProps) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   let issue: JiraIssue = {};
@@ -117,9 +117,10 @@ export function JiraToolDiff({ tool, compact, onBookmark, isBookmarked }: ToolRe
   }
 
   try {
-    if (tool.output) {
-      const jsonStart = tool.output.indexOf("{");
-      const jsonStr = jsonStart >= 0 ? tool.output.slice(jsonStart) : tool.output;
+    const output = rawOutput ?? tool.output;
+    if (output) {
+      const jsonStart = output.indexOf("{");
+      const jsonStr = jsonStart >= 0 ? output.slice(jsonStart) : output;
       issue = JSON.parse(jsonStr);
     }
   } catch {
