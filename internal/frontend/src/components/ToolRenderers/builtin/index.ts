@@ -61,7 +61,7 @@ function firstQuestion(tool: ToolCall): string {
 export const definitions: ToolRendererDefinition[] = [
   {
     kind: "bash",
-    names: ["bash", "run_terminal_command_v2"],
+    names: ["bash", "run_terminal_command_v2", "run_terminal_command"],
     Component: BashToolDiff,
     summary: (tool) => cmd(tool),
     markerColor: "#eab308",
@@ -72,7 +72,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "edit",
-    names: ["edit", "edit_file_v2"],
+    names: ["edit", "edit_file_v2", "edit_file"],
     Component: EditToolDiff,
     summary: (tool) => `edit: ${fp(tool)}`,
     markerColor: "#ef4444",
@@ -96,7 +96,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "read",
-    names: ["read", "view", "read_file_v2"],
+    names: ["read", "view", "read_file_v2", "read_file"],
     Component: ReadToolDiff,
     summary: (tool) => `read: ${fp(tool)}`,
     markerColor: "#06b6d4",

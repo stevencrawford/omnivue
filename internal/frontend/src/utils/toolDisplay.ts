@@ -33,8 +33,13 @@ export function effectiveToolKind(tool: ToolCall): string {
     case "create":
       return "write";
     case "edit_file_v2":
+    case "edit_file":
     case "apply_patch":
       return "edit";
+    case "read_file":
+      return "read";
+    case "run_terminal_command":
+      return "bash";
   }
 
   const input = tool.input;
