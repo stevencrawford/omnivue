@@ -696,6 +696,14 @@ body {
   margin-right: 0.25rem;
 }
 
+.diff-line-add .diff-prefix {
+  color: #22c55e;
+}
+
+.diff-line-del .diff-prefix {
+  color: #ef4444;
+}
+
 .diff-line-ctx {
   background: transparent;
 }
