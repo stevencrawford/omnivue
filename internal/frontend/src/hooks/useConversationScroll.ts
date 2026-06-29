@@ -43,8 +43,7 @@ export function useConversationScroll({
     const saved = scrollPositions.get(sessionId);
     const isInitialLoad = prevLengthRef.current === 0;
 
-    const isSearchNav =
-      focusMessageIndex !== undefined || (searchHighlightQuery && isInitialLoad);
+    const isSearchNav = focusMessageIndex !== undefined || (searchHighlightQuery && isInitialLoad);
 
     if (isInitialLoad && !isSearchNav) {
       if (saved !== undefined) {

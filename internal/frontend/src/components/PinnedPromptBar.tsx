@@ -26,7 +26,8 @@ export function PinnedPromptBar({
     return 260;
   });
   const [isPinnedResizing, setIsPinnedResizing] = useState(false);
-  const totalTokens = session.tokensInput + session.tokensOutput;
+  const totalTokens =
+    session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -135,7 +136,7 @@ export function PinnedPromptBar({
           {totalTokens > 0 && (
             <span
               className="text-[11px] text-gh-text-secondary"
-              title={`${totalTokens.toLocaleString()} tokens`}
+              title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
             >
               {formatTokens(totalTokens)}
             </span>

@@ -44,9 +44,10 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
     );
   }
 
+  const hasCache = session.tokensCacheRead > 0 || session.tokensCacheWrite > 0;
   const tokenDisplay =
     session.tokensInput > 0 || session.tokensOutput > 0
-      ? `${formatTokenCount(session.tokensInput)} in / ${formatTokenCount(session.tokensOutput)} out`
+      ? `${formatTokenCount(session.tokensInput)} in${hasCache ? ` / ${formatTokenCount(session.tokensCacheRead)} cached` : ""} / ${formatTokenCount(session.tokensOutput)} out`
       : null;
 
   return (

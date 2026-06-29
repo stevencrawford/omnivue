@@ -644,13 +644,17 @@ function showCosts(): boolean {
 }
 
 function VerboseStats({ session }: { session: Session }) {
-  const totalTokens = session.tokensInput + session.tokensOutput;
+  const totalTokens =
+    session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const parts: ReactNode[] = [];
   const costsVisible = showCosts();
 
   if (totalTokens > 0) {
     parts.push(
-      <span key="tokens" title={`${totalTokens.toLocaleString()} tokens`}>
+      <span
+        key="tokens"
+        title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
+      >
         {formatTokens(totalTokens)}
       </span>,
     );
