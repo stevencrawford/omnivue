@@ -42,6 +42,12 @@ interface ToolRendererDefinition {
   markerPriority?: number; // lower = higher in marker bar
   priority?: number; // override priority (builtin=0, vendor=10)
   truncateOutput?: number; // max output lines (default 50, 0 = no truncation)
+  defaultExpanded?: boolean; // start with card open (default: false)
+  canExpand?: boolean; // allow expand/collapse (default: true).
+  // When false, compact mode renders the card
+  // border + compact line + actions (copy,
+  // bookmark, duration) but no chevron toggle
+  // or expandable section.
 }
 ```
 
@@ -65,6 +71,27 @@ Every renderer is a single component that handles both modes via the required `c
 
 If a renderer has no meaningful compact representation, render a minimal one-line fallback (e.g., kind label with truncated summary).
 
+### Expand/Truncation Behavior
+
+`ToolRendererWrapper` controls two independent state flags per card:
+
+- **`expanded`** — Whether the card is open (showing expanded content)
+  or closed (showing only the compact line). Controlled by the
+  chevron toggle.
+- **`truncExpanded`** — Whether the expanded output is truncated at
+  `truncateOutput` lines or shown in full. Reset to "truncated" each
+  time the card is closed and reopened.
+
+| `canExpand` | `defaultExpanded` | Behavior                                        |
+| ----------- | ----------------- | ----------------------------------------------- |
+| `true`      | `false` (default) | Collapsed card with chevron; click to expand    |
+| `true`      | `true`            | Open card with chevron; click to collapse       |
+| `false`     | ignored           | Card border + compact line + actions, no toggle |
+
+When `canExpand` is `false`, the card still renders with a border,
+copy/bookmark buttons, and duration display — it simply has no
+chevron toggle or expandable content section.
+
 ### Truncation Policy
 
 Truncation is always system-level via `ToolRendererWrapper`:
@@ -74,6 +101,8 @@ Truncation is always system-level via `ToolRendererWrapper`:
 - Renderers must never truncate their own output
 - System handles "Show more/less" expand/collapse UI uniformly
 - Set `truncateOutput: 0` to disable truncation
+
+**Note for computed content:** Renderers that compute and render derived visuals (e.g., diff patches from input fields) may use CSS-level visual containment (`max-h` + `overflow-y-auto`) to manage the height of large derived output. This is distinct from `tool.output` text truncation, which must always remain system-level.
 
 ### onCopy Prop
 
@@ -100,26 +129,36 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 
 ### What the system handles automatically
 
-- Truncation + "Show more" button (via `ToolRendererWrapper`)
-- Copy of full output (via `NonCompactCopyBtn` in `ToolCallRow`)
+- Truncation + "Show more/less" button (via `ToolRendererWrapper`)
+- Copy of full output via `CopyOutputBtn` in the compact header row
+- Bookmark button in the compact header row
 - Duration display (via `ToolCallRow` header)
 - Sub-agent session "View" link (via `ToolCallRow` header)
 
 ## Builtin Renderer Reference
 
-| Kind                         | Component                                       | `truncateOutput` | `markerPriority` |
-| ---------------------------- | ----------------------------------------------- | ---------------- | ---------------- |
-| `task_complete`              | `TaskCompleteToolDiff`                          | 50 (default)     | 0                |
-| `task`                       | `TaskToolDiff`                                  | 50 (default)     | 10               |
-| `edit`, `write`              | `EditToolDiff`                                  | 20               | 20               |
-| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 50 (default)     | 30               |
-| `question`                   | `QuestionToolDiff`                              | 50 (default)     | 40               |
-| `read`                       | `ReadToolDiff`                                  | 50 (default)     | 50               |
-| `bash`                       | `BashToolDiff`                                  | 50               | 60               |
-| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | 50               | 70               |
-| `webfetch`, `websearch`      | `DefaultToolDiff`                               | 50 (default)     | 80               |
-| `todowrite`                  | `TodoWriteToolDiff`                             | 50 (default)     | 90               |
-| `delete`                     | `DeleteToolDiff`                                | 50 (default)     | 100              |
+| Kind                         | Component                                       | `truncateOutput` | `defaultExpanded` | `canExpand` | `markerPriority` |
+| ---------------------------- | ----------------------------------------------- | ---------------- | ----------------- | ----------- | ---------------- |
+| `task_complete`              | `TaskCompleteToolDiff`                          | 50 (default)     | `false`           | `true`      | 0                |
+| `task`                       | `TaskToolDiff`                                  | 50 (default)     | `false`           | `false`     | 10               |
+| `edit`, `write`              | `EditToolDiff`                                  | 20               | `true`            | `true`      | 20               |
+| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 50 (default)     | `false`           | `true`      | 30               |
+| `question`                   | `QuestionToolDiff`                              | 50 (default)     | `false`           | `true`      | 40               |
+| `read`                       | `ReadToolDiff`                                  | 50 (default)     | `false`           | `true`      | 50               |
+| `bash`                       | `BashToolDiff`                                  | 50               | `false`           | `true`      | 60               |
+| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | 50               | `false`           | `true`      | 70               |
+| `webfetch`, `websearch`      | `DefaultToolDiff`                               | 50 (default)     | `false`           | `true`      | 80               |
+| `todowrite`                  | `TodoWriteToolDiff`                             | 50 (default)     | `true`            | `true`      | 90               |
+| `delete`                     | `DeleteToolDiff`                                | 50 (default)     | `false`           | `true`      | 100              |
+| `compaction`                 | `CompactionToolDiff`                            | 0 (none)         | `false`           | `false`     | 110              |
+
+### Compaction pattern
+
+The `compaction` kind is a special visual separator used when
+multiple tool calls of the same kind are collapsed into a single
+group. It renders a horizontal rule with a centered badge
+(e.g. `─── 3 reads ───`). Its input is `{ kind, count, label }`.
+Set `canExpand: false` and `truncateOutput: 0` for this pattern.
 
 ## Styling Conventions
 
@@ -137,6 +176,7 @@ Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). E
 | `question`       | orange              |
 | `exit_plan_mode` | amber               |
 | `task_complete`  | emerald             |
+| `compaction`     | gray                |
 
 ## CopyButton Usage
 
