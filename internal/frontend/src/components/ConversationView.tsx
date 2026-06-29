@@ -39,7 +39,6 @@ const LEGACY_MARKER_LABELS: Record<string, string> = {
   "assistant-text": "Assistant Message",
 };
 
-
 function groupMessages(messages: Message[]): Message[] {
   const result: Message[] = [];
   for (const msg of messages) {
@@ -851,13 +850,14 @@ function MessageBlock({
     return (
       <UserTurnView
         content={message.content}
+        toolCalls={message.toolCalls}
+        sessionId={sessionId}
+        messageIndex={messageIndex}
         onOpenModal={onOpenModal}
-        onBookmark={
-          onBookmark
-            ? () => onBookmark(sessionId, messageIndex, undefined, message.content.slice(0, 80))
-            : undefined
-        }
+        onPin={onPin}
+        onBookmark={onBookmark}
         isBookmarked={isMsgBookmarked}
+        bookmarkIdByRef={bookmarkIdByRef}
       />
     );
   }
@@ -1039,19 +1039,60 @@ function FileContextBlock({ block }: { block: { content: string; fileName?: stri
 
 function UserTurnView({
   content,
+  toolCalls,
+  sessionId,
+  messageIndex,
   onOpenModal,
+  onPin,
   onBookmark,
   isBookmarked,
+  bookmarkIdByRef,
 }: {
   content: string;
+  toolCalls?: ToolCall[];
+  sessionId?: string;
+  messageIndex?: number;
   onOpenModal?: (content: string, title?: string) => void;
-  onBookmark?: () => void;
+  onPin?: (content: string) => void;
+  onBookmark?: (
+    sessionId: string,
+    messageIndex: number,
+    toolCallId: string | undefined,
+    label: string,
+  ) => void;
   isBookmarked?: boolean;
+  bookmarkIdByRef?: Record<string, string>;
 }) {
   const { blocks, remaining } = extractInlineBlocks(content);
   const lines = content.split("\n");
   const isLong = lines.length > 20;
   const [expanded, setExpanded] = useState(false);
+
+  const readTools = useMemo(
+    () =>
+      (toolCalls ?? []).filter((t) => {
+        const kind = effectiveToolKind(t);
+        return kind === "read";
+      }),
+    [toolCalls],
+  );
+
+  const msgOnBookmark = useMemo(
+    () =>
+      onBookmark && sessionId && messageIndex !== undefined
+        ? () => onBookmark(sessionId, messageIndex, undefined, content.slice(0, 80))
+        : undefined,
+    [onBookmark, sessionId, messageIndex, content],
+  );
+
+  const toolOnBookmark = useMemo(
+    () =>
+      onBookmark && sessionId && messageIndex !== undefined
+        ? (toolCallId: string, label: string) =>
+            onBookmark(sessionId, messageIndex, toolCallId, label)
+        : undefined,
+    [onBookmark, sessionId, messageIndex],
+  );
 
   if (blocks.length === 0) {
     const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n…" : content;
@@ -1068,7 +1109,7 @@ function UserTurnView({
             className="markdown-body--wide"
             onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
             modalTitle="USER-REQUEST"
-            onBookmark={onBookmark}
+            onBookmark={msgOnBookmark}
             isBookmarked={isBookmarked}
           />
         </div>
@@ -1077,6 +1118,21 @@ function UserTurnView({
             <button type="button" className="sess-tool-more" onClick={() => setExpanded(!expanded)}>
               {expanded ? "Show less" : "Show more"}
             </button>
+          </div>
+        )}
+        {readTools.length > 0 && (
+          <div className="mt-2 space-y-2">
+            <ToolCallList
+              toolCalls={readTools}
+              agent={undefined}
+              compact
+              onOpenModal={onOpenModal}
+              onPin={onPin}
+              onBookmark={toolOnBookmark}
+              bookmarkIdByRef={bookmarkIdByRef}
+              sessionId={sessionId}
+              messageIndex={messageIndex}
+            />
           </div>
         )}
       </div>
@@ -1096,7 +1152,7 @@ function UserTurnView({
           className="markdown-body--wide"
           onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
           modalTitle="USER-REQUEST"
-          onBookmark={onBookmark}
+          onBookmark={msgOnBookmark}
           isBookmarked={isBookmarked}
         />
       )}
@@ -1114,6 +1170,21 @@ function UserTurnView({
         ) : block.type === "file-context" ? (
           <FileContextBlock key={i} block={block} />
         ) : null,
+      )}
+      {readTools.length > 0 && (
+        <div className="mt-2 space-y-2">
+          <ToolCallList
+            toolCalls={readTools}
+            agent={undefined}
+            compact
+            onOpenModal={onOpenModal}
+            onPin={onPin}
+            onBookmark={toolOnBookmark}
+            bookmarkIdByRef={bookmarkIdByRef}
+            sessionId={sessionId}
+            messageIndex={messageIndex}
+          />
+        </div>
       )}
     </div>
   );
