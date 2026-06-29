@@ -1,10 +1,10 @@
 # sess
 
-**sess** is an AI session manager for [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), [Pi](https://pi.ai), and [Codex](https://codex.ai). All your sessions, visible in one place.
+**sess** is a 100% local session browser for [OpenCode](https://opencode.ai), [GitHub Copilot](https://github.com/features/copilot), [Cursor](https://cursor.com), [Pi](https://pi.ai), and [Codex](https://codex.ai). It is for viewing sessions across your favorite agent harnesses, reading the data already on your developer machine and showing it all in one place.
 
 ## Features
 
-- **Multi-agent support** — OpenCode, Copilot, Cursor, and Pi out of the box; extensible via the `Adapter` interface
+- **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, and Codex out of the box; extensible via the `Adapter` interface
 - **Browser UI** — Tabbed session viewer with conversation, plan, and diff views
 - **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle)
 - **Full-text search** — FTS5 index across all session content, scoped or global
@@ -18,6 +18,15 @@
 - **Read-only access** — Never writes to agent databases (enforced at driver level)
 - **Single binary** — Go + embedded React SPA, zero runtime dependencies
 - **Multi-theme** — Ayu, Nord, Catppuccin, Tokyo Night, and GitHub themes with light/dark modes
+
+## Local by Design
+
+sess keeps your workflow on your machine:
+
+- **100% local** — Reads local session stores and writes only to its own local state database
+- **No cloud sync** — Nothing is uploaded, indexed remotely, or sent to a hosted service
+- **Read-only adapters** — Agent databases are opened in read-only mode and never modified
+- **localhost UI** — The browser app runs against a local server on your machine
 
 ## Quick Start
 
