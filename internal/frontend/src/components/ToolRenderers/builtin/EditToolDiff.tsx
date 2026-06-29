@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { File, FilePen } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { detectLanguage } from "../../../utils/detectLanguage";
@@ -24,7 +23,6 @@ export function EditToolDiff({
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
-  const [showAll, setShowAll] = useState(false);
   let input: EditInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -91,9 +89,7 @@ export function EditToolDiff({
     <>
       {diffPatch ? (
         <div
-          className={
-            "relative group " + (!showAll && totalLines > 20 ? "max-h-[440px] overflow-hidden" : "")
-          }
+          className={"relative group " + (totalLines > 20 ? "max-h-[440px] overflow-y-auto" : "")}
         >
           <PatchRenderer patch={diffPatch} lang={lang} />
         </div>
@@ -102,17 +98,6 @@ export function EditToolDiff({
           <FileRenderer content={displayContent} lang={lang} />
         </div>
       ) : null}
-      {totalLines > 20 && (
-        <div className="text-center border-t border-accent-border">
-          <button
-            type="button"
-            onClick={() => setShowAll(!showAll)}
-            className="text-[11px] font-medium text-accent hover:underline py-2 cursor-pointer"
-          >
-            {showAll ? "Show less" : "Show all"}
-          </button>
-        </div>
-      )}
     </>
   );
 }
