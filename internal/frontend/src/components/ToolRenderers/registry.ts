@@ -22,6 +22,13 @@ class ToolRendererRegistry {
   private definitions: Map<string, ToolRendererDefinition> = new Map();
   private initialised = false;
 
+  /** Test helper — clears all registered definitions and resets init state. */
+  reset(): void {
+    this.nameToKind.clear();
+    this.definitions.clear();
+    this.initialised = false;
+  }
+
   init(): void {
     if (this.initialised) return;
     this.initialised = true;
