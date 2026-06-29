@@ -106,7 +106,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "grep",
-    names: ["grep", "ripgrep_raw_search"],
+    names: ["grep", "ripgrep_raw_search", "grep_search"],
     Component: GrepToolDiff,
     summary: (tool) => `grep: ${pattern(tool)}`,
     markerColor: "#8b5cf6",
@@ -117,7 +117,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "glob",
-    names: ["glob", "glob_file_search"],
+    names: ["glob", "glob_file_search", "list_dir"],
     Component: GlobToolDiff,
     summary: (tool) => {
       const p = extractJSONField(tool.input, "pattern") || "";
