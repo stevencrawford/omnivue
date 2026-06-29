@@ -60,22 +60,34 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   const lang = detectLanguage(filePath);
 
   for (const edit of edits) {
-    if (edit.toolName === "write" && edit.content && !edit.oldStr) {
+    const body = edit.newStr || edit.content || "";
+    if (body && !edit.oldStr) {
       isNew = true;
-      const lines = edit.content.split("\n");
-      const count = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
-      if (count === 0) continue;
-      const hunkLines: string[] = [`@@ -0,0 +1,${count} @@`];
-      for (const l of lines.slice(0, count)) {
-        hunkLines.push("+" + l);
+      if (body.startsWith("@@")) {
+        const lines = body.split("\n");
+        allHunks.push({
+          deletionStart: 0,
+          deletionCount: 0,
+          additionStart: 1,
+          additionCount: 0,
+          lines,
+        });
+      } else {
+        const lines = body.split("\n");
+        const count = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+        if (count === 0) continue;
+        const hunkLines: string[] = [`@@ -0,0 +1,${count} @@`];
+        for (const l of lines.slice(0, count)) {
+          hunkLines.push("+" + l);
+        }
+        allHunks.push({
+          deletionStart: 0,
+          deletionCount: 0,
+          additionStart: 1,
+          additionCount: count,
+          lines: hunkLines,
+        });
       }
-      allHunks.push({
-        deletionStart: 0,
-        deletionCount: 0,
-        additionStart: 1,
-        additionCount: count,
-        lines: hunkLines,
-      });
       continue;
     }
 

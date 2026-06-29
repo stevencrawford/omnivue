@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { File, FilePen } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { detectLanguage } from "../../../utils/detectLanguage";
 import { computeDiff } from "../../../utils/diff";
 import { PatchRenderer, FileRenderer } from "../../DiffRenderer";
+
+const UNIFIED_DIFF_RE = /^@@\s+-\d+,\d+\s+\+\d+,\d+\s+@@/m;
 
 const MAX_VISIBLE_LINES = 35;
 
@@ -74,6 +76,11 @@ export function EditToolDiff({
 
   const displayContent = newStr || content;
 
+  const isUnifiedDiff = useMemo(() => {
+    const c = displayContent;
+    return c.length > 10 && UNIFIED_DIFF_RE.test(c);
+  }, [displayContent]);
+
   let diffPatch: string | null = null;
   let diffLines: string[] | null = null;
   if (!isAddition && oldStr && newStr && !skipDiff) {
@@ -87,6 +94,12 @@ export function EditToolDiff({
     } catch {
       /* ignore */
     }
+  } else if (isUnifiedDiff) {
+    const patch = displayContent.startsWith("---")
+      ? displayContent
+      : `--- a/${filePath}\n+++ b/${filePath}\n${displayContent}`;
+    diffPatch = patch;
+    diffLines = patch.split("\n");
   }
 
   const showFile = !diffPatch && !!displayContent;
