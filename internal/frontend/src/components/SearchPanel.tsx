@@ -222,7 +222,7 @@ export function SearchPanel({
                 placeholder={
                   searchScope
                     ? "Search in current session..."
-                    : "Search conversations, tool calls, and plans..."
+                    : "Search sessions, tool calls, and plans..."
                 }
                 className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
               />
@@ -369,7 +369,7 @@ export function SearchPanel({
               ))}
             {!loading && !showRecent && !query && (
               <div className="text-xs text-gh-text-secondary p-6 text-center leading-relaxed">
-                Search across conversations, tool calls, and plan content
+                Search across sessions, tool calls, and plan content
               </div>
             )}
             {!loading && !showRecent && query && totalItems > 0 && !hasNavigated && (
