@@ -22,6 +22,8 @@ export function ToolRendererWrapper({
   onOpenModal,
   onPin,
   onCopy,
+  onBookmark,
+  isBookmarked,
 }: {
   renderer: ToolRendererDefinition;
   tool: ToolCall;
@@ -29,6 +31,8 @@ export function ToolRendererWrapper({
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onCopy?: (content: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const maxLines = renderer.truncateOutput ?? DEFAULT_OUTPUT_MAX_LINES;
@@ -48,6 +52,8 @@ export function ToolRendererWrapper({
     onOpenModal,
     onPin,
     onCopy,
+    onBookmark,
+    isBookmarked,
   };
 
   return (
