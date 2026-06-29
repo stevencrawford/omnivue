@@ -69,7 +69,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   });
 
   const [resetting, setResetting] = useState(false);
-  const [resetStep, setResetStep] = useState<0 | 1 | 2>(0);
+  const [resetStep, setResetStep] = useState<0 | 1>(0);
   const [resetConfirmText, setResetConfirmText] = useState("");
 
   const loadSources = useCallback(async () => {
@@ -494,7 +494,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 )}
 
                 {resetStep === 1 && (
-                  <div className="p-3 rounded-md border border-red-500/30 bg-red-500/[0.08] space-y-2">
+                  <div className="p-3 rounded-md border border-red-500/30 bg-red-500/[0.08] space-y-3">
                     <div className="flex items-start gap-2">
                       <TriangleAlert className="size-4 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-xs text-red-400/90">
@@ -503,45 +503,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         can be re-added. This action cannot be undone.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setResetStep(0);
-                          setResetConfirmText("");
+                    <div>
+                      <p className="text-xs text-red-400/90 mb-1.5">
+                        Type <span className="font-mono font-bold">RESET</span> to confirm.
+                      </p>
+                      <input
+                        type="text"
+                        value={resetConfirmText}
+                        onChange={(e) => setResetConfirmText(e.target.value)}
+                        placeholder="Type RESET"
+                        className="w-full text-xs bg-gh-bg border border-red-500/30 rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-red-400 font-mono"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && resetConfirmText === "RESET" && !resetting) {
+                            handleReset();
+                          }
                         }}
-                        className="text-xs px-2 py-1 rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setResetStep(2)}
-                        className="text-xs px-2 py-1 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
-                      >
-                        Continue
-                      </button>
+                      />
                     </div>
-                  </div>
-                )}
-
-                {resetStep === 2 && (
-                  <div className="p-3 rounded-md border border-red-500/30 bg-red-500/[0.08] space-y-2">
-                    <p className="text-xs text-red-400/90">
-                      Type <span className="font-mono font-bold">RESET</span> to confirm.
-                    </p>
-                    <input
-                      type="text"
-                      value={resetConfirmText}
-                      onChange={(e) => setResetConfirmText(e.target.value)}
-                      placeholder="Type RESET"
-                      className="w-full text-xs bg-gh-bg border border-red-500/30 rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-red-400 font-mono"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && resetConfirmText === "RESET" && !resetting) {
-                          handleReset();
-                        }
-                      }}
-                    />
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
