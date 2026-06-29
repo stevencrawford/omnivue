@@ -176,7 +176,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Sub-agent",
     markerDisplayType: "sub-agent",
     markerPriority: 10,
-    canExpand: true,
+    canExpand: false,
     cardClassName:
       "border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-2",
   },
