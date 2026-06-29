@@ -255,13 +255,20 @@ export function App() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
+  const sessionIds = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
+
+  const validScratchFiles = useMemo(
+    () => scratchFiles.filter((f) => sessionIds.has(f.sessionId)),
+    [scratchFiles, sessionIds],
+  );
+
   const scratchFileMap = useMemo(() => {
     const map: Record<string, { title: string; mode: string }> = {};
-    for (const f of scratchFiles) {
+    for (const f of validScratchFiles) {
       map[f.id] = { title: f.title, mode: f.mode };
     }
     return map;
-  }, [scratchFiles]);
+  }, [validScratchFiles]);
 
   const handleBookmark = useCallback(
     async (
@@ -318,7 +325,7 @@ export function App() {
     if (!activeSessionId) return;
     if (prevSessionIdRef.current === activeSessionId) return;
     prevSessionIdRef.current = activeSessionId;
-    const sessionFileIds = scratchFiles
+    const sessionFileIds = validScratchFiles
       .filter((f) => f.sessionId === activeSessionId)
       .map((f) => f.id);
     setOpenScratchTabs((prev) => {
@@ -327,7 +334,7 @@ export function App() {
       if (added.length === 0) return prev;
       return [...prev, ...added];
     });
-  }, [activeSessionId, scratchFiles]);
+  }, [activeSessionId, validScratchFiles]);
 
   const handleNewScratchFile = useCallback(async () => {
     if (!activeSessionId) return;
