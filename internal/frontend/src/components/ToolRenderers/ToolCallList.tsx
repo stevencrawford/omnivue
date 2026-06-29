@@ -199,7 +199,7 @@ export function ToolCallRow({
           >
             {summary}
           </span>
-          {tool.duration && tool.duration > 0 ? (
+          {!isTask && tool.duration && tool.duration > 0 ? (
             <span className="text-[11px] text-gh-text-secondary shrink-0">
               {tool.duration < 1000
                 ? `${tool.duration}ms`
@@ -207,7 +207,7 @@ export function ToolCallRow({
             </span>
           ) : null}
         </button>
-        <NonCompactCopyBtn tool={tool} />
+        {!isTask && <NonCompactCopyBtn tool={tool} />}
         {isTask && childSessionId && (
           <button
             type="button"
@@ -217,7 +217,7 @@ export function ToolCallRow({
               navigateToSession(childSessionId);
             }}
           >
-            <ArrowRight size={12} className="inline" /> View
+            <ArrowRight size={12} className="inline" /> View session
           </button>
         )}
       </div>

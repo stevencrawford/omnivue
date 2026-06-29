@@ -170,6 +170,11 @@ export const definitions: ToolRendererDefinition[] = [
     Component: TaskToolDiff,
     summary: (tool) => {
       const desc = extractJSONField(tool.input, "description") || "";
+      const st =
+        extractJSONField(tool.input, "subagent_type") ||
+        extractJSONField(tool.input, "agent_type") ||
+        "";
+      if (st) return `\u{1F4CB} ${st} ${desc.slice(0, 76 - st.length)}`;
       return `\u{1F4CB} ${desc.slice(0, 80)}`;
     },
     markerColor: "#f472b6",

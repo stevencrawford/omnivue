@@ -40,6 +40,7 @@ export function TaskToolDiff({
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <Monitor size={12} className="text-violet-400 shrink-0" />
         <span className="text-gh-text-secondary/70 shrink-0">task:</span>
+        {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
         <span
           className={`text-gh-text truncate min-w-0 ${tool.output && onOpenModal ? "cursor-pointer hover:underline hover:text-violet-400" : ""}`}
           title={description || "Sub-task"}
@@ -52,13 +53,13 @@ export function TaskToolDiff({
         >
           {description || "Sub-task"}
         </span>
-        {agent && <span className="text-violet-400/70 shrink-0 ml-auto">{agent}</span>}
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-mono text-violet-400">
+      {agent && <span className="text-violet-400/70">{agent}</span>}
       <span
         className={`font-medium text-violet-300 truncate ${tool.output && onOpenModal ? "cursor-pointer hover:text-violet-200" : ""}`}
         title={description || "Sub-task"}
@@ -71,7 +72,6 @@ export function TaskToolDiff({
       >
         {description || "Sub-task"}
       </span>
-      {agent && <span className="text-violet-400/70">{agent}</span>}
       {totalCount > 0 && (
         <span className="text-violet-400/70">
           {completedCount}/{totalCount} steps

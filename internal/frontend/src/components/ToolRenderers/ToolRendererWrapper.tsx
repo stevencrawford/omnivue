@@ -121,7 +121,7 @@ export function ToolRendererWrapper({
                   navigateToSession(childSessionId);
                 }}
               >
-                <ArrowRight size={12} className="inline" /> View
+                <ArrowRight size={12} className="inline" /> View session
               </button>
             )}
             <CopyOutputBtn tool={tool} />
@@ -191,7 +191,7 @@ export function ToolRendererWrapper({
                 navigateToSession(childSessionId);
               }}
             >
-              <ArrowRight size={12} className="inline" /> View
+              <ArrowRight size={12} className="inline" /> View session
             </button>
           )}
           <CopyOutputBtn tool={tool} />
