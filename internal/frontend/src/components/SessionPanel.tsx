@@ -8,7 +8,7 @@ import {
   sessionMetaParts,
   relativeTime,
   formatCost,
-  formatTokens,
+  formatTokenBreakdown,
   shortDir,
 } from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
@@ -584,6 +584,15 @@ function SessionRow({
           <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
             {relativeTime(session.updatedAt)}
           </span>
+          {session.tokensInput +
+            session.tokensOutput +
+            session.tokensCacheRead +
+            session.tokensCacheWrite >
+            0 && (
+            <span className="shrink-0 text-[11px] text-gh-text-secondary/60 tabular-nums">
+              {formatTokenBreakdown(session)}
+            </span>
+          )}
         </div>
         {sessionMetaParts(session).length > 0 && (
           <p className="sess-parent-session-meta truncate mt-0.5">
@@ -624,6 +633,15 @@ function SessionRow({
                 <span className="text-[11px] opacity-60 tabular-nums shrink-0">
                   {relativeTime(session.updatedAt)}
                 </span>
+                {session.tokensInput +
+                  session.tokensOutput +
+                  session.tokensCacheRead +
+                  session.tokensCacheWrite >
+                  0 && (
+                  <span className="text-[11px] opacity-40 tabular-nums shrink-0">
+                    {formatTokenBreakdown(session)}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -655,7 +673,7 @@ function VerboseStats({ session }: { session: Session }) {
         key="tokens"
         title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
       >
-        {formatTokens(totalTokens)}
+        {formatTokenBreakdown(session)}
       </span>,
     );
   }

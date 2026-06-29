@@ -55,4 +55,12 @@ export function formatTokens(tokens: number): string {
   return `${tokens} tok`;
 }
 
+export function formatTokenBreakdown(session: Session): string {
+  const parts: string[] = [];
+  if (session.tokensInput > 0) parts.push(`${formatTokens(session.tokensInput)} in`);
+  if (session.tokensCacheRead > 0) parts.push(`${formatTokens(session.tokensCacheRead)} cached`);
+  if (session.tokensOutput > 0) parts.push(`${formatTokens(session.tokensOutput)} out`);
+  return parts.join(" / ");
+}
+
 export { relativeTime };

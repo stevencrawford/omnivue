@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronRight, User, Check, Copy } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
-import { formatCost, formatTokens } from "../utils/sessionUtils";
+import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
 
 export function PinnedPromptBar({
@@ -138,7 +138,7 @@ export function PinnedPromptBar({
               className="text-[11px] text-gh-text-secondary"
               title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
             >
-              {formatTokens(totalTokens)}
+              {formatTokenBreakdown(session)}
             </span>
           )}
           {session.cost > 0 && showCosts() && (
