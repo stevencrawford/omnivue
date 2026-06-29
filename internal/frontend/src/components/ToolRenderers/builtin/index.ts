@@ -9,6 +9,7 @@ import { GrepToolDiff } from "./GrepToolDiff";
 import { GlobToolDiff } from "./GlobToolDiff";
 import { DeleteToolDiff } from "./DeleteToolDiff";
 import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
+import { CompactionToolDiff } from "./CompactionToolDiff";
 import { TaskToolDiff } from "./TaskToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
@@ -67,7 +68,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Shell",
     markerDisplayType: "bash",
     markerPriority: 60,
-    truncateOutput: 200,
+    truncateOutput: 50,
   },
   {
     kind: "edit",
@@ -79,6 +80,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerDisplayType: "edit",
     markerPriority: 20,
     truncateOutput: 20,
+    defaultExpanded: true,
   },
   {
     kind: "write",
@@ -90,6 +92,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerDisplayType: "edit",
     markerPriority: 20,
     truncateOutput: 20,
+    defaultExpanded: true,
   },
   {
     kind: "read",
@@ -110,7 +113,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Search",
     markerDisplayType: "search",
     markerPriority: 70,
-    truncateOutput: 200,
+    truncateOutput: 50,
   },
   {
     kind: "glob",
@@ -159,6 +162,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Todo",
     markerDisplayType: "todowrite",
     markerPriority: 90,
+    defaultExpanded: true,
   },
   {
     kind: "task",
@@ -172,6 +176,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Sub-agent",
     markerDisplayType: "sub-agent",
     markerPriority: 10,
+    canExpand: false,
   },
   {
     kind: "task_complete",
@@ -205,6 +210,23 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Plans",
     markerDisplayType: "plan",
     markerPriority: 30,
+  },
+  {
+    kind: "compaction",
+    names: ["compaction"],
+    Component: CompactionToolDiff,
+    summary: (tool) => {
+      const c = extractJSONField(tool.input, "count") || "";
+      const l =
+        extractJSONField(tool.input, "label") || extractJSONField(tool.input, "kind") || "items";
+      return `${c} ${l}`;
+    },
+    markerColor: "#6b7280",
+    markerLabel: "Compaction",
+    markerDisplayType: "compaction",
+    markerPriority: 110,
+    truncateOutput: 0,
+    canExpand: false,
   },
   {
     kind: "webfetch",
