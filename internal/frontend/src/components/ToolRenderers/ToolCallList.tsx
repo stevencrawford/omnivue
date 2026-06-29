@@ -128,6 +128,11 @@ export function ToolCallRow({
           renderer={renderer}
           tool={tool}
           compact
+          wrapperClass={
+            isTask
+              ? "border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-2"
+              : undefined
+          }
           onOpenModal={onOpenModal}
           onPin={onPin}
           onBookmark={bmOnClick}

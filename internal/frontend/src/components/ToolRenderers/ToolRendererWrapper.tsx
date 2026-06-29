@@ -42,6 +42,7 @@ export function ToolRendererWrapper({
   renderer,
   tool,
   compact,
+  wrapperClass,
   onOpenModal,
   onPin,
   onCopy,
@@ -51,6 +52,7 @@ export function ToolRendererWrapper({
   renderer: ToolRendererDefinition;
   tool: ToolCall;
   compact: boolean;
+  wrapperClass?: string;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onCopy?: (content: string) => void;
@@ -81,7 +83,12 @@ export function ToolRendererWrapper({
   if (compact) {
     if (!canExpand) {
       return (
-        <div className="border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2">
+        <div
+          className={
+            wrapperClass ||
+            "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2"
+          }
+        >
           <div className="flex items-center w-full">
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
@@ -123,7 +130,12 @@ export function ToolRendererWrapper({
     };
 
     return (
-      <div className="border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2">
+      <div
+        className={
+          wrapperClass ||
+          "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2"
+        }
+      >
         <div className="flex items-center w-full">
           <button
             type="button"

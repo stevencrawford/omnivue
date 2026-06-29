@@ -47,7 +47,24 @@ export function TaskToolDiff({
         <span className="text-gh-text truncate min-w-0" title={description}>
           {description || "Sub-task"}
         </span>
-        {agent && <span className="text-violet-400/70 shrink-0 ml-auto">{agent}</span>}
+        {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
+        {childSessionId && (
+          <button
+            type="button"
+            className="text-violet-400 hover:text-violet-300 cursor-pointer text-[11px] shrink-0 ml-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToSession(childSessionId);
+            }}
+          >
+            <ArrowRight size={11} className="inline" /> View
+          </button>
+        )}
+        {tool.duration != null && tool.duration > 0 && (
+          <span className="text-[10px] font-mono text-gh-text-secondary/40 shrink-0">
+            {tool.duration < 1000 ? `${tool.duration}ms` : `${(tool.duration / 1000).toFixed(1)}s`}
+          </span>
+        )}
       </div>
     );
   }

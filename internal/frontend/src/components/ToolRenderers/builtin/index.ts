@@ -176,7 +176,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Sub-agent",
     markerDisplayType: "sub-agent",
     markerPriority: 10,
-    canExpand: false,
+    canExpand: true,
   },
   {
     kind: "task_complete",
