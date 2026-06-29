@@ -101,7 +101,13 @@ function getStatusColor(status?: JiraStatus): string {
 
 const DESCRIPTION_LINE_LIMIT = 20;
 
-export function JiraToolDiff({ tool, rawOutput, compact, onBookmark, isBookmarked }: ToolRendererProps) {
+export function JiraToolDiff({
+  tool,
+  rawOutput,
+  compact,
+  onBookmark,
+  isBookmarked,
+}: ToolRendererProps) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   let issue: JiraIssue = {};

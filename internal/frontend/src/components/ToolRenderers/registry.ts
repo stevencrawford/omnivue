@@ -31,8 +31,8 @@ export interface ToolResolution {
 }
 
 const HEURISTIC_KIND_ALIASES: Record<string, string> = {
-  "view": "read",
-  "apply_patch": "edit",
+  view: "read",
+  apply_patch: "edit",
 };
 
 class ToolRendererRegistry {
@@ -228,7 +228,12 @@ class ToolRendererRegistry {
     return tool.name;
   }
 
-  private resolveSummary(tool: ToolCall, agent: string | undefined, _kind: string, renderer: ToolRendererDefinition | undefined): string {
+  private resolveSummary(
+    tool: ToolCall,
+    agent: string | undefined,
+    _kind: string,
+    renderer: ToolRendererDefinition | undefined,
+  ): string {
     if (renderer?.summary) {
       return renderer.summary(tool, agent);
     }
