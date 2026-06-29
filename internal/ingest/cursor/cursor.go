@@ -232,7 +232,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	// Extract file paths from tool calls in messages
 	for _, m := range messages {
 		for _, tc := range m.ToolCalls {
-			if tc.Name != "edit_file_v2" && tc.Name != "edit" && tc.Name != "write" {
+			if tc.Name != "edit_file_v2" && tc.Name != "edit_file" && tc.Name != "edit" && tc.Name != "write" {
 				continue
 			}
 			var p struct {
@@ -957,15 +957,15 @@ func extractBashOutput(raw string) (text string, rejected bool) {
 // standard conventions expected by the frontend's tool renderers.
 func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
-	case "edit_file_v2":
+	case "edit_file_v2", "edit_file":
 		tc.Name = "edit"
-	case "read_file_v2":
+	case "read_file_v2", "read_file":
 		tc.Name = "read"
 	case "glob_file_search":
 		tc.Name = "glob"
 	case "ripgrep_raw_search":
 		tc.Name = "grep"
-	case "run_terminal_command_v2":
+	case "run_terminal_command_v2", "run_terminal_command":
 		tc.Name = "bash"
 	case "delete_file":
 		tc.Name = "delete"
