@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSessionNav } from "./useNav";
 
 interface UseConversationScrollOptions {
@@ -6,6 +6,15 @@ interface UseConversationScrollOptions {
   messageCount: number;
   focusMessageIndex?: number;
   searchHighlightQuery?: string;
+}
+
+function updateButtons(el: HTMLDivElement) {
+  const threshold = Math.max(el.clientHeight * 0.3, 100);
+  const scrollable = el.scrollHeight > el.clientHeight + 2;
+  return {
+    showScrollTop: scrollable && el.scrollTop > threshold,
+    showScrollBottom: scrollable && el.scrollHeight - el.scrollTop - el.clientHeight > threshold,
+  };
 }
 
 export function useConversationScroll({
@@ -28,28 +37,32 @@ export function useConversationScroll({
     }
   }, [sessionId, saveScrollPosition]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      const saved = scrollPositions.get(sessionId);
-      const isInitialLoad = prevLengthRef.current === 0;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = scrollPositions.get(sessionId);
+    const isInitialLoad = prevLengthRef.current === 0;
 
-      const isSearchNav =
-        focusMessageIndex !== undefined || (searchHighlightQuery && isInitialLoad);
+    const isSearchNav =
+      focusMessageIndex !== undefined || (searchHighlightQuery && isInitialLoad);
 
-      if (isInitialLoad && !isSearchNav) {
-        if (saved !== undefined) {
-          scrollRef.current.scrollTop = saved;
-        } else {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      } else if (messageCount > prevLengthRef.current) {
-        const el = scrollRef.current;
-        const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-        if (nearBottom) {
-          el.scrollTop = el.scrollHeight;
-        }
+    if (isInitialLoad && !isSearchNav) {
+      if (saved !== undefined) {
+        el.scrollTop = saved;
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
+    } else if (messageCount > prevLengthRef.current) {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      if (nearBottom) {
+        el.scrollTop = el.scrollHeight;
       }
     }
+
+    const btn = updateButtons(el);
+    setShowScrollTop(btn.showScrollTop);
+    setShowScrollBottom(btn.showScrollBottom);
+
     prevLengthRef.current = messageCount;
   }, [messageCount, sessionId, scrollPositions, focusMessageIndex, searchHighlightQuery]);
 
@@ -57,8 +70,9 @@ export function useConversationScroll({
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
-      setShowScrollTop(el.scrollTop > 200);
-      setShowScrollBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
+      const btn = updateButtons(el);
+      setShowScrollTop(btn.showScrollTop);
+      setShowScrollBottom(btn.showScrollBottom);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => doSaveScroll(), 300);
     };
@@ -73,8 +87,9 @@ export function useConversationScroll({
     const el = scrollRef.current;
     if (!el) return;
     const update = () => {
-      setShowScrollTop(el.scrollTop > 200);
-      setShowScrollBottom(el.scrollHeight - el.scrollTop - el.clientHeight > 200);
+      const btn = updateButtons(el);
+      setShowScrollTop(btn.showScrollTop);
+      setShowScrollBottom(btn.showScrollBottom);
     };
     const observer = new ResizeObserver(update);
     observer.observe(el);
