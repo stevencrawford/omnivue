@@ -1,6 +1,5 @@
-import { Monitor, ArrowRight } from "lucide-react";
+import { Monitor } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { useSessionNav } from "../../../hooks/useNav";
 
 interface TaskInput {
   description?: string;
@@ -17,7 +16,6 @@ export function TaskToolDiff({
   isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
   let input: TaskInput = {};
-  let childSessionId: string | null = null;
   let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
   try {
     input = JSON.parse(tool.input);
@@ -26,13 +24,11 @@ export function TaskToolDiff({
   }
   try {
     const meta = JSON.parse(tool.metadata || "{}");
-    childSessionId = meta.sessionId || null;
     summary = meta.summary || null;
   } catch {
     /* ignore */
   }
 
-  const { navigateToSession } = useSessionNav();
   const description = input.description || "";
   const agent = input.subagent_type || input.agent_type || "";
 
@@ -47,24 +43,7 @@ export function TaskToolDiff({
         <span className="text-gh-text truncate min-w-0" title={description}>
           {description || "Sub-task"}
         </span>
-        {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
-        {childSessionId && (
-          <button
-            type="button"
-            className="text-violet-400 hover:text-violet-300 cursor-pointer text-[11px] shrink-0 ml-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateToSession(childSessionId);
-            }}
-          >
-            <ArrowRight size={11} className="inline" /> View
-          </button>
-        )}
-        {tool.duration != null && tool.duration > 0 && (
-          <span className="text-[10px] font-mono text-gh-text-secondary/40 shrink-0">
-            {tool.duration < 1000 ? `${tool.duration}ms` : `${(tool.duration / 1000).toFixed(1)}s`}
-          </span>
-        )}
+        {agent && <span className="text-violet-400/70 shrink-0 ml-auto">{agent}</span>}
       </div>
     );
   }
@@ -89,22 +68,6 @@ export function TaskToolDiff({
           {completedCount}/{totalCount} steps
         </span>
       )}
-      <div className="ml-auto flex items-center gap-1 shrink-0">
-        {childSessionId && (
-          <button
-            type="button"
-            className="text-violet-400 hover:text-violet-300 cursor-pointer text-[11px]"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigateToSession(childSessionId!);
-            }}
-          >
-            <span className="inline-flex items-center gap-1">
-              View session <ArrowRight size={11} />
-            </span>
-          </button>
-        )}
-      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { ChevronDown, Copy, Check } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronDown, Copy, Check, ArrowRight } from "lucide-react";
 import type { ToolRendererDefinition, ToolRendererProps } from "./types";
 import type { ToolCall } from "../../hooks/useApi";
 import { BookmarkButton } from "./BookmarkButton";
+import { useSessionNav } from "../../hooks/useNav";
 
 const DEFAULT_OUTPUT_MAX_LINES = 50;
 
@@ -42,7 +43,6 @@ export function ToolRendererWrapper({
   renderer,
   tool,
   compact,
-  wrapperClass,
   onOpenModal,
   onPin,
   onCopy,
@@ -52,13 +52,24 @@ export function ToolRendererWrapper({
   renderer: ToolRendererDefinition;
   tool: ToolCall;
   compact: boolean;
-  wrapperClass?: string;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onCopy?: (content: string) => void;
   onBookmark?: () => void;
   isBookmarked?: boolean;
 }) {
+  const { navigateToSession } = useSessionNav();
+
+  const childSessionId = useMemo(() => {
+    if (!tool.metadata) return null;
+    try {
+      const meta = JSON.parse(tool.metadata);
+      return meta.sessionId || null;
+    } catch {
+      return null;
+    }
+  }, [tool.metadata]);
+
   const canExpand = renderer.canExpand !== false;
   const [expanded, setExpanded] = useState(renderer.defaultExpanded ?? false);
   const [truncExpanded, setTruncExpanded] = useState(false);
@@ -85,7 +96,7 @@ export function ToolRendererWrapper({
       return (
         <div
           className={
-            wrapperClass ||
+            renderer.cardClassName ||
             "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2"
           }
         >
@@ -99,6 +110,18 @@ export function ToolRendererWrapper({
                   ? `${tool.duration}ms`
                   : `${(tool.duration / 1000).toFixed(1)}s`}
               </span>
+            )}
+            {childSessionId && (
+              <button
+                type="button"
+                className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover cursor-pointer transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateToSession(childSessionId);
+                }}
+              >
+                <ArrowRight size={12} className="inline" /> View
+              </button>
             )}
             <CopyOutputBtn tool={tool} />
             {onBookmark && (
@@ -132,7 +155,7 @@ export function ToolRendererWrapper({
     return (
       <div
         className={
-          wrapperClass ||
+          renderer.cardClassName ||
           "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2"
         }
       >
@@ -157,6 +180,18 @@ export function ToolRendererWrapper({
               </span>
             )}
           </button>
+          {childSessionId && (
+            <button
+              type="button"
+              className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateToSession(childSessionId);
+              }}
+            >
+              <ArrowRight size={12} className="inline" /> View
+            </button>
+          )}
           <CopyOutputBtn tool={tool} />
           {onBookmark && (
             <BookmarkButton

@@ -24,4 +24,5 @@ export interface ToolRendererDefinition {
   truncateOutput?: number;
   defaultExpanded?: boolean;
   canExpand?: boolean;
+  cardClassName?: string;
 }
