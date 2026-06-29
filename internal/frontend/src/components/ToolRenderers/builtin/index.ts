@@ -200,6 +200,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Questions",
     markerDisplayType: "question",
     markerPriority: 40,
+    defaultExpanded: true,
   },
   {
     kind: "exit_plan_mode",
