@@ -1,21 +1,15 @@
 import type { ToolCall } from "../hooks/useApi";
+import { extractJSONField } from "./jsonField";
+import { toolRendererRegistry } from "../components/ToolRenderers/registry";
 
-export function extractJSONField(jsonStr: string, field: string): string | null {
-  if (!jsonStr) return null;
-  try {
-    const parsed = JSON.parse(jsonStr);
-    if (parsed === null || typeof parsed !== "object") return null;
-    const val = (parsed as Record<string, unknown>)[field];
-    if (typeof val === "string" && val) return val;
-    if (typeof val === "number") return String(val);
-    return null;
-  } catch {
-    return null;
-  }
-}
+export { extractJSONField } from "./jsonField";
 
 /** Infer the real tool kind when the harness wraps calls (e.g. OpenCode `build`). */
 export function effectiveToolKind(tool: ToolCall): string {
+  // Registry check for vendor-defined kinds takes priority
+  const fromRegistry = toolRendererRegistry.kindForToolName(tool.name);
+  if (fromRegistry) return fromRegistry;
+
   // Known tool names take priority (works for both OpenCode and Copilot)
   switch (tool.name) {
     case "edit":
@@ -64,6 +58,11 @@ export function effectiveToolKind(tool: ToolCall): string {
 }
 
 export function getToolSummary(tool: ToolCall, agent?: string): string {
+  // Registry has per-kind summary functions from renderer definitions
+  const fromRegistry = toolRendererRegistry.getSummary(tool, agent);
+  if (fromRegistry) return fromRegistry;
+
+  // Fallback for legacy/harness-wrapped cases not covered by registry
   if (agent === "opencode") {
     if (tool.name === "task") {
       const desc = extractJSONField(tool.input, "description") || "";
@@ -71,107 +70,11 @@ export function getToolSummary(tool: ToolCall, agent?: string): string {
     }
   }
 
-  if (tool.name === "task_complete") {
-    const summary = extractJSONField(tool.input, "summary") || "";
-    return `\u2713 task_complete: ${summary.slice(0, 80)}`;
-  }
-
-  const kind = effectiveToolKind(tool);
-  const input = tool.input;
-
-  if (kind === "edit" || kind === "write" || kind === "read" || kind === "delete") {
-    const fp =
-      extractJSONField(input, "filePath") ||
-      extractJSONField(input, "file_path") ||
-      extractJSONField(input, "path") ||
-      extractJSONField(input, "relativeWorkspacePath") ||
-      "";
-    if (fp) {
-      const base = fp.split("/").pop() || fp;
-      return `${kind}: ${base}`;
-    }
-  }
-
-  if (kind === "bash" || kind === "command") {
-    const cmd = extractJSONField(input, "command") || "";
-    if (cmd) return cmd.length > 100 ? cmd.slice(0, 100) + "…" : cmd;
-    return "shell";
-  }
-
-  if (kind === "grep") {
-    const pattern = extractJSONField(input, "pattern") || extractJSONField(input, "query") || "";
-    if (pattern) return pattern.length > 80 ? pattern.slice(0, 80) + "…" : pattern;
-    return "search";
-  }
-
-  if (kind === "glob") {
-    const pattern = extractJSONField(input, "pattern") || "";
-    if (pattern) return `glob: ${pattern.length > 60 ? pattern.slice(0, 60) + "…" : pattern}`;
-    return "glob";
-  }
-
-  if (kind === "question") {
-    const q = extractJSONField(tool.input, "questions");
-    if (q) {
-      try {
-        const parsed = JSON.parse(q);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const text = parsed[0].question || parsed[0].header || "";
-          return `? ${text.slice(0, 80)}`;
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-    return "question";
-  }
-
-  if (kind === "todowrite") {
-    return "todowrite";
-  }
-
-  if (kind === "webfetch") {
-    const url = extractJSONField(input, "url") || "";
-    if (url) return url.length > 80 ? url.slice(0, 80) + "…" : url;
-    return "webfetch";
-  }
-
-  if (kind === "websearch") {
-    const q = extractJSONField(input, "query") || "";
-    if (q) return q.length > 80 ? q.slice(0, 80) + "…" : q;
-    return "websearch";
-  }
-
-  if (kind === "codesearch") {
-    const q = extractJSONField(input, "query") || "";
-    if (q) return q.length > 80 ? q.slice(0, 80) + "…" : q;
-    return "codesearch";
-  }
-
-  if (kind === "jira") {
-    let label = "";
-    if (tool.output) {
-      try {
-        const parsed = JSON.parse(tool.output);
-        const key = parsed.key || "";
-        const summary = parsed.fields?.summary || "";
-        if (key && summary) label = `jira: ${key} ${summary.slice(0, 60)}`;
-        else if (key) label = `jira: ${key}`;
-        else if (summary) label = `jira: ${summary.slice(0, 80)}`;
-      } catch {
-        /* ignore */
-      }
-    }
-    if (!label) {
-      const key =
-        extractJSONField(input, "issueIdOrKey") || extractJSONField(input, "issueKey") || "";
-      if (key) label = `jira: ${key}`;
-    }
-    return label.slice(0, 200) || "jira";
-  }
-
+  // Registry has per-kind summary functions from renderer definitions.
+  // Most cases below are legacy fallbacks for harness-wrapped tools
+  // not yet covered by the registry.
   if (tool.name === "tool") {
-    const toolName = extractJSONField(input, "name") || "";
+    const toolName = extractJSONField(tool.input, "name") || "";
     if (toolName) return toolName;
   }
 

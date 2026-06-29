@@ -1,6 +1,6 @@
 import type { ToolRendererDefinition } from "../types";
 import type { ToolCall } from "../../../hooks/useApi";
-import { extractJSONField } from "../../../utils/toolDisplay";
+import { extractJSONField } from "../../../utils/jsonField";
 
 import { BashToolDiff } from "./BashToolDiff";
 import { EditToolDiff } from "./EditToolDiff";

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Bug, FileText, CircleDot, Layers, ArrowRightToLine } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
-import { MarkdownContent } from "../MarkdownContent";
-import { CopyButton } from "../CopyButton";
-import { BookmarkButton } from "./BookmarkButton";
+import type { ToolRendererProps } from "../../types";
+import { MarkdownContent } from "../../../MarkdownContent";
+import { CopyButton } from "../../../CopyButton";
+import { BookmarkButton } from "../../BookmarkButton";
 
 interface JiraIssueType {
   name: string;
@@ -101,15 +101,7 @@ function getStatusColor(status?: JiraStatus): string {
 
 const DESCRIPTION_LINE_LIMIT = 20;
 
-export function JiraToolDiff({
-  tool,
-  onBookmark,
-  isBookmarked = false,
-}: {
-  tool: ToolCall;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
+export function JiraToolDiff({ tool, compact, onBookmark, isBookmarked }: ToolRendererProps) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   let issue: JiraIssue = {};
@@ -156,30 +148,32 @@ export function JiraToolDiff({
 
   const formattedCopyText = issueKey ? `[${issueKey}] ${summary}` : tool.output || "";
 
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+        <TypeIcon size={12} className={`shrink-0 ${typeConfig.color}`} />
+        <span className="font-semibold text-gh-text-secondary/70 shrink-0">jira:</span>
+        <span className="text-gh-text truncate min-w-0">{issueKey || summary || "Jira issue"}</span>
+        {status && (
+          <span className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${getStatusColor(status)}`}>
+            {status.name}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`border rounded-lg overflow-hidden mb-3 group ${typeConfig.border} ${typeConfig.bg}`}
-    >
-      <div
-        className="flex items-center gap-2 px-3 py-1.5 border-b bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary"
-        style={{ borderColor: "inherit" }}
-      >
+    <div className={`border rounded-lg overflow-hidden mb-3 group ${typeConfig.border} ${typeConfig.bg}`}>
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary" style={{ borderColor: "inherit" }}>
         <TypeIcon size={14} className={`shrink-0 ${typeConfig.color}`} />
         {issuetype?.name && (
-          <span
-            className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded ${typeConfig.color} ${typeConfig.bg}`}
-          >
+          <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded ${typeConfig.color} ${typeConfig.bg}`}>
             {issuetype.name}
           </span>
         )}
         {issueKey && jiraUrl ? (
-          <a
-            href={jiraUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-bold text-accent hover:underline tracking-tight"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <a href={jiraUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-accent hover:underline tracking-tight" onClick={(e) => e.stopPropagation()}>
             {issueKey}
           </a>
         ) : issueKey ? (
@@ -187,15 +181,13 @@ export function JiraToolDiff({
         ) : null}
         <div className="flex-1" />
         {status && (
-          <span
-            className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${getStatusColor(status)}`}
-          >
+          <span className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${getStatusColor(status)}`}>
             {status.name}
           </span>
         )}
         {onBookmark && (
           <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
+            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} />
           </span>
         )}
         <CopyButton text={formattedCopyText} />
@@ -212,13 +204,7 @@ export function JiraToolDiff({
           {parent && (
             <span>
               Epic:{" "}
-              <a
-                href={jiraUrl ? `https://${cloudId}/browse/${parent.key}` : "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <a href={jiraUrl ? `https://${cloudId}/browse/${parent.key}` : "#"} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline" onClick={(e) => e.stopPropagation()}>
                 {parent.key}
               </a>{" "}
               {parent.fields?.summary?.slice(0, 60)}
@@ -237,21 +223,13 @@ export function JiraToolDiff({
           {needsTruncation && (
             <span className="text-[10px] text-gh-text-secondary/60">
               … {descLines.length - DESCRIPTION_LINE_LIMIT} more lines{" "}
-              <button
-                type="button"
-                onClick={() => setDescriptionExpanded(true)}
-                className="text-accent hover:underline cursor-pointer"
-              >
+              <button type="button" onClick={() => setDescriptionExpanded(true)} className="text-accent hover:underline cursor-pointer">
                 Show more
               </button>
             </span>
           )}
           {descriptionExpanded && (
-            <button
-              type="button"
-              onClick={() => setDescriptionExpanded(false)}
-              className="mt-1 text-[10px] text-accent hover:underline cursor-pointer"
-            >
+            <button type="button" onClick={() => setDescriptionExpanded(false)} className="mt-1 text-[10px] text-accent hover:underline cursor-pointer">
               Show less
             </button>
           )}
