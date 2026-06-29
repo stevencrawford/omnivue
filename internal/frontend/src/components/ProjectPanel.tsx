@@ -33,6 +33,7 @@ interface ProjectPanelProps {
 type FolderSort = "name" | "count";
 
 const EXPANDED_KEY = "sess-project-folders-expanded";
+const SORT_FOLDER_KEY = "sess-project-folder-sort";
 
 function getInitialExpanded(): Set<string> {
   try {
@@ -61,12 +62,24 @@ export function ProjectPanel({
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(getInitialExpanded);
+  const initialExpandedRef = useRef<Set<string> | null>(null);
+  if (!initialExpandedRef.current) {
+    initialExpandedRef.current = getInitialExpanded();
+  }
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [assigningFolder, setAssigningFolder] = useState<string | null>(null);
-  const [folderSort, setFolderSort] = useState<FolderSort>("name");
+  const [folderSort, setFolderSort] = useState<FolderSort>(() => {
+    try {
+      const stored = localStorage.getItem(SORT_FOLDER_KEY);
+      if (stored === "name" || stored === "count") return stored;
+    } catch {
+      /* noop */
+    }
+    return "name";
+  });
   const [folderSortOpen, setFolderSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +87,27 @@ export function ProjectPanel({
   useEffect(() => {
     saveExpanded(expandedFolders);
   }, [expandedFolders]);
+
+  useEffect(() => {
+    if (folders.length === 0) return;
+    folders.forEach((f) => {
+      if (initialExpandedRef.current?.has(f.id)) {
+        fetchFolderSessions(f.id)
+          .then((ids) => {
+            setFolderSessions((prev) => ({ ...prev, [f.id]: ids }));
+          })
+          .catch(() => {});
+      }
+    });
+  }, [folders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SORT_FOLDER_KEY, folderSort);
+    } catch {
+      /* noop */
+    }
+  }, [folderSort]);
 
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
@@ -430,12 +464,11 @@ export function ProjectPanel({
               />
             )}
 
-            {expandedFolders.has(folder.id) && folderSessions[folder.id] && (
-              <div>
-                {folderSessions[folder.id].length === 0 ? (
-                  <div className="text-[11px] text-gh-text-secondary px-3 py-1">Empty</div>
-                ) : (
-                  folderSessions[folder.id].map((sid) => {
+            {expandedFolders.has(folder.id) &&
+              folderSessions[folder.id] &&
+              folderSessions[folder.id].length > 0 && (
+                <div>
+                  {folderSessions[folder.id].map((sid) => {
                     const sess = getSession(sid);
                     if (!sess) return null;
                     return (
@@ -448,10 +481,9 @@ export function ProjectPanel({
                         onContextMenu={handleContextMenu}
                       />
                     );
-                  })
-                )}
-              </div>
-            )}
+                  })}
+                </div>
+              )}
           </div>
         ))}
       </div>
