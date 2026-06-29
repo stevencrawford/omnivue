@@ -22,4 +22,6 @@ export interface ToolRendererDefinition {
   markerPriority?: number;
   priority?: number;
   truncateOutput?: number;
+  defaultExpanded?: boolean;
+  canExpand?: boolean;
 }
