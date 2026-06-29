@@ -7,6 +7,8 @@ export interface ToolRendererProps {
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onCopy?: (content: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
 }
 
 export interface ToolRendererDefinition {

@@ -1,8 +1,8 @@
 import { Monitor, ArrowRight } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
-import { useSessionNav } from "../../hooks/useNav";
-import { CopyButton } from "../CopyButton";
-import { BookmarkButton } from "./BookmarkButton";
+import type { ToolRendererProps } from "../types";
+import { useSessionNav } from "../../../hooks/useNav";
+import { CopyButton } from "../../CopyButton";
+import { BookmarkButton } from "../BookmarkButton";
 
 interface TaskInput {
   description?: string;
@@ -10,17 +10,7 @@ interface TaskInput {
   agent_type?: string;
 }
 
-export function TaskToolDiff({
-  tool,
-  onOpenModal,
-  onBookmark,
-  isBookmarked = false,
-}: {
-  tool: ToolCall;
-  onOpenModal?: (content: string, title?: string) => void;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
+export function TaskToolDiff({ tool, compact, onOpenModal, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
   let input: TaskInput = {};
   let childSessionId: string | null = null;
   let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
@@ -43,6 +33,21 @@ export function TaskToolDiff({
 
   const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
   const totalCount = summary?.length ?? 0;
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+        <Monitor size={12} className="text-violet-400 shrink-0" />
+        <span className="text-gh-text-secondary/70 shrink-0">task:</span>
+        <span className="text-gh-text truncate min-w-0" title={description}>
+          {description || "Sub-task"}
+        </span>
+        {agent && (
+          <span className="text-violet-400/70 shrink-0 ml-auto">{agent}</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="border border-violet-500/30 rounded-lg bg-violet-500/[0.03] overflow-hidden mb-3 group">
@@ -67,12 +72,18 @@ export function TaskToolDiff({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1 shrink-0">
-          {onBookmark && (
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-              <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
-            </span>
+          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
+          {onCopy && tool.output ? (
+            <button
+              type="button"
+              onClick={() => onCopy(tool.output)}
+              title="Copy output"
+            >
+              <CopyButton text={tool.output} />
+            </button>
+          ) : (
+            tool.output && <CopyButton text={tool.output} />
           )}
-          {tool.output && <CopyButton text={tool.output} />}
           {childSessionId && (
             <button
               type="button"

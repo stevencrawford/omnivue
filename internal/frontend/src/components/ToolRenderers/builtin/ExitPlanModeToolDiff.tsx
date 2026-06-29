@@ -1,21 +1,9 @@
 import { CircleAlert } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
-import { MarkdownContent } from "../MarkdownContent";
-import { BookmarkButton } from "./BookmarkButton";
+import type { ToolRendererProps } from "../types";
+import { MarkdownContent } from "../../MarkdownContent";
+import { BookmarkButton } from "../BookmarkButton";
 
-export function ExitPlanModeToolDiff({
-  tool,
-  onOpenModal,
-  onPin,
-  onBookmark,
-  isBookmarked = false,
-}: {
-  tool: ToolCall;
-  onOpenModal?: (content: string, title?: string) => void;
-  onPin?: (content: string) => void;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
+export function ExitPlanModeToolDiff({ tool, compact, onOpenModal, onPin, onBookmark, isBookmarked }: ToolRendererProps) {
   let summary = "";
 
   try {
@@ -27,16 +15,26 @@ export function ExitPlanModeToolDiff({
 
   const feedback = tool.output || "";
 
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+        <CircleAlert size={12} className="text-amber-400 shrink-0" />
+        <span className="text-gh-text-secondary/70 shrink-0">plan:</span>
+        <span className="text-gh-text truncate min-w-0">
+          {summary ? summary.split("\n")[0].slice(0, 80) : "Proposed Plan"}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="border border-amber-500/30 rounded-lg bg-amber-500/[0.03] overflow-hidden mb-3 relative group">
-      <div className="px-3 py-1.5 border-b border-amber-500/30 bg-amber-500/[0.06] text-[11px] font-mono text-gh-text-secondary flex items-center gap-2">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-amber-500/30 bg-amber-500/[0.06] text-[11px] font-mono text-gh-text-secondary">
         <CircleAlert size={14} className="text-amber-400 shrink-0" />
         <span className="font-medium text-gh-text">Proposed Plan</span>
-        {onBookmark && (
-          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-1">
+          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
+        </div>
       </div>
       {summary && (
         <div className="px-3 py-2">

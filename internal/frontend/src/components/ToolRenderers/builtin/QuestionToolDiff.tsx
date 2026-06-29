@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { CircleHelp, CircleCheckBig } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
-import { CopyButton } from "../CopyButton";
-import { BookmarkButton } from "./BookmarkButton";
+import type { ToolRendererProps } from "../types";
+import { CopyButton } from "../../CopyButton";
+import { BookmarkButton } from "../BookmarkButton";
 
 interface QuestionItem {
   question: string;
@@ -10,15 +10,7 @@ interface QuestionItem {
   options?: Array<{ label: string; description?: string }>;
 }
 
-export function QuestionToolDiff({
-  tool,
-  onBookmark,
-  isBookmarked = false,
-}: {
-  tool: ToolCall;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
+export function QuestionToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
   let questions: QuestionItem[] = [];
   try {
     const parsed = JSON.parse(tool.input);
@@ -48,12 +40,35 @@ export function QuestionToolDiff({
       .replace(/"\}$/, "")
       .slice(0, 120);
     if (!text) return null;
+
+    if (compact) {
+      return (
+        <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+          <CircleHelp size={12} className="text-orange-400 shrink-0" />
+          <span className="text-gh-text truncate min-w-0">{text}</span>
+        </div>
+      );
+    }
+
     const simpleText = [text, tool.output].filter(Boolean).join("\n");
     return (
       <div className="overflow-hidden group">
         <div className="flex items-start gap-2 px-3 py-2">
           <span className="flex-1 text-[11px] text-gh-text">{text}</span>
-          <CopyButton text={simpleText} />
+          <div className="flex items-center gap-1 shrink-0">
+            {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
+            {onCopy ? (
+              <button
+                type="button"
+                onClick={() => onCopy(simpleText)}
+                title="Copy"
+              >
+                <CopyButton text={simpleText} />
+              </button>
+            ) : (
+              <CopyButton text={simpleText} />
+            )}
+          </div>
         </div>
         {tool.output && (
           <div className="border-t border-accent-border px-3 py-1.5 text-[11px] text-emerald-400">
@@ -81,6 +96,17 @@ export function QuestionToolDiff({
         .join("\n\n")
     : questions.map((qItem) => qItem.header || qItem.question).join("\n");
 
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+        <CircleHelp size={12} className="text-orange-400 shrink-0" />
+        <span className="text-gh-text truncate min-w-0">
+          {q.header || q.question || "question"}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="border border-gh-border rounded-lg bg-gh-bg-secondary/50 overflow-hidden mb-3 group">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
@@ -104,12 +130,20 @@ export function QuestionToolDiff({
         ) : (
           <span className="font-medium text-gh-text truncate flex-1">{q.header || q.question}</span>
         )}
-        {onBookmark && (
-          <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
-          </span>
-        )}
-        <CopyButton text={qaText} />
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
+          {onCopy ? (
+            <button
+              type="button"
+              onClick={() => onCopy(qaText)}
+              title="Copy"
+            >
+              <CopyButton text={qaText} />
+            </button>
+          ) : (
+            <CopyButton text={qaText} />
+          )}
+        </div>
       </div>
       <div className="px-3 py-2">
         {q.question && q.header !== q.question && (

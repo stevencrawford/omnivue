@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { File } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
-import { detectLanguage } from "../../utils/detectLanguage";
-import { computeDiff } from "../../utils/diff";
-import { PatchRenderer, FileRenderer } from "../DiffRenderer";
-import { CopyButton } from "../CopyButton";
-import { BookmarkButton } from "./BookmarkButton";
+import { File, FilePen } from "lucide-react";
+import type { ToolRendererProps } from "../types";
+import { detectLanguage } from "../../../utils/detectLanguage";
+import { computeDiff } from "../../../utils/diff";
+import { PatchRenderer, FileRenderer } from "../../DiffRenderer";
+import { CopyButton } from "../../CopyButton";
+import { BookmarkButton } from "../BookmarkButton";
 
 interface EditInput {
   path?: string;
@@ -19,17 +19,8 @@ interface EditInput {
   view_range?: [number, number];
 }
 
-export function EditToolDiff({
-  tool,
-  onBookmark,
-  isBookmarked = false,
-}: {
-  tool: ToolCall;
-  onBookmark?: () => void;
-  isBookmarked?: boolean;
-}) {
+export function EditToolDiff({ tool, compact, onCopy, onBookmark, isBookmarked }: ToolRendererProps) {
   const [expanded, setExpanded] = useState(false);
-  const MAX_LINES = 20;
   let input: EditInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -47,16 +38,35 @@ export function EditToolDiff({
   const isWrite = tool.name === "write" && !!content;
   const isAddition = (viewRange != null && !oldStr) || isWrite;
 
-  // Skip expensive diff computation for very large files — just show the new content.
   const skipDiff = (oldStr && oldStr.length > 20000) || (newStr && newStr.length > 20000);
+
+  const baseName = filePath.split("/").pop() || filePath;
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+        {isWrite ? (
+          <FilePen size={12} className="text-accent shrink-0" />
+        ) : (
+          <File size={12} className="text-accent shrink-0" />
+        )}
+        <span className="text-gh-text-secondary/70 shrink-0">
+          {tool.name === "write" ? "write:" : "edit:"}
+        </span>
+        <span className="text-gh-text truncate min-w-0" title={filePath}>
+          {baseName}
+        </span>
+        {viewRange && (
+          <span className="text-gh-text-secondary/70 shrink-0">
+            :{viewRange[0]}-{viewRange[1]}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   const displayContent = newStr || content;
   const totalLines = displayContent ? displayContent.split("\n").length : 0;
-  const isOverLimit = totalLines > MAX_LINES;
-  const truncatedContent =
-    !expanded && isOverLimit
-      ? displayContent.split("\n").slice(0, MAX_LINES).join("\n")
-      : displayContent;
 
   let diffPatch: string | null = null;
   if (!isAddition && oldStr && newStr && !skipDiff) {
@@ -72,50 +82,56 @@ export function EditToolDiff({
   }
 
   const showFile = !diffPatch && !!displayContent;
-
   const contentToCopy = diffPatch || displayContent;
 
-  function ExpandedCopyBtn() {
-    return <CopyButton text={contentToCopy} className="absolute top-1 right-1 z-10" />;
-  }
-
   return (
-    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3 group">
+    <div className="border border-accent-border rounded-lg overflow-hidden bg-gh-bg-secondary/30 mb-3">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-accent-border bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary">
-        <File size={14} className="text-accent shrink-0" />
+        {isWrite ? (
+          <FilePen size={14} className="text-accent shrink-0" />
+        ) : (
+          <File size={14} className="text-accent shrink-0" />
+        )}
         <span className="font-medium text-gh-text truncate">{filePath}</span>
         {viewRange && (
           <span className="shrink-0 text-gh-text-secondary/70">
             :{viewRange[0]}-{viewRange[1]}
           </span>
         )}
-        {onBookmark && (
-          <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-            <BookmarkButton isBookmarked={isBookmarked} onClick={onBookmark} />
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />}
+          {onCopy ? (
+            <button
+              type="button"
+              onClick={() => onCopy(contentToCopy)}
+              title="Copy diff"
+            >
+              <CopyButton text={contentToCopy} />
+            </button>
+          ) : (
+            <CopyButton text={contentToCopy} />
+          )}
+        </div>
       </div>
       {diffPatch ? (
         <div
           className={
-            "relative group " + (!expanded && isOverLimit ? "max-h-[440px] overflow-hidden" : "")
+            "relative group " + (!expanded && totalLines > 20 ? "max-h-[440px] overflow-hidden" : "")
           }
         >
-          <ExpandedCopyBtn />
           <PatchRenderer patch={diffPatch} lang={lang} />
         </div>
       ) : showFile ? (
         <div className="relative group">
-          <ExpandedCopyBtn />
-          <FileRenderer content={truncatedContent} lang={lang} />
+          <FileRenderer content={displayContent} lang={lang} />
         </div>
       ) : null}
-      {isOverLimit && (
+      {totalLines > 20 && (
         <div className="text-center border-t border-accent-border">
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="text-[11px] font-medium text-accent hover:underline py-2"
+            className="text-[11px] font-medium text-accent hover:underline py-2 cursor-pointer"
           >
             {expanded ? "Show less" : `Show more (${totalLines} lines)`}
           </button>
