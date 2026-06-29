@@ -3,3 +3,4 @@ internal/frontend/CREDITS_FRONTEND
 coverage.out
 sess
 .opencode/plans
+.idea/
