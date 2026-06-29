@@ -36,7 +36,7 @@ The root component manages global state:
 Resizable left panel (220–600px) with section navigation:
 - **Sessions** tab — session tree grouped by repository directory `SessionPanel`
 - **Projects** tab — project-based folder browsing `ProjectPanel`
-- **Bookmarks** tab — currently disabled
+- **Bookmarks** tab — bookmark panel for pinning tool call outputs
 - Scratch file list per session
 - Persisted sidebar width in localStorage
 - Right-click context menus
@@ -73,11 +73,13 @@ Includes `SessionHeader` at top showing agent badge, title (editable inline), re
 
 ### Tool call renderers (`ToolRenderers/`)
 
-Each tool call type has a dedicated renderer. See `ToolRenderers/AGENTS.md` for architecture guide, dispatch logic, and adding new renderers.
+Each tool call type has a dedicated renderer. See `internal/frontend/src/components/ToolRenderers/AGENTS.md` for architecture guide, dispatch logic, and adding new renderers.
 
 | Component | Renders |
 |-----------|---------|
 | `ToolCallList.tsx` | Dispatch hub — compact (sidebar) and non-compact (full conversation) modes |
+| `ToolRendererWrapper.tsx` | System wrapper for expand/truncation/bookmark/copy controls |
+| `BookmarkButton.tsx` | Bookmark toggle button used by tool renderers |
 | `BashToolDiff.tsx` | Terminal command execution with exit status |
 | `EditToolDiff.tsx` | File edit/write diff (oldStr → newStr computed diff) |
 | `ReadToolDiff.tsx` | File read output with syntax highlighting |
@@ -86,8 +88,13 @@ Each tool call type has a dedicated renderer. See `ToolRenderers/AGENTS.md` for 
 | `DeleteToolDiff.tsx` | File deletion confirmation |
 | `TodoWriteToolDiff.tsx` | Todo list updates with status icons |
 | `TaskToolDiff.tsx` | Sub-agent task delegation with session navigation |
+| `TaskCompleteToolDiff.tsx` | Task completion summary |
+| `CompactionToolDiff.tsx` | Conversation compaction notification |
 | `QuestionToolDiff.tsx` | User questions with option selection display |
 | `ExitPlanModeToolDiff.tsx` | Plan mode exit summary |
+| `DefaultToolDiff.tsx` | Fallback renderer for unrecognized tool types |
+
+Tool renderers are auto-discovered via a registry (`registry.ts`) using `import.meta.glob`. Third-party/vendor renderers live in `ToolRenderers/vendor/` and are loaded alongside builtins.
 
 ### Search
 
@@ -127,6 +134,14 @@ Browser-based source management:
 | `AddToProjectDialog.tsx` | Assign sessions to folders with search/create |
 | `CopyButton.tsx` | Copy-to-clipboard button with group-hover visibility |
 | `SessionHeader.tsx` | Session metadata header (title, agent badge, repo, directory) |
+| `BookmarkPanel.tsx` | Bookmark list with delete and navigate-to-message |
+| `PinnedPromptBar.tsx` | Pinned initial prompt with resume button, cost display toggle |
+| `ScrollMarkers.tsx` | Scroll position markers for conversation navigation |
+| `UserPromptBubble.tsx` | User prompt style rendering in conversation |
+| `UserTurnMessage.tsx` | User turn message display |
+| `AssistantMessage.tsx` | Agent/assistant message display |
+| `SystemReminderView.tsx` | System reminder/system prompt rendering |
+| `SessionSummary.tsx` | Collapsible session summary card |
 
 ## Hooks
 
@@ -137,6 +152,10 @@ Browser-based source management:
 | `useTheme` | `hooks/useTheme.tsx` | Theme state (5 named themes) and mode (light/dark) with localStorage persistence |
 | `useNav` | `hooks/useNav.tsx` | Session navigation context (scroll positions, navigate-to-session) |
 | `useCopy` | `hooks/useCopy.ts` | Copy-to-clipboard utility with auto-reset timer |
+| `useConversationScroll` | `hooks/useConversationScroll.ts` | Scroll position management in conversation view |
+| `useSessionSummary` | `hooks/useSessionSummary.ts` | Session summary data fetching |
+| `useRecentSearches` | `hooks/useRecentSearches.ts` | Recent search query history tracking |
+| `useSearchHighlight` | `hooks/useSearchHighlight.ts` | Search result highlighting in conversation messages |
 
 ## Utilities
 
@@ -149,6 +168,7 @@ Browser-based source management:
 | `utils/sessionFilters.ts` | Session filter types and filter/sort logic |
 | `utils/sessionUtils.tsx` | Helper functions for session title, metadata display, relative time |
 | `utils/toolDisplay.ts` | Maps tool names to canonical kinds, produces human-readable summaries |
+| `utils/jsonField.ts` | JSON field extraction helpers for tool input parsing |
 
 ## Data flow
 
@@ -191,7 +211,8 @@ All keys use the `sess-` prefix:
 | `sess-sidebar-width` | `Sidebar.tsx` | Sidebar panel width in pixels |
 | `sess-theme` | `useTheme.tsx` | Theme name (`default`, `nord`, `catppuccin`, `tokyo-night`, `github`) |
 | `sess-mode` | `useTheme.tsx` | Theme mode (`light` / `dark`) |
-| `sess-pinned-height` | `ConversationView.tsx` | Pinned bar height in pixels |
+| `sess-pinned-height` | `PinnedPromptBar.tsx` | Pinned bar height in pixels |
+| `sess-show-costs` | `SettingsModal.tsx` | Whether to display cost data (`"true"` / `"false"`) |
 | `sess-sidebar-collapsed` | `SessionPanel.tsx` | Set of collapsed repo paths |
 | `sess-sidebar-sort` | `SessionPanel.tsx` | Session sort mode (`recent`, `name`, `agent`) |
 | `sess-sidebar-display` | `SessionPanel.tsx` | Display mode (`condensed`, `verbose`) |

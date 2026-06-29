@@ -124,7 +124,7 @@ All types in `internal/ingest/types.go`.
 | Field | Type | Description |
 |-------|------|-------------|
 | Markdown | `string` | Plan content as markdown |
-| Source | `string` | `"file"` or `"synthesized"` |
+| Source | `string` | `"file"`, `"synthesized"`, or `"codex"` |
 
 ### PlanItem
 
