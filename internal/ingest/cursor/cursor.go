@@ -953,6 +953,64 @@ func extractBashOutput(raw string) (text string, rejected bool) {
 	return resp.Output, resp.Rejected
 }
 
+// formatLegacyGlobOutput parses Cursor's legacy list_dir output JSON:
+//
+//	{"files":[{"name":"...","isDirectory":true}],"directoryRelativeWorkspacePath":"..."}
+//
+// → newline-separated file paths. Returns "" on mismatch.
+func formatLegacyGlobOutput(raw string) string {
+	var resp struct {
+		Files                        []struct {
+			Name string `json:"name"`
+		} `json:"files"`
+		DirectoryRelWorkspacePath string `json:"directoryRelativeWorkspacePath"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return ""
+	}
+	if len(resp.Files) == 0 {
+		return ""
+	}
+	var lines []string
+	for _, f := range resp.Files {
+		p := f.Name
+		if resp.DirectoryRelWorkspacePath != "" {
+			p = resp.DirectoryRelWorkspacePath + "/" + p
+		}
+		lines = append(lines, p)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// formatGrepOutput parses Cursor's output JSON and extracts plain text.
+// Legacy grep_search: {"files":[{"uri":"..."}],"numResults":N} → newline-separated URIs.
+// Modern ripgrep output is already plain text – returned as-is.
+func formatGrepOutput(raw string) string {
+	// Modern ripgrep output is plain text (not JSON), return as-is unless it's the JSON format
+	if raw == "" {
+		return ""
+	}
+	if raw[0] != '{' {
+		return raw
+	}
+	var resp struct {
+		Files []struct {
+			URI string `json:"uri"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return raw
+	}
+	if len(resp.Files) == 0 {
+		return raw
+	}
+	var lines []string
+	for _, f := range resp.Files {
+		lines = append(lines, f.URI)
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
 // normalizeToolCall maps Cursor-native tool call names and field names to the
 // standard conventions expected by the frontend's tool renderers.
 func normalizeToolCall(tc *ingest.ToolCall) {
@@ -961,9 +1019,9 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		tc.Name = "edit"
 	case "read_file_v2", "read_file":
 		tc.Name = "read"
-	case "glob_file_search":
+	case "glob_file_search", "list_dir":
 		tc.Name = "glob"
-	case "ripgrep_raw_search":
+	case "ripgrep_raw_search", "grep_search":
 		tc.Name = "grep"
 	case "run_terminal_command_v2", "run_terminal_command":
 		tc.Name = "bash"
@@ -973,11 +1031,38 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		return
 	}
 
+	// Output formatting — must happen before the Input parsing guard since
+	// legacy tool calls may have non-JSON or empty Input fields.
+	switch tc.Name {
+	case "read":
+		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
+		tc.Output = util.ExtractJSONString(tc.Output, "contents")
+	case "bash":
+		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
+		if text, rejected := extractBashOutput(tc.Output); rejected {
+			tc.Output = text
+			tc.Metadata = `{"exit":1}`
+		} else if text != "" {
+			tc.Output = text
+		}
+	case "grep":
+		if out := formatGrepOutput(tc.Output); out != "" {
+			tc.Output = out
+		}
+	case "glob":
+		if out := formatGlobOutput(tc.Output); out != "" {
+			tc.Output = out
+		} else if out := formatLegacyGlobOutput(tc.Output); out != "" {
+			tc.Output = out
+		}
+	}
+
 	var p map[string]any
 	if err := json.Unmarshal([]byte(tc.Input), &p); err != nil {
 		return
 	}
 
+	// Input field name normalization
 	switch tc.Name {
 	case "read":
 		if v, ok := p["targetFile"]; ok {
@@ -999,8 +1084,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			delete(p, "relativeWorkspacePath")
 		}
 		delete(p, "charsLimit")
-		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
-		tc.Output = util.ExtractJSONString(tc.Output, "contents")
 
 	case "edit":
 		if v, ok := p["relativeWorkspacePath"]; ok {
@@ -1054,21 +1137,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 				p["directory"] = v
 			}
 			delete(p, "targetDirectory")
-		}
-		// Cursor glob output: {"directories":[{"absPath":"...","files":[{"relPath":"..."}]}]}
-		// → newline-separated file paths
-		if out := formatGlobOutput(tc.Output); out != "" {
-			tc.Output = out
-		}
-
-	case "bash":
-		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
-		// Extract the text and surface exit status in Metadata
-		if text, rejected := extractBashOutput(tc.Output); rejected {
-			tc.Output = text
-			tc.Metadata = `{"exit":1}`
-		} else if text != "" {
-			tc.Output = text
 		}
 	}
 
