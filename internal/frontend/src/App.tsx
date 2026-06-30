@@ -334,12 +334,7 @@ export function App() {
     const sessionFileIds = validScratchFiles
       .filter((f) => f.sessionId === activeSessionId)
       .map((f) => f.id);
-    setOpenScratchTabs((prev) => {
-      const existing = new Set(prev);
-      const added = sessionFileIds.filter((id) => !existing.has(id));
-      if (added.length === 0) return prev;
-      return [...prev, ...added];
-    });
+    setOpenScratchTabs(sessionFileIds);
   }, [activeSessionId, validScratchFiles]);
 
   const handleNewScratchFile = useCallback(async () => {
