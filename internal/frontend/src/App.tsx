@@ -495,7 +495,7 @@ export function App() {
             <div className="flex items-center gap-1.5 min-w-0">
               <svg
                 className="size-4 shrink-0"
-                viewBox="0 0 16 16"
+                viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
@@ -503,10 +503,12 @@ export function App() {
                 strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <path d="M2 3.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2H8.5L6 12.5V10H4a2 2 0 0 1-2-2V3.5z" />
-                <circle cx="5.5" cy="5.5" r=".7" fill="currentColor" stroke="none" />
-                <circle cx="10.5" cy="5.5" r=".7" fill="currentColor" stroke="none" />
-                <path d="M6.5 8.5h3" />
+                <path d="M6,18 Q9,14 12,10" opacity="0.4" />
+                <path d="M9,19 Q10.5,15 12,10" opacity="0.7" />
+                <path d="M15,19 Q13.5,15 12,10" opacity="0.7" />
+                <path d="M18,18 Q15,14 12,10" opacity="0.4" />
+                <path d="M7,12 Q8.5,4 12,4 Q15.5,4 17,12 L16,12 Q12,8 8,12 Z" />
+                <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
               </svg>
               <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">Omnivue</h1>
             </div>
