@@ -786,5 +786,60 @@
     </div>
   </footer>
 
+<script>
+(function() {
+  var carousels = document.querySelectorAll('.carousel');
+  if (!carousels.length) return;
+
+  carousels.forEach(function(carousel) {
+    var radios = carousel.querySelectorAll('input[type="radio"]');
+    if (radios.length < 2) return;
+
+    var timer = null;
+    var isVisible = false;
+
+    function getCurrent() {
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return i;
+      }
+      return 0;
+    }
+
+    function advance() {
+      var next = (getCurrent() + 1) % radios.length;
+      radios[next].checked = true;
+    }
+
+    function start() {
+      stop();
+      if (isVisible) timer = setInterval(advance, 15000);
+    }
+
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    carousel.addEventListener('click', function(e) {
+      if (e.target.matches('.carousel-dots label')) {
+        stop();
+        setTimeout(start, 10000);
+      }
+    });
+
+    if ('IntersectionObserver' in window) {
+      var obs = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          isVisible = entry.isIntersecting;
+          isVisible ? start() : stop();
+        });
+      }, { threshold: 0.3 });
+      obs.observe(carousel);
+    } else {
+      isVisible = true;
+      start();
+    }
+  });
+})();
+</script>
 </body>
 </html>
