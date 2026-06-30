@@ -15,7 +15,13 @@ import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
 import type { Session, SearchResult, Bookmark } from "./hooks/useApi";
-import { fetchSessions, fetchSearch, createScratchFile, fetchBookmarks } from "./hooks/useApi";
+import {
+  fetchSessions,
+  fetchSearch,
+  createScratchFile,
+  renameScratchFile,
+  fetchBookmarks,
+} from "./hooks/useApi";
 import type { ScratchFile } from "./hooks/useApi";
 import { fetchAllScratchFiles } from "./hooks/useApi";
 import { createBookmark, deleteBookmark } from "./hooks/useApi";
@@ -263,9 +269,9 @@ export function App() {
   );
 
   const scratchFileMap = useMemo(() => {
-    const map: Record<string, { title: string; mode: string }> = {};
+    const map: Record<string, { title: string; mode: string; sessionId: string }> = {};
     for (const f of validScratchFiles) {
-      map[f.id] = { title: f.title, mode: f.mode };
+      map[f.id] = { title: f.title, mode: f.mode, sessionId: f.sessionId };
     }
     return map;
   }, [validScratchFiles]);
@@ -401,6 +407,22 @@ export function App() {
       }
     },
     [activeTab, activeSession],
+  );
+
+  const handleRenameScratchFile = useCallback(
+    async (fileId: string, newTitle: string) => {
+      const info = scratchFileMap[fileId];
+      if (!info) return;
+      try {
+        await renameScratchFile(info.sessionId, fileId, newTitle);
+        setScratchFiles((prev) =>
+          prev.map((f) => (f.id === fileId ? { ...f, title: newTitle } : f)),
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [scratchFileMap],
   );
 
   const handleSearchSelect = useCallback(
@@ -605,6 +627,7 @@ export function App() {
                       scratchFileMap={scratchFileMap}
                       onCloseScratchTab={handleCloseScratchTab}
                       onNewScratchFile={handleNewScratchFile}
+                      onRenameScratchFile={handleRenameScratchFile}
                       onPinMessage={handlePinMessage}
                       onBookmark={handleBookmark}
                       bookmarkIdByRef={bookmarkIdByRef}

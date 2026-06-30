@@ -32,9 +32,10 @@ interface SessionViewerProps {
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
   openScratchTabs: string[];
-  scratchFileMap: Record<string, { title: string; mode: string }>;
+  scratchFileMap: Record<string, { title: string; mode: string; sessionId: string }>;
   onCloseScratchTab: (fileId: string) => void;
   onNewScratchFile?: () => void;
+  onRenameScratchFile?: (fileId: string, newTitle: string) => void;
   onPinMessage?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
@@ -68,6 +69,7 @@ export function SessionViewer({
   scratchFileMap,
   onCloseScratchTab,
   onNewScratchFile,
+  onRenameScratchFile,
   onPinMessage,
   onBookmark,
   bookmarkIdByRef,
@@ -89,6 +91,8 @@ export function SessionViewer({
   const [planLoaded, setPlanLoaded] = useState(false);
   const [summaryLoaded, setSummaryLoaded] = useState(false);
   const [deleteConfirmFileId, setDeleteConfirmFileId] = useState<string | null>(null);
+  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -197,15 +201,52 @@ export function SessionViewer({
           const tab: Tab = `scratch:${fid}`;
           const info = scratchFileMap[fid];
           const isReadOnly = info?.mode === "readonly";
+          const isRenaming = renamingFileId === fid;
           return (
             <button
               key={fid}
               type="button"
               className={`sess-tab-pill shrink-0 ${activeTab === tab ? "sess-tab-pill--active" : ""}`}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                if (!isRenaming) setActiveTab(tab);
+              }}
             >
               {isReadOnly ? <Lock size={12} /> : tabIcon(tab)}
-              <span className="truncate max-w-28">{scratchTabLabel(fid)}</span>
+              {isRenaming ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={() => {
+                    const trimmed = renameValue.trim();
+                    if (trimmed && trimmed !== scratchTabLabel(fid)) {
+                      onRenameScratchFile?.(fid, trimmed);
+                    }
+                    setRenamingFileId(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      (e.target as HTMLInputElement).blur();
+                    } else if (e.key === "Escape") {
+                      setRenamingFileId(null);
+                    }
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-20 text-[11px] bg-gh-bg-hover border border-accent-border rounded px-1 outline-none"
+                />
+              ) : (
+                <span
+                  className="truncate max-w-28"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setRenameValue(scratchTabLabel(fid));
+                    setRenamingFileId(fid);
+                  }}
+                >
+                  {scratchTabLabel(fid)}
+                </span>
+              )}
               <span
                 role="button"
                 className="ml-1 text-gh-text-secondary hover:text-gh-text cursor-pointer"
@@ -278,11 +319,13 @@ export function SessionViewer({
         {isScratchTab(activeTab) &&
           (() => {
             const fid = scratchFileIdFromTab(activeTab)!;
+            const info = scratchFileMap[fid];
+            const scratchSessionId = info?.sessionId || session.id;
             return (
               <div className="absolute inset-0 flex flex-col">
                 <ScratchEditor
                   key={fid}
-                  sessionId={session.id}
+                  sessionId={scratchSessionId}
                   fileId={fid}
                   onDelete={() => onCloseScratchTab(fid)}
                 />
