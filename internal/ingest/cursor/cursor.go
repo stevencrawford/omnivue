@@ -327,18 +327,25 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	var input struct {
 		RelativeWorkspacePath string `json:"relativeWorkspacePath"`
 		FilePath             string `json:"filePath"`
+		Path                 string `json:"path"`
 		Contents             string `json:"contents"`
 		Content              string `json:"content"`
 		NewStr               string `json:"newStr"`
+		NewString            string `json:"newString"`
+		NewStringSnake       string `json:"new_string"`
 		StreamingContent     string `json:"streamingContent"`
 		OldStr               string `json:"oldStr"`
 		OldString            string `json:"oldString"`
+		OldStringSnake       string `json:"old_string"`
 	}
 	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 		return
 	}
 
 	filePath = input.FilePath
+	if filePath == "" {
+		filePath = input.Path
+	}
 	if filePath == "" {
 		filePath = input.RelativeWorkspacePath
 	}
@@ -350,10 +357,19 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	if oldStr == "" {
 		oldStr = input.OldString
 	}
+	if oldStr == "" {
+		oldStr = input.OldStringSnake
+	}
 
 	newStr = input.NewStr
 	if newStr == "" {
 		newStr = input.StreamingContent
+	}
+	if newStr == "" {
+		newStr = input.NewString
+	}
+	if newStr == "" {
+		newStr = input.NewStringSnake
 	}
 	if newStr == "" {
 		newStr = input.Content
@@ -1027,6 +1043,24 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		tc.Name = "bash"
 	case "delete_file":
 		tc.Name = "delete"
+	case "Read":
+		tc.Name = "read"
+	case "Grep", "GrepSearch":
+		tc.Name = "grep"
+	case "Glob":
+		tc.Name = "glob"
+	case "Shell":
+		tc.Name = "bash"
+	case "Write":
+		tc.Name = "write"
+	case "StrReplace":
+		tc.Name = "edit"
+	case "Task", "task_v2", "explore:task_v2":
+		tc.Name = "task"
+	case "ReadLints":
+		tc.Name = "read_lints"
+	case "UpdateCurrentStep":
+		tc.Name = "task_complete"
 	default:
 		return
 	}
@@ -1083,6 +1117,12 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			}
 			delete(p, "relativeWorkspacePath")
 		}
+		if v, ok := p["path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "path")
+		}
 		delete(p, "charsLimit")
 
 	case "edit":
@@ -1091,6 +1131,12 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 				p["filePath"] = v
 			}
 			delete(p, "relativeWorkspacePath")
+		}
+		if v, ok := p["path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "path")
 		}
 		if v, ok := p["contents"]; ok {
 			if _, exists := p["newString"]; !exists {
@@ -1110,11 +1156,23 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			}
 			delete(p, "newStr")
 		}
+		if v, ok := p["new_string"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "new_string")
+		}
 		if v, ok := p["oldStr"]; ok {
 			if _, exists := p["oldString"]; !exists {
 				p["oldString"] = v
 			}
 			delete(p, "oldStr")
+		}
+		if v, ok := p["old_string"]; ok {
+			if _, exists := p["oldString"]; !exists {
+				p["oldString"] = v
+			}
+			delete(p, "old_string")
 		}
 
 	case "grep":
