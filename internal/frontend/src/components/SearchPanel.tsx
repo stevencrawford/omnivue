@@ -118,14 +118,15 @@ export function SearchPanel({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doSearch = useCallback(
-    async (q: string) => {
+    async (q: string, scopeOverride?: string | null) => {
       if (!q.trim()) {
         setResults([]);
         return;
       }
+      const scope = scopeOverride !== undefined ? scopeOverride : searchScope;
       setLoading(true);
       try {
-        const data = await fetchSearch(q.trim(), 50, searchScope ?? undefined);
+        const data = await fetchSearch(q.trim(), 50, scope ?? undefined);
         setResults(data);
       } catch (err) {
         console.error("Search failed:", err);
@@ -143,9 +144,9 @@ export function SearchPanel({
       setSelectedIndex(0);
       userNavigated.current = false;
       doSearch(recentQuery);
-      onOpenDrawer(recentQuery);
+      inputRef.current?.focus();
     },
-    [onQueryChange, doSearch, onOpenDrawer],
+    [onQueryChange, doSearch],
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,8 +188,10 @@ export function SearchPanel({
           r.chunkType === "scratch" ? r.fileId : undefined,
           r.messageIndex,
         );
+        onClose();
       } else if (results.length > 0) {
         onOpenDrawer(query);
+        onClose();
       }
     }
   };
@@ -241,6 +244,8 @@ export function SearchPanel({
                     onClick={(e) => {
                       e.stopPropagation();
                       onClearScope();
+                      doSearch(query, null);
+                      inputRef.current?.focus();
                     }}
                     className="ml-0.5 p-0.5 rounded hover:bg-accent/20 cursor-pointer"
                   >
@@ -319,15 +324,16 @@ export function SearchPanel({
                             ? "search-result--selected text-ov-text"
                             : "hover:bg-ov-bg-hover text-ov-text-secondary"
                         }`}
-                        onClick={() =>
+                        onClick={() => {
                           onSelectSession(
                             r.sessionId,
                             r.chunkType,
                             query,
                             r.chunkType === "scratch" ? r.fileId : undefined,
                             r.messageIndex,
-                          )
-                        }
+                          );
+                          onClose();
+                        }}
                       >
                         <div className="mb-1">
                           <div className="flex items-center gap-2">
@@ -368,10 +374,18 @@ export function SearchPanel({
             )}
             {!loading && query && totalItems > 0 && (
               <div className="sticky bottom-0 px-3 py-1.5 border-t border-ov-border bg-ov-bg-secondary/80 backdrop-blur-sm flex items-center justify-center gap-3 text-[11px] text-ov-text-secondary">
-                <span><span className="sess-kbd">↑↓</span> navigate</span>
-                <span><span className="sess-kbd">↵</span> open</span>
-                <span><span className="sess-kbd">⌘↵</span> drawer</span>
-                <span><span className="sess-kbd">Esc</span> close</span>
+                <span>
+                  <span className="sess-kbd">↑↓</span> navigate
+                </span>
+                <span>
+                  <span className="sess-kbd">↵</span> open
+                </span>
+                <span>
+                  <span className="sess-kbd">⌘↵</span> drawer
+                </span>
+                <span>
+                  <span className="sess-kbd">Esc</span> close
+                </span>
               </div>
             )}
           </div>
