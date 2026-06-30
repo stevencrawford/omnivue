@@ -168,6 +168,86 @@
         to { opacity: 1; transform: translateY(0); }
       }
     }
+
+    /* Carousel */
+    .carousel {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .carousel input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .carousel-slides {
+      display: flex;
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: transform;
+    }
+
+    .carousel-slide {
+      flex: 0 0 100%;
+      min-width: 0;
+    }
+
+    #cs-s-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-s-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-s-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-c-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-c-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-c-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-d-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-d-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-d-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-r-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-r-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-r-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-f-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-f-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-f-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+
+    .carousel-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .carousel-dots label {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.3);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .carousel-dots label:hover {
+      background: rgba(148, 163, 184, 0.6);
+    }
+
+    #cs-s-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-s-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-s-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-c-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-c-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-c-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-d-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-d-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-d-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-r-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-r-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-r-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-f-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-f-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-f-3:checked ~ .carousel-dots label:nth-child(3) {
+      background: #818cf8;
+      transform: scale(1.25);
+    }
   </style>
 </head>
 <body class="site-dark bg-[#050816] text-slate-100 antialiased">
@@ -245,13 +325,26 @@
   <section id="sessions" class="feature-section max-w-6xl mx-auto px-4 py-20">
     <div class="flex flex-col lg:flex-row items-center gap-12">
       <div class="lg:w-1/2 shrink-0">
-        <div class="rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-          <img
-            src="assets/screenshot-sessions.png"
-            alt="Session browser showing sidebar with agent sessions"
-            class="w-full"
-            style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-          />
+        <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+          <input type="radio" name="cs-s" id="cs-s-1" checked />
+          <input type="radio" name="cs-s" id="cs-s-2" />
+          <input type="radio" name="cs-s" id="cs-s-3" />
+          <div class="carousel-slides">
+            <div class="carousel-slide">
+              <img src="assets/screenshot-sessions.png" alt="Session browser sidebar" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="assets/screenshot-sessions-2.png" alt="Session tree with grouped repos" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="assets/screenshot-sessions-3.png" alt="Session detail panel" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+          </div>
+          <div class="carousel-dots">
+            <label for="cs-s-1"></label>
+            <label for="cs-s-2"></label>
+            <label for="cs-s-3"></label>
+          </div>
         </div>
       </div>
       <div class="lg:w-1/2">
@@ -294,12 +387,27 @@
     <div class="max-w-6xl mx-auto px-4">
       <div class="flex flex-col lg:flex-row-reverse items-center gap-12">
         <div class="lg:w-1/2 shrink-0">
-          <img
-            src="assets/screenshot-conversation.png"
-            alt="Conversation view with messages and tool calls"
-            class="w-full rounded-2xl border border-gray-200 shadow-xl"
-            style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-          />
+          <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <input type="radio" name="cs-c" id="cs-c-1" checked />
+            <input type="radio" name="cs-c" id="cs-c-2" />
+            <input type="radio" name="cs-c" id="cs-c-3" />
+            <div class="carousel-slides">
+              <div class="carousel-slide">
+                <img src="assets/screenshot-conversation.png" alt="Conversation with messages and tool calls" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+              </div>
+              <div class="carousel-slide">
+                <img src="assets/screenshot-conversation-2.png" alt="Expanded reasoning block" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
+              </div>
+              <div class="carousel-slide">
+                <img src="assets/screenshot-conversation-3.png" alt="Tool call detail view" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+              </div>
+            </div>
+            <div class="carousel-dots">
+              <label for="cs-c-1"></label>
+              <label for="cs-c-2"></label>
+              <label for="cs-c-3"></label>
+            </div>
+          </div>
         </div>
         <div class="lg:w-1/2">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -341,12 +449,27 @@
   <section id="diffs" class="feature-section max-w-6xl mx-auto px-4 py-20">
     <div class="flex flex-col lg:flex-row items-center gap-12">
       <div class="lg:w-1/2 shrink-0">
-        <img
-          src="assets/screenshot-diffs.png"
-          alt="File diff view showing additions and deletions"
-          class="w-full rounded-2xl border border-gray-200 shadow-xl"
-          style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-        />
+        <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+          <input type="radio" name="cs-d" id="cs-d-1" checked />
+          <input type="radio" name="cs-d" id="cs-d-2" />
+          <input type="radio" name="cs-d" id="cs-d-3" />
+          <div class="carousel-slides">
+            <div class="carousel-slide">
+              <img src="assets/screenshot-diffs.png" alt="File diff view" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="assets/screenshot-diffs-2.png" alt="Expanded unified diff" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="assets/screenshot-diffs-3.png" alt="File change list with counts" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+          </div>
+          <div class="carousel-dots">
+            <label for="cs-d-1"></label>
+            <label for="cs-d-2"></label>
+            <label for="cs-d-3"></label>
+          </div>
+        </div>
       </div>
       <div class="lg:w-1/2">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -388,12 +511,27 @@
     <div class="max-w-6xl mx-auto px-4">
       <div class="flex flex-col lg:flex-row-reverse items-center gap-12">
         <div class="lg:w-1/2 shrink-0">
-          <img
-            src="assets/screenshot-search.png"
-            alt="Full-text search results with highlighted snippets"
-            class="w-full rounded-2xl border border-gray-200 shadow-xl"
-            style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-          />
+          <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <input type="radio" name="cs-r" id="cs-r-1" checked />
+            <input type="radio" name="cs-r" id="cs-r-2" />
+            <input type="radio" name="cs-r" id="cs-r-3" />
+            <div class="carousel-slides">
+              <div class="carousel-slide">
+                <img src="assets/screenshot-search.png" alt="Search results with snippets" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+              </div>
+              <div class="carousel-slide">
+                <img src="assets/screenshot-search-2.png" alt="Inline search typeahead" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
+              </div>
+              <div class="carousel-slide">
+                <img src="assets/screenshot-search-3.png" alt="Scope search by session" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+              </div>
+            </div>
+            <div class="carousel-dots">
+              <label for="cs-r-1"></label>
+              <label for="cs-r-2"></label>
+              <label for="cs-r-3"></label>
+            </div>
+          </div>
         </div>
         <div class="lg:w-1/2">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -435,12 +573,27 @@
   <section id="folders" class="feature-section max-w-6xl mx-auto px-4 py-20">
     <div class="flex flex-col lg:flex-row items-center gap-12">
       <div class="lg:w-1/2 shrink-0">
-        <img
-          src="assets/screenshot-folders.png"
-          alt="User folders and project panel"
-          class="w-full rounded-2xl border border-gray-200 shadow-xl"
-          style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-        />
+        <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+          <input type="radio" name="cs-f" id="cs-f-1" checked />
+          <input type="radio" name="cs-f" id="cs-f-2" />
+          <input type="radio" name="cs-f" id="cs-f-3" />
+          <div class="carousel-slides">
+            <div class="carousel-slide">
+              <img src="assets/screenshot-folders.png" alt="Folder panel" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="assets/screenshot-folders-2.png" alt="Nested folder tree" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="assets/screenshot-folders-3.png" alt="Project-based browsing" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+            </div>
+          </div>
+          <div class="carousel-dots">
+            <label for="cs-f-1"></label>
+            <label for="cs-f-2"></label>
+            <label for="cs-f-3"></label>
+          </div>
+        </div>
       </div>
       <div class="lg:w-1/2">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
