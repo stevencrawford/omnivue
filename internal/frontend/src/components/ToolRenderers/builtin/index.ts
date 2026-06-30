@@ -191,12 +191,16 @@ export const definitions: ToolRendererDefinition[] = [
     Component: TaskCompleteToolDiff,
     summary: (tool) => {
       const s = extractJSONField(tool.input, "summary") || "";
-      return `\u2713 task_complete: ${s.slice(0, 80)}`;
+      return `\u2713 ${s.slice(0, 80)}`;
     },
     markerColor: "#10b981",
     markerLabel: "Task complete",
     markerDisplayType: "task-complete",
     markerPriority: 0,
+    truncateOutput: 0,
+    canExpand: false,
+    cardClassName:
+      "border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-2",
   },
   {
     kind: "question",

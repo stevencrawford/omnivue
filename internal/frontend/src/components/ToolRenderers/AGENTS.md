@@ -139,7 +139,7 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 
 | Kind                         | Component                                       | `truncateOutput` | `defaultExpanded` | `canExpand` | `markerPriority` |
 | ---------------------------- | ----------------------------------------------- | ---------------- | ----------------- | ----------- | ---------------- |
-| `task_complete`              | `TaskCompleteToolDiff`                          | 50 (default)     | `false`           | `true`      | 0                |
+| `task_complete`              | `TaskCompleteToolDiff`                          | 0 (none)         | `false`           | `false`     | 0                |
 | `task`                       | `TaskToolDiff`                                  | 50 (default)     | `false`           | `false`     | 10               |
 | `edit`, `write`              | `EditToolDiff`                                  | 20               | `true`            | `true`      | 20               |
 | `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 50 (default)     | `false`           | `true`      | 30               |
@@ -151,6 +151,8 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | `todowrite`                  | `TodoWriteToolDiff`                             | 50 (default)     | `true`            | `true`      | 90               |
 | `delete`                     | `DeleteToolDiff`                                | 50 (default)     | `false`           | `true`      | 100              |
 | `compaction`                 | `CompactionToolDiff`                            | 0 (none)         | `false`           | `false`     | 110              |
+
+> **Note:** `task_complete` is a self-contained card in non-compact mode — it provides its own emerald border/background. This is because the non-compact rendering bypasses `ToolRendererWrapper`'s card wrapper and renders the component directly.
 
 ### Compaction pattern
 
@@ -175,7 +177,7 @@ Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). E
 | `task`           | violet              |
 | `question`       | orange              |
 | `exit_plan_mode` | amber               |
-| `task_complete`  | emerald             |
+| `task_complete`  | emerald (self-contained card) |
 | `compaction`     | gray                |
 
 ## CopyButton Usage

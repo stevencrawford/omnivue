@@ -1,52 +1,78 @@
 import { CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
+import { MarkdownContent } from "../../MarkdownContent";
+
+function looksLikeMarkdown(text: string): boolean {
+  return (
+    /#{1,6}\s/.test(text) ||
+    /\[.+\]\(.+\)/.test(text) ||
+    /(?:^|\n)[-*+]\s/.test(text) ||
+    /(?:^|\n)\d+\.\s/.test(text) ||
+    /(?:^|\n)>\s/.test(text) ||
+    /(?:^|\n)-{3,}/.test(text) ||
+    /`{3}/.test(text) ||
+    /\|.+\|/.test(text) ||
+    /[*_]{2,}.+[*_]{2,}/.test(text)
+  );
+}
 
 export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
-  let taskSummary = "";
+  let summary = "";
+  let durationMs = 0;
 
   try {
     const parsed = JSON.parse(tool.input);
-    taskSummary = parsed.summary || "";
+    summary = parsed.summary || "";
+    durationMs = parsed.duration_ms || 0;
   } catch {
     /* ignore */
   }
+
+  const displayDuration = tool.duration ?? durationMs;
 
   if (compact) {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
         <span className="text-emerald-400 font-semibold shrink-0">Task Complete</span>
-        {taskSummary && (
-          <span className="text-gh-text-secondary truncate min-w-0">
-            {taskSummary.split("\n")[0]}
+        {summary && (
+          <span className="text-gh-text-secondary truncate min-w-0">{summary.split("\n")[0]}</span>
+        )}
+        {displayDuration > 0 && (
+          <span className="text-[11px] text-gh-text-secondary/40 shrink-0">
+            {(displayDuration / 1000).toFixed(1)}s
           </span>
         )}
       </div>
     );
   }
 
+  const isMarkdown = summary ? looksLikeMarkdown(summary) : false;
+
   return (
-    <>
-      <div className="px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <CircleCheckBig size={16} className="text-emerald-400 shrink-0" />
-          <span className="font-semibold text-[11px] text-emerald-400">Task Complete</span>
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04]">
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <CircleCheckBig size={20} className="text-emerald-400 shrink-0" />
+          <span className="font-semibold text-[13px] text-emerald-400">Task Complete</span>
+          {displayDuration > 0 && (
+            <span className="text-[11px] text-gh-text-secondary/50 ml-auto">
+              {(displayDuration / 1000).toFixed(1)}s
+            </span>
+          )}
         </div>
-        {taskSummary && (
-          <p className="mt-1 text-[11px] text-gh-text-secondary leading-relaxed">
-            {taskSummary.split("\n")[0]}
-          </p>
+        {summary && (
+          <div className="mt-2 text-[13px]">
+            {isMarkdown ? (
+              <MarkdownContent content={summary} className="markdown-body--wide" />
+            ) : (
+              <p className="text-gh-text-secondary leading-relaxed whitespace-pre-wrap">
+                {summary}
+              </p>
+            )}
+          </div>
         )}
       </div>
-      {tool.output && (
-        <div className="border-t border-emerald-500/20">
-          <div className="px-3 py-2">
-            <pre className="text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap">
-              {tool.output}
-            </pre>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
