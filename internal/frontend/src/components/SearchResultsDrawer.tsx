@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Folder, X } from "lucide-react";
 import type { SearchResult } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
@@ -41,6 +41,7 @@ type Section = {
   label: string;
   badge: string;
   results: SearchResult[];
+  globalStartIndex: number;
 };
 
 export function SearchResultsDrawer({
@@ -53,21 +54,7 @@ export function SearchResultsDrawer({
   onClearScope,
 }: SearchResultsDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (isOpen) {
-      scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [isOpen, query]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const sections: Section[] = useMemo(() => {
     const groups = new Map<string, SearchResult[]>();
@@ -78,6 +65,7 @@ export function SearchResultsDrawer({
     }
     const order = ["name", "plan", "message", "scratch"];
     const out: Section[] = [];
+    let globalIdx = 0;
     for (const ct of order) {
       const group = groups.get(ct);
       if (!group || group.length === 0) continue;
@@ -85,10 +73,53 @@ export function SearchResultsDrawer({
         label: ct,
         badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
       };
-      out.push({ chunkType: ct, ...meta, results: group });
+      out.push({ chunkType: ct, ...meta, results: group, globalStartIndex: globalIdx });
+      globalIdx += group.length;
     }
     return out;
   }, [results]);
+
+  const allFlatResults = useMemo(() => {
+    return sections.flatMap((s) => s.results);
+  }, [sections]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [results]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, allFlatResults.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter") {
+        const r = allFlatResults[selectedIndex];
+        if (r) {
+          onSelect(
+            r.sessionId,
+            r.chunkType,
+            query,
+            r.chunkType === "scratch" ? r.fileId : undefined,
+            r.messageIndex,
+          );
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose, allFlatResults, selectedIndex, onSelect, query]);
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [isOpen, query]);
 
   if (!isOpen) return null;
 
@@ -152,50 +183,57 @@ export function SearchResultsDrawer({
                   <span className="tabular-nums opacity-70">({section.results.length})</span>
                 </span>
               </div>
-              {section.results.map((r, i) => (
-                <button
-                  key={`${r.sessionId}-${section.chunkType}-${i}`}
-                  type="button"
-                  className="w-full text-left px-4 py-3 border-b border-ov-border cursor-pointer transition-colors hover:bg-ov-bg-hover text-ov-text-secondary"
-                  onClick={() =>
-                    onSelect(
-                      r.sessionId,
-                      r.chunkType,
-                      query,
-                      r.chunkType === "scratch" ? r.fileId : undefined,
-                      r.messageIndex,
-                    )
-                  }
-                >
-                  <div className="mb-1">
-                    <div className="flex items-center gap-2">
-                      {r.repository && (
-                        <span className="text-[11px] font-mono text-ov-text-secondary truncate">
-                          {r.repository}
-                        </span>
+              {section.results.map((r, i) => {
+                const globalIdx = section.globalStartIndex + i;
+                return (
+                  <button
+                    key={`${r.sessionId}-${section.chunkType}-${i}`}
+                    type="button"
+                    className={`w-full text-left px-4 py-3 border-b border-ov-border cursor-pointer transition-colors ${
+                      globalIdx === selectedIndex
+                        ? "search-result--selected text-ov-text"
+                        : "hover:bg-ov-bg-hover text-ov-text-secondary"
+                    }`}
+                    onClick={() =>
+                      onSelect(
+                        r.sessionId,
+                        r.chunkType,
+                        query,
+                        r.chunkType === "scratch" ? r.fileId : undefined,
+                        r.messageIndex,
+                      )
+                    }
+                  >
+                    <div className="mb-1">
+                      <div className="flex items-center gap-2">
+                        {r.repository && (
+                          <span className="text-[11px] font-mono text-ov-text-secondary truncate">
+                            {r.repository}
+                          </span>
+                        )}
+                        {r.updatedAt && (
+                          <span className="text-[11px] text-ov-text-secondary shrink-0 ml-auto tabular-nums">
+                            {relativeTime(r.updatedAt)}
+                          </span>
+                        )}
+                      </div>
+                      {r.sessionName && (
+                        <div className="text-[11px] font-semibold text-ov-text truncate leading-snug mt-0.5">
+                          {r.sessionName}
+                        </div>
                       )}
-                      {r.updatedAt && (
-                        <span className="text-[11px] text-ov-text-secondary shrink-0 ml-auto tabular-nums">
-                          {relativeTime(r.updatedAt)}
-                        </span>
+                      {r.chunkType === "scratch" && r.fileTitle && (
+                        <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate leading-snug mt-0.5">
+                          {r.fileTitle}
+                        </div>
                       )}
                     </div>
-                    {r.sessionName && (
-                      <div className="text-[11px] font-semibold text-ov-text truncate leading-snug mt-0.5">
-                        {r.sessionName}
-                      </div>
-                    )}
-                    {r.chunkType === "scratch" && r.fileTitle && (
-                      <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 truncate leading-snug mt-0.5">
-                        {r.fileTitle}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-xs text-ov-text line-clamp-2 search-result">
-                    {renderSnippet(r.snippet)}
-                  </div>
-                </button>
-              ))}
+                    <div className="text-xs text-ov-text line-clamp-2 search-result">
+                      {renderSnippet(r.snippet)}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ))}
         </div>
