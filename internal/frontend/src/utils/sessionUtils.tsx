@@ -48,6 +48,8 @@ export function formatCost(cost: number): string {
 
 export function formatTokens(tokens: number): string {
   if (tokens === 0) return "";
+  if (tokens >= 1_000_000_000_000) return `${(tokens / 1_000_000_000_000).toFixed(2)}T tok`;
+  if (tokens >= 1_000_000_000) return `${(tokens / 1_000_000_000).toFixed(2)}B tok`;
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tok`;
   if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}k tok`;
   return `${tokens} tok`;

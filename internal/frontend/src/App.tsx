@@ -11,6 +11,7 @@ import { Modal } from "./components/Modal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { OverviewScreen } from "./components/OverviewScreen";
 import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
@@ -35,6 +36,7 @@ import { useSearchState } from "./hooks/useSearchState";
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [showOverview, setShowOverview] = useState(true);
   const [focusStepIndex, setFocusStepIndex] = useState<number | undefined>(undefined);
   const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -73,6 +75,7 @@ export function App() {
     setSearchHighlightQuery,
     setFocusStepIndex,
     setFocusMessageIndex,
+    setShowOverview,
   );
 
   useAppKeyboard(
@@ -90,10 +93,18 @@ export function App() {
     setActiveTab,
     setActiveSessionId,
     setFocusMessageIndex,
+    setShowOverview,
     () => setShortcutsOpen(true),
   );
 
-  useSessionRouting(sessions, activeSessionId, setActiveSessionId, setFocusStepIndex);
+  useSessionRouting(
+    sessions,
+    activeSessionId,
+    setActiveSessionId,
+    setFocusStepIndex,
+    showOverview,
+    setShowOverview,
+  );
 
   const bookmarkIdByRef = useMemo(() => {
     const map: Record<string, string> = {};
@@ -162,8 +173,9 @@ export function App() {
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
   useEffect(() => {
-    document.title = activeSession ? `Omnivue \u2014 ${activeSession.title}` : "Omnivue";
-  }, [activeSession]);
+    document.title =
+      activeSession && !showOverview ? `Omnivue \u2014 ${activeSession.title}` : "Omnivue";
+  }, [activeSession, showOverview]);
 
   const sessionIds = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
 
@@ -211,6 +223,7 @@ export function App() {
 
   const handleBookmarkSelect = useCallback(
     (sessionId: string, messageIndex: number, _toolCallId?: string) => {
+      setShowOverview(false);
       setActiveSessionId(sessionId);
       setFocusMessageIndex(messageIndex);
       setFocusStepIndex(undefined);
@@ -221,11 +234,21 @@ export function App() {
   );
 
   const handleSessionSelect = useCallback((sessionId: string) => {
+    setShowOverview(false);
     setActiveSessionId(sessionId);
     setFocusStepIndex(undefined);
     setFocusMessageIndex(undefined);
     setActiveTab("session");
     setSearchHighlightQuery(null);
+  }, []);
+
+  const handleGoHome = useCallback(() => {
+    setShowOverview(true);
+    setActiveSessionId(null);
+    setFocusStepIndex(undefined);
+    setFocusMessageIndex(undefined);
+    setSearchHighlightQuery(null);
+    setActiveTab("session");
   }, []);
 
   const prevSessionIdRef = useRef<string | null>(null);
@@ -332,7 +355,14 @@ export function App() {
         <div className="flex flex-col h-full font-sans text-ov-text bg-ov-bg">
           <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-ov-header-border">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={handleGoHome}
+                className={`flex items-center gap-1.5 min-w-0 rounded-md px-1.5 py-1 -ml-1.5 transition-colors cursor-pointer ${
+                  showOverview ? "text-accent bg-accent-muted" : "hover:bg-ov-bg-hover text-ov-text"
+                }`}
+                title="Overview"
+              >
                 <svg
                   className="size-5 shrink-0"
                   viewBox="0 0 24 24"
@@ -351,7 +381,7 @@ export function App() {
                   <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
                 </svg>
                 <h1 className="text-sm font-semibold tracking-tight">Omnivue</h1>
-              </div>
+              </button>
             </div>
 
             <button
@@ -446,7 +476,7 @@ export function App() {
                 />
               </ErrorBoundary>
               <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
-                {activeSession ? (
+                {activeSession && !showOverview ? (
                   <ErrorBoundary>
                     <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
                       <SessionViewer
@@ -469,6 +499,14 @@ export function App() {
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>
+                ) : sessions.length > 0 && showOverview ? (
+                  <OverviewScreen
+                    sessions={sessions}
+                    bookmarks={bookmarks}
+                    onSessionSelect={handleSessionSelect}
+                    onBookmarkSelect={handleBookmarkSelect}
+                    onOpenProjects={() => setActiveSection("projects")}
+                  />
                 ) : (
                   <div className="sess-empty-state flex-1 h-full">
                     {sessions.length === 0 ? (

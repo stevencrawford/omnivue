@@ -17,6 +17,7 @@ export function useAppKeyboard(
   setActiveTab: (tab: Tab) => void,
   setActiveSessionId: React.Dispatch<React.SetStateAction<string | null>>,
   setFocusMessageIndex: (idx: number | undefined) => void,
+  setShowOverview: (v: boolean) => void,
   onOpenShortcuts?: () => void,
 ) {
   useEffect(() => {
@@ -85,20 +86,22 @@ export function useAppKeyboard(
         if (e.key === "j" || e.key === "ArrowDown") {
           e.preventDefault();
           setSearchHighlightQuery(null);
+          setShowOverview(false);
           setActiveSessionId((prev: string | null) => {
-            const idx = sessions.findIndex((s) => s.id === prev);
+            const idx = prev === null ? -1 : sessions.findIndex((s) => s.id === prev);
             if (idx < sessions.length - 1) return sessions[idx + 1].id;
-            return prev;
+            return prev ?? sessions[0]?.id ?? null;
           });
           return;
         }
         if (e.key === "k" || e.key === "ArrowUp") {
           e.preventDefault();
           setSearchHighlightQuery(null);
+          setShowOverview(false);
           setActiveSessionId((prev: string | null) => {
-            const idx = sessions.findIndex((s) => s.id === prev);
+            const idx = prev === null ? sessions.length : sessions.findIndex((s) => s.id === prev);
             if (idx > 0) return sessions[idx - 1].id;
-            return prev;
+            return prev ?? sessions[0]?.id ?? null;
           });
           return;
         }
@@ -121,5 +124,6 @@ export function useAppKeyboard(
     setActiveTab,
     setActiveSessionId,
     setFocusMessageIndex,
+    setShowOverview,
   ]);
 }

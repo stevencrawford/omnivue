@@ -11,7 +11,7 @@ interface IconChannelProps {
   onSidebarToggle: () => void;
 }
 
-function SessionsIcon(props: LucideProps) {
+export function SessionsIcon(props: LucideProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

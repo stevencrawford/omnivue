@@ -11,6 +11,7 @@ export function useSearchState(
   setSearchHighlightQuery: (q: string | null) => void,
   setFocusStepIndex: (idx: number | undefined) => void,
   setFocusMessageIndex: (idx: number | undefined) => void,
+  setShowOverview: (v: boolean) => void,
 ) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerQuery, setDrawerQuery] = useState("");
@@ -25,6 +26,7 @@ export function useSearchState(
       messageIndex?: number,
     ) => {
       if (query.trim()) addSearch(query);
+      setShowOverview(false);
       setActiveSessionId(sessionId);
       const tabMap: Record<string, Tab> = {
         name: "session",
@@ -49,6 +51,7 @@ export function useSearchState(
       setSearchHighlightQuery,
       setFocusStepIndex,
       setFocusMessageIndex,
+      setShowOverview,
     ],
   );
 
