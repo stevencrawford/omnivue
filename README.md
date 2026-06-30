@@ -84,7 +84,3 @@ For detailed documentation, API reference, adapter guide, and frontend overview,
 ## License
 
 MIT License — see [LICENSE](LICENSE).
-
-## Acknowledgements
-
-Omnivue is a fork of [mo](https://github.com/k1LoW/mo) by Ken'ichiro Oyama (k1LoW), adapted from a Markdown viewer into an AI session manager.
