@@ -14,18 +14,21 @@ import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
-import type { Session, SearchResult, Bookmark } from "./hooks/useApi";
+import type { Session, Bookmark, ScratchFile } from "./hooks/useApi";
 import {
   fetchSessions,
-  fetchSearch,
   createScratchFile,
   renameScratchFile,
   fetchBookmarks,
+  fetchAllScratchFiles,
+  createBookmark,
+  deleteBookmark,
 } from "./hooks/useApi";
-import type { ScratchFile } from "./hooks/useApi";
-import { fetchAllScratchFiles } from "./hooks/useApi";
-import { createBookmark, deleteBookmark } from "./hooks/useApi";
 import { useRecentSearches } from "./hooks/useRecentSearches";
+import { useAppKeyboard } from "./hooks/useAppKeyboard";
+import { useSessionRouting } from "./hooks/useSessionRouting";
+import { useSearchScope } from "./hooks/useSearchScope";
+import { useSearchState } from "./hooks/useSearchState";
 
 export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -34,22 +37,65 @@ export function App() {
   const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchHighlightQuery, setSearchHighlightQuery] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("session");
   const [scratchFiles, setScratchFiles] = useState<ScratchFile[]>([]);
   const [openScratchTabs, setOpenScratchTabs] = useState<string[]>([]);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchSessionScope, setSearchSessionScope] = useState<string | null>(null);
-  const [searchHighlightQuery, setSearchHighlightQuery] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerQuery, setDrawerQuery] = useState("");
-  const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pinningContent, setPinningContent] = useState<string | null>(null);
   const [pinTitle, setPinTitle] = useState("");
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
+
+  const { searchSessionScope, setSearchSessionScope, searchScopeName } =
+    useSearchScope(sessions);
+
+  const {
+    drawerOpen,
+    setDrawerOpen,
+    drawerQuery,
+    drawerResults,
+    setDrawerResults,
+    handleSearchSelect,
+    handleSearchOpenDrawer,
+    handleDrawerClose,
+    handleDrawerClearScope,
+  } = useSearchState(
+    addSearch,
+    searchSessionScope,
+    setActiveSessionId,
+    setActiveTab,
+    setSearchHighlightQuery,
+    setFocusStepIndex,
+    setFocusMessageIndex,
+  );
+
+  useAppKeyboard(
+    sessions,
+    activeSessionId,
+    searchOpen,
+    drawerOpen,
+    searchHighlightQuery,
+    setSearchOpen,
+    setSearchSessionScope,
+    setDrawerOpen,
+    setDrawerResults,
+    setSearchHighlightQuery,
+    setSidebarOpen,
+    setActiveTab,
+    setActiveSessionId,
+    setFocusMessageIndex,
+  );
+
+  useSessionRouting(
+    sessions,
+    activeSessionId,
+    setActiveSessionId,
+    setFocusStepIndex,
+  );
 
   const bookmarkIdByRef = useMemo(() => {
     const map: Record<string, string> = {};
@@ -104,98 +150,6 @@ export function App() {
     loadBookmarks();
   }, [loadSessions, loadScratchFiles, loadBookmarks]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInput =
-        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
-
-      if ((e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "k")) {
-        e.preventDefault();
-        if (drawerOpen) {
-          setDrawerOpen(false);
-          setDrawerResults([]);
-        }
-        setSearchOpen((v) => {
-          if (!v) {
-            setSearchSessionScope(activeSessionId);
-          }
-          return !v;
-        });
-        return;
-      }
-      if (e.key === "Escape") {
-        if (drawerOpen) {
-          setDrawerOpen(false);
-          setDrawerResults([]);
-          return;
-        }
-        if (searchOpen) {
-          setSearchOpen(false);
-          return;
-        }
-        if (searchHighlightQuery) {
-          setSearchHighlightQuery(null);
-          setFocusMessageIndex(undefined);
-          return;
-        }
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
-        e.preventDefault();
-        setSidebarOpen((v) => !v);
-        return;
-      }
-
-      if (searchOpen || drawerOpen) return;
-
-      if ((e.metaKey || e.ctrlKey) && !isInput) {
-        const tabMap: Record<string, Tab> = {
-          "1": "session",
-          "2": "diff",
-        };
-        const tab = tabMap[e.key];
-        if (tab) {
-          e.preventDefault();
-          setActiveTab(tab);
-          return;
-        }
-      }
-
-      if (!isInput && !e.metaKey && !e.ctrlKey) {
-        if (e.key === "j" || e.key === "ArrowDown") {
-          e.preventDefault();
-          setSearchHighlightQuery(null);
-          setActiveSessionId((prev) => {
-            const idx = sessions.findIndex((s) => s.id === prev);
-            if (idx < sessions.length - 1) return sessions[idx + 1].id;
-            return prev;
-          });
-          return;
-        }
-        if (e.key === "k" || e.key === "ArrowUp") {
-          e.preventDefault();
-          setSearchHighlightQuery(null);
-          setActiveSessionId((prev) => {
-            const idx = sessions.findIndex((s) => s.id === prev);
-            if (idx > 0) return sessions[idx - 1].id;
-            return prev;
-          });
-          return;
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    searchOpen,
-    sessions,
-    drawerOpen,
-    activeSessionId,
-    searchHighlightQuery,
-    setFocusMessageIndex,
-  ]);
-
   useSSE({
     onUpdate: () => {
       loadSessions();
@@ -206,58 +160,6 @@ export function App() {
       }
     },
   });
-
-  // URL hash deep-linking
-  useEffect(() => {
-    const hash = window.location.hash;
-    const match = hash.match(/^#\/session\/([^/]+)(?:\/step\/(\d+))?/);
-    if (match) {
-      const id = decodeURIComponent(match[1]);
-      if (sessions.some((s) => s.id === id)) {
-        setActiveSessionId(id);
-        if (match[2]) setFocusStepIndex(parseInt(match[2], 10));
-      }
-    } else if (activeSessionId === null && sessions.length > 0) {
-      setActiveSessionId(sessions[0].id);
-    }
-  }, [sessions, activeSessionId === null]);
-
-  // Sync activeSessionId to URL hash
-  useEffect(() => {
-    if (activeSessionId) {
-      const hash = `#/session/${encodeURIComponent(activeSessionId)}`;
-      history.replaceState(null, "", hash);
-    }
-  }, [activeSessionId]);
-
-  // Handle browser back/forward
-  useEffect(() => {
-    const onHashChange = () => {
-      const hash = window.location.hash;
-      const match = hash.match(/^#\/session\/([^/]+)(?:\/step\/(\d+))?/);
-      if (match) {
-        const id = decodeURIComponent(match[1]);
-        if (sessions.some((s) => s.id === id)) {
-          setActiveSessionId(id);
-          if (match[2]) setFocusStepIndex(parseInt(match[2], 10));
-          else setFocusStepIndex(undefined);
-        }
-      }
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, [sessions]);
-
-  // Clear focusStepIndex when activeSessionId changes (except on initial hash parse)
-  // focusMessageIndex is managed separately by handleSearchSelect
-  const isInitialHashRef = useRef(true);
-  useEffect(() => {
-    if (isInitialHashRef.current) {
-      isInitialHashRef.current = false;
-      return;
-    }
-    setFocusStepIndex(undefined);
-  }, [activeSessionId]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
@@ -332,7 +234,6 @@ export function App() {
 
   const prevSessionIdRef = useRef<string | null>(null);
 
-  // Auto-open scratch tabs when a session is selected
   useEffect(() => {
     if (!activeSessionId) return;
     if (prevSessionIdRef.current === activeSessionId) return;
@@ -426,70 +327,6 @@ export function App() {
     [scratchFileMap],
   );
 
-  const handleSearchSelect = useCallback(
-    (
-      sessionId: string,
-      chunkType: string,
-      query: string,
-      fileId?: string,
-      messageIndex?: number,
-    ) => {
-      if (query.trim()) addSearch(query);
-      setActiveSessionId(sessionId);
-      const tabMap: Record<string, Tab> = {
-        name: "session",
-        message: "session",
-        messages: "session",
-        plan: "plan",
-      };
-      if (chunkType === "scratch" && fileId) {
-        setActiveTab(`scratch:${fileId}`);
-      } else {
-        setActiveTab(tabMap[chunkType] || "session");
-      }
-      setSearchHighlightQuery(query || null);
-      setFocusStepIndex(undefined);
-      setFocusMessageIndex(messageIndex);
-      setSearchOpen(false);
-      setDrawerOpen(false);
-    },
-    [addSearch],
-  );
-
-  const handleSearchOpenDrawer = useCallback(
-    async (q: string) => {
-      if (q.trim()) addSearch(q);
-      try {
-        const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined);
-        setDrawerQuery(q);
-        setDrawerResults(data || []);
-        setDrawerOpen(true);
-        setSearchOpen(false);
-      } catch {
-        setDrawerResults([]);
-      }
-    },
-    [searchSessionScope, addSearch],
-  );
-
-  const handleDrawerClose = useCallback(() => {
-    setDrawerOpen(false);
-    setDrawerResults([]);
-  }, []);
-
-  const handleDrawerClearScope = useCallback(() => {
-    setSearchSessionScope(null);
-    if (drawerQuery.trim()) {
-      fetchSearch(drawerQuery.trim(), 100)
-        .then((data) => {
-          setDrawerResults(data || []);
-        })
-        .catch(() => {
-          setDrawerResults([]);
-        });
-    }
-  }, [drawerQuery]);
-
   const { copied: initCopied, copy: copyInit } = useCopy(1500);
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
@@ -569,11 +406,7 @@ export function App() {
             onOpenDrawer={handleSearchOpenDrawer}
             onClose={() => setSearchOpen(false)}
             searchScope={searchSessionScope}
-            searchScopeName={(() => {
-              if (!searchSessionScope) return null;
-              const s = sessions.find((s) => s.id === searchSessionScope);
-              return s?.title || s?.repository || null;
-            })()}
+            searchScopeName={searchScopeName}
             onClearScope={() => setSearchSessionScope(null)}
             recentSearches={recentSearches}
             onClearRecentSearches={clearSearches}
@@ -585,11 +418,7 @@ export function App() {
           results={drawerResults}
           onSelect={handleSearchSelect}
           onClose={handleDrawerClose}
-          searchScopeName={(() => {
-            if (!searchSessionScope) return null;
-            const s = sessions.find((s) => s.id === searchSessionScope);
-            return s?.title || s?.repository || null;
-          })()}
+          searchScopeName={searchScopeName}
           onClearScope={handleDrawerClearScope}
         />
 
