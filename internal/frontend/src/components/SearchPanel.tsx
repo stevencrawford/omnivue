@@ -70,7 +70,6 @@ export function SearchPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userNavigated = useRef(false);
-  const [hasNavigated, setHasNavigated] = useState(false);
 
   const showRecent = !query.trim() && recentSearches.length > 0;
   const totalItems = showRecent ? recentSearches.length : results.length;
@@ -105,7 +104,6 @@ export function SearchPanel({
   const selectedResult: SearchResult | undefined = allFlatResults[selectedIndex];
 
   useEffect(() => {
-    setHasNavigated(false);
     userNavigated.current = false;
   }, [results]);
 
@@ -144,7 +142,6 @@ export function SearchPanel({
       onQueryChange(recentQuery);
       setSelectedIndex(0);
       userNavigated.current = false;
-      setHasNavigated(false);
       doSearch(recentQuery);
       onOpenDrawer(recentQuery);
     },
@@ -156,7 +153,6 @@ export function SearchPanel({
     onQueryChange(val);
     setSelectedIndex(0);
     userNavigated.current = false;
-    setHasNavigated(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(val), 300);
   };
@@ -169,14 +165,12 @@ export function SearchPanel({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       userNavigated.current = true;
-      setHasNavigated(true);
       setSelectedIndex((i) => Math.min(i + 1, totalItems - 1));
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
       userNavigated.current = true;
-      setHasNavigated(true);
       setSelectedIndex((i) => Math.max(i - 1, 0));
       return;
     }
@@ -372,11 +366,12 @@ export function SearchPanel({
                 Search across sessions, tool calls, and plan content
               </div>
             )}
-            {!loading && !showRecent && query && totalItems > 0 && !hasNavigated && (
-              <div className="sticky bottom-0 px-3 py-2 border-t border-ov-border bg-ov-bg-secondary/80 backdrop-blur-sm text-center">
-                <span className="text-[11px] text-ov-text-secondary">
-                  Press <span className="sess-kbd mx-0.5">Enter</span> to open results panel
-                </span>
+            {!loading && query && totalItems > 0 && (
+              <div className="sticky bottom-0 px-3 py-1.5 border-t border-ov-border bg-ov-bg-secondary/80 backdrop-blur-sm flex items-center justify-center gap-3 text-[11px] text-ov-text-secondary">
+                <span><span className="sess-kbd">↑↓</span> navigate</span>
+                <span><span className="sess-kbd">↵</span> open</span>
+                <span><span className="sess-kbd">⌘↵</span> drawer</span>
+                <span><span className="sess-kbd">Esc</span> close</span>
               </div>
             )}
           </div>

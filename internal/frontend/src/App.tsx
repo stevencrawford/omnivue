@@ -10,6 +10,7 @@ import { SearchResultsDrawer } from "./components/SearchResultsDrawer";
 import { Modal } from "./components/Modal";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ShortcutsModal } from "./components/ShortcutsModal";
 import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
@@ -45,6 +46,7 @@ export function App() {
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [pinningContent, setPinningContent] = useState<string | null>(null);
   const [pinTitle, setPinTitle] = useState("");
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -88,6 +90,7 @@ export function App() {
     setActiveTab,
     setActiveSessionId,
     setFocusMessageIndex,
+    () => setShortcutsOpen(true),
   );
 
   useSessionRouting(
@@ -548,6 +551,7 @@ export function App() {
         </SessionNavContext.Provider>
 
         <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
         <Modal
           isOpen={pinningContent !== null}

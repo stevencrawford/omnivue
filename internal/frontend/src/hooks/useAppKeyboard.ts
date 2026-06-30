@@ -17,6 +17,7 @@ export function useAppKeyboard(
   setActiveTab: (tab: Tab) => void,
   setActiveSessionId: React.Dispatch<React.SetStateAction<string | null>>,
   setFocusMessageIndex: (idx: number | undefined) => void,
+  onOpenShortcuts?: () => void,
 ) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,6 +56,14 @@ export function useAppKeyboard(
         e.preventDefault();
         setSidebarOpen((v: boolean) => !v);
         return;
+      }
+
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        if (!isInput) {
+          e.preventDefault();
+          onOpenShortcuts?.();
+          return;
+        }
       }
 
       if (searchOpen || drawerOpen) return;
