@@ -42,7 +42,14 @@ export function useSearchState(
       setFocusMessageIndex(messageIndex);
       setDrawerOpen(false);
     },
-    [addSearch, setActiveSessionId, setActiveTab, setSearchHighlightQuery, setFocusStepIndex, setFocusMessageIndex],
+    [
+      addSearch,
+      setActiveSessionId,
+      setActiveTab,
+      setSearchHighlightQuery,
+      setFocusStepIndex,
+      setFocusMessageIndex,
+    ],
   );
 
   const handleSearchOpenDrawer = useCallback(

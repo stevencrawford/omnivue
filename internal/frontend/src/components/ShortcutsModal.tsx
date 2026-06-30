@@ -39,9 +39,7 @@ const GROUPS: ShortcutGroup[] = [
   },
   {
     title: "General",
-    shortcuts: [
-      { keys: "Esc", desc: "Close modal / clear search highlight" },
-    ],
+    shortcuts: [{ keys: "Esc", desc: "Close modal / clear search highlight" }],
   },
 ];
 
@@ -56,14 +54,9 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
             </h3>
             <div className="space-y-1">
               {group.shortcuts.map((s) => (
-                <div
-                  key={s.keys}
-                  className="flex items-center justify-between py-0.5"
-                >
+                <div key={s.keys} className="flex items-center justify-between py-0.5">
                   <span className="text-xs text-ov-text-secondary">{s.desc}</span>
-                  <span className="text-[11px] font-mono text-ov-text ml-4">
-                    {s.keys}
-                  </span>
+                  <span className="text-[11px] font-mono text-ov-text ml-4">{s.keys}</span>
                 </div>
               ))}
             </div>

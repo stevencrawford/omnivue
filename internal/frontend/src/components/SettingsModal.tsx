@@ -241,7 +241,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               {source.label && ` · ${source.label}`}
                             </p>
                             <p className="truncate text-[11px] text-red-400/80">
-                              Removes all information local to Omnivue. Agent data unaffected. Confirm?
+                              Removes all information local to Omnivue. Agent data unaffected.
+                              Confirm?
                             </p>
                           </div>
                           <button
@@ -431,7 +432,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   onChange={(e) => {
                     setShowCostsSetting(e.target.checked);
                     try {
-                       localStorage.setItem("omnivue-show-costs", e.target.checked ? "true" : "false");
+                      localStorage.setItem(
+                        "omnivue-show-costs",
+                        e.target.checked ? "true" : "false",
+                      );
                     } catch {
                       /* noop */
                     }
@@ -479,8 +483,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   Factory Reset
                 </h4>
                 <p className="text-xs text-ov-text-secondary mb-3">
-                  Remove all Omnivue-local data including sources, folders, scratch notes, bookmarks,
-                  search index, and configuration. Agent data on disk is unaffected.
+                  Remove all Omnivue-local data including sources, folders, scratch notes,
+                  bookmarks, search index, and configuration. Agent data on disk is unaffected.
                 </p>
 
                 {resetStep === 0 && (
