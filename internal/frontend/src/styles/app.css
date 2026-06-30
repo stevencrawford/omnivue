@@ -222,6 +222,10 @@
 
 /* ─── Base ──────────────────────────────────────────────────────── */
 
+html {
+  font-size: 18px;
+}
+
 html,
 body,
 #root {
@@ -230,7 +234,6 @@ body,
 
 body {
   font-family: var(--font-sans);
-  font-size: 18px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

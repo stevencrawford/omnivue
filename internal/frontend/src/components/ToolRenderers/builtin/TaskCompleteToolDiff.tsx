@@ -54,7 +54,7 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
   const isMarkdown = summary ? looksLikeMarkdown(summary) : false;
 
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04]">
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-3">
       <div className="px-4 py-3">
         <div className="flex items-center gap-2.5">
           <CircleCheckBig size={20} className="text-emerald-400 shrink-0" />
