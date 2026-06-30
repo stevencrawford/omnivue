@@ -172,9 +172,7 @@ function MiniSessionRow({
       {showModel ? (
         <span className="flex-1 min-w-0 text-left">
           <span className="flex items-center gap-2">
-            <span className="flex-1 text-xs truncate">
-              {sessionTitle(session)}
-            </span>
+            <span className="flex-1 text-xs truncate">{sessionTitle(session)}</span>
             <span className="text-[11px] text-ov-text-secondary tabular-nums shrink-0">
               {relativeTime(session.updatedAt)}
             </span>
@@ -278,12 +276,7 @@ function RepoCard({
       </div>
       <div className="space-y-0.5">
         {recent.map((s) => (
-          <MiniSessionRow
-            key={s.id}
-            session={s}
-            onSelect={() => onSessionSelect(s.id)}
-            showModel
-          />
+          <MiniSessionRow key={s.id} session={s} onSelect={() => onSessionSelect(s.id)} showModel />
         ))}
       </div>
     </div>
