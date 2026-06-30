@@ -598,15 +598,16 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				messages = append(messages, msg)
 				toolCallsByID = make(map[string]*ingest.ToolCall)
 
-			case "task_complete":
-				tc := &ingest.ToolCall{
-					ID:     pl.TurnID,
-					Name:   "task_complete",
-					Status: "completed",
-					Output: "completed",
-					Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d}`, pl.TurnID, pl.CompletedAt, pl.DurationMs),
-				}
-				toolCallsByID[pl.TurnID] = tc
+		case "task_complete":
+			summaryBytes, _ := json.Marshal(pl.Message)
+			tc := &ingest.ToolCall{
+				ID:     pl.TurnID,
+				Name:   "task_complete",
+				Status: "completed",
+				Output: "completed",
+				Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d,"summary":%s,"success":%v}`, pl.TurnID, pl.CompletedAt, pl.DurationMs, string(summaryBytes), pl.Success),
+			}
+			toolCallsByID[pl.TurnID] = tc
 			}
 		}
 	}
