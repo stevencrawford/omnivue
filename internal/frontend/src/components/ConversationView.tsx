@@ -128,7 +128,10 @@ export function ConversationView({
   return (
     <div className="flex-1 flex flex-col overflow-hidden mb-3">
       <div className="flex-1 relative min-h-0">
-        <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden py-3">
+        <div
+          ref={scrollRef}
+          className="absolute inset-0 right-7 overflow-y-auto overflow-x-hidden py-3"
+        >
           {systemReminders.length > 0 && (
             <div className="px-4 pb-2">
               {systemReminders.map((msg) => (
