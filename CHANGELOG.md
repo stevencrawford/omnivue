@@ -2,7 +2,7 @@
 
 ## [0.1.0] - 2026-06-01
 
-Initial release of **sess** — forked from [mo](https://github.com/k1LoW/mo) v1.5.5 by Ken'ichiro Oyama (k1LoW) and completely repurposed from a Markdown viewer to an AI session manager.
+Initial release of **Omnivue** (formerly **sess**) — forked from [mo](https://github.com/k1LoW/mo) v1.5.5 by Ken'ichiro Oyama (k1LoW) and completely repurposed from a Markdown viewer to an AI session manager.
 
 ### Features
 
@@ -14,7 +14,7 @@ Initial release of **sess** — forked from [mo](https://github.com/k1LoW/mo) v1
 - **Full-text search** — FTS5 index across all session content
 - **User folders** — Virtual session organization with nesting, color, and icons
 - **Scratch notes** — Per-session markdown notes (TipTap rich text + Monaco code editor)
-- **Session renaming** — Display name overrides persisted in `sess.db`
+- **Session renaming** — Display name overrides persisted in `omnivue.db`
 - **Settings UI** — Add/remove session sources from the browser
 - **Keyboard shortcuts** — `j`/`k` navigation, `⌘1`/`⌘2` tabs, `⌘P` search
 - **Deep linking** — URL hash-based session links (`#/session/{id}/step/{n}`)

@@ -14,16 +14,16 @@ export const THEMES: { name: ThemeName; label: string; description: string }[] =
 const THEME_NAMES: ThemeName[] = ["default", "nord", "catppuccin", "tokyo-night", "github"];
 
 function getInitialThemeName(): ThemeName {
-  const stored = localStorage.getItem("sess-theme");
+  const stored = localStorage.getItem("omnivue-theme");
   if (THEME_NAMES.includes(stored as ThemeName)) return stored as ThemeName;
   if (stored === "light" || stored === "dark") return "default";
   return "default";
 }
 
 function getInitialThemeMode(): ThemeMode {
-  const stored = localStorage.getItem("sess-mode");
+  const stored = localStorage.getItem("omnivue-mode");
   if (stored === "light" || stored === "dark") return stored;
-  const old = localStorage.getItem("sess-theme");
+  const old = localStorage.getItem("omnivue-theme");
   if (old === "light" || old === "dark") return old;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
@@ -47,8 +47,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", themeName);
     document.documentElement.setAttribute("data-mode", themeMode);
-    localStorage.setItem("sess-theme", themeName);
-    localStorage.setItem("sess-mode", themeMode);
+    localStorage.setItem("omnivue-theme", themeName);
+    localStorage.setItem("omnivue-mode", themeMode);
   }, [themeName, themeMode]);
 
   const toggleTheme = () => setThemeMode((t) => (t === "dark" ? "light" : "dark"));

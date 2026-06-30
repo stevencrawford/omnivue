@@ -62,7 +62,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [showCostsSetting, setShowCostsSetting] = useState(() => {
     try {
-      return localStorage.getItem("sess-show-costs") !== "false";
+      return localStorage.getItem("omnivue-show-costs") !== "false";
     } catch {
       return true;
     }
@@ -206,7 +206,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Agent Directories
               </h3>
               <p className="text-[11px] text-gh-text-secondary mb-3">
-                Add or remove agent data directories. sess reads from these paths to discover
+                Add or remove agent data directories. Omnivue reads from these paths to discover
                 sessions.
               </p>
 
@@ -241,7 +241,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               {source.label && ` · ${source.label}`}
                             </p>
                             <p className="truncate text-[11px] text-red-400/80">
-                              Removes all information local to sess. Agent data unaffected. Confirm?
+                              Removes all information local to Omnivue. Agent data unaffected. Confirm?
                             </p>
                           </div>
                           <button
@@ -351,7 +351,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Appearance
               </h3>
               <p className="text-[11px] text-gh-text-secondary mb-3">
-                Customize the look and feel of your sess interface.
+                Customize the look and feel of your Omnivue interface.
               </p>
 
               <p className="text-[11px] font-medium text-gh-text-secondary mb-2">Theme</p>
@@ -431,7 +431,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   onChange={(e) => {
                     setShowCostsSetting(e.target.checked);
                     try {
-                      localStorage.setItem("sess-show-costs", e.target.checked ? "true" : "false");
+                       localStorage.setItem("omnivue-show-costs", e.target.checked ? "true" : "false");
                     } catch {
                       /* noop */
                     }
@@ -449,11 +449,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 About
               </h3>
               <p className="text-[11px] text-gh-text-secondary mb-3">
-                sess — AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.
+                Omnivue — AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.
               </p>
 
               <p className="text-xs text-gh-text-secondary leading-relaxed mb-4">
-                Browse, search, and manage all your AI coding sessions from one place. sess reads
+                Browse, search, and manage all your AI coding sessions from one place. Omnivue reads
                 agent session databases in read-only mode, indexes their content for full-text
                 search, and displays conversations, plans, diffs, and tool calls in a unified
                 browser UI. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
@@ -463,12 +463,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <p>
                   <span className="text-gh-text">Repository:</span>{" "}
                   <a
-                    href="https://github.com/stevencrawford/sess"
+                    href="https://github.com/stevencrawford/omnivue"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent hover:underline"
                   >
-                    github.com/stevencrawford/sess
+                    github.com/stevencrawford/omnivue
                   </a>
                 </p>
               </div>
@@ -479,7 +479,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   Factory Reset
                 </h4>
                 <p className="text-[11px] text-gh-text-secondary mb-3">
-                  Remove all sess-local data including sources, folders, scratch notes, bookmarks,
+                  Remove all Omnivue-local data including sources, folders, scratch notes, bookmarks,
                   search index, and configuration. Agent data on disk is unaffected.
                 </p>
 
@@ -489,7 +489,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onClick={() => setResetStep(1)}
                     className="text-xs px-3 py-1.5 rounded-md border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 cursor-pointer transition-colors"
                   >
-                    Reset sess
+                    Reset Omnivue
                   </button>
                 )}
 

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
 
 	_ "modernc.org/sqlite"
 )

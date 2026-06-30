@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/stevencrawford/sess/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
 )
 
 // KnownPaths are the default locations to scan for AI agent session data.

@@ -1,8 +1,8 @@
-# Contributing to sess
+# Contributing to Omnivue
 
 ## Tool Call Renderer Plugin System
 
-sess supports third-party tool call renderers via a plugin system. Renderers are auto-discovered at build time — no manual registration required.
+Omnivue supports third-party tool call renderers via a plugin system. Renderers are auto-discovered at build time — no manual registration required.
 
 ### The `vendor/<namespace>/` convention
 
@@ -84,7 +84,7 @@ export const definitions: ToolRendererDefinition[] = [
 
 1. `cd internal/frontend && pnpm run build` — TypeScript + Vite build
 2. `cd internal/frontend && pnpm run lint` — no lint errors
-3. Run `./sess --foreground --port 16275` and verify both compact (sidebar) and non-compact (conversation view) modes render correctly
+3. Run `./omnivue --foreground --port 16275` and verify both compact (sidebar) and non-compact (conversation view) modes render correctly
 
 ### Backend normalization
 

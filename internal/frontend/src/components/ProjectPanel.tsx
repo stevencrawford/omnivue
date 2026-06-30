@@ -32,8 +32,8 @@ interface ProjectPanelProps {
 
 type FolderSort = "name" | "count";
 
-const EXPANDED_KEY = "sess-project-folders-expanded";
-const SORT_FOLDER_KEY = "sess-project-folder-sort";
+const EXPANDED_KEY = "omnivue-project-folders-expanded";
+const SORT_FOLDER_KEY = "omnivue-project-folder-sort";
 
 function getInitialExpanded(): Set<string> {
   try {

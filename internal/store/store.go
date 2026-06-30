@@ -9,39 +9,39 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/xdg"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/xdg"
 
 	_ "modernc.org/sqlite"
 )
 
-// Store manages the sess application database (sources, folders, search index).
+// Store manages the Omnivue application database (sources, folders, search index).
 type Store struct {
 	db   *sql.DB
 	path string
 }
 
-// New creates or opens the sess database at $XDG_STATE_HOME/sess/sess.db.
+// New creates or opens the Omnivue database at $XDG_STATE_HOME/omnivue/omnivue.db.
 func New() (*Store, error) {
 	stateHome, err := xdg.StateHome()
 	if err != nil {
 		return nil, fmt.Errorf("resolving state home: %w", err)
 	}
-	stateDir := filepath.Join(stateHome, "sess")
+	stateDir := filepath.Join(stateHome, "omnivue")
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating state directory: %w", err)
 	}
 
-	dbPath := filepath.Join(stateDir, "sess.db")
+	dbPath := filepath.Join(stateDir, "omnivue.db")
 	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=wal&_busy_timeout=10000", dbPath))
 	if err != nil {
-		return nil, fmt.Errorf("opening sess.db: %w", err)
+		return nil, fmt.Errorf("opening omnivue.db: %w", err)
 	}
 
 	s := &Store{db: db, path: dbPath}
 	if err := s.migrate(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("migrating sess.db: %w", err)
+		return nil, fmt.Errorf("migrating omnivue.db: %w", err)
 	}
 
 	return s, nil

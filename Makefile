@@ -1,4 +1,4 @@
-PKG = github.com/stevencrawford/sess
+PKG = github.com/stevencrawford/omnivue
 COMMIT = $(shell git rev-parse --short HEAD)
 
 BUILD_LDFLAGS = "-s -w -X $(PKG)/version.Revision=$(COMMIT)"
@@ -15,10 +15,10 @@ test:
 	go test ./... -coverprofile=coverage.out -covermode=count -count=1
 
 build: generate
-	go build -ldflags=$(BUILD_LDFLAGS) -trimpath -o sess .
+	go build -ldflags=$(BUILD_LDFLAGS) -trimpath -o omnivue .
 
 dev: build
-	./sess -p 16275 --foreground $(ARGS)
+	./omnivue -p 16275 --foreground $(ARGS)
 
 screenshot: build
 	cd internal/frontend && pnpm run screenshots

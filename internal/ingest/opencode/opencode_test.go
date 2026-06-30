@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stevencrawford/sess/internal/ingest/opencode"
+	"github.com/stevencrawford/omnivue/internal/ingest/opencode"
 )
 
 func getOpenCodePath(t *testing.T) string {

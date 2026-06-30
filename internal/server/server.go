@@ -15,15 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/ingest/codex"
-	"github.com/stevencrawford/sess/internal/ingest/copilot"
-	"github.com/stevencrawford/sess/internal/ingest/cursor"
-	"github.com/stevencrawford/sess/internal/ingest/opencode"
-	"github.com/stevencrawford/sess/internal/ingest/pi"
-	"github.com/stevencrawford/sess/internal/static"
-	"github.com/stevencrawford/sess/internal/store"
-	"github.com/stevencrawford/sess/version"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/codex"
+	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
+	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
+	"github.com/stevencrawford/omnivue/internal/ingest/opencode"
+	"github.com/stevencrawford/omnivue/internal/ingest/pi"
+	"github.com/stevencrawford/omnivue/internal/static"
+	"github.com/stevencrawford/omnivue/internal/store"
+	"github.com/stevencrawford/omnivue/version"
 )
 
 // State holds the session manager state.
@@ -53,7 +53,7 @@ func NewState(ctx context.Context) *State {
 		restartCh:   make(chan string, 1),
 	}
 
-	// Open sess store
+	// Open Omnivue store
 	st, err := store.New()
 	if err != nil {
 		slog.Error("failed to open store", "error", err)
@@ -881,7 +881,7 @@ func (s *State) DeleteScratchFile(id string) error {
 
 // --- HTTP Handler ---
 
-// NewHandler creates the HTTP handler for the sess server.
+// NewHandler creates the HTTP handler for the Omnivue server.
 func NewHandler(state *State) http.Handler {
 	mux := http.NewServeMux()
 

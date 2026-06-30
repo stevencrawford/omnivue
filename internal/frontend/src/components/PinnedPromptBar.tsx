@@ -18,7 +18,7 @@ export function PinnedPromptBar({
   const [copied, setCopied] = useState(false);
   const [pinnedHeight, setPinnedHeight] = useState(() => {
     try {
-      const stored = localStorage.getItem("sess-pinned-height");
+      const stored = localStorage.getItem("omnivue-pinned-height");
       if (stored) return Math.max(60, Math.min(600, Number(stored)));
     } catch {
       // localStorage may be unavailable
@@ -79,7 +79,7 @@ export function PinnedPromptBar({
       resizeListeners.current = [];
       const finalHeight = Math.max(60, Math.min(600, startHeight + (startY - ev.clientY)));
       try {
-        localStorage.setItem("sess-pinned-height", String(finalHeight));
+        localStorage.setItem("omnivue-pinned-height", String(finalHeight));
       } catch {
         // localStorage may be unavailable
       }
@@ -95,7 +95,7 @@ export function PinnedPromptBar({
 
   function showCosts(): boolean {
     try {
-      return localStorage.getItem("sess-show-costs") !== "false";
+      return localStorage.getItem("omnivue-show-costs") !== "false";
     } catch {
       return true;
     }

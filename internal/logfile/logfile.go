@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/xdg"
+	"github.com/stevencrawford/omnivue/internal/xdg"
 )
 
-const logFilePrefix = "sess-"
+const logFilePrefix = "omnivue-"
 
 const (
 	maxSize    = 10 * 1024 * 1024 // 10MB
@@ -26,10 +26,10 @@ func Dir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(stateHome, "sess", "log"), nil
+	return filepath.Join(stateHome, "omnivue", "log"), nil
 }
 
-// Setup configures slog to write to a rotating log file under XDG_STATE_HOME/sess/log/.
+// Setup configures slog to write to a rotating log file under XDG_STATE_HOME/omnivue/log/.
 // Returns a cleanup function that closes the log file.
 func Setup(port int) (func(), error) {
 	dir, err := Dir()
@@ -42,7 +42,7 @@ func Setup(port int) (func(), error) {
 
 	cleanOldLogs(dir, maxAge)
 
-	filename := filepath.Join(dir, fmt.Sprintf("sess-%d.log", port))
+	filename := filepath.Join(dir, fmt.Sprintf("omnivue-%d.log", port))
 	w, err := newRotatingWriter(filename, maxSize, maxBackups)
 	if err != nil {
 		return nil, err

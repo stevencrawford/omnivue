@@ -1,6 +1,6 @@
 internal/static/dist/**/*
 internal/frontend/CREDITS_FRONTEND
 coverage.out
-sess
+omnivue
 .opencode/plans
 .idea/

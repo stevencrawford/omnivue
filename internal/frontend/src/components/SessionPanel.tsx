@@ -24,9 +24,9 @@ interface SessionPanelProps {
   showToast: (msg: string) => void;
 }
 
-const COLLAPSED_KEY = "sess-sidebar-collapsed";
-const SORT_KEY = "sess-sidebar-sort";
-const DISPLAY_KEY = "sess-sidebar-display";
+const COLLAPSED_KEY = "omnivue-sidebar-collapsed";
+const SORT_KEY = "omnivue-sidebar-sort";
+const DISPLAY_KEY = "omnivue-sidebar-display";
 
 type DisplayMode = "condensed" | "verbose";
 
@@ -638,7 +638,7 @@ function SessionRow({
 
 function showCosts(): boolean {
   try {
-    return localStorage.getItem("sess-show-costs") !== "false";
+    return localStorage.getItem("omnivue-show-costs") !== "false";
   } catch {
     return true;
   }

@@ -21,7 +21,7 @@ interface SidebarProps {
   onBookmarkDelete: (id: string) => void;
 }
 
-const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
+const SIDEBAR_WIDTH_KEY = "omnivue-sidebar-width";
 
 function getInitialWidth(): number {
   try {

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
 )
 
 type Adapter struct {

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/store"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -21,10 +21,10 @@ var addSourceType string
 var addCmd = &cobra.Command{
 	Use:   "add <path>",
 	Short: "Add an AI agent session source",
-	Long: `Adds a session data source to sess. The path should point to the
+	Long: `Adds a session data source to Omnivue. The path should point to the
 agent's data directory (e.g., ~/.local/share/opencode, ~/.copilot, or ~/.codex).
 
-By default, sess will auto-detect the agent type. Use --type to force.`,
+By default, Omnivue will auto-detect the agent type. Use --type to force.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAdd,
 }
@@ -88,7 +88,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// If a sess server is running, add via API so it picks up immediately
+	// If an Omnivue server is running, add via API so it picks up immediately
 	addr := net.JoinHostPort(strings.Trim(bind, "[]"), strconv.Itoa(port))
 	if result, err := probeServer(addr, probeTimeoutFast); err == nil {
 		return addViaAPI(result.client, addr, path, string(agentType), label)
@@ -97,7 +97,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// No server running, write directly to store
 	s, err := store.New()
 	if err != nil {
-		return fmt.Errorf("failed to open sess database: %w", err)
+		return fmt.Errorf("failed to open Omnivue database: %w", err)
 	}
 	defer s.Close()
 
@@ -114,7 +114,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add source: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "sess: added %s source at %s\n", label, path)
+	fmt.Fprintf(os.Stderr, "omnivue: added %s source at %s\n", label, path)
 	return nil
 }
 
@@ -137,6 +137,6 @@ func addViaAPI(client *http.Client, addr, path, agentType, label string) error {
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("server returned %s", resp.Status)
 	}
-	fmt.Fprintf(os.Stderr, "sess: added %s source at %s (live)\n", label, path)
+	fmt.Fprintf(os.Stderr, "omnivue: added %s source at %s (live)\n", label, path)
 	return nil
 }

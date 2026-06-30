@@ -39,7 +39,7 @@ interface FileTreeNode {
   depth: number;
 }
 
-const DIFF_TREE_WIDTH_KEY = "sess-diff-tree-width";
+const DIFF_TREE_WIDTH_KEY = "omnivue-diff-tree-width";
 
 function extractHunks(
   _filePath: string,

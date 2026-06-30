@@ -1,6 +1,6 @@
 # Ingest Adapters — Integration Guide
 
-This file explains how to add a new agent adapter to sess, the patterns used by existing adapters, and best practices for tool call normalization.
+This file explains how to add a new agent adapter to Omnivue, the patterns used by existing adapters, and best practices for tool call normalization.
 
 ## Adapter Interface
 
@@ -189,7 +189,7 @@ import (
     "context"
     "database/sql"
     "fmt"
-    "github.com/stevencrawford/sess/internal/ingest"
+    "github.com/stevencrawford/omnivue/internal/ingest"
     _ "modernc.org/sqlite"
 )
 

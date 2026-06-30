@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/store"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/store"
 )
 
 func TestNew_CreatesDatabase(t *testing.T) {

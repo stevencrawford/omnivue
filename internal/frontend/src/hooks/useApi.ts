@@ -1,4 +1,4 @@
-// API types and fetch functions for the sess frontend.
+// API types and fetch functions for the Omnivue frontend.
 
 export interface Session {
   id: string;

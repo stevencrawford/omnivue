@@ -508,7 +508,7 @@ export function App() {
                 <circle cx="10.5" cy="5.5" r=".7" fill="currentColor" stroke="none" />
                 <path d="M6.5 8.5h3" />
               </svg>
-              <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">sess</h1>
+              <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">Omnivue</h1>
             </div>
           </div>
 
@@ -651,7 +651,7 @@ export function App() {
                       </svg>
                       <p className="text-sm font-medium text-gh-text">No sessions yet</p>
                       <p className="text-xs text-gh-text-secondary text-center leading-relaxed">
-                        Add agent directories so sess can discover your AI coding sessions.
+                        Add agent directories so Omnivue can discover your AI coding sessions.
                       </p>
                       <p className="text-xs text-gh-text-secondary text-center leading-relaxed">
                         Supported: OpenCode, Copilot, Cursor, Pi, Codex
@@ -661,12 +661,12 @@ export function App() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyInit("sess init");
+                            copyInit("omnivue init");
                           }}
                           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-gh-border bg-gh-bg-secondary text-xs font-mono text-gh-text select-none cursor-pointer transition-colors hover:bg-gh-bg-hover"
                           title="Copy command"
                         >
-                          <span className="flex-1 text-left">$ sess init</span>
+                          <span className="flex-1 text-left">$ omnivue init</span>
                           {initCopied ? (
                             <Check className="size-3.5 shrink-0 text-emerald-400" />
                           ) : (

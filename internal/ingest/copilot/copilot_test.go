@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stevencrawford/sess/internal/ingest/copilot"
+	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
 	_ "modernc.org/sqlite"
 )
 

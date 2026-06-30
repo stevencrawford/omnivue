@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stevencrawford/sess/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest"
 
 	_ "modernc.org/sqlite"
 )
