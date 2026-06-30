@@ -205,7 +205,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 Agent Directories
               </h3>
-              <p className="text-[11px] text-gh-text-secondary mb-3">
+              <p className="text-xs text-gh-text-secondary mb-3">
                 Add or remove agent data directories. Omnivue reads from these paths to discover
                 sessions.
               </p>
@@ -350,7 +350,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 Appearance
               </h3>
-              <p className="text-[11px] text-gh-text-secondary mb-3">
+              <p className="text-xs text-gh-text-secondary mb-3">
                 Customize the look and feel of your Omnivue interface.
               </p>
 
@@ -421,7 +421,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 Privacy
               </h3>
-              <p className="text-[11px] text-gh-text-secondary mb-3">
+              <p className="text-xs text-gh-text-secondary mb-3">
                 Control what data is displayed in the UI.
               </p>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -448,7 +448,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
                 About
               </h3>
-              <p className="text-[11px] text-gh-text-secondary mb-3">
+              <p className="text-xs text-gh-text-secondary mb-3">
                 Omnivue — AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.
               </p>
 
@@ -478,7 +478,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <h4 className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-1">
                   Factory Reset
                 </h4>
-                <p className="text-[11px] text-gh-text-secondary mb-3">
+                <p className="text-xs text-gh-text-secondary mb-3">
                   Remove all Omnivue-local data including sources, folders, scratch notes, bookmarks,
                   search index, and configuration. Agent data on disk is unaffected.
                 </p>
