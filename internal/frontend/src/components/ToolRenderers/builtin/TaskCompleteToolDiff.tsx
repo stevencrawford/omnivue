@@ -30,13 +30,17 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
 
   const displayDuration = tool.duration ?? durationMs;
 
+  const outputLabel = tool.output && tool.output !== "completed" ? tool.output : "";
+
   if (compact) {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
         <span className="text-emerald-400 font-semibold shrink-0">Task Complete</span>
-        {summary && (
-          <span className="text-gh-text-secondary truncate min-w-0">{summary.split("\n")[0]}</span>
+        {(summary || outputLabel) && (
+          <span className="text-gh-text-secondary truncate min-w-0">
+            {(summary ? summary.split("\n")[0] : outputLabel).slice(0, 80)}
+          </span>
         )}
         {displayDuration > 0 && (
           <span className="text-[11px] text-gh-text-secondary/40 shrink-0">
@@ -70,6 +74,14 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
                 {summary}
               </p>
             )}
+          </div>
+        )}
+        {tool.output && !summary && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-[11px] text-gh-text-secondary/50 uppercase tracking-wider font-semibold">
+              Status
+            </span>
+            <span className="text-[11px] text-emerald-400/80 font-mono">{tool.output}</span>
           </div>
         )}
       </div>
