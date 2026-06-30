@@ -23,6 +23,8 @@
     ]
   },
   "dependencies": {
+    "@fontsource/geist-mono": "^5.2.8",
+    "@fontsource/geist-sans": "^5.2.5",
     "@monaco-editor/react": "^4.7.0",
     "@tiptap/extension-code-block-lowlight": "^3.24.0",
     "@tiptap/extension-link": "^3.24.0",
