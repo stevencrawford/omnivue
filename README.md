@@ -5,7 +5,7 @@
   </picture>
 </p>
 <p align="center"><b>Omnivue</b></p>
-<p align="center">AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.</p>
+<p align="center">Session browser for OpenCode, Copilot, Cursor, Pi, and Codex.</p>
 <p align="center">
   <img alt="Go version" src="https://img.shields.io/badge/Go-1.26-blue?style=flat-square&logo=go" />
 </p>
