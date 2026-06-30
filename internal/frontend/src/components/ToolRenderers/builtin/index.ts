@@ -144,6 +144,27 @@ export const definitions: ToolRendererDefinition[] = [
     markerPriority: 70,
   },
   {
+    kind: "read_lints",
+    names: ["read_lints"],
+    Component: DefaultToolDiff,
+    summary: (tool) => {
+      const paths = extractJSONField(tool.input, "paths") || "";
+      if (paths) {
+        try {
+          const parsed = JSON.parse(paths);
+          if (Array.isArray(parsed)) return `read_lints: ${parsed.length} file(s)`;
+        } catch {
+          /* ignore */
+        }
+      }
+      return "read_lints";
+    },
+    markerColor: "#8b5cf6",
+    markerLabel: "Lints",
+    markerDisplayType: "search",
+    markerPriority: 75,
+  },
+  {
     kind: "delete",
     names: ["delete", "delete_file"],
     Component: DeleteToolDiff,
@@ -166,7 +187,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "task",
-    names: ["task"],
+    names: ["task", "task_v2", "explore:task_v2"],
     Component: TaskToolDiff,
     summary: (tool) => {
       const desc = extractJSONField(tool.input, "description") || "";
