@@ -16,8 +16,8 @@ const THEME_NAMES: ThemeName[] = ["default", "nord", "catppuccin", "tokyo-night"
 function getInitialThemeName(): ThemeName {
   const stored = localStorage.getItem("omnivue-theme");
   if (THEME_NAMES.includes(stored as ThemeName)) return stored as ThemeName;
-  if (stored === "light" || stored === "dark") return "default";
-  return "default";
+  if (stored === "light" || stored === "dark") return "github";
+  return "github";
 }
 
 function getInitialThemeMode(): ThemeMode {

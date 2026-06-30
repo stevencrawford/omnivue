@@ -261,6 +261,12 @@ export function App() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
+  useEffect(() => {
+    document.title = activeSession
+      ? `Omnivue \u2014 ${activeSession.title}`
+      : "Omnivue";
+  }, [activeSession]);
+
   const sessionIds = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
 
   const validScratchFiles = useMemo(
@@ -494,7 +500,7 @@ export function App() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <svg
-                className="size-4 shrink-0"
+                className="size-5 shrink-0"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -510,7 +516,7 @@ export function App() {
                 <path d="M7,12 Q8.5,4 12,4 Q15.5,4 17,12 L16,12 Q12,8 8,12 Z" />
                 <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
               </svg>
-              <h1 className="text-sm font-semibold sess-gradient-text tracking-tight">Omnivue</h1>
+              <h1 className="text-sm font-semibold tracking-tight">Omnivue</h1>
             </div>
           </div>
 
