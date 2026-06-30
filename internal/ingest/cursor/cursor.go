@@ -131,6 +131,12 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			MessageCount: len(cd.FullConversationHeadersOnly),
 		}
 
+		// Override UpdatedAt with transcript file mtime if newer, so the polling
+		// loop detects changes in transcript-only sessions (no KV store updates).
+		if mt := a.transcriptMtime(id); mt.After(session.UpdatedAt) {
+			session.UpdatedAt = mt
+		}
+
 		result = append(result, session)
 	}
 
@@ -163,7 +169,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 			dir := resolveDir(&cd)
 			model, cost, inputTokens, outputTokens := cd.usageInfo()
 
-			return &ingest.Session{
+			sess := &ingest.Session{
 				ID:           id,
 				Title:        title,
 				Directory:    dir,
@@ -177,21 +183,29 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 				TokensInput:  inputTokens,
 				TokensOutput: outputTokens,
 				MessageCount: len(cd.FullConversationHeadersOnly),
-			}, nil
+			}
+			if mt := a.transcriptMtime(id); mt.After(sess.UpdatedAt) {
+				sess.UpdatedAt = mt
+			}
+			return sess, nil
 		}
 	}
 
 	// Fallback: try transcript sessions
 	for _, ts := range a.discoverTranscriptSessions(ctx) {
 		if ts.ID == id {
-			return &ingest.Session{
+			sess := &ingest.Session{
 				ID:           id,
 				Agent:        ingest.AgentCursor,
 				Status:       ts.Status,
 				CreatedAt:    ts.CreatedAt,
 				UpdatedAt:    ts.UpdatedAt,
 				MessageCount: len(ts.Messages),
-			}, nil
+			}
+			if mt := a.transcriptMtime(id); mt.After(sess.UpdatedAt) {
+				sess.UpdatedAt = mt
+			}
+			return sess, nil
 		}
 	}
 
@@ -1025,6 +1039,35 @@ func formatGrepOutput(raw string) string {
 		lines = append(lines, f.URI)
 	}
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// transcriptMtime returns the modification time of the most recently modified
+// JSONL file in the session's transcript directory. Returns zero time if no
+// transcript files are found, allowing the caller to use the zero-value guard
+// pattern (mt.After(session.UpdatedAt)).
+func (a *Adapter) transcriptMtime(sessionID string) time.Time {
+	projectsDir := filepath.Join(a.cursorDir, "projects")
+	if !util.PathExists(projectsDir) {
+		return time.Time{}
+	}
+	var latest time.Time
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		if filepath.Base(filepath.Dir(path)) != sessionID {
+			return nil
+		}
+		info, err := d.Info()
+		if err == nil && info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+		return nil
+	})
+	return latest
 }
 
 // normalizeToolCall maps Cursor-native tool call names and field names to the
