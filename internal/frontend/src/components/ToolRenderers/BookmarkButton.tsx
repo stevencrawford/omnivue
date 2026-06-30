@@ -25,7 +25,7 @@ export function BookmarkButton({
         e.stopPropagation();
         onClick();
       }}
-      className={`${sizeClasses[size]} flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors ${isBookmarked ? "text-accent" : ""} ${className}`}
+      className={`${sizeClasses[size]} flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors ${isBookmarked ? "text-accent" : ""} ${className}`}
       title={isBookmarked ? "Remove bookmark" : "Bookmark"}
     >
       <Bookmark size={size === "sm" ? 12 : 12} fill={isBookmarked ? "currentColor" : "none"} />

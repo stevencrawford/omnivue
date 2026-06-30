@@ -109,7 +109,7 @@ export function PinnedPromptBar({
         }`}
         onMouseDown={handlePinnedResizeStart}
       >
-        <div className="w-6 h-0.5 rounded-full bg-gh-border" />
+        <div className="w-6 h-0.5 rounded-full bg-ov-border" />
       </div>
 
       <div
@@ -118,31 +118,31 @@ export function PinnedPromptBar({
       >
         <button
           type="button"
-          className="flex items-center gap-2 w-full px-4 py-2 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+          className="flex items-center gap-2 w-full px-4 py-2 text-left cursor-pointer hover:bg-ov-bg-hover transition-colors"
           onClick={() => setPinnedExpanded((v) => !v)}
         >
           <ChevronRight
             size={12}
-            className={`text-gh-text-secondary transition-transform ${pinnedExpanded ? "rotate-90" : ""}`}
+            className={`text-ov-text-secondary transition-transform ${pinnedExpanded ? "rotate-90" : ""}`}
           />
           <User size={16} className="text-accent-secondary shrink-0" />
-          <span className="text-xs font-semibold text-gh-text">Initial Prompt</span>
+          <span className="text-xs font-semibold text-ov-text">Initial Prompt</span>
           {session.model && (
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-gh-bg-hover text-gh-text-secondary font-mono">
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-ov-bg-hover text-ov-text-secondary font-mono">
               {session.model}
             </span>
           )}
 
           {totalTokens > 0 && (
             <span
-              className="text-[11px] text-gh-text-secondary"
+              className="text-[11px] text-ov-text-secondary"
               title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
             >
               {formatTokenBreakdown(session)}
             </span>
           )}
           {session.cost > 0 && showCosts() && (
-            <span className="text-[11px] text-gh-text-secondary" title="Cost">
+            <span className="text-[11px] text-ov-text-secondary" title="Cost">
               {formatCost(session.cost)}
             </span>
           )}
@@ -174,7 +174,7 @@ export function PinnedPromptBar({
           </button>
         </button>
         {pinnedExpanded && (
-          <div className="px-4 pb-3 overflow-y-auto border-t border-gh-border">
+          <div className="px-4 pb-3 overflow-y-auto border-t border-ov-border">
             <div className="ml-6 mt-2">
               <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
             </div>

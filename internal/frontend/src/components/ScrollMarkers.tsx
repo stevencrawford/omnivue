@@ -150,13 +150,13 @@ export function ScrollMarkers({
               <button
                 type="button"
                 onClick={() => setMarkerFilterOpen((v) => !v)}
-                className="size-4 flex items-center justify-center rounded text-gh-text-secondary/50 hover:text-gh-text hover:bg-gh-bg-hover transition-colors cursor-pointer"
+                className="size-4 flex items-center justify-center rounded text-ov-text-secondary/50 hover:text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer"
                 title="Filter markers"
               >
                 <Filter size={12} />
               </button>
               {markerFilterOpen && (
-                <div className="absolute right-full top-0 mr-2 z-50 bg-gh-bg-secondary border border-gh-border rounded-lg shadow-xl min-w-36 max-h-60 overflow-y-auto">
+                <div className="absolute right-full top-0 mr-2 z-50 bg-ov-bg-secondary border border-ov-border rounded-lg shadow-xl min-w-36 max-h-60 overflow-y-auto">
                   <button
                     type="button"
                     onClick={() => {
@@ -166,14 +166,14 @@ export function ScrollMarkers({
                           : new Set(legendTypes.map((t) => t.type)),
                       );
                     }}
-                    className="w-full text-left px-3 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover transition-colors cursor-pointer border-b border-gh-border"
+                    className="w-full text-left px-3 py-1.5 text-[11px] font-medium text-accent hover:bg-ov-bg-hover transition-colors cursor-pointer border-b border-ov-border"
                   >
                     {hiddenMarkerTypes.size > 0 ? "Select all" : "Deselect all"}
                   </button>
                   {legendTypes.map(({ type, label, color }) => (
                     <label
                       key={type}
-                      className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-gh-bg-hover transition-colors whitespace-nowrap"
+                      className="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-ov-bg-hover transition-colors whitespace-nowrap"
                     >
                       <input
                         type="checkbox"
@@ -219,11 +219,11 @@ export function ScrollMarkers({
                     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
                   }}
                 >
-                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden bg-gh-bg-secondary border border-gh-border rounded-md px-2 py-1 text-xs whitespace-nowrap z-30 shadow-lg pointer-events-none">
+                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden bg-ov-bg-secondary border border-ov-border rounded-md px-2 py-1 text-xs whitespace-nowrap z-30 shadow-lg pointer-events-none">
                     <div className="font-medium text-[10px] uppercase tracking-wider opacity-60">
                       {m.label}
                     </div>
-                    <div className="text-gh-text truncate max-w-56">{m.summary}</div>
+                    <div className="text-ov-text truncate max-w-56">{m.summary}</div>
                   </div>
                 </button>
               );

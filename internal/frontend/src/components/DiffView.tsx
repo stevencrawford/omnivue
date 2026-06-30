@@ -235,7 +235,7 @@ function FileTreeFileRow({
     <button
       type="button"
       className={`flex items-center gap-2 w-full text-left cursor-pointer transition-colors py-0.5 ${
-        selected ? "bg-accent-muted" : "hover:bg-gh-bg-hover"
+        selected ? "bg-accent-muted" : "hover:bg-ov-bg-hover"
       }`}
       style={{ paddingLeft: 12 + depth * 16 }}
       onClick={onSelect}
@@ -244,7 +244,7 @@ function FileTreeFileRow({
         {statusConfig.letter}
       </span>
       <span className="text-xs font-mono truncate min-w-0">
-        <span className="text-gh-text font-medium">{fileName}</span>
+        <span className="text-ov-text font-medium">{fileName}</span>
       </span>
       {(diff.additions > 0 || diff.deletions > 0) && (
         <span className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] font-mono pr-2">
@@ -325,7 +325,7 @@ function DirectoryNode({
     <div>
       <button
         type="button"
-        className="flex items-center gap-1 w-full px-1 py-1 text-left text-[11px] text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors hover:bg-gh-bg-hover"
+        className="flex items-center gap-1 w-full px-1 py-1 text-left text-[11px] text-ov-text-secondary hover:text-ov-text cursor-pointer transition-colors hover:bg-ov-bg-hover"
         style={{ paddingLeft: 8 + depth * 16 }}
         onClick={() => setExpanded(!expanded)}
       >
@@ -335,7 +335,7 @@ function DirectoryNode({
         />
         <Folder size={14} className="shrink-0" />
         <span className="font-medium truncate">{node.name}/</span>
-        <span className="text-[10px] text-gh-text-secondary/60">({fileCount})</span>
+        <span className="text-[10px] text-ov-text-secondary/60">({fileCount})</span>
       </button>
       {expanded && (
         <FileTree
@@ -501,7 +501,7 @@ export function DiffView({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 p-8 text-sm text-gh-text-secondary">
+      <div className="flex items-center justify-center gap-2 p-8 text-sm text-ov-text-secondary">
         <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
         Loading diffs...
       </div>
@@ -514,7 +514,7 @@ export function DiffView({
         <div className="sess-empty-icon">
           <File size={20} />
         </div>
-        <p className="text-sm text-gh-text-secondary">No file changes in this session</p>
+        <p className="text-sm text-ov-text-secondary">No file changes in this session</p>
       </div>
     );
   }
@@ -522,15 +522,15 @@ export function DiffView({
   return (
     <div className="flex flex-col min-h-0" style={{ height: "100%" }}>
       {/* Summary bar */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-surface-elevated border-b border-gh-border text-xs shrink-0">
-        <span className="font-semibold text-gh-text">
+      <div className="flex items-center gap-3 px-4 py-3 bg-surface-elevated border-b border-ov-border text-xs shrink-0">
+        <span className="font-semibold text-ov-text">
           {mergedDiffs.length} {mergedDiffs.length === 1 ? "file" : "files"} changed
         </span>
         {stats.additions > 0 && (
           <span className="text-green-500 font-mono">+{stats.additions}</span>
         )}
         {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
-        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-gh-text-secondary">
+        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-ov-text-secondary">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
           </span>
@@ -549,7 +549,7 @@ export function DiffView({
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Left: File tree */}
         <div
-          className="overflow-y-auto overflow-x-hidden shrink-0 border-r border-gh-border"
+          className="overflow-y-auto overflow-x-hidden shrink-0 border-r border-ov-border"
           style={{ width: treeWidth }}
         >
           <FileTree nodes={tree} selectedPath={selectedPath} onSelect={setSelectedPath} />
@@ -557,7 +557,7 @@ export function DiffView({
 
         {/* Resizable divider */}
         <div
-          className="w-1 cursor-col-resize shrink-0 bg-gh-border hover:bg-accent transition-colors relative"
+          className="w-1 cursor-col-resize shrink-0 bg-ov-border hover:bg-accent transition-colors relative"
           onMouseDown={handleResizeStart}
         >
           <div className="absolute inset-y-0 -left-1 -right-1" />
@@ -572,11 +572,11 @@ export function DiffView({
               ))}
             </div>
           ) : selectedDiff ? (
-            <div className="flex items-center justify-center h-full text-sm text-gh-text-secondary">
+            <div className="flex items-center justify-center h-full text-sm text-ov-text-secondary">
               Patch content not available for this file
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-sm text-gh-text-secondary">
+            <div className="flex items-center justify-center h-full text-sm text-ov-text-secondary">
               <div className="text-center">
                 <File size={32} className="mx-auto mb-2 opacity-40" />
                 Select a file to view its changes

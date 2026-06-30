@@ -121,7 +121,7 @@ export function Sidebar({
         onSidebarToggle={onSidebarToggle}
       />
       <div
-        className={`flex-1 flex flex-col overflow-hidden bg-gh-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
+        className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
         style={{ width: `${panelWidth}px` }}
       >
         <div

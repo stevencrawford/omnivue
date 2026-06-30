@@ -495,8 +495,8 @@ export function App() {
 
   return (
     <ThemeProvider>
-      <div className="flex flex-col h-full font-sans text-gh-text bg-gh-bg">
-        <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-gh-header-border">
+      <div className="flex flex-col h-full font-sans text-ov-text bg-ov-bg">
+        <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-ov-header-border">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <svg
@@ -548,7 +548,7 @@ export function App() {
                   setSearchHighlightQuery(null);
                   setFocusMessageIndex(undefined);
                 }}
-                className="size-4 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer shrink-0"
+                className="size-4 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer shrink-0"
               >
                 <X size={12} />
               </span>
@@ -657,11 +657,11 @@ export function App() {
                           d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                         />
                       </svg>
-                      <p className="text-sm font-medium text-gh-text">No sessions yet</p>
-                      <p className="text-xs text-gh-text-secondary text-center leading-relaxed">
+                      <p className="text-sm font-medium text-ov-text">No sessions yet</p>
+                      <p className="text-xs text-ov-text-secondary text-center leading-relaxed">
                         Add agent directories so Omnivue can discover your AI coding sessions.
                       </p>
-                      <p className="text-xs text-gh-text-secondary text-center leading-relaxed">
+                      <p className="text-xs text-ov-text-secondary text-center leading-relaxed">
                         Supported: OpenCode, Copilot, Cursor, Pi, Codex
                       </p>
                       <div className="w-full">
@@ -671,18 +671,18 @@ export function App() {
                             e.stopPropagation();
                             copyInit("omnivue init");
                           }}
-                          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-gh-border bg-gh-bg-secondary text-xs font-mono text-gh-text select-none cursor-pointer transition-colors hover:bg-gh-bg-hover"
+                          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-ov-border bg-ov-bg-secondary text-xs font-mono text-ov-text select-none cursor-pointer transition-colors hover:bg-ov-bg-hover"
                           title="Copy command"
                         >
                           <span className="flex-1 text-left">$ omnivue init</span>
                           {initCopied ? (
                             <Check className="size-3.5 shrink-0 text-emerald-400" />
                           ) : (
-                            <Copy className="size-3.5 shrink-0 text-gh-text-secondary" />
+                            <Copy className="size-3.5 shrink-0 text-ov-text-secondary" />
                           )}
                         </button>
                       </div>
-                      <p className="text-xs text-gh-text-secondary">or</p>
+                      <p className="text-xs text-ov-text-secondary">or</p>
                       <button
                         type="button"
                         onClick={() => setSettingsOpen(true)}
@@ -706,8 +706,8 @@ export function App() {
                           d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                         />
                       </svg>
-                      <p className="text-sm font-medium text-gh-text">Select a session</p>
-                      <p className="text-xs text-gh-text-secondary max-w-xs">
+                      <p className="text-sm font-medium text-ov-text">Select a session</p>
+                      <p className="text-xs text-ov-text-secondary max-w-xs">
                         Pick a session from the sidebar to view conversation, plan, and diffs.
                       </p>
                     </div>
@@ -729,26 +729,26 @@ export function App() {
           {pinningContent && (
             <div className="p-3 space-y-3">
               <div>
-                <label className="text-xs font-medium text-gh-text-secondary block mb-1">
+                <label className="text-xs font-medium text-ov-text-secondary block mb-1">
                   Title
                 </label>
                 <input
                   type="text"
                   value={pinTitle}
                   onChange={(e) => setPinTitle(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-sm rounded border border-gh-border bg-gh-bg text-gh-text focus:outline-none focus:border-accent-border"
+                  className="w-full px-2.5 py-1.5 text-sm rounded border border-ov-border bg-ov-bg text-ov-text focus:outline-none focus:border-accent-border"
                   placeholder="Pinned message"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-gh-text-secondary block mb-1">
+                <label className="text-xs font-medium text-ov-text-secondary block mb-1">
                   Preview
                 </label>
-                <div className="max-h-32 overflow-y-auto p-2 rounded border border-gh-border bg-gh-bg-secondary/50 text-xs text-gh-text-secondary whitespace-pre-wrap leading-relaxed">
+                <div className="max-h-32 overflow-y-auto p-2 rounded border border-ov-border bg-ov-bg-secondary/50 text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
                   {pinningContent.slice(0, 500)}
                   {pinningContent.length > 500 && (
-                    <span className="text-gh-text-secondary/50">...</span>
+                    <span className="text-ov-text-secondary/50">...</span>
                   )}
                 </div>
               </div>
@@ -756,7 +756,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={handleCancelPin}
-                  className="px-3 py-1.5 text-xs rounded border border-gh-border text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+                  className="px-3 py-1.5 text-xs rounded border border-ov-border text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>

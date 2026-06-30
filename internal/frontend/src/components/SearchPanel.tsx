@@ -32,11 +32,11 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   },
   message: {
     label: "Session Messages",
-    badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+    badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
   },
   messages: {
     label: "Session Messages",
-    badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+    badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
   },
   scratch: {
     label: "Scratch Notes",
@@ -90,7 +90,7 @@ export function SearchPanel({
       if (!group || group.length === 0) continue;
       const meta = CHUNK_LABELS[ct] || {
         label: ct,
-        badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+        badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
       };
       out.push({ chunkType: ct, ...meta, results: group, globalStartIndex: globalIdx });
       globalIdx += group.length;
@@ -224,13 +224,13 @@ export function SearchPanel({
                     ? "Search in current session..."
                     : "Search sessions, tool calls, and plans..."
                 }
-                className="flex-1 bg-transparent text-sm text-gh-text placeholder:text-gh-text-secondary outline-none min-w-0"
+                className="flex-1 bg-transparent text-sm text-ov-text placeholder:text-ov-text-secondary outline-none min-w-0"
               />
               {query && (
                 <button
                   type="button"
                   onClick={handleClearQuery}
-                  className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded shrink-0"
+                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded shrink-0"
                 >
                   <X size={14} />
                 </button>
@@ -257,31 +257,31 @@ export function SearchPanel({
             )}
           </div>
           {!showRecent && selectedResult && selectedResult.sessionName && (
-            <div className="px-3 py-1.5 bg-gh-bg-secondary/60 border-b border-gh-border text-[11px] font-medium text-gh-text truncate">
+            <div className="px-3 py-1.5 bg-ov-bg-secondary/60 border-b border-ov-border text-[11px] font-medium text-ov-text truncate">
               Session: {selectedResult.sessionName}
             </div>
           )}
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
             {loading && (
-              <div className="flex items-center justify-center gap-2 text-xs text-gh-text-secondary p-6">
+              <div className="flex items-center justify-center gap-2 text-xs text-ov-text-secondary p-6">
                 <span className="size-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
                 Searching...
               </div>
             )}
             {!loading && query && totalItems === 0 && (
-              <div className="text-xs text-gh-text-secondary p-6 text-center">No results</div>
+              <div className="text-xs text-ov-text-secondary p-6 text-center">No results</div>
             )}
             {!loading && showRecent && (
               <>
-                <div className="sticky top-0 z-10 bg-gh-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-gh-border flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gh-bg-hover text-gh-text-secondary border-gh-border">
+                <div className="sticky top-0 z-10 bg-ov-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-ov-border flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-ov-bg-hover text-ov-text-secondary border-ov-border">
                     <Clock size={12} />
                     Recent Searches
                   </span>
                   <button
                     type="button"
                     onClick={onClearRecentSearches}
-                    className="text-[11px] text-gh-text-secondary hover:text-gh-text cursor-pointer px-1.5 py-0.5 rounded hover:bg-gh-bg-hover transition-colors"
+                    className="text-[11px] text-ov-text-secondary hover:text-ov-text cursor-pointer px-1.5 py-0.5 rounded hover:bg-ov-bg-hover transition-colors"
                   >
                     Clear
                   </button>
@@ -290,10 +290,10 @@ export function SearchPanel({
                   <button
                     key={q}
                     type="button"
-                    className={`w-full text-left px-4 py-2.5 border-b border-gh-border cursor-pointer transition-colors flex items-center gap-3 ${
+                    className={`w-full text-left px-4 py-2.5 border-b border-ov-border cursor-pointer transition-colors flex items-center gap-3 ${
                       i === selectedIndex
-                        ? "search-result--selected text-gh-text"
-                        : "hover:bg-gh-bg-hover text-gh-text-secondary"
+                        ? "search-result--selected text-ov-text"
+                        : "hover:bg-ov-bg-hover text-ov-text-secondary"
                     }`}
                     onClick={() => handleSelectRecentSearch(q)}
                   >
@@ -307,7 +307,7 @@ export function SearchPanel({
               !showRecent &&
               sections.map((section) => (
                 <div key={section.chunkType}>
-                  <div className="sticky top-0 z-10 bg-gh-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-gh-border">
+                  <div className="sticky top-0 z-10 bg-ov-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-ov-border">
                     <span
                       className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${section.badge}`}
                     >
@@ -320,10 +320,10 @@ export function SearchPanel({
                       <button
                         key={`${r.sessionId}-${section.chunkType}-${i}`}
                         type="button"
-                        className={`w-full text-left px-4 py-3 border-b border-gh-border cursor-pointer transition-colors ${
+                        className={`w-full text-left px-4 py-3 border-b border-ov-border cursor-pointer transition-colors ${
                           globalIdx === selectedIndex
-                            ? "search-result--selected text-gh-text"
-                            : "hover:bg-gh-bg-hover text-gh-text-secondary"
+                            ? "search-result--selected text-ov-text"
+                            : "hover:bg-ov-bg-hover text-ov-text-secondary"
                         }`}
                         onClick={() =>
                           onSelectSession(
@@ -338,18 +338,18 @@ export function SearchPanel({
                         <div className="mb-1">
                           <div className="flex items-center gap-2">
                             {r.repository && (
-                              <span className="text-[11px] font-mono text-gh-text-secondary truncate">
+                              <span className="text-[11px] font-mono text-ov-text-secondary truncate">
                                 {r.repository}
                               </span>
                             )}
                             {r.updatedAt && (
-                              <span className="text-[11px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
+                              <span className="text-[11px] text-ov-text-secondary shrink-0 ml-auto tabular-nums">
                                 {relativeTime(r.updatedAt)}
                               </span>
                             )}
                           </div>
                           {r.sessionName && (
-                            <div className="text-[11px] font-semibold text-gh-text truncate leading-snug mt-0.5">
+                            <div className="text-[11px] font-semibold text-ov-text truncate leading-snug mt-0.5">
                               {r.sessionName}
                             </div>
                           )}
@@ -359,7 +359,7 @@ export function SearchPanel({
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-gh-text line-clamp-2 search-result">
+                        <div className="text-xs text-ov-text line-clamp-2 search-result">
                           {renderSnippet(r.snippet)}
                         </div>
                       </button>
@@ -368,13 +368,13 @@ export function SearchPanel({
                 </div>
               ))}
             {!loading && !showRecent && !query && (
-              <div className="text-xs text-gh-text-secondary p-6 text-center leading-relaxed">
+              <div className="text-xs text-ov-text-secondary p-6 text-center leading-relaxed">
                 Search across sessions, tool calls, and plan content
               </div>
             )}
             {!loading && !showRecent && query && totalItems > 0 && !hasNavigated && (
-              <div className="sticky bottom-0 px-3 py-2 border-t border-gh-border bg-gh-bg-secondary/80 backdrop-blur-sm text-center">
-                <span className="text-[11px] text-gh-text-secondary">
+              <div className="sticky bottom-0 px-3 py-2 border-t border-ov-border bg-ov-bg-secondary/80 backdrop-blur-sm text-center">
+                <span className="text-[11px] text-ov-text-secondary">
                   Press <span className="sess-kbd mx-0.5">Enter</span> to open results panel
                 </span>
               </div>

@@ -31,7 +31,7 @@ function CopyOutputBtn({ tool }: { tool: ToolCall }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="size-5 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors shrink-0"
+      className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
       title="Copy output"
     >
       {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -98,7 +98,7 @@ export function ToolRendererWrapper({
         <div
           className={
             renderer.cardClassName ||
-            "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2"
+            "border border-ov-border rounded-lg overflow-hidden bg-ov-bg-secondary/50 mb-2"
           }
         >
           <div className="flex items-center w-full">
@@ -106,7 +106,7 @@ export function ToolRendererWrapper({
               <renderer.Component {...rendererProps} />
             </div>
             {tool.duration != null && tool.duration > 0 && (
-              <span className="text-[10px] font-mono text-gh-text-secondary/40 shrink-0 mr-2.5">
+              <span className="text-[10px] font-mono text-ov-text-secondary/40 shrink-0 mr-2.5">
                 {tool.duration < 1000
                   ? `${tool.duration}ms`
                   : `${(tool.duration / 1000).toFixed(1)}s`}
@@ -115,7 +115,7 @@ export function ToolRendererWrapper({
             {childSessionId && (
               <button
                 type="button"
-                className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover cursor-pointer transition-colors"
+                className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-ov-bg-hover cursor-pointer transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigateToSession(childSessionId);
@@ -158,24 +158,24 @@ export function ToolRendererWrapper({
       <div
         className={
           renderer.cardClassName ||
-          "border border-gh-border rounded-lg overflow-hidden bg-gh-bg-secondary/50 mb-2"
+          "border border-ov-border rounded-lg overflow-hidden bg-ov-bg-secondary/50 mb-2"
         }
       >
         <div className="flex items-center w-full">
           <button
             type="button"
             onClick={handleToggle}
-            className="flex items-center flex-1 min-w-0 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors group"
+            className="flex items-center flex-1 min-w-0 text-left cursor-pointer hover:bg-ov-bg-hover transition-colors group"
           >
             <ChevronDown
               size={12}
-              className={`text-gh-text-secondary/50 shrink-0 ml-2.5 transition-transform ${expanded ? "" : "-rotate-90"}`}
+              className={`text-ov-text-secondary/50 shrink-0 ml-2.5 transition-transform ${expanded ? "" : "-rotate-90"}`}
             />
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
             </div>
             {tool.duration != null && tool.duration > 0 && (
-              <span className="text-[10px] font-mono text-gh-text-secondary/40 shrink-0 mr-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-[10px] font-mono text-ov-text-secondary/40 shrink-0 mr-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 {tool.duration < 1000
                   ? `${tool.duration}ms`
                   : `${(tool.duration / 1000).toFixed(1)}s`}
@@ -185,7 +185,7 @@ export function ToolRendererWrapper({
           {childSessionId && (
             <button
               type="button"
-              className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-accent hover:bg-ov-bg-hover cursor-pointer transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 navigateToSession(childSessionId);
@@ -205,10 +205,10 @@ export function ToolRendererWrapper({
           )}
         </div>
         {showContent && (
-          <div className="border-t border-gh-border">
+          <div className="border-t border-ov-border">
             <renderer.Component {...expandedRendererProps} />
             {truncated && (
-              <div className="text-center border-t border-gh-border">
+              <div className="text-center border-t border-ov-border">
                 <button
                   type="button"
                   onClick={() => setTruncExpanded(!truncExpanded)}
@@ -232,7 +232,7 @@ export function ToolRendererWrapper({
     <>
       <renderer.Component {...rendererProps} tool={displayTool} compact={false} />
       {truncated && (
-        <div className="text-center border-t border-gh-border">
+        <div className="text-center border-t border-ov-border">
           <button
             type="button"
             onClick={() => setTruncExpanded(!truncExpanded)}

@@ -16,8 +16,8 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">{label}</span>
-        <span className="text-[10px] text-gh-text-secondary/60">
+        <span className="text-[11px] font-semibold text-ov-text-secondary uppercase">{label}</span>
+        <span className="text-[10px] text-ov-text-secondary/60">
           (
           {content.length > 1024 ? `${(content.length / 1024).toFixed(1)}kb` : `${content.length}b`}
           )
@@ -26,7 +26,7 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
           <CopyButton text={content} />
         </div>
       </div>
-      <pre className="mt-0.5 p-2 bg-gh-bg rounded-md border border-gh-border overflow-x-auto text-[11px] font-mono max-h-60 overflow-y-auto leading-relaxed text-gh-text">
+      <pre className="mt-0.5 p-2 bg-ov-bg rounded-md border border-ov-border overflow-x-auto text-[11px] font-mono max-h-60 overflow-y-auto leading-relaxed text-ov-text">
         {formatted}
       </pre>
     </div>
@@ -40,8 +40,8 @@ export function DefaultToolDiff({ tool, compact }: ToolRendererProps) {
   if (compact) {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-        <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
-        <span className="text-gh-text truncate min-w-0">{summary}</span>
+        <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>
+        <span className="text-ov-text truncate min-w-0">{summary}</span>
       </div>
     );
   }

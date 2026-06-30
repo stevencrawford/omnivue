@@ -59,14 +59,14 @@ export function EditToolDiff({
         ) : (
           <File size={12} className="text-accent shrink-0" />
         )}
-        <span className="text-gh-text-secondary/70 shrink-0">
+        <span className="text-ov-text-secondary/70 shrink-0">
           {tool.name === "write" ? "write:" : "edit:"}
         </span>
-        <span className="text-gh-text truncate min-w-0" title={filePath}>
+        <span className="text-ov-text truncate min-w-0" title={filePath}>
           {baseName}
         </span>
         {viewRange && (
-          <span className="text-gh-text-secondary/70 shrink-0">
+          <span className="text-ov-text-secondary/70 shrink-0">
             :{viewRange[0]}-{viewRange[1]}
           </span>
         )}
@@ -137,7 +137,7 @@ export function EditToolDiff({
     <>
       {renderedContent}
       {renderedContent && isLong && (
-        <div className="text-center border-t border-gh-border">
+        <div className="text-center border-t border-ov-border">
           <button
             type="button"
             onClick={() => setShowAll(!showAll)}

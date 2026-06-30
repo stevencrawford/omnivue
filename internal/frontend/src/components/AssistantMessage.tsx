@@ -20,7 +20,7 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
       </button>
       {expanded && (
         <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
-          <div className="text-xs text-gh-text-secondary whitespace-pre-wrap leading-relaxed">
+          <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
             {reasoning}
           </div>
         </div>

@@ -49,7 +49,7 @@ export function QuestionToolDiff({
       return (
         <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
           <CircleHelp size={12} className="text-orange-400 shrink-0" />
-          <span className="text-gh-text truncate min-w-0">{text}</span>
+          <span className="text-ov-text truncate min-w-0">{text}</span>
         </div>
       );
     }
@@ -57,7 +57,7 @@ export function QuestionToolDiff({
     return (
       <>
         <div className="flex items-start gap-2 px-3 py-2">
-          <span className="flex-1 text-[11px] text-gh-text">{text}</span>
+          <span className="flex-1 text-[11px] text-ov-text">{text}</span>
         </div>
         {tool.output && (
           <div className="border-t border-accent-border px-3 py-1.5 text-[11px] text-emerald-400">
@@ -79,7 +79,7 @@ export function QuestionToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleHelp size={12} className="text-orange-400 shrink-0" />
-        <span className="text-gh-text truncate min-w-0">
+        <span className="text-ov-text truncate min-w-0">
           {q.header || q.question || "question"}
         </span>
       </div>
@@ -88,7 +88,7 @@ export function QuestionToolDiff({
 
   return (
     <>
-      <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-mono text-gh-text-secondary">
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-mono text-ov-text-secondary">
         {questions.length > 1 ? (
           <div className="flex gap-1 flex-1 min-w-0 overflow-x-auto">
             {questions.map((qItem, i) => (
@@ -98,7 +98,7 @@ export function QuestionToolDiff({
                 className={`shrink-0 px-2 py-0.5 rounded text-[11px] cursor-pointer transition-colors ${
                   i === activeIdx
                     ? "bg-accent-muted text-accent"
-                    : "text-gh-text-secondary hover:text-gh-text"
+                    : "text-ov-text-secondary hover:text-ov-text"
                 }`}
               >
                 {qItem.header || `Question ${i + 1}`}
@@ -106,12 +106,12 @@ export function QuestionToolDiff({
             ))}
           </div>
         ) : (
-          <span className="font-medium text-gh-text truncate flex-1">{q.header || q.question}</span>
+          <span className="font-medium text-ov-text truncate flex-1">{q.header || q.question}</span>
         )}
       </div>
       <div className="px-3 py-2">
         {q.question && q.header !== q.question && (
-          <p className="text-[11px] text-gh-text mb-2">{q.question}</p>
+          <p className="text-[11px] text-ov-text mb-2">{q.question}</p>
         )}
         {q.options && q.options.length > 0 && (
           <div className="space-y-1">
@@ -123,7 +123,7 @@ export function QuestionToolDiff({
                   className={`flex items-center gap-2 px-2.5 py-1.5 rounded text-[11px] border ${
                     chosen
                       ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400"
-                      : "border-gh-border bg-gh-bg-secondary/30 text-gh-text-secondary"
+                      : "border-ov-border bg-ov-bg-secondary/30 text-ov-text-secondary"
                   }`}
                 >
                   {chosen ? (
@@ -133,7 +133,7 @@ export function QuestionToolDiff({
                   )}
                   <span className="font-medium">{opt.label}</span>
                   {opt.description && (
-                    <span className="text-gh-text-secondary/70 ml-1">— {opt.description}</span>
+                    <span className="text-ov-text-secondary/70 ml-1">— {opt.description}</span>
                   )}
                 </div>
               );
@@ -141,7 +141,7 @@ export function QuestionToolDiff({
           </div>
         )}
         {freeformText && (
-          <div className="mt-2 text-[11px] text-gh-text whitespace-pre-wrap leading-relaxed border-l-2 border-gh-border pl-2">
+          <div className="mt-2 text-[11px] text-ov-text whitespace-pre-wrap leading-relaxed border-l-2 border-ov-border pl-2">
             {freeformText}
           </div>
         )}

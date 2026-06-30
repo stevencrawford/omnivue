@@ -160,7 +160,7 @@ export function SessionViewer({
       <SessionHeader session={session} hasPrivacy={hasPrivacy} />
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-gh-border shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-ov-border shrink-0 overflow-x-auto">
         {MAIN_TABS.map(
           (meta) =>
             (meta.tab !== "diff" || !session.parentId) && (
@@ -195,7 +195,7 @@ export function SessionViewer({
             ),
         )}
         {(openScratchTabs.length > 0 || !session.parentId) && (
-          <div className="w-px h-4 bg-gh-border mx-1 shrink-0" />
+          <div className="w-px h-4 bg-ov-border mx-1 shrink-0" />
         )}
         {openScratchTabs.map((fid) => {
           const tab: Tab = `scratch:${fid}`;
@@ -233,7 +233,7 @@ export function SessionViewer({
                     e.stopPropagation();
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-20 text-[11px] bg-gh-bg-hover border border-accent-border rounded px-1 outline-none"
+                  className="w-20 text-[11px] bg-ov-bg-hover border border-accent-border rounded px-1 outline-none"
                 />
               ) : (
                 <span
@@ -249,7 +249,7 @@ export function SessionViewer({
               )}
               <span
                 role="button"
-                className="ml-1 text-gh-text-secondary hover:text-gh-text cursor-pointer"
+                className="ml-1 text-ov-text-secondary hover:text-ov-text cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   setDeleteConfirmFileId(fid);
@@ -264,7 +264,7 @@ export function SessionViewer({
           <button
             type="button"
             onClick={() => setCreateFileOpen(true)}
-            className="sess-tab-pill text-gh-text-secondary hover:text-gh-text shrink-0"
+            className="sess-tab-pill text-ov-text-secondary hover:text-ov-text shrink-0"
             title="New file"
           >
             <Plus size={14} />
@@ -358,12 +358,12 @@ export function SessionViewer({
               setCreateFileOpen(false);
               onNewScratchFile?.();
             }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gh-text hover:bg-gh-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
           >
             <FilePlus size={20} className="shrink-0 text-accent" />
             <div className="flex flex-col">
               <span className="font-medium">Markdown</span>
-              <span className="text-[11px] text-gh-text-secondary">.md — Rich text file</span>
+              <span className="text-[11px] text-ov-text-secondary">.md — Rich text file</span>
             </div>
           </button>
         </div>
@@ -377,14 +377,14 @@ export function SessionViewer({
         size="md"
       >
         <div className="p-3 space-y-3">
-          <p className="text-sm text-gh-text-secondary">
+          <p className="text-sm text-ov-text-secondary">
             Are you sure you want to delete this file? This action cannot be undone.
           </p>
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setDeleteConfirmFileId(null)}
-              className="px-3 py-1.5 text-xs rounded-md text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              className="px-3 py-1.5 text-xs rounded-md text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
             >
               Cancel
             </button>
@@ -419,7 +419,7 @@ function ModalMarkdownWrapper({ content }: { content: string }) {
         <button
           type="button"
           onClick={() => copy(content)}
-          className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+          className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
           title="Copy"
         >
           {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}

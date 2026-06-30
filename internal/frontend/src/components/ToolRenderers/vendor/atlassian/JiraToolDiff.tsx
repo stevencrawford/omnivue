@@ -159,8 +159,8 @@ export function JiraToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <TypeIcon size={12} className={`shrink-0 ${typeConfig.color}`} />
-        <span className="font-semibold text-gh-text-secondary/70 shrink-0">jira:</span>
-        <span className="text-gh-text truncate min-w-0">{issueKey || summary || "Jira issue"}</span>
+        <span className="font-semibold text-ov-text-secondary/70 shrink-0">jira:</span>
+        <span className="text-ov-text truncate min-w-0">{issueKey || summary || "Jira issue"}</span>
         {status && (
           <span
             className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${getStatusColor(status)}`}
@@ -177,7 +177,7 @@ export function JiraToolDiff({
       className={`border rounded-lg overflow-hidden mb-3 group ${typeConfig.border} ${typeConfig.bg}`}
     >
       <div
-        className="flex items-center gap-2 px-3 py-1.5 border-b bg-gh-bg-secondary/50 text-[11px] font-mono text-gh-text-secondary"
+        className="flex items-center gap-2 px-3 py-1.5 border-b bg-ov-bg-secondary/50 text-[11px] font-mono text-ov-text-secondary"
         style={{ borderColor: "inherit" }}
       >
         <TypeIcon size={14} className={`shrink-0 ${typeConfig.color}`} />
@@ -199,7 +199,7 @@ export function JiraToolDiff({
             {issueKey}
           </a>
         ) : issueKey ? (
-          <span className="font-bold text-gh-text tracking-tight">{issueKey}</span>
+          <span className="font-bold text-ov-text tracking-tight">{issueKey}</span>
         ) : null}
         <div className="flex-1" />
         {status && (
@@ -219,12 +219,12 @@ export function JiraToolDiff({
 
       {summary && (
         <div className="px-3 pt-2 pb-1">
-          <h3 className="text-[13px] font-semibold text-gh-text leading-snug">{summary}</h3>
+          <h3 className="text-[13px] font-semibold text-ov-text leading-snug">{summary}</h3>
         </div>
       )}
 
       {(parent || assignee || priority) && (
-        <div className="px-3 pb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-gh-text-secondary">
+        <div className="px-3 pb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-ov-text-secondary">
           {parent && (
             <span>
               Epic:{" "}
@@ -247,11 +247,11 @@ export function JiraToolDiff({
 
       {description && (
         <div className="px-3 pb-2">
-          <div className="text-[11px] text-gh-text leading-relaxed markdown-body--inline">
+          <div className="text-[11px] text-ov-text leading-relaxed markdown-body--inline">
             <MarkdownContent content={truncatedDescription} className="text-[11px]" />
           </div>
           {needsTruncation && (
-            <span className="text-[10px] text-gh-text-secondary/60">
+            <span className="text-[10px] text-ov-text-secondary/60">
               … {descLines.length - DESCRIPTION_LINE_LIMIT} more lines{" "}
               <button
                 type="button"
@@ -275,7 +275,7 @@ export function JiraToolDiff({
       )}
 
       {!summary && !description && (
-        <div className="px-3 py-2 text-[11px] text-gh-text-secondary whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+        <div className="px-3 py-2 text-[11px] text-ov-text-secondary whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
           {tool.output.slice(0, 500)}
         </div>
       )}

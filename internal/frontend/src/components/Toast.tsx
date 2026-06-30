@@ -25,7 +25,7 @@ export function Toast({ message, visible, onHide }: ToastProps) {
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-slide-up">
-      <div className="bg-surface-elevated text-gh-text text-xs px-4 py-2 rounded-lg shadow-xl border border-accent-border whitespace-nowrap">
+      <div className="bg-surface-elevated text-ov-text text-xs px-4 py-2 rounded-lg shadow-xl border border-accent-border whitespace-nowrap">
         {message}
       </div>
     </div>

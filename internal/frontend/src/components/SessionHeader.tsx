@@ -53,7 +53,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
   const badgeClass = `sess-agent-badge sess-agent-badge--${session.agent}`;
 
   return (
-    <div className="px-4 py-3 border-b border-gh-border shrink-0">
+    <div className="px-4 py-3 border-b border-ov-border shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -64,12 +64,12 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={saveEdit}
-              className="flex-1 text-sm font-semibold bg-gh-bg-secondary border border-accent-border rounded px-1.5 py-0.5 text-gh-text outline-none min-w-0"
+              className="flex-1 text-sm font-semibold bg-ov-bg-secondary border border-accent-border rounded px-1.5 py-0.5 text-ov-text outline-none min-w-0"
             />
             <button
               type="button"
               onClick={clearOverride}
-              className="text-[11px] text-gh-text-secondary hover:text-gh-text cursor-pointer shrink-0 px-1"
+              className="text-[11px] text-ov-text-secondary hover:text-ov-text cursor-pointer shrink-0 px-1"
               title="Revert to original name"
             >
               Reset
@@ -77,14 +77,14 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
           </div>
         ) : (
           <>
-            <h2 className="text-sm font-semibold text-gh-text truncate">
+            <h2 className="text-sm font-semibold text-ov-text truncate">
               {displayTitle || session.id}
             </h2>
             {!session.parentId && (
               <button
                 type="button"
                 onClick={startEdit}
-                className="shrink-0 text-gh-text-secondary hover:text-accent cursor-pointer p-0.5 rounded transition-colors"
+                className="shrink-0 text-ov-text-secondary hover:text-accent cursor-pointer p-0.5 rounded transition-colors"
                 title="Rename session"
               >
                 <Pencil size={14} />
@@ -95,7 +95,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
         <span className={`${badgeClass} shrink-0`}>{session.agent}</span>
         {hasPrivacy && <span className="sess-privacy-badge shrink-0">Privacy mode</span>}
         <span
-          className="text-[11px] font-mono text-gh-text-secondary ml-auto truncate max-w-[40%]"
+          className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[40%]"
           title={session.directory}
         >
           {session.repository || session.directory}

@@ -47,12 +47,12 @@ export function ReadToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <BookOpen size={12} className="text-cyan-400 shrink-0" />
-        <span className="text-gh-text-secondary/70 shrink-0">read:</span>
-        <span className="text-gh-text truncate min-w-0" title={filePath}>
+        <span className="text-ov-text-secondary/70 shrink-0">read:</span>
+        <span className="text-ov-text truncate min-w-0" title={filePath}>
           {baseName}
         </span>
         {showLineRange && (
-          <span className="text-gh-text-secondary/70 shrink-0">
+          <span className="text-ov-text-secondary/70 shrink-0">
             :{offset}-{offset + limit}
           </span>
         )}

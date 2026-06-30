@@ -46,7 +46,7 @@ export function IconChannel({
   onSidebarToggle,
 }: IconChannelProps) {
   return (
-    <div className="flex flex-col items-center w-12 shrink-0 border-r border-gh-border bg-gh-bg-sidebar py-1.5">
+    <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
       {sections.map(({ id, label, Icon }) => (
         <button
           key={id}
@@ -63,7 +63,7 @@ export function IconChannel({
           className={`relative flex items-center justify-center w-full h-10 transition-colors ${
             activeSection === id
               ? "text-accent cursor-pointer"
-              : "text-gh-text-secondary hover:text-gh-text cursor-pointer"
+              : "text-ov-text-secondary hover:text-ov-text cursor-pointer"
           }`}
         >
           {activeSection === id && (
@@ -79,7 +79,7 @@ export function IconChannel({
         type="button"
         onClick={onSettingsOpen}
         title="Settings"
-        className="flex items-center justify-center w-full h-10 text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+        className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text cursor-pointer transition-colors"
       >
         <Settings className="size-5" strokeWidth={1.5} />
       </button>

@@ -25,11 +25,11 @@ export function CompactionToolDiff({
 
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 select-none">
-      <div className="flex-1 h-px bg-gh-border" />
-      <span className="text-[10px] font-medium text-gh-text-secondary/50 uppercase tracking-wider whitespace-nowrap shrink-0">
+      <div className="flex-1 h-px bg-ov-border" />
+      <span className="text-[10px] font-medium text-ov-text-secondary/50 uppercase tracking-wider whitespace-nowrap shrink-0">
         {count} {label}
       </span>
-      <div className="flex-1 h-px bg-gh-border" />
+      <div className="flex-1 h-px bg-ov-border" />
     </div>
   );
 }

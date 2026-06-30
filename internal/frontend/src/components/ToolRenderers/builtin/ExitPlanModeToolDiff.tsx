@@ -33,7 +33,7 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <FileText size={12} className="text-amber-400 shrink-0" />
         <span className="text-amber-400 font-semibold shrink-0">Plan</span>
-        <span className="text-gh-text-secondary truncate min-w-0">
+        <span className="text-ov-text-secondary truncate min-w-0">
           {summary ? summary.split("\n")[0].slice(0, 80) : "Proposed Plan"}
         </span>
       </div>
@@ -54,7 +54,7 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
             {isMarkdown ? (
               <MarkdownContent content={summary} className="markdown-body--wide" />
             ) : (
-              <p className="text-gh-text-secondary leading-relaxed whitespace-pre-wrap">
+              <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
                 {summary}
               </p>
             )}
@@ -62,10 +62,10 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
         )}
         {feedback && (
           <div className="mt-3 pt-3 border-t border-amber-500/20">
-            <div className="text-[11px] font-semibold text-gh-text-secondary/60 uppercase tracking-wider mb-1">
+            <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
               Response
             </div>
-            <div className="text-[11px] text-gh-text pl-2 border-l-2 border-amber-400/40 whitespace-pre-wrap leading-relaxed">
+            <div className="text-[11px] text-ov-text pl-2 border-l-2 border-amber-400/40 whitespace-pre-wrap leading-relaxed">
               {feedback}
             </div>
           </div>

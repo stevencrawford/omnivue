@@ -106,7 +106,7 @@ export function ConversationView({
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-gh-text-secondary">
+        <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
           <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           Loading conversation...
         </div>
@@ -120,7 +120,7 @@ export function ConversationView({
         <div className="sess-empty-icon">
           <CirclePlus size={20} />
         </div>
-        <p className="text-sm text-gh-text-secondary">No messages in this session</p>
+        <p className="text-sm text-ov-text-secondary">No messages in this session</p>
       </div>
     );
   }
@@ -145,7 +145,7 @@ export function ConversationView({
             </div>
           )}
           {messagesWithoutReminders.length === 0 ? (
-            <p className="text-center text-xs text-gh-text-secondary py-8">
+            <p className="text-center text-xs text-ov-text-secondary py-8">
               Agent work appears here as tools run and responses stream in.
             </p>
           ) : (
@@ -170,7 +170,7 @@ export function ConversationView({
             <button
               type="button"
               onClick={scrollToBottom}
-              className="pointer-events-auto size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+              className="pointer-events-auto size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
               title="Scroll to bottom"
             >
               <ChevronDown size={14} />
@@ -182,7 +182,7 @@ export function ConversationView({
           <button
             type="button"
             onClick={scrollToTop}
-            className="absolute top-2 right-14 z-20 size-7 flex items-center justify-center rounded-md bg-gh-bg-secondary border border-gh-border text-gh-text-secondary hover:text-gh-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+            className="absolute top-2 right-14 z-20 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
             title="Scroll to top"
           >
             <ChevronUp size={14} />
@@ -236,7 +236,7 @@ function MessageBlock({
             <TriangleAlert size={14} className="text-red-400 shrink-0" />
             <span className="text-[11px] font-semibold text-red-400">TURN ABORTED</span>
           </div>
-          <div className="px-3 py-2 text-xs text-gh-text-secondary whitespace-pre-wrap leading-relaxed">
+          <div className="px-3 py-2 text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
             {message.content}
           </div>
         </div>

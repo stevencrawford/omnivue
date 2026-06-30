@@ -65,7 +65,7 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 p-8 text-sm text-gh-text-secondary">
+      <div className="flex items-center justify-center gap-2 p-8 text-sm text-ov-text-secondary">
         <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
         Loading plan...
       </div>
@@ -78,7 +78,7 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
         <div className="sess-empty-icon">
           <ListTodo size={20} />
         </div>
-        <p className="text-sm text-gh-text-secondary">No plan for this session</p>
+        <p className="text-sm text-ov-text-secondary">No plan for this session</p>
       </div>
     );
   }

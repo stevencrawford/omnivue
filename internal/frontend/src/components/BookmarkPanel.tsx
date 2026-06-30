@@ -40,11 +40,11 @@ export function BookmarkPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-gh-text-secondary">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
           Bookmarks
         </span>
         <span
-          className="text-[11px] tabular-nums text-gh-text-secondary/70"
+          className="text-[11px] tabular-nums text-ov-text-secondary/70"
           aria-label={`${bookmarks.length} bookmarks`}
           title={`${bookmarks.length} bookmarks`}
         >
@@ -54,8 +54,8 @@ export function BookmarkPanel({
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {bookmarks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <Bookmark size={24} className="text-gh-text-secondary/40 mb-3" />
-            <p className="text-xs text-gh-text-secondary/60 max-w-36 leading-relaxed">
+            <Bookmark size={24} className="text-ov-text-secondary/40 mb-3" />
+            <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
               Bookmark tool calls and messages to jump back to them later.
             </p>
           </div>
@@ -65,13 +65,13 @@ export function BookmarkPanel({
             return (
               <div
                 key={bm.id}
-                className="group flex items-start gap-2 px-3 py-2 border-b border-gh-border/50 hover:bg-gh-bg-hover transition-colors cursor-pointer"
+                className="group flex items-start gap-2 px-3 py-2 border-b border-ov-border/50 hover:bg-ov-bg-hover transition-colors cursor-pointer"
                 onClick={() => onBookmarkSelect(bm.sessionId, bm.messageIndex, bm.toolCallId)}
               >
                 <Bookmark size={12} className="mt-0.5 shrink-0 text-accent" fill="currentColor" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-medium text-gh-text truncate">{bm.label}</div>
-                  <div className="text-[10px] text-gh-text-secondary/60 truncate mt-0.5">
+                  <div className="text-[11px] font-medium text-ov-text truncate">{bm.label}</div>
+                  <div className="text-[10px] text-ov-text-secondary/60 truncate mt-0.5">
                     {session ? (
                       <span className="flex items-center gap-1">
                         <MessageSquareText size={10} className="shrink-0" />
@@ -81,7 +81,7 @@ export function BookmarkPanel({
                       <span className="italic">Unknown session</span>
                     )}
                   </div>
-                  <div className="text-[10px] text-gh-text-secondary/40 mt-0.5">
+                  <div className="text-[10px] text-ov-text-secondary/40 mt-0.5">
                     {formatTime(bm.createdAt)}
                   </div>
                 </div>
@@ -91,7 +91,7 @@ export function BookmarkPanel({
                     e.stopPropagation();
                     onBookmarkDelete(bm.id);
                   }}
-                  className="shrink-0 size-6 flex items-center justify-center rounded text-gh-text-secondary/40 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                  className="shrink-0 size-6 flex items-center justify-center rounded text-ov-text-secondary/40 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                   title="Remove bookmark"
                 >
                   <Trash2 size={12} />

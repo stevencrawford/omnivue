@@ -81,7 +81,7 @@ function NonCompactCopyBtn({ tool }: { tool: ToolCall }) {
         e.stopPropagation();
         navigator.clipboard.writeText(tool.output || "");
       }}
-      className="shrink-0 px-2 py-1.5 text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+      className="shrink-0 px-2 py-1.5 text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
       title="Copy"
     >
       <Copy size={12} />
@@ -154,8 +154,8 @@ export function ToolCallRow({
     // Fallback: plain summary line
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-        <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
-        <span className="text-gh-text truncate min-w-0">{summary}</span>
+        <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>
+        <span className="text-ov-text truncate min-w-0">{summary}</span>
       </div>
     );
   }
@@ -174,34 +174,34 @@ export function ToolCallRow({
   const statusColor = completed ? "text-emerald-400" : "text-amber-400";
   const wrapperClass = isTask
     ? "border border-violet-500/30 rounded-lg overflow-hidden mb-3 bg-violet-500/[0.03]"
-    : "border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
+    : "border border-ov-border rounded-lg overflow-hidden mb-3 bg-ov-bg-secondary/50";
 
   return (
     <div className={wrapperClass}>
       <div className="flex items-center w-full">
         <button
           type="button"
-          className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors"
+          className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-ov-bg-hover transition-colors"
           onClick={() => setExpanded(!expanded)}
         >
           <ChevronRight
             size={12}
-            className={`text-gh-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+            className={`text-ov-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
           />
           <span className={`text-[11px] ${statusColor} font-bold shrink-0`}>
             {completed ? (
               <Check size={11} className="text-emerald-400 shrink-0" />
             ) : (
-              <Circle size={11} className="text-gh-text-secondary/40 shrink-0" />
+              <Circle size={11} className="text-ov-text-secondary/40 shrink-0" />
             )}
           </span>
           <span
-            className={`font-mono text-[11px] truncate flex-1 min-w-0 ${isTask ? "text-violet-300" : "text-gh-text"}`}
+            className={`font-mono text-[11px] truncate flex-1 min-w-0 ${isTask ? "text-violet-300" : "text-ov-text"}`}
           >
             {summary}
           </span>
           {!isTask && tool.duration && tool.duration > 0 ? (
-            <span className="text-[11px] text-gh-text-secondary shrink-0">
+            <span className="text-[11px] text-ov-text-secondary shrink-0">
               {tool.duration < 1000
                 ? `${tool.duration}ms`
                 : `${(tool.duration / 1000).toFixed(1)}s`}
@@ -224,7 +224,7 @@ export function ToolCallRow({
       </div>
       {expanded && (
         <div
-          className={`border-t ${isTask ? "border-violet-500/20" : "border-gh-border"} px-3 py-2 space-y-2 bg-gh-bg-secondary/50`}
+          className={`border-t ${isTask ? "border-violet-500/20" : "border-ov-border"} px-3 py-2 space-y-2 bg-ov-bg-secondary/50`}
         >
           {renderer ? (
             <ToolRendererWrapper
@@ -270,9 +270,9 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-gh-text-secondary uppercase">{label}</span>
+        <span className="text-[11px] font-semibold text-ov-text-secondary uppercase">{label}</span>
         {isLong && (
-          <span className="text-[10px] text-gh-text-secondary/60">
+          <span className="text-[10px] text-ov-text-secondary/60">
             (
             {content.length > 1024
               ? `${(content.length / 1024).toFixed(1)}kb`
@@ -285,7 +285,7 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
-              className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
               title={expanded ? "Collapse" : "Expand"}
             >
               <ChevronRight
@@ -297,14 +297,14 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
           <button
             type="button"
             onClick={() => copy(content)}
-            className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
             title="Copy"
           >
             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
           </button>
         </div>
       </div>
-      <pre className="mt-0.5 p-2 bg-gh-bg rounded-md border border-gh-border overflow-x-auto text-[11px] font-mono max-h-60 overflow-y-auto leading-relaxed text-gh-text">
+      <pre className="mt-0.5 p-2 bg-ov-bg rounded-md border border-ov-border overflow-x-auto text-[11px] font-mono max-h-60 overflow-y-auto leading-relaxed text-ov-text">
         {formatted}
       </pre>
     </div>

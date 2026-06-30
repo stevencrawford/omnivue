@@ -38,12 +38,12 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
         <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
         <span className="text-emerald-400 font-semibold shrink-0">Task Complete</span>
         {(summary || outputLabel) && (
-          <span className="text-gh-text-secondary truncate min-w-0">
+          <span className="text-ov-text-secondary truncate min-w-0">
             {(summary ? summary.split("\n")[0] : outputLabel).slice(0, 80)}
           </span>
         )}
         {displayDuration > 0 && (
-          <span className="text-[11px] text-gh-text-secondary/40 shrink-0">
+          <span className="text-[11px] text-ov-text-secondary/40 shrink-0">
             {(displayDuration / 1000).toFixed(1)}s
           </span>
         )}
@@ -60,7 +60,7 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
           <CircleCheckBig size={20} className="text-emerald-400 shrink-0" />
           <span className="font-semibold text-[13px] text-emerald-400">Task Complete</span>
           {displayDuration > 0 && (
-            <span className="text-[11px] text-gh-text-secondary/50 ml-auto">
+            <span className="text-[11px] text-ov-text-secondary/50 ml-auto">
               {(displayDuration / 1000).toFixed(1)}s
             </span>
           )}
@@ -70,7 +70,7 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
             {isMarkdown ? (
               <MarkdownContent content={summary} className="markdown-body--wide" />
             ) : (
-              <p className="text-gh-text-secondary leading-relaxed whitespace-pre-wrap">
+              <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
                 {summary}
               </p>
             )}

@@ -36,8 +36,8 @@ export function TodoWriteToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <ListTodo size={12} className="text-amber-400 shrink-0" />
-        <span className="text-gh-text-secondary/70 shrink-0">todowrite:</span>
-        <span className="text-gh-text truncate min-w-0">
+        <span className="text-ov-text-secondary/70 shrink-0">todowrite:</span>
+        <span className="text-ov-text truncate min-w-0">
           {completed}/{todos.length} done
         </span>
         {inProgress > 0 && (
@@ -57,14 +57,14 @@ export function TodoWriteToolDiff({
             ) : todo.status === "in_progress" ? (
               <CircleDot size={14} className="text-amber-400" />
             ) : (
-              <Circle size={14} className="text-gh-text-secondary/50" />
+              <Circle size={14} className="text-ov-text-secondary/50" />
             )}
           </span>
           <span
             className={`text-[11px] leading-relaxed ${
               todo.status === "completed"
-                ? "text-gh-text-secondary/60 line-through"
-                : "text-gh-text"
+                ? "text-ov-text-secondary/60 line-through"
+                : "text-ov-text"
             }`}
           >
             {todo.content}

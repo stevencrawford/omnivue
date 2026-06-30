@@ -83,9 +83,9 @@ export function AddToProjectDialog({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add to Project" size="md">
       <div className="space-y-3">
-        <p className="text-xs text-gh-text-secondary">
+        <p className="text-xs text-ov-text-secondary">
           Add{" "}
-          <span className="text-gh-text font-medium">{sessionTitle || sessionId.slice(0, 12)}</span>{" "}
+          <span className="text-ov-text font-medium">{sessionTitle || sessionId.slice(0, 12)}</span>{" "}
           to a project:
         </p>
 
@@ -95,14 +95,14 @@ export function AddToProjectDialog({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter projects..."
-          className="w-full text-xs bg-gh-bg border border-gh-border rounded-md px-2.5 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
+          className="w-full text-xs bg-ov-bg border border-ov-border rounded-md px-2.5 py-1.5 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
         />
 
         <div className="max-h-48 overflow-y-auto space-y-0.5 -mx-1">
           {loading ? (
-            <div className="text-xs text-gh-text-secondary px-3 py-2">Loading...</div>
+            <div className="text-xs text-ov-text-secondary px-3 py-2">Loading...</div>
           ) : filtered.length === 0 ? (
-            <div className="text-xs text-gh-text-secondary px-3 py-2">
+            <div className="text-xs text-ov-text-secondary px-3 py-2">
               {filter ? "No matching projects" : "No projects yet"}
             </div>
           ) : (
@@ -112,7 +112,7 @@ export function AddToProjectDialog({
                 type="button"
                 disabled={assigning === folder.id}
                 onClick={() => handleAssign(folder)}
-                className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer disabled:opacity-40 rounded transition-colors"
+                className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer disabled:opacity-40 rounded transition-colors"
               >
                 <FolderIcon size={14} className="shrink-0" />
                 <span className="truncate flex-1">{folder.name}</span>
@@ -145,7 +145,7 @@ export function AddToProjectDialog({
                 }
               }}
               placeholder="Project name"
-              className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
+              className="flex-1 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
               autoFocus
             />
             <button

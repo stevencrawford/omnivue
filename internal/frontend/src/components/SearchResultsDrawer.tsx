@@ -28,7 +28,7 @@ const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
   },
   message: {
     label: "Session Messages",
-    badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+    badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
   },
   scratch: {
     label: "Scratch Notes",
@@ -83,7 +83,7 @@ export function SearchResultsDrawer({
       if (!group || group.length === 0) continue;
       const meta = CHUNK_LABELS[ct] || {
         label: ct,
-        badge: "bg-gh-bg-hover text-gh-text-secondary border-gh-border",
+        badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
       };
       out.push({ chunkType: ct, ...meta, results: group });
     }
@@ -95,21 +95,21 @@ export function SearchResultsDrawer({
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed top-0 right-0 bottom-0 z-50 w-[420px] max-w-[90vw] flex flex-col bg-surface-elevated border-l border-gh-border shadow-2xl animate-slide-in-right">
+      <div className="fixed top-0 right-0 bottom-0 z-50 w-[420px] max-w-[90vw] flex flex-col bg-surface-elevated border-l border-ov-border shadow-2xl animate-slide-in-right">
         {/* Header */}
-        <div className="px-4 py-3 border-b border-gh-border shrink-0 space-y-2">
+        <div className="px-4 py-3 border-b border-ov-border shrink-0 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
               <Search size={16} className="text-accent shrink-0" />
-              <span className="text-sm font-medium text-gh-text truncate">{query}</span>
-              <span className="text-[11px] text-gh-text-secondary tabular-nums shrink-0">
+              <span className="text-sm font-medium text-ov-text truncate">{query}</span>
+              <span className="text-[11px] text-ov-text-secondary tabular-nums shrink-0">
                 ({results.length})
               </span>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 text-gh-text-secondary hover:text-gh-text cursor-pointer p-1 rounded transition-colors"
+              className="shrink-0 text-ov-text-secondary hover:text-ov-text cursor-pointer p-1 rounded transition-colors"
               aria-label="Close search results"
             >
               <X size={16} />
@@ -140,11 +140,11 @@ export function SearchResultsDrawer({
         {/* Results */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {sections.length === 0 && (
-            <div className="text-xs text-gh-text-secondary p-6 text-center">No results found</div>
+            <div className="text-xs text-ov-text-secondary p-6 text-center">No results found</div>
           )}
           {sections.map((section) => (
             <div key={section.chunkType}>
-              <div className="sticky top-0 z-10 bg-gh-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-gh-border">
+              <div className="sticky top-0 z-10 bg-ov-bg-secondary/90 backdrop-blur-sm px-3 py-1.5 border-b border-ov-border">
                 <span
                   className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${section.badge}`}
                 >
@@ -156,7 +156,7 @@ export function SearchResultsDrawer({
                 <button
                   key={`${r.sessionId}-${section.chunkType}-${i}`}
                   type="button"
-                  className="w-full text-left px-4 py-3 border-b border-gh-border cursor-pointer transition-colors hover:bg-gh-bg-hover text-gh-text-secondary"
+                  className="w-full text-left px-4 py-3 border-b border-ov-border cursor-pointer transition-colors hover:bg-ov-bg-hover text-ov-text-secondary"
                   onClick={() =>
                     onSelect(
                       r.sessionId,
@@ -170,18 +170,18 @@ export function SearchResultsDrawer({
                   <div className="mb-1">
                     <div className="flex items-center gap-2">
                       {r.repository && (
-                        <span className="text-[11px] font-mono text-gh-text-secondary truncate">
+                        <span className="text-[11px] font-mono text-ov-text-secondary truncate">
                           {r.repository}
                         </span>
                       )}
                       {r.updatedAt && (
-                        <span className="text-[11px] text-gh-text-secondary shrink-0 ml-auto tabular-nums">
+                        <span className="text-[11px] text-ov-text-secondary shrink-0 ml-auto tabular-nums">
                           {relativeTime(r.updatedAt)}
                         </span>
                       )}
                     </div>
                     {r.sessionName && (
-                      <div className="text-[11px] font-semibold text-gh-text truncate leading-snug mt-0.5">
+                      <div className="text-[11px] font-semibold text-ov-text truncate leading-snug mt-0.5">
                         {r.sessionName}
                       </div>
                     )}
@@ -191,7 +191,7 @@ export function SearchResultsDrawer({
                       </div>
                     )}
                   </div>
-                  <div className="text-xs text-gh-text line-clamp-2 search-result">
+                  <div className="text-xs text-ov-text line-clamp-2 search-result">
                     {renderSnippet(r.snippet)}
                   </div>
                 </button>

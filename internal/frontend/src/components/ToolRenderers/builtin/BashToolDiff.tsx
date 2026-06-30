@@ -35,8 +35,8 @@ export function BashToolDiff({ tool, compact, onCopy: _onCopy }: ToolRendererPro
           size={12}
           className={success ? "text-emerald-400 shrink-0" : "text-red-400 shrink-0"}
         />
-        <span className="text-gh-text-secondary/70 shrink-0">$</span>
-        <span className="text-gh-text truncate min-w-0">{command}</span>
+        <span className="text-ov-text-secondary/70 shrink-0">$</span>
+        <span className="text-ov-text truncate min-w-0">{command}</span>
         {success ? (
           <Check size={11} className="text-emerald-400 shrink-0" />
         ) : (
@@ -48,15 +48,15 @@ export function BashToolDiff({ tool, compact, onCopy: _onCopy }: ToolRendererPro
 
   return (
     <>
-      <div className="relative group px-3 py-2 bg-gh-bg-secondary/30">
-        <pre className="text-[11px] font-mono leading-relaxed text-gh-text whitespace-pre-wrap break-all">
+      <div className="relative group px-3 py-2 bg-ov-bg-secondary/30">
+        <pre className="text-[11px] font-mono leading-relaxed text-ov-text whitespace-pre-wrap break-all">
           <span className="text-accent-secondary">$ </span>
           {command}
         </pre>
       </div>
       {stdout && (
         <div className="relative group border-t border-accent-border">
-          <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-gh-text-secondary whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
+          <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-ov-text-secondary whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
             {stdout}
           </pre>
         </div>

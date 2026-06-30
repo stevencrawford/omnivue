@@ -25,7 +25,7 @@ export function SystemReminderView({
       <div className="px-3 py-2">
         <div className="relative">
           {!expanded && isLong && (
-            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
           )}
           <MarkdownContent
             content={display}

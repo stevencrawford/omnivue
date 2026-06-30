@@ -173,7 +173,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     <Modal isOpen={isOpen} onClose={handleResetClose} title="Settings" size="lg">
       <div className="flex gap-0 h-[460px]">
         {/* Sidebar tabs */}
-        <div className="w-40 shrink-0 border-r border-gh-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
+        <div className="w-40 shrink-0 border-r border-ov-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
           <nav className="flex flex-col gap-0.5 pr-4">
             {(["agent", "appearance", "privacy", "about"] as const).map((tab) => (
               <button
@@ -183,7 +183,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 className={`text-left px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeTab === tab
                     ? "bg-accent-muted text-accent"
-                    : "text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-secondary"
+                    : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-secondary"
                 }`}
               >
                 {tab === "agent"
@@ -202,16 +202,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex-1 min-w-0 pl-5 pr-5 overflow-y-auto">
           {activeTab === "agent" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
                 Agent Directories
               </h3>
-              <p className="text-xs text-gh-text-secondary mb-3">
+              <p className="text-xs text-ov-text-secondary mb-3">
                 Add or remove agent data directories. Omnivue reads from these paths to discover
                 sessions.
               </p>
 
               {sourcesLoading ? (
-                <p className="text-xs text-gh-text-secondary">Loading...</p>
+                <p className="text-xs text-ov-text-secondary">Loading...</p>
               ) : sourcesError ? (
                 <p className="text-xs text-red-400">{sourcesError}</p>
               ) : (
@@ -236,7 +236,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs bg-red-500/[0.08] border border-red-500/30"
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-gh-text">
+                            <p className="text-ov-text">
                               {source.agentType}
                               {source.label && ` · ${source.label}`}
                             </p>
@@ -247,7 +247,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           <button
                             type="button"
                             onClick={() => setConfirmingDeleteId(null)}
-                            className="shrink-0 px-2 py-1 text-xs rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+                            className="shrink-0 px-2 py-1 text-xs rounded-md border border-ov-border text-ov-text-secondary hover:text-ov-text cursor-pointer transition-colors"
                           >
                             Cancel
                           </button>
@@ -267,14 +267,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       ) : (
                         <div
                           key={source.id}
-                          className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-gh-bg-secondary border border-gh-border text-xs"
+                          className="group flex items-center gap-2 px-2 py-1.5 rounded-md bg-ov-bg-secondary border border-ov-border text-xs"
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-gh-text">
+                            <p className="text-ov-text">
                               {source.agentType}
                               {source.label && ` · ${source.label}`}
                             </p>
-                            <p className="truncate text-[11px] text-gh-text-secondary font-mono">
+                            <p className="truncate text-[11px] text-ov-text-secondary font-mono">
                               {source.path}
                             </p>
                           </div>
@@ -282,7 +282,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             type="button"
                             disabled={removingId === source.id}
                             onClick={() => setConfirmingDeleteId(source.id)}
-                            className="shrink-0 p-1 text-gh-text-secondary hover:text-red-400 disabled:opacity-40 cursor-pointer transition-colors"
+                            className="shrink-0 p-1 text-ov-text-secondary hover:text-red-400 disabled:opacity-40 cursor-pointer transition-colors"
                             title="Remove source"
                           >
                             {removingId === source.id ? (
@@ -299,7 +299,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
 
               {sources.length === 0 && !sourcesLoading && (
-                <p className="text-xs text-gh-text-secondary mb-2">No sources configured.</p>
+                <p className="text-xs text-ov-text-secondary mb-2">No sources configured.</p>
               )}
 
               {/* Add source form */}
@@ -315,12 +315,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     AGENT_TYPES.find((at) => at.value === addingType)?.defaultPath ??
                     "/path/to/agent/data"
                   }
-                  className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px var(--color-glow)] font-mono"
+                  className="flex-1 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px var(--color-glow)] font-mono"
                 />
                 <select
                   value={addingType}
                   onChange={(e) => setAddingType(e.target.value)}
-                  className="text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1.5 text-gh-text outline-none focus:border-accent cursor-pointer"
+                  className="text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text outline-none focus:border-accent cursor-pointer"
                 >
                   {AGENT_TYPES.map((at) => (
                     <option key={at.value} value={at.value} disabled={at.disabled}>
@@ -347,14 +347,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === "appearance" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
                 Appearance
               </h3>
-              <p className="text-xs text-gh-text-secondary mb-3">
+              <p className="text-xs text-ov-text-secondary mb-3">
                 Customize the look and feel of your Omnivue interface.
               </p>
 
-              <p className="text-[11px] font-medium text-gh-text-secondary mb-2">Theme</p>
+              <p className="text-[11px] font-medium text-ov-text-secondary mb-2">Theme</p>
               <div className="grid grid-cols-2 gap-2">
                 {THEMES.map((t) => {
                   const isActive = themeName === t.name;
@@ -367,7 +367,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       className={`rounded-lg border overflow-hidden cursor-pointer transition-colors ${
                         isActive
                           ? "border-accent-border"
-                          : "border-gh-border hover:border-gh-text-secondary"
+                          : "border-ov-border hover:border-ov-text-secondary"
                       }`}
                     >
                       <div className="flex flex-col">
@@ -385,8 +385,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       <div
                         className={`px-2.5 py-1.5 text-xs text-left ${
                           isActive
-                            ? "bg-accent-muted text-gh-text font-medium"
-                            : "bg-gh-bg-secondary text-gh-text-secondary"
+                            ? "bg-accent-muted text-ov-text font-medium"
+                            : "bg-ov-bg-secondary text-ov-text-secondary"
                         }`}
                       >
                         {t.label}
@@ -396,7 +396,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 })}
               </div>
 
-              <p className="text-[11px] font-medium text-gh-text-secondary mt-3 mb-2">Mode</p>
+              <p className="text-[11px] font-medium text-ov-text-secondary mt-3 mb-2">Mode</p>
               <div className="flex items-center gap-3">
                 {(["light", "dark"] as const).map((m) => (
                   <button
@@ -406,7 +406,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer capitalize transition-colors ${
                       theme === m
                         ? "border-accent-border bg-accent-muted text-accent"
-                        : "border-gh-border text-gh-text-secondary hover:border-accent-border hover:text-gh-text"
+                        : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:text-ov-text"
                     }`}
                   >
                     {m}
@@ -418,10 +418,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === "privacy" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
                 Privacy
               </h3>
-              <p className="text-xs text-gh-text-secondary mb-3">
+              <p className="text-xs text-ov-text-secondary mb-3">
                 Control what data is displayed in the UI.
               </p>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -438,30 +438,30 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   }}
                   className="accent-accent"
                 />
-                <span className="text-xs text-gh-text">Show costs</span>
+                <span className="text-xs text-ov-text">Show costs</span>
               </label>
             </div>
           )}
 
           {activeTab === "about" && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gh-text-secondary mb-1">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
                 About
               </h3>
-              <p className="text-xs text-gh-text-secondary mb-3">
+              <p className="text-xs text-ov-text-secondary mb-3">
                 Omnivue — AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.
               </p>
 
-              <p className="text-xs text-gh-text-secondary leading-relaxed mb-4">
+              <p className="text-xs text-ov-text-secondary leading-relaxed mb-4">
                 Browse, search, and manage all your AI coding sessions from one place. Omnivue reads
                 agent session databases in read-only mode, indexes their content for full-text
                 search, and displays conversations, plans, diffs, and tool calls in a unified
                 browser UI. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
               </p>
 
-              <div className="text-xs text-gh-text-secondary space-y-1 mb-4">
+              <div className="text-xs text-ov-text-secondary space-y-1 mb-4">
                 <p>
-                  <span className="text-gh-text">Repository:</span>{" "}
+                  <span className="text-ov-text">Repository:</span>{" "}
                   <a
                     href="https://github.com/stevencrawford/omnivue"
                     target="_blank"
@@ -474,11 +474,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </div>
 
               {/* Factory Reset */}
-              <div className="border-t border-gh-border pt-4 mt-4">
+              <div className="border-t border-ov-border pt-4 mt-4">
                 <h4 className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-1">
                   Factory Reset
                 </h4>
-                <p className="text-xs text-gh-text-secondary mb-3">
+                <p className="text-xs text-ov-text-secondary mb-3">
                   Remove all Omnivue-local data including sources, folders, scratch notes, bookmarks,
                   search index, and configuration. Agent data on disk is unaffected.
                 </p>
@@ -512,7 +512,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         value={resetConfirmText}
                         onChange={(e) => setResetConfirmText(e.target.value)}
                         placeholder="Type RESET"
-                        className="w-full text-xs bg-gh-bg border border-red-500/30 rounded-md px-2 py-1.5 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-red-400 font-mono"
+                        className="w-full text-xs bg-ov-bg border border-red-500/30 rounded-md px-2 py-1.5 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-red-400 font-mono"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && resetConfirmText === "RESET" && !resetting) {
                             handleReset();
@@ -527,7 +527,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           setResetStep(0);
                           setResetConfirmText("");
                         }}
-                        className="text-xs px-2 py-1 rounded-md border border-gh-border text-gh-text-secondary hover:text-gh-text cursor-pointer transition-colors"
+                        className="text-xs px-2 py-1 rounded-md border border-ov-border text-ov-text-secondary hover:text-ov-text cursor-pointer transition-colors"
                       >
                         Cancel
                       </button>
@@ -586,19 +586,19 @@ function FilterChip({
         className={`text-[11px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
           value
             ? "border-accent-border bg-accent-muted text-accent"
-            : "border-gh-border text-gh-text-secondary hover:border-accent-border hover:text-gh-text"
+            : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:text-ov-text"
         }`}
       >
         {label}: {displayLabel}
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
+        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
           <button
             type="button"
             className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
               !value
-                ? "text-gh-text bg-gh-bg-active"
-                : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                ? "text-ov-text bg-ov-bg-active"
+                : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
             }`}
             onClick={() => {
               onChange(null);
@@ -613,8 +613,8 @@ function FilterChip({
               type="button"
               className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors truncate capitalize ${
                 value === opt
-                  ? "text-gh-text bg-gh-bg-active"
-                  : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                  ? "text-ov-text bg-ov-bg-active"
+                  : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
               }`}
               onClick={() => {
                 onChange(opt);
