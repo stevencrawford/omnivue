@@ -4,35 +4,87 @@
     <img src="site/app_icon.svg" alt="Omnivue" width="120">
   </picture>
 </p>
-<p align="center"><b>Omnivue</b> — AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.</p>
+<p align="center"><b>Omnivue</b></p>
+<p align="center">AI session manager for OpenCode, Copilot, Cursor, Pi, and Codex.</p>
 <p align="center">
-  <a href="https://github.com/stevencrawford/omnivue/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/stevencrawford/omnivue?style=flat-square" /></a>
-  <a href="https://github.com/stevencrawford/omnivue/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/stevencrawford/omnivue?style=flat-square" /></a>
+  <img alt="Go version" src="https://img.shields.io/badge/Go-1.26-blue?style=flat-square&logo=go" />
 </p>
 
 ---
 
-### Installation
+Omnivue is a 100% local session browser for your AI coding assistants. It reads the session data already on your machine and shows it all in one place — conversation history, file diffs, implementation plans, and more.
 
-```bash
-# From source (requires Go 1.26+ and pnpm)
-make build
+## Features
 
-# Binary
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.tar.gz | tar xz
-```
+- **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, and Codex out of the box
+- **Conversation viewer** — Full message history with tool calls, reasoning, and step events
+- **File diffs** — Unified diff view of every file change made during a session
+- **Plan tracking** — Implementation plans and checkpoints with status indicators
+- **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle)
+- **Full-text search** — FTS5 index across all session content, scoped or global
+- **User folders** — Virtual organization with nesting, color, and icon support
+- **Scratch notes** — Per-session markdown notes with rich text or code editor
+- **Session renaming** — Override display names from the sidebar
+- **Settings UI** — Add/remove session sources from the browser
+- **Resume sessions** — One-click copy of the CLI command to resume
+- **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘P` search
+- **Deep linking** — Shareable URLs `#/session/{id}/step/{n}`
+- **Multi-theme** — Ayu, Nord, Catppuccino, Tokyo Night, and GitHub themes with light/dark modes
+- **Read-only access** — Never writes to agent databases (enforced at driver level)
+- **Single binary** — Go + embedded React SPA, zero runtime dependencies
 
-### Quick Start
+## Local by Design
+
+Omnivue keeps your workflow on your machine:
+
+- **100% local** — Reads local session stores and writes only to its own local state database
+- **No cloud sync** — Nothing is uploaded, indexed remotely, or sent to a hosted service
+- **Read-only adapters** — Agent databases are opened in read-only mode and never modified
+- **localhost UI** — The browser app runs against a local server on your machine
+
+## Quick Start
 
 ```console
 $ omnivue init
 $ omnivue
 ```
 
-### Documentation
+## Installation
 
-For more info on how to use Omnivue, [**head over to our docs**](docs/).
+### From source
 
-### License
+Requires Go 1.26+ and [pnpm](https://pnpm.io/).
 
-MIT
+```bash
+make build
+```
+
+### Binary
+
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.tar.gz | tar xz
+```
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `j` / `ArrowDown` | Select next session |
+| `k` / `ArrowUp` | Select previous session |
+| `⌘1` / `Ctrl+1` | Conversation tab |
+| `⌘2` / `Ctrl+2` | Diff tab |
+| `⌘P` / `Ctrl+P` or `⌘K` / `Ctrl+K` | Open search (scoped to active session) |
+| `⌘B` / `Ctrl+B` | Toggle sidebar |
+| `Escape` | Close search / results |
+
+## Documentation
+
+For detailed documentation, API reference, adapter guide, and frontend overview, see the [docs/](docs/) directory.
+
+## License
+
+MIT License — see [LICENSE](LICENSE).
+
+## Acknowledgements
+
+Omnivue is a fork of [mo](https://github.com/k1LoW/mo) by Ken'ichiro Oyama (k1LoW), adapted from a Markdown viewer into an AI session manager.
