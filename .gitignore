@@ -1,3 +1,4 @@
+.DS_Store
 internal/static/dist/**/*
 internal/frontend/CREDITS_FRONTEND
 coverage.out
