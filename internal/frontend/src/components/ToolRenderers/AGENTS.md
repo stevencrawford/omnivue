@@ -166,19 +166,19 @@ Set `canExpand: false` and `truncateOutput: 0` for this pattern.
 
 Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). Each kind can use a distinct border/icon color:
 
-| Kind(s)          | Border/Accent       |
-| ---------------- | ------------------- |
-| `bash`           | amber               |
-| `edit`/`write`   | accent (green/blue) |
-| `read`           | cyan                |
-| `grep`/`glob`    | violet              |
-| `delete`         | red                 |
-| `todowrite`      | amber               |
-| `task`           | violet              |
-| `question`       | orange              |
-| `exit_plan_mode` | amber               |
+| Kind(s)          | Border/Accent                 |
+| ---------------- | ----------------------------- |
+| `bash`           | amber                         |
+| `edit`/`write`   | accent (green/blue)           |
+| `read`           | cyan                          |
+| `grep`/`glob`    | violet                        |
+| `delete`         | red                           |
+| `todowrite`      | amber                         |
+| `task`           | violet                        |
+| `question`       | orange                        |
+| `exit_plan_mode` | amber                         |
 | `task_complete`  | emerald (self-contained card) |
-| `compaction`     | gray                |
+| `compaction`     | gray                          |
 
 ## CopyButton Usage
 

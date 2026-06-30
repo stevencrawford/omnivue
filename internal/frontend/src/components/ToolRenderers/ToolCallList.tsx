@@ -121,6 +121,22 @@ export function ToolCallRow({
       }
     : undefined;
 
+  // task_complete always renders as a full prominent card regardless of
+  // compact mode — the bypass must run before the compact check
+  if (isTaskComplete && renderer) {
+    return (
+      <ToolRendererWrapper
+        renderer={renderer}
+        tool={tool}
+        compact={false}
+        onOpenModal={onOpenModal}
+        onPin={onPin}
+        onBookmark={bmOnClick}
+        isBookmarked={isBookmarked}
+      />
+    );
+  }
+
   if (compact) {
     if (renderer) {
       return (
@@ -141,21 +157,6 @@ export function ToolCallRow({
         <span className="text-gh-text-secondary/70 font-medium shrink-0">{kind}:</span>
         <span className="text-gh-text truncate min-w-0">{summary}</span>
       </div>
-    );
-  }
-
-  // Non-compact: task_complete doesn't use the expandable wrapper
-  if (isTaskComplete && renderer) {
-    return (
-      <ToolRendererWrapper
-        renderer={renderer}
-        tool={tool}
-        compact={false}
-        onOpenModal={onOpenModal}
-        onPin={onPin}
-        onBookmark={bmOnClick}
-        isBookmarked={isBookmarked}
-      />
     );
   }
 

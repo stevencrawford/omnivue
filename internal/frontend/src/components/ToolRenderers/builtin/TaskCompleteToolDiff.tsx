@@ -76,10 +76,10 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
             )}
           </div>
         )}
-        {tool.output && !summary && (
+        {tool.output && (
           <div className="mt-2 flex items-center gap-1.5">
             <span className="text-[11px] text-gh-text-secondary/50 uppercase tracking-wider font-semibold">
-              Status
+              Result
             </span>
             <span className="text-[11px] text-emerald-400/80 font-mono">{tool.output}</span>
           </div>
