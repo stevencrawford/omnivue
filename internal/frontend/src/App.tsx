@@ -26,6 +26,7 @@ import {
   deleteBookmark,
 } from "./hooks/useApi";
 import { useRecentSearches } from "./hooks/useRecentSearches";
+import { ToastProvider } from "./hooks/useToast";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { useSessionRouting } from "./hooks/useSessionRouting";
 import { useSearchScope } from "./hooks/useSearchScope";
@@ -335,6 +336,7 @@ export function App() {
 
   return (
     <ThemeProvider>
+      <ToastProvider>
       <div className="flex flex-col h-full font-sans text-ov-text bg-ov-bg">
         <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-ov-header-border">
           <div className="flex items-center gap-3 min-w-0">
@@ -605,6 +607,7 @@ export function App() {
           )}
         </Modal>
       </div>
+      </ToastProvider>
     </ThemeProvider>
   );
 }
