@@ -215,13 +215,19 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "exit_plan_mode",
-    names: ["exit_plan_mode"],
+    names: ["plan", "exit_plan_mode"],
     Component: ExitPlanModeToolDiff,
-    summary: () => "plan",
-    markerColor: "#a855f7",
+    summary: (tool) => {
+      const s = extractJSONField(tool.input, "summary") || "";
+      return `Plan: ${s.slice(0, 80)}`;
+    },
+    markerColor: "#f59e0b",
     markerLabel: "Plans",
     markerDisplayType: "plan",
     markerPriority: 30,
+    truncateOutput: 0,
+    canExpand: false,
+    cardClassName: "border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/[0.04] mb-2",
   },
   {
     kind: "compaction",

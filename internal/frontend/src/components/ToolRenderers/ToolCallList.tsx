@@ -113,7 +113,7 @@ export function ToolCallRow({
 
   const renderer = toolRendererRegistry.getRenderer(kind);
   const isTask = kind === "task";
-  const isTaskComplete = kind === "task_complete";
+  const prominentCard = kind === "task_complete" || kind === "exit_plan_mode";
 
   const bmOnClick = onBookmark
     ? () => {
@@ -121,9 +121,9 @@ export function ToolCallRow({
       }
     : undefined;
 
-  // task_complete always renders as a full prominent card regardless of
-  // compact mode — the bypass must run before the compact check
-  if (isTaskComplete && renderer) {
+  // Prominent cards always render as a full card regardless of compact
+  // mode — the bypass must run before the compact check
+  if (prominentCard && renderer) {
     return (
       <ToolRendererWrapper
         renderer={renderer}

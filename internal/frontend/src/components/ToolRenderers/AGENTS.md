@@ -142,7 +142,7 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | `task_complete`              | `TaskCompleteToolDiff`                          | 0 (none)         | `false`           | `false`     | 0                |
 | `task`                       | `TaskToolDiff`                                  | 50 (default)     | `false`           | `false`     | 10               |
 | `edit`, `write`              | `EditToolDiff`                                  | 20               | `true`            | `true`      | 20               |
-| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 50 (default)     | `false`           | `true`      | 30               |
+| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 0 (none)         | `false`           | `false`     | 30               |
 | `question`                   | `QuestionToolDiff`                              | 50 (default)     | `false`           | `true`      | 40               |
 | `read`                       | `ReadToolDiff`                                  | 50 (default)     | `false`           | `true`      | 50               |
 | `bash`                       | `BashToolDiff`                                  | 50               | `false`           | `true`      | 60               |
@@ -152,7 +152,7 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | `delete`                     | `DeleteToolDiff`                                | 50 (default)     | `false`           | `true`      | 100              |
 | `compaction`                 | `CompactionToolDiff`                            | 0 (none)         | `false`           | `false`     | 110              |
 
-> **Note:** `task_complete` is a self-contained card in non-compact mode — it provides its own emerald border/background. This is because the non-compact rendering bypasses `ToolRendererWrapper`'s card wrapper and renders the component directly.
+> **Note:** `task_complete` and `exit_plan_mode` are self-contained cards — they provide their own border/background and always render full content regardless of compact mode.
 
 ### Compaction pattern
 
@@ -176,7 +176,7 @@ Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). E
 | `todowrite`      | amber                         |
 | `task`           | violet                        |
 | `question`       | orange                        |
-| `exit_plan_mode` | amber                         |
+| `exit_plan_mode` | amber (self-contained card)   |
 | `task_complete`  | emerald (self-contained card) |
 | `compaction`     | gray                          |
 
