@@ -13,7 +13,7 @@ export function shortDir(directory: string): string {
   return parts.length > 0 ? parts[parts.length - 1]! : directory;
 }
 
-function shortModel(model: string): string {
+export function shortModel(model: string): string {
   if (!model) return "";
   return model
     .replace("anthropic/", "")
@@ -34,11 +34,9 @@ function agentLabel(agent: string): string {
 export function sessionMetaParts(session: Session): string[] {
   const parts: string[] = [];
   if (session.agent) parts.push(agentLabel(session.agent));
+  if (session.branch) parts.push(session.branch);
   const dir = shortDir(session.directory);
   if (dir) parts.push(dir);
-  if (session.branch) parts.push(session.branch);
-  const model = shortModel(session.model);
-  if (model) parts.push(model);
   return parts;
 }
 

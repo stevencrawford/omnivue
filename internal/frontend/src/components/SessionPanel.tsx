@@ -10,6 +10,7 @@ import {
   formatCost,
   formatTokens,
   shortDir,
+  shortModel,
 } from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
 import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
@@ -648,6 +649,15 @@ function VerboseStats({ session }: { session: Session }) {
     session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const parts: ReactNode[] = [];
   const costsVisible = showCosts();
+
+  const model = shortModel(session.model);
+  if (model) {
+    parts.push(
+      <span key="model" title="Model">
+        {model}
+      </span>,
+    );
+  }
 
   if (totalTokens > 0) {
     parts.push(
