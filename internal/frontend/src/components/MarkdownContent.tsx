@@ -135,7 +135,7 @@ export function MarkdownContent({
           {!expanded && (
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
           )}
-          <div className={`markdown-body markdown-ayu markdown-body--small ${className}`.trim()}>
+          <div className={`markdown-body markdown-body--small ${className}`.trim()}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
               rehypePlugins={[
@@ -220,7 +220,7 @@ export function MarkdownContent({
           </button>
         )}
       </div>
-      <div className={`markdown-body markdown-ayu markdown-body--small ${className}`.trim()}>
+      <div className={`markdown-body markdown-body--small ${className}`.trim()}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
           rehypePlugins={[

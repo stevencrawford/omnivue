@@ -448,7 +448,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
             options={monacoEditorOptions(isReadOnly)}
           />
         ) : (
-          <div className="h-full overflow-y-auto px-4 py-2 markdown-ayu">
+          <div className="h-full overflow-y-auto px-4 py-2">
             <EditorContent editor={editor} />
           </div>
         )}
