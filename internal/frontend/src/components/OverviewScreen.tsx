@@ -140,7 +140,7 @@ function StatCard({
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-widest text-ov-text-secondary">{label}</p>
         <p className="text-lg font-semibold tabular-nums truncate">{value}</p>
-        {sub && <p className="text-[11px] text-ov-text-secondary truncate">{sub}</p>}
+        {sub && <p className="text-[11px] text-ov-text-secondary text-pretty">{sub}</p>}
       </div>
     </div>
   );
