@@ -3,7 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Omnivue — Local Session Browser</title>
+  <meta name="description" content="Omnivue is a 100% local multi-agent session browser and viewer. View, search, and manage sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi — all on your machine." />
+  <meta name="keywords" content="multi-agent sessions, session browser, session viewer, session management, agent session viewer, 100% local session viewer, opencode, copilot, claude code, codex, cursor, pi, AI session manager" />
+  <meta property="og:title" content="Omnivue — 100% Local Multi-Agent Session Browser &amp; Viewer" />
+  <meta property="og:description" content="View, search, and manage AI coding sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi — 100% local, zero data leaves your machine." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://github.com/stevencrawford/omnivue" />
+  <meta property="og:image" content="https://github.com/stevencrawford/omnivue/raw/main/site/assets/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Omnivue — 100% Local Multi-Agent Session Browser &amp; Viewer" />
+  <meta name="twitter:description" content="View, search, and manage sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi — 100% local." />
+  <title>Omnivue — 100% Local Multi-Agent Session Browser &amp; Viewer</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -249,6 +259,21 @@
       transform: scale(1.25);
     }
   </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Omnivue",
+  "description": "100% local multi-agent session browser for viewing, searching, and managing AI coding sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 </head>
 <body class="site-dark bg-[#050816] text-slate-100 antialiased">
   <!-- Navigation -->
@@ -291,6 +316,9 @@
         <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M0 0v24h6v-6h6v-6H6V6h6v6h6V0Zm18 12v12h6V12Z"/></svg>
         Pi
         <span class="text-indigo-300">·</span>
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 0 1 .778-.332 48.294 48.294 0 0 0 5.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/></svg>
+        Claude Code
+        <span class="text-indigo-300">·</span>
         <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0Zm-2 16V8l6 4-6 4Z"/></svg>
         Codex
       </div>
@@ -298,10 +326,10 @@
         <span class="text-white">Omnivue</span>
       </h1>
       <p class="text-2xl md:text-3xl font-semibold text-gray-800 mb-4 fade-up" style="animation-delay: 0.2s">
-        100% Local Multi-Agent Session Browser
+        100% Local Multi-Agent Session Browser &amp; Viewer
       </p>
       <p class="text-lg text-gray-500 max-w-2xl mx-auto mb-8 leading-relaxed fade-up" style="animation-delay: 0.3s">
-        View, search, and organize sessions from your favorite agent harnesses without sending anything off your machine.
+        A multi-agent session browser and viewer for managing AI coding sessions from OpenCode, Copilot, Claude Code, Cursor, Pi, and Codex. Everything stays 100% local — nothing leaves your machine.
       </p>
       <div class="flex flex-wrap justify-center gap-3 mb-10">
         <span class="badge-pill bg-slate-50 text-slate-700 border-slate-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1.75 3.75 5.5v6.2c0 5.17 3.63 9.97 8.25 10.55 4.62-.58 8.25-5.38 8.25-10.55V5.5L12 1.75Z"/></svg> 100% local</span>
@@ -331,13 +359,13 @@
           <input type="radio" name="cs-s" id="cs-s-3" />
           <div class="carousel-slides">
             <div class="carousel-slide">
-              <img src="assets/screenshot-sessions.png" alt="Session browser sidebar" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+              <img src="assets/screenshot-sessions.png" alt="Multi-agent session browser sidebar view" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
             </div>
             <div class="carousel-slide">
-              <img src="assets/screenshot-sessions-2.png" alt="Session tree with grouped repos" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
+              <img src="assets/screenshot-sessions-2.png" alt="Session viewer tree with grouped repositories" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b); aspect-ratio: 16/10; object-fit: cover;" />
             </div>
             <div class="carousel-slide">
-              <img src="assets/screenshot-sessions-3.png" alt="Session detail panel" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
+              <img src="assets/screenshot-sessions-3.png" alt="Session viewer detail panel" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;" />
             </div>
           </div>
           <div class="carousel-dots">
@@ -357,8 +385,9 @@
           <span class="gradient-text">one browser</span>
         </h2>
         <p class="text-gray-500 text-lg leading-relaxed mb-6">
-          See all your AI coding sessions from every agent in a single tree. Sessions are grouped by
-          repository with color-coded agent badges, and everything stays on your machine.
+          See all your AI agent sessions in a single session browser. Sessions are grouped by
+          repository with color-coded agent badges for easy session management, and everything stays
+          100% local on your machine.
         </p>
         <ul class="space-y-3">
           <li class="flex items-start gap-3">
@@ -605,8 +634,9 @@
           <span class="gradient-text">not by agent</span>
         </h2>
         <p class="text-gray-500 text-lg leading-relaxed mb-6">
-          Create virtual folders to organize sessions from all agents into projects.
-          Sessions from OpenCode, Copilot, Cursor, Pi, and Codex all live side by side in local storage.
+          Manage sessions across agents with virtual folders. Create a project-based session management
+          system — OpenCode, Copilot, Cursor, Claude Code, Pi, and Codex sessions all live side by
+          side in local storage.
         </p>
         <ul class="space-y-3">
           <li class="flex items-start gap-3">
