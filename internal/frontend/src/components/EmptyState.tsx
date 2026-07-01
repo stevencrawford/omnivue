@@ -1,5 +1,6 @@
 import { Copy, Check } from "lucide-react";
 import { useCopy } from "../hooks/useCopy";
+import { Button } from "./ui/button";
 
 interface EmptyStateProps {
   sessionsCount: number;
@@ -52,13 +53,9 @@ export function EmptyState({ sessionsCount, onOpenSettings }: EmptyStateProps) {
             </button>
           </div>
           <p className="text-xs text-ov-text-secondary">or</p>
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="text-xs px-3 py-1.5 rounded-md border border-accent-border bg-accent-muted text-accent hover:bg-accent/20 cursor-pointer transition-colors"
-          >
+          <Button variant="secondary" size="xs" onClick={onOpenSettings}>
             Go to Settings
-          </button>
+          </Button>
         </div>
       </div>
     );

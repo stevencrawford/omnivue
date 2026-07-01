@@ -3,6 +3,8 @@ import { Pencil } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { setSessionName, clearSessionName } from "../hooks/useApi";
 import { agentLabel } from "../utils/sessionUtils";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPrivacy?: boolean }) {
   const [editing, setEditing] = useState(false);
@@ -58,23 +60,23 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
       <div className="flex items-center gap-2 min-w-0">
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <input
+            <Input
               ref={inputRef}
               type="text"
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={saveEdit}
-              className="flex-1 text-sm font-semibold bg-ov-bg-secondary border border-accent-border rounded px-1.5 py-0.5 text-ov-text outline-none min-w-0"
+              className="flex-1 h-auto text-sm font-semibold px-1.5 py-0.5 border-accent-border"
             />
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={clearOverride}
-              className="text-[11px] text-ov-text-secondary hover:text-ov-text cursor-pointer shrink-0 px-1"
               title="Revert to original name"
             >
               Reset
-            </button>
+            </Button>
           </div>
         ) : (
           <>
@@ -82,14 +84,15 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
               {displayTitle || session.id}
             </h2>
             {!session.parentId && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={startEdit}
-                className="shrink-0 text-ov-text-secondary hover:text-accent cursor-pointer p-0.5 rounded transition-colors"
+                className="text-ov-text-secondary hover:text-accent"
                 title="Rename session"
               >
-                <Pencil size={14} />
-              </button>
+                <Pencil />
+              </Button>
             )}
           </>
         )}

@@ -20,6 +20,8 @@ import {
   unassignSessionFromFolder,
 } from "../hooks/useApi";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface FolderPanelProps {
   sessions: Session[];
@@ -179,23 +181,23 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
           Folders
         </span>
         <div className="flex items-center gap-0.5">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => setAllCollapsed((v) => !v)}
-            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
             title={allCollapsed ? "Expand all" : "Collapse all"}
           >
-            {allCollapsed ? <Plus size={14} /> : <Minus size={14} />}
-          </button>
+            {allCollapsed ? <Plus /> : <Minus />}
+          </Button>
           <div className="relative" ref={sortRef}>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setFolderSortOpen((v) => !v)}
-              className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
               title="Sort folders"
             >
-              <ArrowUpDown size={14} />
-            </button>
+              <ArrowUpDown />
+            </Button>
             {folderSortOpen && (
               <div className="absolute left-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
                 {(["name", "count"] as FolderSort[]).map((mode) => (
@@ -218,21 +220,21 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               </div>
             )}
           </div>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => setCreating(true)}
-            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
             title="New folder"
           >
-            <Plus size={14} />
-          </button>
+            <Plus />
+          </Button>
         </div>
       </div>
 
       {/* Create new folder */}
       {creating && (
         <div className="px-2 py-1">
-          <input
+          <Input
             ref={inputRef}
             type="text"
             value={newName}
@@ -248,7 +250,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               if (!newName.trim()) setCreating(false);
             }}
             placeholder="Folder name"
-            className="w-full text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
+            className="w-full h-auto text-xs px-2 py-1"
           />
         </div>
       )}
@@ -274,7 +276,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             }}
           >
             {editingId === folder.id ? (
-              <input
+              <Input
                 ref={editRef}
                 type="text"
                 value={editName}
@@ -284,7 +286,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   if (e.key === "Escape") setEditingId(null);
                 }}
                 onBlur={() => handleRename(folder.id)}
-                className="flex-1 text-xs bg-ov-bg border border-ov-border rounded-md px-1.5 py-0.5 text-ov-text outline-none focus:border-accent"
+                className="flex-1 h-auto text-xs px-1.5 py-0.5"
               />
             ) : (
               <button
@@ -314,35 +316,36 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             {/* Actions (visible on hover) */}
             {editingId !== folder.id && (
               <div className="hidden group-hover:flex items-center gap-0.5">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() =>
                     setAssigningFolder(assigningFolder === folder.id ? null : folder.id)
                   }
-                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
                   title="Add session"
                 >
-                  <Plus size={12} />
-                </button>
-                <button
-                  type="button"
+                  <Plus />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => {
                     setEditingId(folder.id);
                     setEditName(folder.name);
                   }}
-                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
                   title="Rename"
                 >
-                  <Pencil size={12} />
-                </button>
-                <button
-                  type="button"
+                  <Pencil />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => handleDelete(folder.id)}
-                  className="text-ov-text-secondary hover:text-red-400 cursor-pointer p-0.5"
+                  className="text-ov-text-secondary hover:text-red-400"
                   title="Delete"
                 >
-                  <Trash2 size={12} />
-                </button>
+                  <Trash2 />
+                </Button>
               </div>
             )}
           </div>
@@ -428,17 +431,18 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
           </p>
         )}
       </button>
-      <button
-        type="button"
-        className="hidden group-hover/item:block absolute right-1 top-1/2 -translate-y-1/2 text-ov-text-secondary hover:text-red-400 cursor-pointer p-0.5"
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="hidden group-hover/item:block absolute right-1 top-1/2 -translate-y-1/2 text-ov-text-secondary hover:text-red-400"
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
         }}
         title="Remove from folder"
       >
-        <X size={10} />
-      </button>
+        <X />
+      </Button>
     </div>
   );
 }

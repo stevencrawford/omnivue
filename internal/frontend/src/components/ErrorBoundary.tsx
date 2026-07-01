@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
+import { Button } from "./ui/button";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -34,13 +35,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p className="text-xs text-ov-text-secondary mt-1 mb-3 max-w-sm">
             {this.state.error?.message || "An unexpected error occurred"}
           </p>
-          <button
-            type="button"
-            className="text-xs text-accent hover:underline cursor-pointer"
-            onClick={() => this.setState({ hasError: false })}
-          >
+          <Button variant="link" size="sm" onClick={() => this.setState({ hasError: false })}>
             Try again
-          </button>
+          </Button>
         </div>
       );
     }

@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { Button } from "./ui/button";
 
 interface AppHeaderProps {
   showOverview: boolean;
@@ -21,12 +22,11 @@ export function AppHeader({
   return (
     <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-ov-header-border">
       <div className="flex items-center gap-3 min-w-0">
-        <button
-          type="button"
+        <Button
+          variant={showOverview ? "secondary" : "ghost"}
+          size="sm"
           onClick={onGoHome}
-          className={`flex items-center gap-1.5 min-w-0 rounded-md px-1.5 py-1 -ml-1.5 transition-colors cursor-pointer ${
-            showOverview ? "text-accent bg-accent-muted" : "hover:bg-ov-bg-hover text-ov-text"
-          }`}
+          className={`-ml-1.5 ${showOverview ? "" : "hover:bg-ov-bg-hover text-ov-text"}`}
           title="Overview"
         >
           <svg
@@ -47,7 +47,7 @@ export function AppHeader({
             <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
           </svg>
           <h1 className="text-sm font-semibold tracking-tight">Omnivue</h1>
-        </button>
+        </Button>
       </div>
 
       <button
@@ -68,16 +68,17 @@ export function AppHeader({
           )}
         </span>
         {searchHighlightQuery && (
-          <span
-            role="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={(e) => {
               e.stopPropagation();
               onClearSearchHighlight();
             }}
-            className="size-4 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer shrink-0"
+            className="text-ov-text-secondary hover:text-ov-text shrink-0"
           >
-            <X size={12} />
-          </span>
+            <X />
+          </Button>
         )}
         <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}F</span>
       </button>

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Bookmark, Trash2, MessageSquareText } from "lucide-react";
 import type { Bookmark as BookmarkType, Session } from "../hooks/useApi";
+import { Button } from "./ui/button";
 
 interface BookmarkPanelProps {
   bookmarks: BookmarkType[];
@@ -85,17 +86,18 @@ export function BookmarkPanel({
                     {formatTime(bm.createdAt)}
                   </div>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     onBookmarkDelete(bm.id);
                   }}
-                  className="shrink-0 size-6 flex items-center justify-center rounded text-ov-text-secondary/40 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                  className="shrink-0 text-ov-text-secondary/40 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100"
                   title="Remove bookmark"
                 >
-                  <Trash2 size={12} />
-                </button>
+                  <Trash2 />
+                </Button>
               </div>
             );
           })

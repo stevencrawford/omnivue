@@ -130,12 +130,7 @@ export function ToolRendererWrapper({
             )}
             <CopyOutputBtn tool={tool} />
             {onBookmark && (
-              <BookmarkButton
-                isBookmarked={!!isBookmarked}
-                onClick={onBookmark}
-                size="sm"
-                className="mr-1"
-              />
+              <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} className="mr-1" />
             )}
           </div>
         </div>
@@ -202,12 +197,7 @@ export function ToolRendererWrapper({
           )}
           <CopyOutputBtn tool={tool} />
           {onBookmark && (
-            <BookmarkButton
-              isBookmarked={!!isBookmarked}
-              onClick={onBookmark}
-              size="sm"
-              className="mr-1"
-            />
+            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} className="mr-1" />
           )}
         </div>
         {showContent && (
