@@ -116,6 +116,7 @@ function agentLabel(agent: string): string {
   if (agent === "copilot") return "Copilot";
   if (agent === "cursor") return "Cursor";
   if (agent === "codex") return "Codex";
+  if (agent === "claude-code") return "Claude Code";
   if (agent === "pi") return "Pi";
   return agent;
 }

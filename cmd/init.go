@@ -28,6 +28,7 @@ Known locations:
   ~/.cursor                 (Cursor)
   ~/.pi/agent/sessions      (Pi)
   ~/.codex                  (Codex)
+  ~/.claude                 (Claude Code)
 
 Sources are saved to the Omnivue database and will be loaded automatically
 on subsequent launches.`,

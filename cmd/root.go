@@ -43,7 +43,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "omnivue [flags]",
 	Short: "Omnivue is an AI/LLM session manager for coding agents",
-	Long: `Omnivue watches AI coding agent sessions (OpenCode, Copilot, Cursor, Codex, Pi) and
+	Long: `Omnivue watches AI coding agent sessions (OpenCode, Copilot, Cursor, Codex, Pi, Claude Code) and
 presents them in a browser UI for easy browsing, searching, and management.
 
 Quick Start:

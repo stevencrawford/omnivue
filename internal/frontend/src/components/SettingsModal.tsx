@@ -9,7 +9,7 @@ import type { ThemeName, ThemeMode } from "../hooks/useTheme";
 const AGENT_TYPES = [
   { value: "opencode", label: "OpenCode", disabled: false, defaultPath: "~/.local/share/opencode" },
   { value: "copilot", label: "Copilot", disabled: false, defaultPath: "~/.copilot" },
-  { value: "claude", label: "Claude Code", disabled: true, defaultPath: "~/.claude" },
+  { value: "claude-code", label: "Claude Code", disabled: false, defaultPath: "~/.claude" },
   { value: "codex", label: "Codex", disabled: false, defaultPath: "~/.codex" },
   { value: "cursor", label: "Cursor", disabled: false, defaultPath: "~/.cursor" },
   { value: "pi", label: "Pi", disabled: false, defaultPath: "~/.pi/agent/sessions" },

@@ -23,11 +23,13 @@ export function shortModel(model: string): string {
     .replace("gpt-", "");
 }
 
-function agentLabel(agent: string): string {
+export function agentLabel(agent: string): string {
   if (agent === "opencode") return "OpenCode";
   if (agent === "copilot") return "Copilot";
   if (agent === "cursor") return "Cursor";
   if (agent === "codex") return "Codex";
+  if (agent === "claude-code") return "Claude Code";
+  if (agent === "pi") return "Pi";
   return agent;
 }
 

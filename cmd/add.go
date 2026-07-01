@@ -22,7 +22,7 @@ var addCmd = &cobra.Command{
 	Use:   "add <path>",
 	Short: "Add an AI agent session source",
 	Long: `Adds a session data source to Omnivue. The path should point to the
-agent's data directory (e.g., ~/.local/share/opencode, ~/.copilot, or ~/.codex).
+agent's data directory (e.g., ~/.local/share/opencode, ~/.copilot, ~/.codex, or ~/.claude).
 
 By default, Omnivue will auto-detect the agent type. Use --type to force.`,
 	Args: cobra.ExactArgs(1),
@@ -30,7 +30,7 @@ By default, Omnivue will auto-detect the agent type. Use --type to force.`,
 }
 
 func init() {
-	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor, codex, pi)")
+	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor, codex, pi, claude-code)")
 	rootCmd.AddCommand(addCmd)
 }
 
@@ -68,8 +68,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			label = "Pi"
 		case ingest.AgentCodex:
 			label = "Codex"
+		case ingest.AgentClaudeCode:
+			label = "Claude Code"
 		default:
-			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor, codex, pi)", addSourceType)
+			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor, codex, pi, claude-code)", addSourceType)
 		}
 	} else {
 		// Auto-detect
@@ -84,7 +86,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor, codex, pi)", path)
+			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor, codex, pi, claude-code)", path)
 		}
 	}
 

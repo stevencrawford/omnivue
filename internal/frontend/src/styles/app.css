@@ -590,6 +590,17 @@ body {
   background: rgba(234, 88, 12, 0.1);
 }
 
+.sess-agent-badge--claude-code {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+[data-mode="light"] .sess-agent-badge--claude-code {
+  color: #9333ea;
+  background: rgba(168, 85, 247, 0.1);
+}
+
 .sess-privacy-badge {
   font-size: 0.5625rem;
   font-weight: 700;
