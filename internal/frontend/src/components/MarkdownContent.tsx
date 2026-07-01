@@ -91,7 +91,7 @@ export function MarkdownContent({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
             title={expanded ? "Collapse" : "Expand"}
           >
             <ChevronRight
@@ -102,7 +102,7 @@ export function MarkdownContent({
           <button
             type="button"
             onClick={() => copy(content)}
-            className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+            className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
             title="Copy"
           >
             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -111,25 +111,20 @@ export function MarkdownContent({
             <button
               type="button"
               onClick={() => onPin(content)}
-              className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
               title="Pin as scratch note"
             >
               <Pin size={12} />
             </button>
           )}
           {onBookmark && (
-            <BookmarkButton
-              isBookmarked={!!isBookmarked}
-              onClick={onBookmark}
-              size="sm"
-              className="!border-0 !bg-transparent"
-            />
+            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
           )}
           {onOpenModal && !shortContent && (
             <button
               type="button"
               onClick={() => onOpenModal(content)}
-              className="flex items-center justify-center size-5 rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer transition-colors"
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
               title="Open in modal"
             >
               <Maximize2 size={12} />
@@ -138,9 +133,9 @@ export function MarkdownContent({
         </div>
         <div className={`relative ${!expanded ? "max-h-[15em] overflow-hidden" : ""}`}>
           {!expanded && (
-            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-gh-bg-secondary)] to-transparent z-10 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
           )}
-          <div className={`markdown-body markdown-ayu markdown-body--small ${className}`.trim()}>
+          <div className={`markdown-body markdown-body--small ${className}`.trim()}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
               rehypePlugins={[
@@ -192,7 +187,7 @@ export function MarkdownContent({
         <button
           type="button"
           onClick={() => copy(content)}
-          className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+          className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
           title="Copy"
         >
           {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -201,25 +196,31 @@ export function MarkdownContent({
           <button
             type="button"
             onClick={() => onPin(content)}
-            className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
             title="Pin as scratch note"
           >
             <Pin size={12} />
           </button>
         )}
-        {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} />}
+        {onBookmark && (
+          <BookmarkButton
+            isBookmarked={!!isBookmarked}
+            onClick={onBookmark}
+            className="border border-ov-border bg-surface-elevated"
+          />
+        )}
         {onOpenModal && !shortContent && (
           <button
             type="button"
             onClick={() => onOpenModal(content)}
-            className="size-6 flex items-center justify-center rounded text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer border border-gh-border bg-surface-elevated"
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
             title={modalTitle ? `View ${modalTitle}` : "Open in modal"}
           >
             <Maximize2 size={12} />
           </button>
         )}
       </div>
-      <div className={`markdown-body markdown-ayu markdown-body--small ${className}`.trim()}>
+      <div className={`markdown-body markdown-body--small ${className}`.trim()}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
           rehypePlugins={[

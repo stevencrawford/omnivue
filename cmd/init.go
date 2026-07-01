@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/store"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -28,8 +28,9 @@ Known locations:
   ~/.cursor                 (Cursor)
   ~/.pi/agent/sessions      (Pi)
   ~/.codex                  (Codex)
+  ~/.claude                 (Claude Code)
 
-Sources are saved to the sess database and will be loaded automatically
+Sources are saved to the Omnivue database and will be loaded automatically
 on subsequent launches.`,
 	RunE: runInit,
 }
@@ -39,19 +40,19 @@ func init() {
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
-	fmt.Fprintln(os.Stderr, "sess: scanning for AI agent sessions...")
+	fmt.Fprintln(os.Stderr, "omnivue: scanning for AI agent sessions...")
 
 	discovered := ingest.AutoDiscover()
 	if len(discovered) == 0 {
-		fmt.Fprintln(os.Stderr, "sess: no AI agent session sources found")
+		fmt.Fprintln(os.Stderr, "omnivue: no AI agent session sources found")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  Use 'sess add <path>' to manually add a source.")
+		fmt.Fprintln(os.Stderr, "  Use 'omnivue add <path>' to manually add a source.")
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "sess: found %d source(s):\n\n", len(discovered))
+	fmt.Fprintf(os.Stderr, "omnivue: found %d source(s):\n\n", len(discovered))
 
-	// Check if a sess server is already running (for live add)
+	// Check if an Omnivue server is already running (for live add)
 	addr := net.JoinHostPort(strings.Trim(bind, "[]"), strconv.Itoa(port))
 	result, probeErr := probeServer(addr, probeTimeoutFast)
 	serverRunning := probeErr == nil
@@ -61,7 +62,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		var err error
 		st, err = store.New()
 		if err != nil {
-			return fmt.Errorf("failed to open sess database: %w", err)
+			return fmt.Errorf("failed to open Omnivue database: %w", err)
 		}
 		defer st.Close()
 	}
@@ -113,12 +114,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	if added > 0 {
 		if serverRunning {
-			fmt.Fprintf(os.Stderr, "sess: configured %d source(s) on running server\n", added)
+			fmt.Fprintf(os.Stderr, "omnivue: configured %d source(s) on running server\n", added)
 		} else {
-			fmt.Fprintf(os.Stderr, "sess: configured %d source(s). Run 'sess' to start.\n", added)
+			fmt.Fprintf(os.Stderr, "omnivue: configured %d source(s). Run 'omnivue' to start.\n", added)
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, "sess: no sources added. Use 'sess add <path>' to add manually.")
+		fmt.Fprintln(os.Stderr, "omnivue: no sources added. Use 'omnivue add <path>' to add manually.")
 	}
 
 	return nil

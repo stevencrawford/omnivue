@@ -1,7 +1,7 @@
 package version
 
 const (
-	Name    = "sess"
+	Name    = "omnivue"
 	Version = "0.1.0" //nostyle:repetition
 )
 

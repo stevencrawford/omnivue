@@ -188,9 +188,12 @@ Create a new scratch file.
 ```json
 {
   "title": "Notes",
-  "content": "# Notes\n\nMy observations..."
+  "content": "# Notes\n\nMy observations...",
+  "mode": "writable"
 }
 ```
+
+The optional `mode` field defaults to `"writable"`.
 
 ```http
 GET /_/api/sessions/{id}/scratch/{fileId}
@@ -337,6 +340,84 @@ POST /_/api/restart
 ```
 
 Restart the server. The server spawns a new process before shutting down. Returns `202` with no body.
+
+## Recent Searches
+
+```http
+GET /_/api/recent-searches
+```
+
+Returns the list of recent search queries as `[]string`.
+
+```http
+POST /_/api/recent-searches
+```
+
+Save recent search queries. Accepts `[]string` body.
+
+## Bookmarks
+
+```http
+GET /_/api/bookmarks
+```
+
+List all bookmarks.
+
+```json
+[
+  {
+    "id": "bm_abc123",
+    "sessionId": "sess_123",
+    "messageIndex": 5,
+    "toolCallId": "tc_456",
+    "label": "Interesting output",
+    "createdAt": "2026-06-01T12:00:00Z"
+  }
+]
+```
+
+```http
+POST /_/api/bookmarks
+```
+
+Create or toggle a bookmark. If a bookmark for the same session+message+toolCall already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, and optional `label`.
+
+```json
+{
+  "sessionId": "sess_123",
+  "messageIndex": 5,
+  "toolCallId": "tc_456",
+  "label": "Interesting output"
+}
+```
+
+Response indicates the action taken:
+
+```json
+{"action": "created", "bookmark": {...}}
+```
+or
+```json
+{"action": "deleted", "id": "bm_abc123"}
+```
+
+```http
+DELETE /_/api/bookmarks/{id}
+```
+
+Delete a bookmark by ID. Returns `204`.
+
+## Reset
+
+```http
+POST /_/api/reset
+```
+
+Reset all user data: sources, folders, search index, session names, scratch files, config, and bookmarks. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
+
+```json
+{"status": "ok"}
+```
 
 ## Server-Sent Events
 

@@ -26,7 +26,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/stevencrawford/sess/cmd"
+	"github.com/stevencrawford/omnivue/cmd"
 )
 
 func main() {

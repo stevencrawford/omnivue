@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stevencrawford/sess/internal/ingest/codex"
+	"github.com/stevencrawford/omnivue/internal/ingest/codex"
 )
 
 func testdataPath() string {

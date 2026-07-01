@@ -3,7 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sess — Multi-Agent Session Manager</title>
+  <meta name="description" content="Omnivue is a 100% local multi-agent session browser and viewer. View, search, and manage sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi — all on your machine." />
+  <meta name="keywords" content="multi-agent sessions, session browser, session viewer, session management, agent session viewer, 100% local session viewer, opencode, copilot, claude code, codex, cursor, pi, AI session manager" />
+  <meta property="og:title" content="Omnivue — 100% Local Multi-Agent Session Browser &amp; Viewer" />
+  <meta property="og:description" content="View, search, and manage AI coding sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi — 100% local, zero data leaves your machine." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://github.com/stevencrawford/omnivue" />
+  <meta property="og:image" content="https://github.com/stevencrawford/omnivue/raw/main/site/assets/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Omnivue — 100% Local Multi-Agent Session Browser &amp; Viewer" />
+  <meta name="twitter:description" content="View, search, and manage sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi — 100% local." />
+  <title>Omnivue — 100% Local Multi-Agent Session Browser &amp; Viewer</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -63,10 +73,99 @@
     }
 
     .glass-card {
-      background: rgba(255,255,255,0.7);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(0,0,0,0.06);
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    body.site-dark {
+      color-scheme: dark;
+      background:
+        radial-gradient(1200px circle at 20% 0%, rgba(99, 102, 241, 0.18), transparent 42%),
+        radial-gradient(900px circle at 80% 10%, rgba(34, 211, 238, 0.10), transparent 35%),
+        #050816;
+      color: #e2e8f0;
+    }
+
+    body.site-dark [class*="bg-white"] {
+      background-color: rgba(15, 23, 42, 0.82) !important;
+    }
+
+    body.site-dark [class*="bg-[#F8F9FC]"] {
+      background-color: rgba(15, 23, 42, 0.82) !important;
+    }
+
+    body.site-dark [class*="bg-gray-100"] {
+      background-color: rgba(15, 23, 42, 0.9) !important;
+    }
+
+    body.site-dark [class*="bg-gray-900"] {
+      background-color: #020617 !important;
+    }
+
+    body.site-dark [class*="bg-indigo-50"],
+    body.site-dark [class*="bg-blue-50"],
+    body.site-dark [class*="bg-green-50"],
+    body.site-dark [class*="bg-purple-50"],
+    body.site-dark [class*="bg-amber-50"],
+    body.site-dark [class*="bg-rose-50"],
+    body.site-dark [class*="bg-slate-50"] {
+      background-color: rgba(30, 41, 59, 0.82) !important;
+    }
+
+    body.site-dark [class*="text-gray-900"],
+    body.site-dark [class*="text-gray-800"] {
+      color: #f8fafc !important;
+    }
+
+    body.site-dark [class*="text-gray-700"] {
+      color: #d1d5db !important;
+    }
+
+    body.site-dark [class*="text-gray-600"] {
+      color: #94a3b8 !important;
+    }
+
+    body.site-dark [class*="text-gray-500"],
+    body.site-dark [class*="text-gray-400"] {
+      color: #64748b !important;
+    }
+
+    body.site-dark [class*="text-indigo-600"] {
+      color: #c7d2fe !important;
+    }
+
+    body.site-dark [class*="text-indigo-500"] {
+      color: #818cf8 !important;
+    }
+
+    body.site-dark [class*="text-blue-700"],
+    body.site-dark [class*="text-green-700"],
+    body.site-dark [class*="text-purple-700"],
+    body.site-dark [class*="text-amber-700"],
+    body.site-dark [class*="text-rose-700"],
+    body.site-dark [class*="text-slate-700"] {
+      color: #e2e8f0 !important;
+    }
+
+    body.site-dark [class*="border-gray-200"],
+    body.site-dark [class*="border-gray-300"],
+    body.site-dark [class*="border-indigo-200"],
+    body.site-dark [class*="border-blue-200"],
+    body.site-dark [class*="border-green-200"],
+    body.site-dark [class*="border-purple-200"],
+    body.site-dark [class*="border-amber-200"],
+    body.site-dark [class*="border-rose-200"],
+    body.site-dark [class*="border-slate-200"] {
+      border-color: rgba(148, 163, 184, 0.16) !important;
+    }
+
+    body.site-dark .shadow-xl,
+    body.site-dark .shadow-sm {
+      box-shadow:
+        0 20px 50px rgba(2, 6, 23, 0.45),
+        0 1px 0 rgba(255, 255, 255, 0.03) inset !important;
     }
 
     @media (prefers-reduced-motion: no-preference) {
@@ -79,25 +178,143 @@
         to { opacity: 1; transform: translateY(0); }
       }
     }
+
+    /* Carousel */
+    .carousel {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .carousel input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .carousel-slides {
+      display: flex;
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: transform;
+    }
+
+    .carousel-slide {
+      flex: 0 0 100%;
+      min-width: 0;
+    }
+
+    #cs-s-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-s-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-s-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-c-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-c-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-c-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-d-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-d-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-d-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-r-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-r-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-r-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+    #cs-f-1:checked ~ .carousel-slides { transform: translateX(0); }
+    #cs-f-2:checked ~ .carousel-slides { transform: translateX(-100%); }
+    #cs-f-3:checked ~ .carousel-slides { transform: translateX(-200%); }
+
+    .carousel-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .carousel-dots label {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.3);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .carousel-dots label:hover {
+      background: rgba(148, 163, 184, 0.6);
+    }
+
+    #cs-s-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-s-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-s-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-c-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-c-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-c-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-d-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-d-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-d-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-r-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-r-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-r-3:checked ~ .carousel-dots label:nth-child(3),
+    #cs-f-1:checked ~ .carousel-dots label:nth-child(1),
+    #cs-f-2:checked ~ .carousel-dots label:nth-child(2),
+    #cs-f-3:checked ~ .carousel-dots label:nth-child(3) {
+      background: #818cf8;
+      transform: scale(1.25);
+    }
+    /* Zoom overlay */
+    .zoom-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      padding: 2rem;
+    }
+    .zoom-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .zoom-overlay img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 6px;
+      box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+      cursor: default;
+      user-select: none;
+    }
+    .feature-section img {
+      cursor: zoom-in;
+    }
   </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Omnivue",
+  "description": "100% local multi-agent session browser for viewing, searching, and managing AI coding sessions from OpenCode, Copilot, Claude Code, Cursor, Codex, and Pi.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 </head>
-<body class="bg-[#F8F9FC] text-gray-900 antialiased">
+<body class="site-dark bg-[#050816] text-slate-100 antialiased">
   <!-- Navigation -->
   <header class="border-b border-gray-200/80 bg-white/70 backdrop-blur-xl sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
       <a href="#" class="flex items-center gap-2 no-underline">
-        <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="#0B0B0F"/>
-          <path d="M8 10h16v2.5H8V10zm0 5.5h11v2.5H8v-2.5zm0 5.5h14v2.5H8V21z" fill="url(#navg)"/>
-          <circle cx="24" cy="8" r="3" fill="#22D3EE" opacity="0.9"/>
-          <defs>
-            <linearGradient id="navg" x1="8" y1="10" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#A78BFA"/>
-              <stop offset="1" stop-color="#22D3EE"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <span class="text-lg font-bold gradient-text">sess</span>
+        <img src="website_icon.svg" width="24" height="24" alt="" class="block">
+        <span class="text-lg font-bold text-white">Omnivue</span>
       </a>
       <nav class="flex items-center gap-6 text-sm font-medium text-gray-500">
         <a href="#sessions" class="hover:text-gray-900 transition-colors">Sessions</a>
@@ -106,7 +323,7 @@
         <a href="#search" class="hover:text-gray-900 transition-colors">Search</a>
         <a href="#folders" class="hover:text-gray-900 transition-colors">Folders</a>
         <a href="#quickstart" class="hover:text-gray-900 transition-colors">Quick Start</a>
-        <a href="https://github.com/stevencrawford/sess" class="hover:text-gray-900 transition-colors flex items-center gap-1.5 ml-2">
+        <a href="https://github.com/stevencrawford/omnivue" class="hover:text-gray-900 transition-colors flex items-center gap-1.5 ml-2">
           <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           GitHub
         </a>
@@ -115,35 +332,49 @@
   </header>
 
   <!-- Hero -->
-  <section class="max-w-6xl mx-auto px-4 pt-24 pb-20 text-center relative">
+  <section class="max-w-6xl mx-auto px-4 pt-24 pb-12 text-center relative">
     <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.08)_0%,_transparent_60%)] pointer-events-none"></div>
       <div class="relative">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50/80 text-indigo-600 rounded-full text-sm font-medium mb-6 border border-indigo-200/60 fade-up" style="animation-delay: 0s">
+      <div class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-50/80 text-indigo-600 rounded-full text-sm font-medium mb-6 border border-indigo-200/60 fade-up" style="animation-delay: 0s">
         <span class="size-2 rounded-full bg-indigo-500 animate-pulse"></span>
-        OpenCode · Copilot · Cursor · Pi · Codex
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></svg>
+        OpenCode
+        <span class="text-indigo-300">·</span>
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M23.922 17C23.061 18.5 18.063 22 12 22c-6.063 0-11.061-3.5-11.922-5a.6.6 0 0 1-.078-.26v-2.87a.9.9 0 0 1 .053-.22c.372-.93 1.347-2.29 2.605-2.65.167-.43.414-1.06.644-1.52a10 10 0 0 1-.052-1.09c0-1.33.282-2.5 1.132-3.37.397-.4.89-.71 1.474-.95C7.255 2.94 9.248 1.98 11.978 1.98c2.731 0 4.767.96 6.166 2.1.584.23 1.077.54 1.474.95.85.87 1.132 2.04 1.132 3.37 0 .37-.014.73-.052 1.09.23.46.477 1.09.644 1.52 1.258.36 2.233 1.72 2.605 2.65.03.07.05.14.053.22v2.87c0 .09-.03.18-.078.26ZM7 11.75v6.58c1.435.78 4.514 2.18 8 2.18 3.486 0 6.565-1.4 8-2.18v-6.58c-.793.9-2.057 1.26-3.782 1.26-1.59 0-2.738-.55-3.508-1.5a4 4 0 0 1-.355-.5h-.71a4 4 0 0 1-.355.5c-.77.95-1.918 1.5-3.508 1.5-1.725 0-2.989-.36-3.782-1.26Z"/></svg>
+        Copilot
+        <span class="text-indigo-300">·</span>
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0Z"/></svg>
+        Cursor
+        <span class="text-indigo-300">·</span>
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M0 0v24h6v-6h6v-6H6V6h6v6h6V0Zm18 12v12h6V12Z"/></svg>
+        Pi
+        <span class="text-indigo-300">·</span>
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 100 100"><path d="m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z"/></svg>
+        Claude Code
+        <span class="text-indigo-300">·</span>
+        <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0Zm-2 16V8l6 4-6 4Z"/></svg>
+        Codex
       </div>
       <h1 class="text-6xl md:text-7xl font-extrabold tracking-tight mb-5 fade-up" style="animation-delay: 0.1s">
-        <span class="gradient-text">sess</span>
+        <span class="text-white">Omnivue</span>
       </h1>
       <p class="text-2xl md:text-3xl font-semibold text-gray-800 mb-4 fade-up" style="animation-delay: 0.2s">
-        Multi-Agent Session Manager
+        100% Local Multi-Agent Session Browser &amp; Viewer
       </p>
       <p class="text-lg text-gray-500 max-w-2xl mx-auto mb-8 leading-relaxed fade-up" style="animation-delay: 0.3s">
-        View, search, and manage all your AI coding agent sessions in one place.
+        A multi-agent session browser and viewer for managing AI coding sessions from OpenCode, Copilot, Claude Code, Cursor, Pi, and Codex. Everything stays 100% local — nothing leaves your machine.
       </p>
       <div class="flex flex-wrap justify-center gap-3 mb-10">
-        <span class="badge-pill bg-blue-50 text-blue-700 border-blue-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></svg> OpenCode</span>
-        <span class="badge-pill bg-green-50 text-green-700 border-green-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M23.922 17C23.061 18.5 18.063 22 12 22c-6.063 0-11.061-3.5-11.922-5a.6.6 0 0 1-.078-.26v-2.87a.9.9 0 0 1 .053-.22c.372-.93 1.347-2.29 2.605-2.65.167-.43.414-1.06.644-1.52a10 10 0 0 1-.052-1.09c0-1.33.282-2.5 1.132-3.37.397-.4.89-.71 1.474-.95C7.255 2.94 9.248 1.98 11.978 1.98c2.731 0 4.767.96 6.166 2.1.584.23 1.077.54 1.474.95.85.87 1.132 2.04 1.132 3.37 0 .37-.014.73-.052 1.09.23.46.477 1.09.644 1.52 1.258.36 2.233 1.72 2.605 2.65.03.07.05.14.053.22v2.87c0 .09-.03.18-.078.26ZM7 11.75v6.58c1.435.78 4.514 2.18 8 2.18 3.486 0 6.565-1.4 8-2.18v-6.58c-.793.9-2.057 1.26-3.782 1.26-1.59 0-2.738-.55-3.508-1.5a4 4 0 0 1-.355-.5h-.71a4 4 0 0 1-.355.5c-.77.95-1.918 1.5-3.508 1.5-1.725 0-2.989-.36-3.782-1.26Z"/></svg> Copilot</span>
-        <span class="badge-pill bg-purple-50 text-purple-700 border-purple-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0Z"/></svg> Cursor</span>
-        <span class="badge-pill bg-amber-50 text-amber-700 border-amber-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M0 0v24h6v-6h6v-6H6V6h6v6h6V0Zm18 12v12h6V12Z"/></svg> Pi</span>
-        <span class="badge-pill bg-rose-50 text-rose-700 border-rose-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0Zm-2 16V8l6 4-6 4Z"/></svg> Codex</span>
+        <span class="badge-pill bg-slate-50 text-slate-700 border-slate-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1.75 3.75 5.5v6.2c0 5.17 3.63 9.97 8.25 10.55 4.62-.58 8.25-5.38 8.25-10.55V5.5L12 1.75Z"/></svg> 100% local</span>
+        <span class="badge-pill bg-slate-50 text-slate-700 border-slate-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Z"/></svg> Read-only</span>
+        <span class="badge-pill bg-slate-50 text-slate-700 border-slate-200"><svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 11a1 1 0 0 1 1-1h2V8a1 1 0 0 1 2 0v2h2a1 1 0 0 1 0 2H9v2a1 1 0 0 1-2 0v-2H5a1 1 0 0 1-1-1Zm9-4a1 1 0 0 1 1-1h5a1 1 0 0 1 0 2h-5a1 1 0 0 1-1-1Zm0 8a1 1 0 0 1 1-1h5a1 1 0 0 1 0 2h-5a1 1 0 0 1-1-1Z"/></svg> localhost UI</span>
       </div>
       <div class="flex flex-wrap justify-center gap-4">
         <a href="#quickstart" class="inline-flex items-center gap-2 px-7 py-3.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all hover:scale-[1.02]">
           <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/></svg>
           Get Started
         </a>
-        <a href="https://github.com/stevencrawford/sess/releases" class="inline-flex items-center gap-2 px-7 py-3.5 bg-white text-gray-700 rounded-xl font-medium border border-gray-300 hover:border-gray-400 transition-all hover:scale-[1.02]">
+        <a href="https://github.com/stevencrawford/omnivue/releases" class="inline-flex items-center gap-2 px-7 py-3.5 bg-white text-gray-700 rounded-xl font-medium border border-gray-300 hover:border-gray-400 transition-all hover:scale-[1.02]">
           <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
           Download
         </a>
@@ -152,16 +383,24 @@
   </section>
 
   <!-- Feature: Unified Session Browser -->
-  <section id="sessions" class="feature-section max-w-6xl mx-auto px-4 py-20">
+  <section id="sessions" class="feature-section max-w-6xl mx-auto px-4 pt-12 pb-20">
     <div class="flex flex-col lg:flex-row items-center gap-12">
       <div class="lg:w-1/2 shrink-0">
-        <div class="rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-          <img
-            src="assets/screenshot-sessions.png"
-            alt="Session browser showing sidebar with agent sessions"
-            class="w-full"
-            style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-          />
+        <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+          <input type="radio" name="cs-s" id="cs-s-1" checked />
+          <input type="radio" name="cs-s" id="cs-s-2" />
+          <div class="carousel-slides">
+            <div class="carousel-slide">
+              <img src="images/every-session-one-browser/image1.png" alt="Omnivue session browser" class="w-full" style="background: #0B0B0F;" />
+            </div>
+            <div class="carousel-slide">
+              <img src="images/every-session-one-browser/image2.png" alt="Sessions grouped by repository" class="w-full" style="background: #0f172a;" />
+            </div>
+          </div>
+          <div class="carousel-dots">
+            <label for="cs-s-1"></label>
+            <label for="cs-s-2"></label>
+          </div>
         </div>
       </div>
       <div class="lg:w-1/2">
@@ -174,8 +413,9 @@
           <span class="gradient-text">one browser</span>
         </h2>
         <p class="text-gray-500 text-lg leading-relaxed mb-6">
-           See all your AI coding sessions from every agent in a single tree. Sessions are grouped by
-           repository with color-coded agent badges — OpenCode, Copilot, Cursor, Pi, and Codex.
+          See all your AI agent sessions in a single session browser. Sessions are grouped by
+          repository with color-coded agent badges for easy session management, and everything stays
+          100% local on your machine.
         </p>
         <ul class="space-y-3">
           <li class="flex items-start gap-3">
@@ -192,7 +432,7 @@
           </li>
           <li class="flex items-start gap-3">
             <svg class="size-5 text-indigo-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-            <span class="text-gray-700">Live updates via SSE — new sessions appear in real time</span>
+            <span class="text-gray-700">Live updates via SSE on localhost — new sessions appear in real time</span>
           </li>
         </ul>
       </div>
@@ -204,12 +444,9 @@
     <div class="max-w-6xl mx-auto px-4">
       <div class="flex flex-col lg:flex-row-reverse items-center gap-12">
         <div class="lg:w-1/2 shrink-0">
-          <img
-            src="assets/screenshot-conversation.png"
-            alt="Conversation view with messages and tool calls"
-            class="w-full rounded-2xl border border-gray-200 shadow-xl"
-            style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-          />
+          <div class="rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <img src="images/read-every-message-every-tool-call/image1.png" alt="Conversation with messages and tool calls" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24);" />
+          </div>
         </div>
         <div class="lg:w-1/2">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -222,7 +459,7 @@
           </h2>
           <p class="text-gray-500 text-lg leading-relaxed mb-6">
             Full conversation history with alternating user/assistant messages, tool call outputs,
-            and collapsible reasoning blocks. Normalized across all agents.
+            and collapsible reasoning blocks. Normalized across all agents and rendered locally.
           </p>
           <ul class="space-y-3">
             <li class="flex items-start gap-3">
@@ -251,12 +488,9 @@
   <section id="diffs" class="feature-section max-w-6xl mx-auto px-4 py-20">
     <div class="flex flex-col lg:flex-row items-center gap-12">
       <div class="lg:w-1/2 shrink-0">
-        <img
-          src="assets/screenshot-diffs.png"
-          alt="File diff view showing additions and deletions"
-          class="w-full rounded-2xl border border-gray-200 shadow-xl"
-          style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-        />
+          <div class="rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <img src="images/review-every-change-side-by-side/image1.png" alt="File diff view" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24);" />
+          </div>
       </div>
       <div class="lg:w-1/2">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -298,12 +532,27 @@
     <div class="max-w-6xl mx-auto px-4">
       <div class="flex flex-col lg:flex-row-reverse items-center gap-12">
         <div class="lg:w-1/2 shrink-0">
-          <img
-            src="assets/screenshot-search.png"
-            alt="Full-text search results with highlighted snippets"
-            class="w-full rounded-2xl border border-gray-200 shadow-xl"
-            style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-          />
+          <div class="carousel rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <input type="radio" name="cs-r" id="cs-r-1" checked />
+            <input type="radio" name="cs-r" id="cs-r-2" />
+            <input type="radio" name="cs-r" id="cs-r-3" />
+            <div class="carousel-slides">
+            <div class="carousel-slide">
+              <img src="images/search-everything-instantly/image1.png" alt="Search results with snippets" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24);" />
+            </div>
+            <div class="carousel-slide">
+              <img src="images/search-everything-instantly/image2.png" alt="Inline search typeahead" class="w-full" style="background: linear-gradient(135deg, #0f172a, #1e293b);" />
+            </div>
+            <div class="carousel-slide">
+              <img src="images/search-everything-instantly/image3.png" alt="Scope search by session" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24);" />
+            </div>
+            </div>
+            <div class="carousel-dots">
+              <label for="cs-r-1"></label>
+              <label for="cs-r-2"></label>
+              <label for="cs-r-3"></label>
+            </div>
+          </div>
         </div>
         <div class="lg:w-1/2">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -315,8 +564,8 @@
             <span class="gradient-text">instantly</span>
           </h2>
           <p class="text-gray-500 text-lg leading-relaxed mb-6">
-            FTS5-powered full-text search across every message, tool call, plan, and diff.
-            Scope to a single session or search all your agents at once.
+            Full-text search across every message, tool call, plan, and diff.
+            Scope to a single session or search all your agents at once, entirely on your machine.
           </p>
           <ul class="space-y-3">
             <li class="flex items-start gap-3">
@@ -325,7 +574,7 @@
             </li>
             <li class="flex items-start gap-3">
               <svg class="size-5 text-indigo-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              <span class="text-gray-700">Inline search typeahead — <kbd class="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘P</kbd></span>
+              <span class="text-gray-700">Inline search typeahead — <kbd class="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘F</kbd></span>
             </li>
             <li class="flex items-start gap-3">
               <svg class="size-5 text-indigo-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
@@ -345,12 +594,9 @@
   <section id="folders" class="feature-section max-w-6xl mx-auto px-4 py-20">
     <div class="flex flex-col lg:flex-row items-center gap-12">
       <div class="lg:w-1/2 shrink-0">
-        <img
-          src="assets/screenshot-folders.png"
-          alt="User folders and project panel"
-          class="w-full rounded-2xl border border-gray-200 shadow-xl"
-          style="background: linear-gradient(135deg, #0B0B0F, #1A1A24); aspect-ratio: 16/10; object-fit: cover;"
-        />
+          <div class="rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <img src="images/organize-by-project-not-by-agent/image1.png" alt="Folder panel" class="w-full" style="background: linear-gradient(135deg, #0B0B0F, #1A1A24);" />
+          </div>
       </div>
       <div class="lg:w-1/2">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-sm font-medium mb-4 border border-indigo-200/60">
@@ -362,8 +608,9 @@
           <span class="gradient-text">not by agent</span>
         </h2>
         <p class="text-gray-500 text-lg leading-relaxed mb-6">
-          Create virtual folders to organize sessions from all agents into projects.
-           Sessions from OpenCode, Copilot, Cursor, Pi, and Codex all live side by side.
+          Manage sessions across agents with virtual folders. Create a project-based session management
+          system — OpenCode, Copilot, Cursor, Claude Code, Pi, and Codex sessions all live side by
+          side in local storage.
         </p>
         <ul class="space-y-3">
           <li class="flex items-start gap-3">
@@ -380,7 +627,7 @@
           </li>
           <li class="flex items-start gap-3">
             <svg class="size-5 text-indigo-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-            <span class="text-gray-700">Persisted in the sess database — survives restarts</span>
+            <span class="text-gray-700">Persisted in the Omnivue database — survives restarts</span>
           </li>
         </ul>
       </div>
@@ -409,8 +656,8 @@
           <div class="size-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
             <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
           </div>
-          <h3 class="font-semibold text-lg mb-2">Read-Only Safe</h3>
-          <p class="text-sm text-gray-500 leading-relaxed">Never writes to agent databases. All connections use <code class="text-xs">?mode=ro</code> — verified at open time. Your agent data stays untouched.</p>
+          <h3 class="font-semibold text-lg mb-2">Local Only</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Never writes to agent databases. All connections use <code class="text-xs">?mode=ro</code> — verified at open time. Nothing leaves your developer machine.</p>
         </div>
       </div>
     </div>
@@ -420,7 +667,7 @@
   <section id="quickstart" class="max-w-5xl mx-auto px-4 py-20">
     <h2 class="text-3xl font-bold text-center mb-2">Quick Start</h2>
     <p class="text-gray-500 text-center mb-10 max-w-lg mx-auto">
-      Install, initialize, and start browsing in three commands.
+      Install, initialize, and start browsing locally in three commands.
     </p>
 
     <div class="glass-card rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -430,12 +677,12 @@
         <span class="size-3 rounded-full bg-green-500"></span>
         <span class="text-gray-400 text-sm ml-2">Terminal</span>
       </div>
-      <pre class="bg-gray-900 text-gray-100 p-6 text-sm leading-relaxed overflow-x-auto"><code><span class="text-green-400">$</span> curl -LO https://github.com/stevencrawford/sess/releases/latest/download/sess_$(uname -s)_$(uname -m).tar.gz
-<span class="text-green-400">$</span> tar xzf sess_*.tar.gz && sudo mv sess /usr/local/bin/
+      <pre class="bg-gray-900 text-gray-100 p-6 text-sm leading-relaxed overflow-x-auto"><code><span class="text-green-400">$</span> curl -LO https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_$(uname -s)_$(uname -m).tar.gz
+<span class="text-green-400">$</span> tar xzf omnivue_*.tar.gz && sudo mv omnivue /usr/local/bin/
 
-<span class="text-green-400">$</span> sess init
-<span class="text-gray-500">  sess: scanning for AI agent sessions...
-  sess: found 5 source(s):
+<span class="text-green-400">$</span> omnivue init
+<span class="text-gray-500">  omnivue: scanning for AI agent sessions...
+  omnivue: found 6 source(s):
 
   [opencode] /Users/user/.local/share/opencode (14 sessions)
   Add this source? [Y/n] Y
@@ -453,20 +700,24 @@
   Add this source? [Y/n] Y
   Added.
 
+  [claude-code] /Users/user/.claude (9 sessions)
+  Add this source? [Y/n] Y
+  Added.
+
   [codex] /Users/user/.codex (3 sessions)
   Add this source? [Y/n] Y
   Added.</span>
 
-<span class="text-green-400">$</span> sess
-<span class="text-gray-500">  sess: server started at http://localhost:6275 (pid 9876)</span></pre>
+<span class="text-green-400">$</span> omnivue
+<span class="text-gray-500">  omnivue: server started at http://localhost:6275 (pid 9876)</span></pre>
     </div>
 
     <div class="flex flex-wrap justify-center gap-4 mt-8">
-      <a href="https://github.com/stevencrawford/sess/releases" class="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all hover:scale-[1.02]">
+      <a href="https://github.com/stevencrawford/omnivue/releases" class="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-all hover:scale-[1.02]">
         <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
         Download Latest
       </a>
-      <a href="https://github.com/stevencrawford/sess" class="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-xl font-medium border border-gray-300 hover:border-gray-400 transition-all hover:scale-[1.02]">
+      <a href="https://github.com/stevencrawford/omnivue" class="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-xl font-medium border border-gray-300 hover:border-gray-400 transition-all hover:scale-[1.02]">
         <svg class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
         View on GitHub
       </a>
@@ -507,7 +758,7 @@
               <span class="text-gray-500">Tabs</span>
             </div>
             <div class="flex items-center gap-2">
-              <kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘P</kbd><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘K</kbd>
+              <kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘F</kbd><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘K</kbd>
               <span class="text-gray-500">Search</span>
             </div>
             <div class="flex items-center gap-2">
@@ -528,20 +779,108 @@
   <footer class="border-t border-gray-200/60">
     <div class="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
       <div class="flex items-center gap-5">
-        <span class="font-bold gradient-text text-base">sess</span>
+        <span class="font-bold text-white text-base">Omnivue</span>
         <span>&copy; 2026 Steven Crawford</span>
-        <a href="https://github.com/stevencrawford/sess/blob/main/LICENSE" class="hover:text-gray-600 transition-colors">MIT License</a>
+        <a href="https://github.com/stevencrawford/omnivue/blob/main/LICENSE" class="hover:text-gray-600 transition-colors">MIT License</a>
       </div>
       <div class="flex items-center gap-5">
-        <a href="https://github.com/stevencrawford/sess" class="hover:text-gray-600 transition-colors flex items-center gap-1.5">
+        <a href="https://github.com/stevencrawford/omnivue" class="hover:text-gray-600 transition-colors flex items-center gap-1.5">
           <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           GitHub
         </a>
-        <a href="https://github.com/stevencrawford/sess/releases" class="hover:text-gray-600 transition-colors">Releases</a>
-        <a href="https://github.com/stevencrawford/sess/issues" class="hover:text-gray-600 transition-colors">Issues</a>
+        <a href="https://github.com/stevencrawford/omnivue/releases" class="hover:text-gray-600 transition-colors">Releases</a>
+        <a href="https://github.com/stevencrawford/omnivue/issues" class="hover:text-gray-600 transition-colors">Issues</a>
       </div>
     </div>
   </footer>
 
+<div id="zoom-overlay" class="zoom-overlay">
+  <img id="zoom-image" src="" alt="Zoomed screenshot" />
+</div>
+
+<script>
+(function() {
+  /* Carousel auto-advance */
+  var carousels = document.querySelectorAll('.carousel');
+  if (!carousels.length) return;
+
+  carousels.forEach(function(carousel) {
+    var radios = carousel.querySelectorAll('input[type="radio"]');
+    if (radios.length < 2) return;
+
+    var timer = null;
+    var isVisible = false;
+
+    function getCurrent() {
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return i;
+      }
+      return 0;
+    }
+
+    function advance() {
+      var next = (getCurrent() + 1) % radios.length;
+      radios[next].checked = true;
+    }
+
+    function start() {
+      stop();
+      if (isVisible) timer = setInterval(advance, 5000);
+    }
+
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    carousel.addEventListener('click', function(e) {
+      if (e.target.matches('.carousel-dots label')) {
+        stop();
+        setTimeout(start, 10000);
+      }
+    });
+
+    if ('IntersectionObserver' in window) {
+      var obs = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          isVisible = entry.isIntersecting;
+          isVisible ? start() : stop();
+        });
+      }, { threshold: 0.3 });
+      obs.observe(carousel);
+    } else {
+      isVisible = true;
+      start();
+    }
+  });
+
+  /* Click-to-zoom on screenshots */
+  var overlay = document.getElementById('zoom-overlay');
+  var zoomImg = document.getElementById('zoom-image');
+
+  function openZoom(src) {
+    zoomImg.src = src;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeZoom() {
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  overlay.addEventListener('click', closeZoom);
+  zoomImg.addEventListener('click', function(e) { e.stopPropagation(); });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeZoom();
+  });
+
+  document.querySelectorAll('.feature-section img').forEach(function(img) {
+    img.addEventListener('click', function() {
+      openZoom(this.src);
+    });
+  });
+})();
+</script>
 </body>
 </html>

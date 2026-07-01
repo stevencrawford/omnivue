@@ -2,11 +2,11 @@
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
-## What is sess
+## What is Omnivue
 
-`sess` is an AI session manager for OpenCode, GitHub Copilot, Cursor, and Pi. All your sessions, visible in one place. The Go module is `github.com/stevencrawford/sess`.
+`omnivue` is an AI session manager for OpenCode, GitHub Copilot, Cursor, Pi, Claude Code, and Codex. All your sessions, visible in one place. The Go module is `github.com/stevencrawford/omnivue`.
 
-Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `sess` repurposes the architecture for AI session management.
+Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `omnivue` repurposes the architecture for AI session management.
 
 ## Build & Run
 
@@ -23,16 +23,18 @@ cd internal/frontend && pnpm run fmt
 make build
 
 # Run in foreground (dev mode)
-./sess --foreground --port 16275
+./omnivue --foreground --port 16275
 
-# Initialize sources (auto-discovers OpenCode, Copilot, Cursor, Pi)
-./sess init
+# Initialize sources (auto-discovers OpenCode, Copilot, Cursor, Pi, Claude Code, Codex)
+./omnivue init
 
 # Add a source manually
-./sess add ~/.local/share/opencode
-./sess add ~/.copilot --type copilot
-./sess add ~/.cursor --type cursor
-./sess add ~/.pi/agent/sessions --type pi
+./omnivue add ~/.local/share/opencode
+./omnivue add ~/.copilot --type copilot
+./omnivue add ~/.cursor --type cursor
+./omnivue add ~/.pi/agent/sessions --type pi
+./omnivue add ~/.claude --type claude-code
+./omnivue add ~/.codex --type codex
 
 # Frontend code generation only (called by make build via go generate)
 make generate
@@ -61,16 +63,16 @@ make lint
 
 ### Subcommands
 
-- `sess init` — Discover and configure AI agent session sources interactively
-- `sess add <path> [--type opencode|copilot|cursor|pi]` — Manually add a session source
+- `omnivue init` — Discover and configure AI agent session sources interactively
+- `omnivue add <path> [--type opencode|copilot|cursor|pi|claude-code|codex]` — Manually add a session source
 
 ## Architecture
 
 **Go backend + embedded React SPA**, single binary.
 
 - `cmd/root.go` — CLI entry point (Cobra). Handles single-instance detection, server lifecycle (background/foreground), status/shutdown/restart.
-- `cmd/init.go` — `sess init` command: auto-discovers session sources, interactive prompts.
-- `cmd/add.go` — `sess add` command: manually adds a source.
+- `cmd/init.go` — `omnivue init` command: auto-discovers session sources, interactive prompts.
+- `cmd/add.go` — `omnivue add` command: manually adds a source.
 - `internal/ingest/` — Core ingest layer:
   - `types.go` — Unified types: `Session`, `Message`, `ToolCall`, `PlanItem`, `DiffFile`, `Source`, `FileEdit`, `StepEvent`
   - `adapter.go` — `Adapter` interface + `OpenReadOnlyDB()` safeguard
@@ -79,12 +81,13 @@ make lint
   - `copilot/copilot.go` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
   - `cursor/cursor.go` — Cursor adapter: reads `state.vscdb` (SQLite KV) + `agent-transcripts` JSONL + `ai-code-tracking.db` (read-only)
   - `pi/pi.go` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
-- `internal/store/store.go` — Manages `$XDG_STATE_HOME/sess/sess.db`: sources, folders, FTS5 search index, scratch files, config, session name overrides
+  - `claude-code/claude_code.go` — Claude Code adapter: reads `~/.claude/projects/*/*.jsonl` (JSONL, read-only)
+- `internal/store/store.go` — Manages `$XDG_STATE_HOME/omnivue/omnivue.db`: sources, folders, FTS5 search index, scratch files, config, session name overrides
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, adaptive polling (5s live / 30s idle)
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
 - `internal/frontend/` — Vite + React 19 + TypeScript + Tailwind CSS v4 SPA
 - `internal/backup/` — State persistence (kept from mo, will be repurposed)
-- `internal/logfile/` — Rotating JSON logging to `$XDG_STATE_HOME/sess/log/`
+- `internal/logfile/` — Rotating JSON logging to `$XDG_STATE_HOME/omnivue/log/`
 - `internal/xdg/` — XDG Base Directory helper
 - `version/version.go` — Version info
 
@@ -93,12 +96,12 @@ make lint
 - **Read-only agent data**: We NEVER write to agent databases. All SQLite connections use `?mode=ro`. The `OpenReadOnlyDB()` helper enforces this with a write-attempt assertion.
 - **Single instance**: CLI probes `/_/api/status`. If server running, just opens browser.
 - **Unified session model**: Adapters normalize agent-specific formats to common `Session`/`Message` types.
-- **Auto-discovery**: `sess init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`).
+- **Auto-discovery**: `omnivue init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`, `~/.claude`, `~/.codex`).
 - **Live-reload via SSE**: Adaptive polling (5s when active sessions, 30s when idle) detects new/changed sessions, sends `update` events to frontend.
-- **Persistent search**: FTS5 in `sess.db` indexes all session content incrementally (content-hash dedup).
-- **User folders**: Stored in `sess.db` (not filesystem) — virtual organization of sessions (nested, color-coded).
-- **Scratch notes**: Per-session markdown notes stored in `sess.db`, rendered with rich text (TipTap) or code editor (Monaco).
-- **Session renaming**: Display name overrides stored in `sess.db`, persisted across restarts.
+- **Persistent search**: FTS5 in `omnivue.db` indexes all session content incrementally (content-hash dedup).
+- **User folders**: Stored in `omnivue.db` (not filesystem) — virtual organization of sessions (nested, color-coded).
+- **Scratch notes**: Per-session markdown notes stored in `omnivue.db`, rendered with rich text (TipTap) or code editor (Monaco).
+- **Session renaming**: Display name overrides stored in `omnivue.db`, persisted across restarts.
 
 ## API Endpoints
 
@@ -124,6 +127,7 @@ make lint
 | POST | `/_/api/sessions/{id}/scratch` | Create a scratch file |
 | GET | `/_/api/sessions/{id}/scratch/{fileId}` | Get a scratch file |
 | PUT | `/_/api/sessions/{id}/scratch/{fileId}` | Update a scratch file |
+| PATCH | `/_/api/sessions/{id}/scratch/{fileId}` | Rename a scratch file (title only) |
 | DELETE | `/_/api/sessions/{id}/scratch/{fileId}` | Delete a scratch file |
 | GET | `/_/api/scratch` | List all scratch files across sessions |
 | GET | `/_/api/search?q=&limit=&session_id=` | Full-text search (optionally scoped to session) |
@@ -168,7 +172,7 @@ make lint
 - Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context)
 - Utilities: `buildTree.ts` (groups sessions by repository)
 - Theme: GitHub-style light/dark via `data-theme` attribute
-- localStorage keys use `sess-` prefix
+- localStorage keys use `omnivue-` prefix.
 
 ## Data Sources
 
@@ -184,6 +188,8 @@ make lint
 | Cursor transcripts | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL | Agentic session transcripts |
 | Cursor tracking | `~/.cursor/ai-code-tracking.db` | SQLite | Conversation summaries, model, cost, tokens |
 | Pi | `~/.pi/agent/sessions/` | JSONL | Sessions, messages, tool calls, reasoning |
+| Claude Code | `~/.claude/projects/*/*.jsonl` | JSONL | Sessions, messages, tool calls, plans, file snapshots |
+| Claude Code subagents | `~/.claude/projects/*/*/subagents/agent-*.jsonl` | JSONL | Subagent transcripts |
 
 ## Phase Status
 
@@ -198,3 +204,4 @@ make lint
 - [x] Phase 8: Scratch notes + session rename (COMPLETE)
 - [x] Phase 9: Settings UI + keyboard shortcuts + deep linking (COMPLETE)
 - [x] Phase 10: Pi adapter (COMPLETE)
+- [x] Phase 11: Claude Code adapter (COMPLETE)

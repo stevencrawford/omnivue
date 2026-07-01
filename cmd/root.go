@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/k1LoW/donegroup"
-	"github.com/stevencrawford/sess/internal/logfile"
-	"github.com/stevencrawford/sess/internal/server"
-	"github.com/stevencrawford/sess/version"
+	"github.com/stevencrawford/omnivue/internal/logfile"
+	"github.com/stevencrawford/omnivue/internal/server"
+	"github.com/stevencrawford/omnivue/version"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 )
@@ -41,20 +41,20 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "sess [flags]",
-	Short: "sess is an AI/LLM session manager for coding agents",
-	Long: `	sess watches AI coding agent sessions (OpenCode, Copilot, Cursor, Codex, Pi) and
+	Use:   "omnivue [flags]",
+	Short: "Omnivue is an AI/LLM session manager for coding agents",
+	Long: `Omnivue watches AI coding agent sessions (OpenCode, Copilot, Cursor, Codex, Pi, Claude Code) and
 presents them in a browser UI for easy browsing, searching, and management.
 
 Quick Start:
-  sess init                      Discover and configure agent sources
-  sess                           Start the sess server and open browser
-  sess add ~/.codex              Manually add a source (or path to another agent)
+  omnivue init                      Discover and configure agent sources
+  omnivue                           Start the Omnivue server and open browser
+  omnivue add ~/.codex              Manually add a source (or path to another agent)
 
 Management:
-  sess --status                  Show running sess servers
-  sess --shutdown                Stop the server
-  sess --restart                 Restart the server
+  omnivue --status                  Show running Omnivue servers
+  omnivue --shutdown                Stop the server
+  omnivue --restart                 Restart the server
 
 The server runs in the background by default. Use --foreground to keep it
 in the foreground.`,
@@ -75,8 +75,8 @@ func init() {
 	rootCmd.Flags().BoolVar(&open, "open", false, "Always open browser")
 	rootCmd.Flags().BoolVar(&noOpen, "no-open", false, "Do not open browser")
 	rootCmd.MarkFlagsMutuallyExclusive("open", "no-open")
-	rootCmd.Flags().BoolVar(&shutdownServer, "shutdown", false, "Shut down the running sess server")
-	rootCmd.Flags().BoolVar(&restartServer, "restart", false, "Restart the running sess server")
+	rootCmd.Flags().BoolVar(&shutdownServer, "shutdown", false, "Shut down the running Omnivue server")
+	rootCmd.Flags().BoolVar(&restartServer, "restart", false, "Restart the running Omnivue server")
 	rootCmd.MarkFlagsMutuallyExclusive("shutdown", "restart")
 	rootCmd.Flags().BoolVar(&foreground, "foreground", false, "Run server in foreground")
 	rootCmd.Flags().BoolVar(&statusServer, "status", false, "Show status of running servers")
@@ -111,7 +111,7 @@ func run(cmd *cobra.Command, args []string) error {
 		if !noOpen {
 			openBrowser(addr)
 		}
-		fmt.Fprintf(os.Stderr, "sess: server already running at http://%s\n", addr)
+		fmt.Fprintf(os.Stderr, "omnivue: server already running at http://%s\n", addr)
 		return nil
 	}
 
@@ -169,7 +169,7 @@ func startServer(ctx context.Context, addr string) error {
 		}
 	}()
 
-	fmt.Fprintf(os.Stderr, "sess: serving at http://%s\n", addr)
+	fmt.Fprintf(os.Stderr, "omnivue: serving at http://%s\n", addr)
 
 	if !noOpen {
 		openBrowser(addr)
@@ -204,7 +204,7 @@ func startBackground(addr string) error {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if _, err := probeServer(addr, probeTimeoutFast); err == nil {
-			fmt.Fprintf(os.Stderr, "sess: server started at http://%s (pid %d)\n", addr, pid)
+			fmt.Fprintf(os.Stderr, "omnivue: server started at http://%s (pid %d)\n", addr, pid)
 			if !noOpen {
 				openBrowser(addr)
 			}
@@ -229,7 +229,6 @@ func spawnNewProcess(addr string, restoreFile string) (*os.Process, error) {
 	args := []string{"--port", p, "--bind", h, "--no-open", "--foreground"}
 	cmd := exec.Command(binPath, args...)
 	setSysProcAttr(cmd)
-	_ = restoreFile // Not used in sess (no restore file mechanism yet)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start new process: %w", err)
 	}
@@ -262,7 +261,7 @@ func probeServer(addr string, timeout ...time.Duration) (*probeResult, error) {
 	client := &http.Client{Timeout: t}
 	resp, err := client.Get(fmt.Sprintf("http://%s/_/api/status", addr))
 	if err != nil {
-		return nil, fmt.Errorf("no sess server found on %s", addr)
+		return nil, fmt.Errorf("no Omnivue server found on %s", addr)
 	}
 	defer resp.Body.Close()
 
@@ -274,7 +273,7 @@ func probeServer(addr string, timeout ...time.Duration) (*probeResult, error) {
 		Version string `json:"version"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil || status.Version == "" {
-		return nil, fmt.Errorf("server on %s is not a sess instance", addr)
+		return nil, fmt.Errorf("server on %s is not an Omnivue instance", addr)
 	}
 
 	return &probeResult{client: client}, nil
@@ -293,7 +292,7 @@ func doShutdown(addr string) error {
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("unexpected response: %s", resp.Status)
 	}
-	fmt.Fprintf(os.Stderr, "sess: shutdown request sent to http://%s\n", addr)
+	fmt.Fprintf(os.Stderr, "omnivue: shutdown request sent to http://%s\n", addr)
 	return nil
 }
 
@@ -310,14 +309,14 @@ func doRestart(addr string) error {
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("unexpected response: %s", resp.Status)
 	}
-	fmt.Fprintf(os.Stderr, "sess: restart request sent to http://%s\n", addr)
+	fmt.Fprintf(os.Stderr, "omnivue: restart request sent to http://%s\n", addr)
 	return nil
 }
 
 func doStatus(addr string) error {
 	result, err := probeServer(addr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "sess: no server running on %s\n", addr)
+		fmt.Fprintf(os.Stderr, "omnivue: no server running on %s\n", addr)
 		return nil
 	}
 
@@ -338,7 +337,7 @@ func doStatus(addr string) error {
 		return enc.Encode(status)
 	}
 
-	fmt.Fprintf(os.Stderr, "sess: server running at http://%s\n", addr)
+	fmt.Fprintf(os.Stderr, "omnivue: server running at http://%s\n", addr)
 	if v, ok := status["version"]; ok {
 		fmt.Fprintf(os.Stderr, "  version: %v\n", v)
 	}

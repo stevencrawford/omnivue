@@ -57,12 +57,12 @@ export function Modal({
         className={`relative z-50 flex flex-col rounded-xl border border-accent-border bg-surface-elevated shadow-2xl w-full ${SIZE_MAP[size]} max-h-[80vh] overflow-hidden ${className}`}
       >
         {title && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gh-border shrink-0">
-            <h2 className="text-sm font-semibold text-gh-text truncate">{title}</h2>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-ov-border shrink-0">
+            <h2 className="text-sm font-semibold text-ov-text truncate">{title}</h2>
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 text-gh-text-secondary hover:text-gh-text cursor-pointer p-1 rounded transition-colors"
+              className="shrink-0 text-ov-text-secondary hover:text-ov-text cursor-pointer p-1 rounded transition-colors"
             >
               <X size={16} />
             </button>

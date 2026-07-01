@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
 )
 
 type Adapter struct {
@@ -456,8 +456,9 @@ type responseContent struct {
 }
 
 type changeEntry struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
+	Type        string `json:"type"`
+	Content     string `json:"content"`
+	UnifiedDiff string `json:"unified_diff"`
 }
 
 func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, error) {
@@ -597,17 +598,31 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				messages = append(messages, msg)
 				toolCallsByID = make(map[string]*ingest.ToolCall)
 
-			case "task_complete":
-				tc := &ingest.ToolCall{
-					ID:     pl.TurnID,
-					Name:   "task_complete",
-					Status: "completed",
-					Output: "completed",
-					Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d}`, pl.TurnID, pl.CompletedAt, pl.DurationMs),
-				}
-				toolCallsByID[pl.TurnID] = tc
+		case "task_complete":
+			summaryBytes, _ := json.Marshal(pl.Message)
+			tc := &ingest.ToolCall{
+				ID:     pl.TurnID,
+				Name:   "task_complete",
+				Status: "completed",
+				Output: "completed",
+				Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d,"summary":%s,"success":%v}`, pl.TurnID, pl.CompletedAt, pl.DurationMs, string(summaryBytes), pl.Success),
+			}
+			toolCallsByID[pl.TurnID] = tc
 			}
 		}
+	}
+
+	// Collect any remaining tool calls (e.g., at end of session) into a synthetic message
+	if len(toolCallsByID) > 0 {
+		var msgToolCalls []ingest.ToolCall
+		for _, tc := range toolCallsByID {
+			msgToolCalls = append(msgToolCalls, *tc)
+		}
+		messages = append(messages, ingest.Message{
+			Role:      "assistant",
+			ToolCalls: msgToolCalls,
+			Timestamp: time.Now(),
+		})
 	}
 
 	messages = dedupMessages(messages)
@@ -807,6 +822,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 	defer f.Close()
 
 	var edits []ingest.FileEdit
+	patchSeen := make(map[string]bool)
 	scanner := util.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -837,12 +853,22 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 			}
 
 			for path, change := range changes {
+				content := change.Content
+				if content == "" {
+					content = change.UnifiedDiff
+				}
+				toolName := "edit"
+				if change.Type == "add" {
+					toolName = "write"
+				}
 				edits = append(edits, ingest.FileEdit{
 					FilePath:  path,
-					ToolName:  "edit",
-					Content:   change.Content,
+					ToolName:  toolName,
+					NewStr:    content,
+					Content:   content,
 					Timestamp: ts,
 				})
+				patchSeen[path] = true
 			}
 
 		case "response_item":
@@ -861,11 +887,19 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 			}
 
 			filePath := extractFilePathFromPatch(patchText)
+			if filePath == "" || patchSeen[filePath] {
+				continue
+			}
+
+			result := parseRawPatch(patchText)
+			newStr := result.content
+			if newStr == "" {
+				newStr = patchText
+			}
 			edits = append(edits, ingest.FileEdit{
 				FilePath:  filePath,
 				ToolName:  "edit",
-				OldStr:    "",
-				NewStr:    "",
+				NewStr:    newStr,
 				Content:   patchText,
 				Timestamp: ts,
 			})
@@ -879,7 +913,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 }
 
 func extractFilePathFromPatch(patch string) string {
-	for _, prefix := range []string{"*** Add File: ", "*** Modify File: ", "--- Add File: ", "--- Modify File: "} {
+	for _, prefix := range []string{"*** Add File: ", "*** Modify File: ", "*** Update File: ", "--- Add File: ", "--- Modify File: ", "--- Update File: "} {
 		if idx := strings.Index(patch, prefix); idx >= 0 {
 			rest := patch[idx+len(prefix):]
 			if nl := strings.IndexAny(rest, "\n\r"); nl >= 0 {
@@ -1080,51 +1114,76 @@ func normalizeEditInput(tc *ingest.ToolCall) {
 	}
 	// Skip if already valid JSON
 	if tc.Input[0] == '{' {
-		var check map[string]string
+		var check any
 		if json.Unmarshal([]byte(tc.Input), &check) == nil {
 			return
 		}
 	}
 
-	// Parse Codex raw patch format and extract filePath + content as JSON:
-	//   *** Begin Patch
-	//   *** Add File: auth.go
-	//   +content
-	//   *** End Patch
+	result := parseRawPatch(tc.Input)
+	if result.filePath == "" {
+		return
+	}
+
+	out := map[string]string{
+		"filePath": result.filePath,
+		"content":  result.content,
+	}
+	encoded, _ := json.Marshal(out)
+	tc.Input = string(encoded)
+}
+
+type rawPatchResult struct {
+	filePath string
+	content  string
+}
+
+// parseRawPatch parses Codex raw patch format:
+//
+//	*** Begin Patch
+//	*** Add File: auth.go
+//	+content
+//	*** End Patch
+func parseRawPatch(input string) rawPatchResult {
 	filePath := ""
 	var contentLines []string
 	inContent := false
-	lines := strings.Split(tc.Input, "\n")
+	lines := strings.Split(input, "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "*** Add File: ") {
+		switch {
+		case strings.HasPrefix(trimmed, "*** Add File: "):
 			filePath = strings.TrimPrefix(trimmed, "*** Add File: ")
-		} else if strings.HasPrefix(trimmed, "*** Chunk: ") {
+		case strings.HasPrefix(trimmed, "*** Modify File: "):
+			filePath = strings.TrimPrefix(trimmed, "*** Modify File: ")
+		case strings.HasPrefix(trimmed, "*** Update File: "):
+			filePath = strings.TrimPrefix(trimmed, "*** Update File: ")
+		case strings.HasPrefix(trimmed, "--- Add File: "):
+			filePath = strings.TrimPrefix(trimmed, "--- Add File: ")
+		case strings.HasPrefix(trimmed, "--- Modify File: "):
+			filePath = strings.TrimPrefix(trimmed, "--- Modify File: ")
+		case strings.HasPrefix(trimmed, "--- Update File: "):
+			filePath = strings.TrimPrefix(trimmed, "--- Update File: ")
+		case strings.HasPrefix(trimmed, "*** Chunk: "):
 			rest := strings.TrimPrefix(trimmed, "*** Chunk: ")
 			if idx := strings.Index(rest, " : "); idx > 0 {
 				filePath = rest[:idx]
 			} else {
 				filePath = rest
 			}
-		} else if strings.HasPrefix(trimmed, "*** Begin Patch") {
+		case strings.HasPrefix(trimmed, "*** Begin Patch"):
 			inContent = true
-		} else if strings.HasPrefix(trimmed, "*** End Patch") {
+		case strings.HasPrefix(trimmed, "*** End Patch"):
 			inContent = false
-		} else if inContent && strings.HasPrefix(trimmed, "+") && filePath != "" {
-			contentLines = append(contentLines, strings.TrimPrefix(trimmed, "+"))
+		case inContent && filePath != "":
+			contentLines = append(contentLines, line)
 		}
 	}
-
-	if filePath == "" {
-		return
+	content := strings.TrimRight(strings.Join(contentLines, "\n"), "\n")
+	return rawPatchResult{
+		filePath: filePath,
+		content:  content,
 	}
-
-	out := map[string]string{
-		"filePath": filePath,
-		"content":  strings.TrimRight(strings.Join(contentLines, "\n"), "\n"),
-	}
-	encoded, _ := json.Marshal(out)
-	tc.Input = string(encoded)
 }
 
 func normalizeUserContent(content string) (string, map[string]string) {

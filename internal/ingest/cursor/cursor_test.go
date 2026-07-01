@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stevencrawford/sess/internal/ingest/cursor"
+	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
 )
 
 func getCursorDB(t *testing.T) string {

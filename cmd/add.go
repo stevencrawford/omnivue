@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/store"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -21,16 +21,16 @@ var addSourceType string
 var addCmd = &cobra.Command{
 	Use:   "add <path>",
 	Short: "Add an AI agent session source",
-	Long: `Adds a session data source to sess. The path should point to the
-agent's data directory (e.g., ~/.local/share/opencode, ~/.copilot, or ~/.codex).
+	Long: `Adds a session data source to Omnivue. The path should point to the
+agent's data directory (e.g., ~/.local/share/opencode, ~/.copilot, ~/.codex, or ~/.claude).
 
-By default, sess will auto-detect the agent type. Use --type to force.`,
+By default, Omnivue will auto-detect the agent type. Use --type to force.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAdd,
 }
 
 func init() {
-	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor, codex, pi)")
+	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor, codex, pi, claude-code)")
 	rootCmd.AddCommand(addCmd)
 }
 
@@ -68,8 +68,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			label = "Pi"
 		case ingest.AgentCodex:
 			label = "Codex"
+		case ingest.AgentClaudeCode:
+			label = "Claude Code"
 		default:
-			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor, codex, pi)", addSourceType)
+			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor, codex, pi, claude-code)", addSourceType)
 		}
 	} else {
 		// Auto-detect
@@ -84,11 +86,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor, codex, pi)", path)
+			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor, codex, pi, claude-code)", path)
 		}
 	}
 
-	// If a sess server is running, add via API so it picks up immediately
+	// If an Omnivue server is running, add via API so it picks up immediately
 	addr := net.JoinHostPort(strings.Trim(bind, "[]"), strconv.Itoa(port))
 	if result, err := probeServer(addr, probeTimeoutFast); err == nil {
 		return addViaAPI(result.client, addr, path, string(agentType), label)
@@ -97,7 +99,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// No server running, write directly to store
 	s, err := store.New()
 	if err != nil {
-		return fmt.Errorf("failed to open sess database: %w", err)
+		return fmt.Errorf("failed to open Omnivue database: %w", err)
 	}
 	defer s.Close()
 
@@ -114,7 +116,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add source: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "sess: added %s source at %s\n", label, path)
+	fmt.Fprintf(os.Stderr, "omnivue: added %s source at %s\n", label, path)
 	return nil
 }
 
@@ -137,6 +139,6 @@ func addViaAPI(client *http.Client, addr, path, agentType, label string) error {
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("server returned %s", resp.Status)
 	}
-	fmt.Fprintf(os.Stderr, "sess: added %s source at %s (live)\n", label, path)
+	fmt.Fprintf(os.Stderr, "omnivue: added %s source at %s (live)\n", label, path)
 	return nil
 }

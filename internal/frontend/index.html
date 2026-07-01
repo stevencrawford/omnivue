@@ -10,16 +10,16 @@
       href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <title>sess</title>
+    <title>Omnivue</title>
     <script>
       (function () {
-        var theme = localStorage.getItem("sess-theme");
-        var mode = localStorage.getItem("sess-mode");
+        var theme = localStorage.getItem("omnivue-theme");
+        var mode = localStorage.getItem("omnivue-mode");
         var names = ["default","nord","catppuccin","tokyo-night","github"];
         if (names.indexOf(theme) === -1) {
           theme = "default";
           if (mode !== "light" && mode !== "dark") {
-            var old = localStorage.getItem("sess-theme");
+            var old = localStorage.getItem("omnivue-theme");
             mode = (old === "light" || old === "dark") ? old : null;
           }
         }

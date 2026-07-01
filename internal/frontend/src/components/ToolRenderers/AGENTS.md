@@ -1,225 +1,191 @@
 # Tool Call Renderers — Architecture Guide
 
-This file explains how tool call rendering works in the frontend, the renderer taxonomy, and how to add new renderers.
+This file explains how tool call rendering works in the frontend, the plugin architecture, and how to add new renderers.
 
 ## Architecture Overview
 
-Tool calls from all agents (OpenCode, Copilot, Cursor) are normalized to a common `ToolCall` type and rendered by specialized components.
+Tool calls from all agents (OpenCode, Copilot, Cursor) are normalized to a common `ToolCall` type and rendered by specialized components through a registry-based plugin system.
 
 ```
 ToolCall (from API)
   │
   ▼
 ToolCallList.tsx
-  │  uses effectiveToolKind(tool) to determine renderer
+  │  uses effectiveToolKind(tool) via toolDisplay.ts
+  │  then toolRendererRegistry.getRenderer(kind)
   │
-  ├── BashToolDiff          command execution
-  ├── EditToolDiff          file edit (oldStr → newStr) / file write
-  ├── ReadToolDiff          file read
-  ├── GrepToolDiff          text search results
-  ├── GlobToolDiff          file pattern search results
-  ├── DeleteToolDiff        file deletion
-  ├── TodoWriteToolDiff     todo list updates
-  ├── TaskToolDiff          sub-agent task delegation
-  ├── QuestionToolDiff      user questions with options
-  ├── ExitPlanModeToolDiff  plan mode exit with summary
-  └── DefaultToolDiff       generic fallback (collapsible input/output)
+  └── ToolRendererWrapper (system-level truncation + chevron toggle)
+       │
+       └── renderer Component (variant=summary or variant=detail)
 ```
 
-## Tool Kind Taxonomy
+### Registry Auto-Discovery
 
-The `effectiveToolKind()` function in `utils/toolDisplay.ts` maps tool names and input shapes to a standard kind (the key used for renderer dispatch):
+The `ToolRendererRegistry` in `registry.ts` uses Vite's `import.meta.glob` to discover renderer definitions:
 
-| Kind             | Expected in ToolCall.name                                                       | Renderer                                                  |
-| ---------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `bash`           | `bash`, `run_terminal_command_v2`, or input contains `command` field            | `BashToolDiff`                                            |
-| `edit`           | `edit`, `edit_file_v2`, `create`, or input contains `filePath` + no offset      | `EditToolDiff`                                            |
-| `write`          | `write`, `create`                                                               | `EditToolDiff` (same component as edit)                   |
-| `read`           | `read`, `read_file_v2`, `view`, or input contains `filePath` + `offset`/`limit` | `ReadToolDiff`                                            |
-| `grep`           | `grep`, `ripgrep_raw_search`, or input contains `pattern`/`query`               | `GrepToolDiff`                                            |
-| `glob`           | `glob`, `glob_file_search`, or input contains `pattern`                         | `GlobToolDiff`                                            |
-| `delete`         | `delete`, `delete_file`                                                         | `DeleteToolDiff`                                          |
-| `todowrite`      | `todowrite`                                                                     | `TodoWriteToolDiff`                                       |
-| `task`           | `task`                                                                          | `TaskToolDiff`                                            |
-| `question`       | `question`                                                                      | `QuestionToolDiff`                                        |
-| `exit_plan_mode` | `exit_plan_mode`                                                                | `ExitPlanModeToolDiff`                                    |
-| `task_complete`  | `task_complete`                                                                 | Special block in `ToolCallList` (not a separate renderer) |
-| _other_          | unknown name, no matching fields                                                | `DefaultToolDiff` (collapsible input/output)              |
+- `./builtin/index.ts` — built-in renderers (always loaded)
+- `./vendor/*/index.ts` — third-party renderers (auto-discovered)
 
-## Renderer Component Interface
+Each discovered module must export a `definitions: ToolRendererDefinition[]` array.
 
-Every renderer follows this convention:
+## ToolRendererDefinition Interface
 
-```tsx
-interface Props {
-  tool: ToolCall;
-  onOpenModal?: (content: string, title?: string) => void; // optional fullscreen view
-  compact?: boolean; // optional compact mode for sidebar preview
-}
-
-export function MyToolDiff({ tool, onOpenModal, compact }: Props) {
-  // ...
+```typescript
+interface ToolRendererDefinition {
+  kind: string; // canonical kind (e.g. "bash", "edit")
+  names: string[]; // tool names mapping to this kind
+  Component: ComponentType<ToolRendererProps>;
+  summary?: (tool: ToolCall, agent?: string) => string;
+  display: ToolCardDisplay; // display behavior (see below)
+  markerColor?: string; // hex color for scrollbar marker
+  markerLabel?: string; // human-readable label for marker legend
+  markerDisplayType?: string; // grouping key for markers
+  markerPriority?: number; // lower = higher in marker bar
+  priority?: number; // override priority (builtin=0, vendor=10)
+  truncateOutput?: number; // max output lines (default 50, 0 = no truncation)
+  cardClassName?: string; // custom card CSS (primarily for always-open cards)
 }
 ```
 
-### Common Patterns
+### ToolCardDisplay — Polymorphic Display Modes
 
-**1. Parse input JSON** at the top of the component:
-
-```tsx
-let input: MyInput = {};
-try {
-  input = JSON.parse(tool.input);
-} catch {
-  /* ignore */
-}
+```typescript
+type ToolCardDisplay =
+  | {
+      type: "expandable";
+      /** Card starts open (default: false). A chevron toggle is shown. */
+      defaultOpen?: boolean;
+    }
+  | {
+      type: "always-open";
+      /** No chevron toggle. Content always visible, bypasses summary mode. */
+    };
 ```
 
-**2. Use semantic border/icon colors** to indicate tool type:
+| `display.type`  | Summary (`variant="summary"`)                                            | Detail (`variant="detail"`)     | Chevron? |
+| --------------- | ------------------------------------------------------------------------ | ------------------------------- | -------- |
+| `"expandable"`  | Card with chevron toggle; `defaultOpen` controls initial state           | Content renders inline          | ✅       |
+| `"always-open"` | **Bypassed** — always renders in detail mode with actions but no chevron | Full content, card with actions | ❌       |
 
-| Tool kind        | Border              | Icon color |
-| ---------------- | ------------------- | ---------- |
-| `bash`           | red (command)       | red        |
-| `edit`/`write`   | green (file change) | emerald    |
-| `read`           | neutral             | default    |
-| `grep`/`glob`    | neutral             | default    |
-| `delete`         | red (danger)        | red        |
-| `todowrite`      | neutral             | default    |
-| `task`           | violet (sub-agent)  | violet     |
-| `question`       | neutral             | default    |
-| `exit_plan_mode` | amber (plan)        | amber      |
+### Override Rules
 
-Pattern for border styling:
+| Scenario                                            | Outcome                                |
+| --------------------------------------------------- | -------------------------------------- |
+| Vendor registers `kind: "bash"` with `priority: 10` | Replaces builtin `bash` (priority 0)   |
+| Vendor registers `kind: "bash"` with `priority: 0`  | `console.warn("Clash")` — builtin wins |
+| Vendor registers new `kind: "jira_create_issue"`    | Registered as new kind                 |
+| Tool name `"jira_create_issue"`                     | Maps to kind `"jira_create_issue"`     |
 
-```tsx
-<div className="border border-{color}-500/30 rounded-lg overflow-hidden mb-3 bg-{color}-500/[0.03] group">
-```
+### Summary/Detail Variant Contract
 
-**3. Wrap long output** with truncation:
+Every renderer is a single component that handles both modes via the required `variant` prop:
 
-```tsx
-const MAX_LINES = 200;
-const lines = output.split("\n");
-const display =
-  lines.length > MAX_LINES
-    ? lines.slice(0, MAX_LINES).join("\n") + `\n\n... (${lines.length - MAX_LINES} more lines)`
-    : output;
-```
+| Prop value          | Expected output                                     |
+| ------------------- | --------------------------------------------------- |
+| `variant="summary"` | Single-line summary (text + icon), no borders/cards |
+| `variant="detail"`  | Full card with rich detail                          |
 
-**4. Use `CopyButton`** for copyable content:
+If a renderer has no meaningful summary representation, render a minimal one-line fallback (e.g., kind label with truncated summary).
 
-```tsx
-import { CopyButton } from "../CopyButton";
-<CopyButton text={content} />;
-```
+### Expand/Truncation Behavior
 
-**5. Use `detectLanguage`** for syntax-highlighted file previews (edit, write, read renderers):
+`ToolRendererWrapper` controls two independent state flags per card:
 
-```tsx
-import { detectLanguage } from "../../utils/detectLanguage";
-const lang = detectLanguage(filePath);
-```
+- **`open`** — Whether the card is showing its content area or only the summary header. Controlled by the chevron toggle.
+- **`showFullOutput`** — Whether the expanded output is truncated at `truncateOutput` lines or shown in full. Reset to "truncated" each time the card is closed and reopened.
 
-**6. Use `computeDiff`** for edit renderers to show oldStr→newStr patches:
+| `display.type`  | `defaultOpen`     | Behavior                                        |
+| --------------- | ----------------- | ----------------------------------------------- |
+| `"expandable"`  | `false` (default) | Collapsed card with chevron; click to expand    |
+| `"expandable"`  | `true`            | Open card with chevron; click to collapse       |
+| `"always-open"` | ignored           | Card border + summary line + actions, no toggle |
 
-```tsx
-import { computeDiff } from "../../utils/diff";
-const diffLines = computeDiff(oldStr, newStr);
-```
+When `display.type` is `"always-open"`, the card still renders with a border, copy/bookmark buttons, and duration display — it simply has no chevron toggle or expandable content section. These cards also bypass the `variant` system entirely — they always render in detail mode.
+
+### Truncation Policy
+
+Truncation is always system-level via `ToolRendererWrapper`:
+
+- `truncateOutput` field (default 50) controls max output lines
+- The system truncates `tool.output` before the component receives it
+- Renderers must never truncate their own output
+- System handles "Show more/less" expand/collapse UI uniformly
+- Set `truncateOutput: 0` to disable truncation
+
+**Note for computed content:** Renderers that compute and render derived visuals (e.g., diff patches from input fields) may use CSS-level visual containment (`max-h` + `overflow-y-auto`) to manage the height of large derived output. This is distinct from `tool.output` text truncation, which must always remain system-level.
+
+### onCopy Prop
+
+Renderers receive an optional `onCopy` prop for content-specific copy (e.g., copying just the command text, not the full output). Call `onCopy(string)` to trigger the system's copy mechanism.
 
 ## Adding a New Renderer
 
-### Step 1: Add the kind to effectiveToolKind
+### Option A: Built-in renderer
 
-In `utils/toolDisplay.ts`, add the tool name to the switch statement in `effectiveToolKind()`:
+1. Create `builtin/MyToolDiff.tsx` following the `ToolRendererProps` interface
+2. Export from `builtin/index.ts` by adding to the `definitions` array
 
-```tsx
-case "my_new_tool":
-  return "my_new_tool";
-```
+### Option B: Vendor renderer (third-party)
 
-### Step 2: Add summary support to getToolSummary
+1. Create `vendor/<namespace>/MyToolDiff.tsx` following `ToolRendererProps`
+2. Create `vendor/<namespace>/index.ts` exporting `{ definitions: [...] }`
+3. No manual registration — the registry auto-discovers it
 
-In `utils/toolDisplay.ts`, add a case to `getToolSummary()`:
+### What the renderer must handle
 
-```tsx
-if (kind === "my_new_tool") {
-  const detail = extractJSONField(input, "detail") || "";
-  return `my_new_tool: ${detail.slice(0, 80)}`;
-}
-```
+- Both `variant="summary"` and `variant="detail"` modes via `ToolRendererProps.variant`
+- Accept (but can ignore) `onOpenModal`, `onPin`, `onCopy` props
+- Never truncate output — set `truncateOutput` in the definition instead
 
-### Step 3: Create the renderer component
+### What the system handles automatically
 
-Create `MyNewToolDiff.tsx` in this directory. Follow the conventions above for input parsing, styling, and copy support.
+- Truncation + "Show more/less" button (via `ToolRendererWrapper`)
+- Copy of full output via `CopyOutputBtn` in the card header row
+- Bookmark button in the card header row
+- Duration display (via `ToolCallRow` header)
+- Sub-agent session "View" link (via `ToolCallRow` header)
 
-### Step 4: Register in ToolCallList
+## Builtin Renderer Reference
 
-In `ToolCallList.tsx`:
+| Kind                         | Component                                       | `display` type | `defaultOpen` | `truncateOutput` | `markerPriority` |
+| ---------------------------- | ----------------------------------------------- | -------------- | ------------- | ---------------- | ---------------- |
+| `task_complete`              | `TaskCompleteToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 0                |
+| `task`                       | `TaskToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 10               |
+| `edit`, `write`              | `EditToolDiff`                                  | `expandable`   | `true`        | 20               | 20               |
+| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 30               |
+| `question`                   | `QuestionToolDiff`                              | `expandable`   | `true`        | 50 (default)     | 40               |
+| `read`                       | `ReadToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 50               |
+| `bash`                       | `BashToolDiff`                                  | `expandable`   | `false`       | 50               | 60               |
+| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | `expandable`   | `false`       | 50               | 70               |
+| `webfetch`, `websearch`      | `DefaultToolDiff`                               | `expandable`   | `false`       | 50 (default)     | 80               |
+| `todowrite`                  | `TodoWriteToolDiff`                             | `expandable`   | `true`        | 50 (default)     | 90               |
+| `delete`                     | `DeleteToolDiff`                                | `expandable`   | `false`       | 50 (default)     | 100              |
+| `compaction`                 | `CompactionToolDiff`                            | `always-open`  | N/A           | 0 (none)         | 110              |
 
-1. Import the component
-2. Add the case in the compact switch:
-   ```tsx
-   case "my_new_tool":
-     return <MyNewToolDiff tool={tool} />;
-   ```
-3. In the expanded `ToolCallRow`, it will automatically fall through to the wrapper—no change needed for non-compact mode unless you need special rendering.
+> **Note:** `task_complete` and `exit_plan_mode` and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
 
-### Step 5: Handle backend normalization
+### Compaction pattern
 
-Ensure the adapter normalizes the agent's native tool name to your new kind name. For Cursor, add a case in `normalizeToolCall()` in `internal/ingest/cursor/cursor.go`. For OpenCode, the names are already standard.
+The `compaction` kind is a special visual separator used when multiple tool calls of the same kind are collapsed into a single group. It renders a horizontal rule with a centered badge (e.g. `─── 3 reads ───`). Its input is `{ kind, count, label }`. Uses `display: { type: "always-open" }` with `truncateOutput: 0`.
 
-## Dispatch Logic in Detail
+## Styling Conventions
 
-The `ToolCallList` component renders tool calls in two modes:
+Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). Each kind can use a distinct border/icon color:
 
-### Compact mode (sidebar preview)
+| Kind(s)          | Border/Accent                 |
+| ---------------- | ----------------------------- |
+| `bash`           | amber                         |
+| `edit`/`write`   | accent (green/blue)           |
+| `read`           | cyan                          |
+| `grep`/`glob`    | violet                        |
+| `delete`         | red                           |
+| `todowrite`      | amber                         |
+| `task`           | violet                        |
+| `question`       | orange                        |
+| `exit_plan_mode` | amber (self-contained card)   |
+| `task_complete`  | emerald (self-contained card) |
+| `compaction`     | gray                          |
 
-Directly renders the specialized component without expand/collapse controls. Each kind returns its most compact visual representation:
+## CopyButton Usage
 
-- `bash` → one-line command with exit status
-- `edit` → file path with diff summary
-- `read` → file path with line range
-- `grep`/`glob` → pattern with result count
-- Default → kind:summary line
-
-### Non-compact mode (full conversation view)
-
-Renders each tool call in an expandable wrapper:
-
-1. Row header: icon + status + summary + duration + copy button + optional "View" link
-2. Expandable section: input/output data blocks with expand/collapse for long content
-
-Special cases:
-
-- `task` — violet theme, sub-agent session navigation link
-- `task_complete` — emerald theme, always expanded summary block
-
-## Styling Constants
-
-```tsx
-// Standard tool wrapper
-"border border-gh-border rounded-lg overflow-hidden mb-3 bg-gh-bg-secondary/50";
-
-// Standard tool row button
-"flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-gh-bg-hover transition-colors";
-
-// Compact tool margin
-"mb-3";
-```
-
-## Existing Renderer Reference
-
-| File                       | Lines | Complexity | Notes                                                                    |
-| -------------------------- | ----- | ---------- | ------------------------------------------------------------------------ |
-| `BashToolDiff.tsx`         | ~140  | Medium     | Command display, exit code, output truncation                            |
-| `EditToolDiff.tsx`         | ~150  | High       | Diff computation, file preview, view_range                               |
-| `ReadToolDiff.tsx`         | ~90   | Low        | File content preview                                                     |
-| `GrepToolDiff.tsx`         | ~100  | Low        | Pattern display, match count                                             |
-| `GlobToolDiff.tsx`         | ~90   | Low        | Pattern display, file count                                              |
-| `DeleteToolDiff.tsx`       | ~35   | Low        | Simple file path display                                                 |
-| `TodoWriteToolDiff.tsx`    | ~83   | Low        | Status indicators (completed/in-progress/pending)                        |
-| `TaskToolDiff.tsx`         | ~83   | Medium     | Sub-agent delegation, session navigation link                            |
-| `QuestionToolDiff.tsx`     | ~99   | Low        | Question display, option rendering                                       |
-| `ExitPlanModeToolDiff.tsx` | ~50   | Medium     | Plan summary markdown rendering                                          |
-| `ToolCallList.tsx`         | ~331  | High       | Dispatch logic, expand/collapse, data blocks, task_complete special-case |
+Built-in renderers can import `CopyButton` from `../../CopyButton` for content-specific copy buttons. Vendor renderers can do the same or use the `onCopy` prop.

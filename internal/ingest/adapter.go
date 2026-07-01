@@ -58,7 +58,7 @@ func OpenReadOnlyDB(path string) (*sql.DB, error) {
 	}
 
 	// Verify read-only mode by attempting a write
-	_, err = db.Exec("CREATE TABLE _sess_write_test (id INTEGER)")
+	_, err = db.Exec("CREATE TABLE _omnivue_write_test (id INTEGER)")
 	if err == nil {
 		db.Close()
 		return nil, fmt.Errorf("SAFETY VIOLATION: database %s opened in writable mode", path)

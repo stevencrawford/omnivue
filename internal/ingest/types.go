@@ -11,6 +11,7 @@ const (
 	AgentCursor   AgentType = "cursor"
 	AgentPi       AgentType = "pi"
 	AgentCodex    AgentType = "codex"
+	AgentClaudeCode AgentType = "claude-code"
 )
 
 // Source represents a configured session data source.

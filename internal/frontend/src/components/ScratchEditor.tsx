@@ -299,19 +299,19 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-xs text-gh-text-secondary">Loading...</div>
+        <div className="text-xs text-ov-text-secondary">Loading...</div>
       </div>
     );
   }
 
   return (
     <div
-      className={`flex flex-col flex-1 overflow-hidden ${isFullscreen ? "fixed inset-0 z-50 bg-gh-bg" : ""}`}
+      className={`flex flex-col flex-1 overflow-hidden ${isFullscreen ? "fixed inset-0 z-50 bg-ov-bg" : ""}`}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-gh-border shrink-0 bg-gh-bg-secondary/50">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-ov-border shrink-0 bg-ov-bg-secondary/50">
         {isReadOnly ? (
-          <div className="flex items-center gap-1.5 text-xs text-gh-text-secondary">
+          <div className="flex items-center gap-1.5 text-xs text-ov-text-secondary">
             <Lock size={12} />
             <span>Read-only</span>
           </div>
@@ -341,7 +341,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
               onClick={() => handleToolbarAction("code")}
               title="Code"
             />
-            <div className="w-px h-4 bg-gh-border mx-1" />
+            <div className="w-px h-4 bg-ov-border mx-1" />
             <ToolBtn
               icon="bullet-list"
               active={activeFormats.bulletList}
@@ -354,7 +354,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
               onClick={() => handleToolbarAction("ordered")}
               title="Ordered List"
             />
-            <div className="w-px h-4 bg-gh-border mx-1" />
+            <div className="w-px h-4 bg-ov-border mx-1" />
             <ToolBtn
               icon="h1"
               active={activeFormats.heading1}
@@ -373,7 +373,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
               onClick={() => handleToolbarAction("quote")}
               title="Quote"
             />
-            <div className="w-px h-4 bg-gh-border mx-1" />
+            <div className="w-px h-4 bg-ov-border mx-1" />
             <ToolBtn
               icon="table"
               onClick={() => handleToolbarAction("table")}
@@ -396,7 +396,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
                 className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
                   editorMode === "wysiwyg"
                     ? "bg-accent-muted text-accent"
-                    : "text-gh-text-secondary hover:text-gh-text"
+                    : "text-ov-text-secondary hover:text-ov-text"
                 }`}
                 title="WYSIWYG"
               >
@@ -408,19 +408,19 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
                 className={`text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
                   editorMode === "source"
                     ? "bg-accent-muted text-accent"
-                    : "text-gh-text-secondary hover:text-gh-text"
+                    : "text-ov-text-secondary hover:text-ov-text"
                 }`}
                 title="Source"
               >
                 Code
               </button>
-              <div className="w-px h-4 bg-gh-border mx-1" />
+              <div className="w-px h-4 bg-ov-border mx-1" />
             </>
           )}
           <button
             type="button"
             onClick={() => setIsFullscreen((v) => !v)}
-            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
+            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -428,7 +428,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
           <button
             type="button"
             onClick={handleClose}
-            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
+            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
             title="Close"
           >
             <X size={14} />
@@ -448,7 +448,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
             options={monacoEditorOptions(isReadOnly)}
           />
         ) : (
-          <div className="h-full overflow-y-auto px-4 py-2 markdown-ayu">
+          <div className="h-full overflow-y-auto px-4 py-2">
             <EditorContent editor={editor} />
           </div>
         )}
@@ -456,7 +456,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
 
       {/* Footer */}
       {!isReadOnly && (
-        <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-gh-border text-[11px] text-gh-text-secondary">
+        <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-ov-border text-[11px] text-ov-text-secondary">
           <div className="flex items-center gap-3">
             <span>
               {stats.words.toLocaleString()} word{stats.words !== 1 ? "s" : ""}
@@ -518,7 +518,7 @@ function ToolBtn({
       className={`p-1 rounded cursor-pointer transition-colors ${
         active
           ? "bg-accent-muted text-accent"
-          : "text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover"
+          : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
       }`}
     >
       <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">

@@ -10,6 +10,7 @@ import {
   formatCost,
   formatTokens,
   shortDir,
+  shortModel,
 } from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
 import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
@@ -23,9 +24,9 @@ interface SessionPanelProps {
   showToast: (msg: string) => void;
 }
 
-const COLLAPSED_KEY = "sess-sidebar-collapsed";
-const SORT_KEY = "sess-sidebar-sort";
-const DISPLAY_KEY = "sess-sidebar-display";
+const COLLAPSED_KEY = "omnivue-sidebar-collapsed";
+const SORT_KEY = "omnivue-sidebar-sort";
+const DISPLAY_KEY = "omnivue-sidebar-display";
 
 type DisplayMode = "condensed" | "verbose";
 
@@ -198,7 +199,7 @@ export function SessionPanel({
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-gh-text-secondary">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
           Sessions
         </span>
         <div className="flex items-center gap-0.5">
@@ -213,15 +214,15 @@ export function SessionPanel({
               <ArrowUpDown size={14} />
             </IconBtn>
             {sortOpen && (
-              <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
+              <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
                 {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
                       sortMode === mode
-                        ? "text-gh-text bg-gh-bg-active"
-                        : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                        ? "text-ov-text bg-ov-bg-active"
+                        : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
                     }`}
                     onClick={() => setSort(mode)}
                   >
@@ -291,8 +292,25 @@ export function SessionPanel({
       {/* Session tree */}
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {tree.length === 0 ? (
-          <div className="text-xs text-gh-text-secondary px-2 py-1">
-            {hasFilters ? "No sessions match filters" : "No sessions"}
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <svg
+              className="size-6 mb-3 text-ov-text-secondary/40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+            <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
+              {hasFilters
+                ? "No sessions match filters"
+                : "Run sess init or add agents in Settings to discover sessions."}
+            </p>
           </div>
         ) : (
           <div className="space-y-0.5">
@@ -380,19 +398,19 @@ function FilterChip({
         className={`text-[11px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
           value
             ? "border-accent-border bg-accent-muted text-accent"
-            : "border-gh-border text-gh-text-secondary hover:border-accent-border hover:text-gh-text"
+            : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:text-ov-text"
         }`}
       >
         {label}: {displayLabel}
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
+        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
           <button
             type="button"
             className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
               !value
-                ? "text-gh-text bg-gh-bg-active"
-                : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                ? "text-ov-text bg-ov-bg-active"
+                : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
             }`}
             onClick={() => {
               onChange(null);
@@ -407,8 +425,8 @@ function FilterChip({
               type="button"
               className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors truncate ${
                 value === opt
-                  ? "text-gh-text bg-gh-bg-active"
-                  : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                  ? "text-ov-text bg-ov-bg-active"
+                  : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
               }`}
               onClick={() => {
                 onChange(opt);
@@ -457,13 +475,13 @@ function RepoNode({
     <div>
       <button
         type="button"
-        className="flex items-center gap-1 w-full px-1.5 py-1 rounded-md text-[11px] font-medium text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text cursor-pointer"
+        className="flex items-center gap-1 w-full px-1.5 py-1 rounded-md text-[11px] font-medium text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text cursor-pointer"
         onClick={() => onToggleCollapse(node.fullPath)}
         title={node.fullPath}
       >
         <ChevronRight
           size={12}
-          className={`shrink-0 transition-transform text-gh-text-secondary ${!isCollapsed ? "rotate-90" : ""}`}
+          className={`shrink-0 transition-transform text-ov-text-secondary ${!isCollapsed ? "rotate-90" : ""}`}
         />
         <span className="truncate flex-1 text-left">{node.name}</span>
         <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
@@ -492,7 +510,7 @@ function RepoNode({
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="w-full text-center text-[11px] text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
+              className="w-full text-center text-[11px] text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
             >
               +{node.children.length - VISIBLE_LIMIT} more
             </button>
@@ -550,21 +568,21 @@ function SessionRow({
         onContextMenu={(e) => onContextMenu(session.id, e)}
         title={session.directory || session.repository}
         className={`session-draggable sess-parent-session w-full text-left transition-all ${
-          isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+          isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <span
-            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
+            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-ov-text" : "text-ov-text"}`}
           >
             {sessionTitle(session)}
           </span>
           {subCount > 0 && !subsVisible && (
-            <span className="shrink-0 text-[11px] px-1 rounded bg-gh-bg-hover text-gh-text-secondary">
+            <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
               {subCount}
             </span>
           )}
-          <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
+          <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
             {relativeTime(session.updatedAt)}
           </span>
         </div>
@@ -576,7 +594,7 @@ function SessionRow({
         {displayMode === "verbose" && <VerboseStats session={session} />}
       </button>
       {subCount > 0 && subsVisible && (
-        <div className="ml-2 mt-px mb-1 space-y-px border-l border-gh-border/60">
+        <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
           {childNodes.map((child) => {
             const session = child.session;
             if (!session) return null;
@@ -594,13 +612,13 @@ function SessionRow({
                 onContextMenu={(e) => onContextMenu(session.id, e)}
                 title={buildChildTooltip(session)}
                 className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-                  subActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+                  subActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
                 }`}
               >
                 <ArrowRight size={11} className="text-accent/80 shrink-0" />
                 <span className="text-[11px] truncate flex-1">
                   {session.subAgent ? (
-                    <span className="text-gh-text-secondary">{session.subAgent}: </span>
+                    <span className="text-ov-text-secondary">{session.subAgent}: </span>
                   ) : null}
                   {sessionTitle(session)}
                 </span>
@@ -618,22 +636,35 @@ function SessionRow({
 
 // ─── VerboseStats ────────────────────────────────────────────────
 
-function showCosts(): boolean {
+function hideCosts(): boolean {
   try {
-    return localStorage.getItem("sess-show-costs") !== "false";
+    return localStorage.getItem("omnivue-hide-costs") === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
 function VerboseStats({ session }: { session: Session }) {
-  const totalTokens = session.tokensInput + session.tokensOutput;
+  const totalTokens =
+    session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const parts: ReactNode[] = [];
-  const costsVisible = showCosts();
+  const costsVisible = !hideCosts();
+
+  const model = shortModel(session.model);
+  if (model) {
+    parts.push(
+      <span key="model" title="Model">
+        {model}
+      </span>,
+    );
+  }
 
   if (totalTokens > 0) {
     parts.push(
-      <span key="tokens" title={`${totalTokens.toLocaleString()} tokens`}>
+      <span
+        key="tokens"
+        title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
+      >
         {formatTokens(totalTokens)}
       </span>,
     );
@@ -689,7 +720,7 @@ function IconBtn({
       type="button"
       onClick={onClick}
       title={title}
-      className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5 rounded"
+      className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
     >
       {children}
     </button>

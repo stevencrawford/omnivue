@@ -30,8 +30,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center">
           <CircleAlert className="text-red-400 mb-3" size={32} />
-          <p className="text-sm font-medium text-gh-text">Something went wrong</p>
-          <p className="text-xs text-gh-text-secondary mt-1 mb-3 max-w-sm">
+          <p className="text-sm font-medium text-ov-text">Something went wrong</p>
+          <p className="text-xs text-ov-text-secondary mt-1 mb-3 max-w-sm">
             {this.state.error?.message || "An unexpected error occurred"}
           </p>
           <button

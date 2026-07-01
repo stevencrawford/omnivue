@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
 
 	_ "modernc.org/sqlite"
 )
@@ -131,6 +131,12 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			MessageCount: len(cd.FullConversationHeadersOnly),
 		}
 
+		// Override UpdatedAt with transcript file mtime if newer, so the polling
+		// loop detects changes in transcript-only sessions (no KV store updates).
+		if mt := a.transcriptMtime(id); mt.After(session.UpdatedAt) {
+			session.UpdatedAt = mt
+		}
+
 		result = append(result, session)
 	}
 
@@ -163,7 +169,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 			dir := resolveDir(&cd)
 			model, cost, inputTokens, outputTokens := cd.usageInfo()
 
-			return &ingest.Session{
+			sess := &ingest.Session{
 				ID:           id,
 				Title:        title,
 				Directory:    dir,
@@ -177,21 +183,29 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 				TokensInput:  inputTokens,
 				TokensOutput: outputTokens,
 				MessageCount: len(cd.FullConversationHeadersOnly),
-			}, nil
+			}
+			if mt := a.transcriptMtime(id); mt.After(sess.UpdatedAt) {
+				sess.UpdatedAt = mt
+			}
+			return sess, nil
 		}
 	}
 
 	// Fallback: try transcript sessions
 	for _, ts := range a.discoverTranscriptSessions(ctx) {
 		if ts.ID == id {
-			return &ingest.Session{
+			sess := &ingest.Session{
 				ID:           id,
 				Agent:        ingest.AgentCursor,
 				Status:       ts.Status,
 				CreatedAt:    ts.CreatedAt,
 				UpdatedAt:    ts.UpdatedAt,
 				MessageCount: len(ts.Messages),
-			}, nil
+			}
+			if mt := a.transcriptMtime(id); mt.After(sess.UpdatedAt) {
+				sess.UpdatedAt = mt
+			}
+			return sess, nil
 		}
 	}
 
@@ -232,7 +246,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	// Extract file paths from tool calls in messages
 	for _, m := range messages {
 		for _, tc := range m.ToolCalls {
-			if tc.Name != "edit_file_v2" && tc.Name != "edit" && tc.Name != "write" {
+			if tc.Name != "edit_file_v2" && tc.Name != "edit_file" && tc.Name != "edit" && tc.Name != "write" {
 				continue
 			}
 			var p struct {
@@ -327,18 +341,25 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	var input struct {
 		RelativeWorkspacePath string `json:"relativeWorkspacePath"`
 		FilePath             string `json:"filePath"`
+		Path                 string `json:"path"`
 		Contents             string `json:"contents"`
 		Content              string `json:"content"`
 		NewStr               string `json:"newStr"`
+		NewString            string `json:"newString"`
+		NewStringSnake       string `json:"new_string"`
 		StreamingContent     string `json:"streamingContent"`
 		OldStr               string `json:"oldStr"`
 		OldString            string `json:"oldString"`
+		OldStringSnake       string `json:"old_string"`
 	}
 	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 		return
 	}
 
 	filePath = input.FilePath
+	if filePath == "" {
+		filePath = input.Path
+	}
 	if filePath == "" {
 		filePath = input.RelativeWorkspacePath
 	}
@@ -350,10 +371,19 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	if oldStr == "" {
 		oldStr = input.OldString
 	}
+	if oldStr == "" {
+		oldStr = input.OldStringSnake
+	}
 
 	newStr = input.NewStr
 	if newStr == "" {
 		newStr = input.StreamingContent
+	}
+	if newStr == "" {
+		newStr = input.NewString
+	}
+	if newStr == "" {
+		newStr = input.NewStringSnake
 	}
 	if newStr == "" {
 		newStr = input.Content
@@ -953,24 +983,155 @@ func extractBashOutput(raw string) (text string, rejected bool) {
 	return resp.Output, resp.Rejected
 }
 
+// formatLegacyGlobOutput parses Cursor's legacy list_dir output JSON:
+//
+//	{"files":[{"name":"...","isDirectory":true}],"directoryRelativeWorkspacePath":"..."}
+//
+// → newline-separated file paths. Returns "" on mismatch.
+func formatLegacyGlobOutput(raw string) string {
+	var resp struct {
+		Files                        []struct {
+			Name string `json:"name"`
+		} `json:"files"`
+		DirectoryRelWorkspacePath string `json:"directoryRelativeWorkspacePath"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return ""
+	}
+	if len(resp.Files) == 0 {
+		return ""
+	}
+	var lines []string
+	for _, f := range resp.Files {
+		p := f.Name
+		if resp.DirectoryRelWorkspacePath != "" {
+			p = resp.DirectoryRelWorkspacePath + "/" + p
+		}
+		lines = append(lines, p)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// formatGrepOutput parses Cursor's output JSON and extracts plain text.
+// Legacy grep_search: {"files":[{"uri":"..."}],"numResults":N} → newline-separated URIs.
+// Modern ripgrep output is already plain text – returned as-is.
+func formatGrepOutput(raw string) string {
+	// Modern ripgrep output is plain text (not JSON), return as-is unless it's the JSON format
+	if raw == "" {
+		return ""
+	}
+	if raw[0] != '{' {
+		return raw
+	}
+	var resp struct {
+		Files []struct {
+			URI string `json:"uri"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return raw
+	}
+	if len(resp.Files) == 0 {
+		return raw
+	}
+	var lines []string
+	for _, f := range resp.Files {
+		lines = append(lines, f.URI)
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// transcriptMtime returns the modification time of the most recently modified
+// JSONL file in the session's transcript directory. Returns zero time if no
+// transcript files are found, allowing the caller to use the zero-value guard
+// pattern (mt.After(session.UpdatedAt)).
+func (a *Adapter) transcriptMtime(sessionID string) time.Time {
+	projectsDir := filepath.Join(a.cursorDir, "projects")
+	if !util.PathExists(projectsDir) {
+		return time.Time{}
+	}
+	var latest time.Time
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		if filepath.Base(filepath.Dir(path)) != sessionID {
+			return nil
+		}
+		info, err := d.Info()
+		if err == nil && info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+		return nil
+	})
+	return latest
+}
+
 // normalizeToolCall maps Cursor-native tool call names and field names to the
 // standard conventions expected by the frontend's tool renderers.
 func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
-	case "edit_file_v2":
+	case "edit_file_v2", "edit_file":
 		tc.Name = "edit"
-	case "read_file_v2":
+	case "read_file_v2", "read_file":
 		tc.Name = "read"
-	case "glob_file_search":
+	case "glob_file_search", "list_dir":
 		tc.Name = "glob"
-	case "ripgrep_raw_search":
+	case "ripgrep_raw_search", "grep_search":
 		tc.Name = "grep"
-	case "run_terminal_command_v2":
+	case "run_terminal_command_v2", "run_terminal_command":
 		tc.Name = "bash"
 	case "delete_file":
 		tc.Name = "delete"
+	case "Read":
+		tc.Name = "read"
+	case "Grep", "GrepSearch":
+		tc.Name = "grep"
+	case "Glob":
+		tc.Name = "glob"
+	case "Shell":
+		tc.Name = "bash"
+	case "Write":
+		tc.Name = "write"
+	case "StrReplace":
+		tc.Name = "edit"
+	case "Task", "task_v2", "explore:task_v2":
+		tc.Name = "task"
+	case "ReadLints":
+		tc.Name = "read_lints"
+	case "UpdateCurrentStep":
+		tc.Name = "task_complete"
 	default:
 		return
+	}
+
+	// Output formatting — must happen before the Input parsing guard since
+	// legacy tool calls may have non-JSON or empty Input fields.
+	switch tc.Name {
+	case "read":
+		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
+		tc.Output = util.ExtractJSONString(tc.Output, "contents")
+	case "bash":
+		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
+		if text, rejected := extractBashOutput(tc.Output); rejected {
+			tc.Output = text
+			tc.Metadata = `{"exit":1}`
+		} else if text != "" {
+			tc.Output = text
+		}
+	case "grep":
+		if out := formatGrepOutput(tc.Output); out != "" {
+			tc.Output = out
+		}
+	case "glob":
+		if out := formatGlobOutput(tc.Output); out != "" {
+			tc.Output = out
+		} else if out := formatLegacyGlobOutput(tc.Output); out != "" {
+			tc.Output = out
+		}
 	}
 
 	var p map[string]any
@@ -978,6 +1139,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		return
 	}
 
+	// Input field name normalization
 	switch tc.Name {
 	case "read":
 		if v, ok := p["targetFile"]; ok {
@@ -998,9 +1160,13 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			}
 			delete(p, "relativeWorkspacePath")
 		}
+		if v, ok := p["path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "path")
+		}
 		delete(p, "charsLimit")
-		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
-		tc.Output = util.ExtractJSONString(tc.Output, "contents")
 
 	case "edit":
 		if v, ok := p["relativeWorkspacePath"]; ok {
@@ -1008,6 +1174,12 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 				p["filePath"] = v
 			}
 			delete(p, "relativeWorkspacePath")
+		}
+		if v, ok := p["path"]; ok {
+			if _, exists := p["filePath"]; !exists {
+				p["filePath"] = v
+			}
+			delete(p, "path")
 		}
 		if v, ok := p["contents"]; ok {
 			if _, exists := p["newString"]; !exists {
@@ -1027,11 +1199,23 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			}
 			delete(p, "newStr")
 		}
+		if v, ok := p["new_string"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			delete(p, "new_string")
+		}
 		if v, ok := p["oldStr"]; ok {
 			if _, exists := p["oldString"]; !exists {
 				p["oldString"] = v
 			}
 			delete(p, "oldStr")
+		}
+		if v, ok := p["old_string"]; ok {
+			if _, exists := p["oldString"]; !exists {
+				p["oldString"] = v
+			}
+			delete(p, "old_string")
 		}
 
 	case "grep":
@@ -1054,21 +1238,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 				p["directory"] = v
 			}
 			delete(p, "targetDirectory")
-		}
-		// Cursor glob output: {"directories":[{"absPath":"...","files":[{"relPath":"..."}]}]}
-		// → newline-separated file paths
-		if out := formatGlobOutput(tc.Output); out != "" {
-			tc.Output = out
-		}
-
-	case "bash":
-		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
-		// Extract the text and surface exit status in Metadata
-		if text, rejected := extractBashOutput(tc.Output); rejected {
-			tc.Output = text
-			tc.Metadata = `{"exit":1}`
-		} else if text != "" {
-			tc.Output = text
 		}
 	}
 

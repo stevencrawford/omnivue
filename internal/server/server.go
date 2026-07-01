@@ -15,15 +15,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/ingest/codex"
-	"github.com/stevencrawford/sess/internal/ingest/copilot"
-	"github.com/stevencrawford/sess/internal/ingest/cursor"
-	"github.com/stevencrawford/sess/internal/ingest/opencode"
-	"github.com/stevencrawford/sess/internal/ingest/pi"
-	"github.com/stevencrawford/sess/internal/static"
-	"github.com/stevencrawford/sess/internal/store"
-	"github.com/stevencrawford/sess/version"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/claude-code"
+	"github.com/stevencrawford/omnivue/internal/ingest/codex"
+	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
+	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
+	"github.com/stevencrawford/omnivue/internal/ingest/opencode"
+	"github.com/stevencrawford/omnivue/internal/ingest/pi"
+	"github.com/stevencrawford/omnivue/internal/static"
+	"github.com/stevencrawford/omnivue/internal/store"
+	"github.com/stevencrawford/omnivue/version"
 )
 
 // State holds the session manager state.
@@ -53,7 +54,7 @@ func NewState(ctx context.Context) *State {
 		restartCh:   make(chan string, 1),
 	}
 
-	// Open sess store
+	// Open Omnivue store
 	st, err := store.New()
 	if err != nil {
 		slog.Error("failed to open store", "error", err)
@@ -108,6 +109,8 @@ func createAdapter(src ingest.Source) (ingest.Adapter, error) {
 		return pi.New(src.Path)
 	case ingest.AgentCodex:
 		return codex.New(src.Path)
+	case ingest.AgentClaudeCode:
+		return claudecode.New(src.Path)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %s", src.AgentType)
 	}
@@ -871,6 +874,14 @@ func (s *State) UpdateScratchFile(id, title, content string) error {
 	return s.store.UpdateScratchFile(id, title, content)
 }
 
+// RenameScratchFile updates only the title of a scratch file.
+func (s *State) RenameScratchFile(id, title string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.RenameScratchFile(id, title)
+}
+
 // DeleteScratchFile deletes a scratch file.
 func (s *State) DeleteScratchFile(id string) error {
 	if s.store == nil {
@@ -881,7 +892,7 @@ func (s *State) DeleteScratchFile(id string) error {
 
 // --- HTTP Handler ---
 
-// NewHandler creates the HTTP handler for the sess server.
+// NewHandler creates the HTTP handler for the Omnivue server.
 func NewHandler(state *State) http.Handler {
 	mux := http.NewServeMux()
 
@@ -905,6 +916,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("POST /_/api/sessions/{id}/scratch", handleCreateScratchFile(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/scratch/{fileId}", handleGetScratchFile(state))
 	mux.HandleFunc("PUT /_/api/sessions/{id}/scratch/{fileId}", handleUpdateScratchFile(state))
+	mux.HandleFunc("PATCH /_/api/sessions/{id}/scratch/{fileId}", handleRenameScratchFile(state))
 	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(state))
 	mux.HandleFunc("GET /_/api/scratch", handleListAllScratchFiles(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(state))
@@ -923,6 +935,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("DELETE /_/api/bookmarks/{id}", handleDeleteBookmark(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
+	mux.HandleFunc("POST /_/api/reset", handleReset(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
 
 	// SPA fallback
@@ -947,6 +960,9 @@ func handleStatus(state *State) http.HandlerFunc {
 func handleSources(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sources := state.GetSources()
+		if sources == nil {
+			sources = []ingest.Source{}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sources)
 	}
@@ -991,6 +1007,8 @@ func handleAddSource(state *State) http.HandlerFunc {
 				body.Label = "Pi"
 			case ingest.AgentCodex:
 				body.Label = "Codex"
+			case ingest.AgentClaudeCode:
+				body.Label = "Claude Code"
 			}
 		}
 		// Generate source ID from path (same scheme as CLI)
@@ -1299,6 +1317,31 @@ func handleUpdateScratchFile(state *State) http.HandlerFunc {
 		}
 		sessionID := r.PathValue("id")
 		if err := state.UpdateScratchFile(fileID, body.Title, body.Content); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.reindexSessionScratch(sessionID)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+func handleRenameScratchFile(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileID := r.PathValue("fileId")
+		var body struct {
+			Title string `json:"title"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Title == "" {
+			http.Error(w, "title is required", http.StatusBadRequest)
+			return
+		}
+		sessionID := r.PathValue("id")
+		if err := state.RenameScratchFile(fileID, body.Title); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1686,6 +1729,32 @@ func handleRestart(state *State) http.HandlerFunc {
 			time.Sleep(100 * time.Millisecond)
 			state.restartCh <- ""
 		}()
+	}
+}
+
+func handleReset(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		if err := state.store.Reset(); err != nil {
+			slog.Error("reset failed", "error", err)
+			http.Error(w, "reset failed", http.StatusInternalServerError)
+			return
+		}
+		// Close all adapters
+		state.mu.Lock()
+		for id, adapter := range state.adapters {
+			adapter.Close()
+			delete(state.adapters, id)
+		}
+		state.sessions = nil
+		state.mu.Unlock()
+		// Notify frontend to reload
+		state.sendEvent(sseEvent{Name: "reset"})
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 

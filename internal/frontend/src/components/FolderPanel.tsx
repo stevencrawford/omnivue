@@ -172,17 +172,17 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
   });
 
   return (
-    <div className="border-b border-gh-border pb-1 mb-1">
+    <div className="border-b border-ov-border pb-1 mb-1">
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-gh-text-secondary">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
           Folders
         </span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={() => setAllCollapsed((v) => !v)}
-            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
             title={allCollapsed ? "Expand all" : "Collapse all"}
           >
             {allCollapsed ? <Plus size={14} /> : <Minus size={14} />}
@@ -191,13 +191,13 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
             <button
               type="button"
               onClick={() => setFolderSortOpen((v) => !v)}
-              className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+              className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
               title="Sort folders"
             >
               <ArrowUpDown size={14} />
             </button>
             {folderSortOpen && (
-              <div className="absolute left-0 top-full mt-1 w-24 bg-surface-elevated border border-gh-border rounded-lg shadow-lg z-20 py-1">
+              <div className="absolute left-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
                 {(["name", "count"] as FolderSort[]).map((mode) => (
                   <button
                     key={mode}
@@ -205,7 +205,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                     className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
                       folderSort === mode
                         ? "sess-session-active"
-                        : "text-gh-text-secondary hover:bg-gh-bg-hover hover:text-gh-text"
+                        : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
                     }`}
                     onClick={() => {
                       setFolderSort(mode);
@@ -221,7 +221,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
             title="New folder"
           >
             <Plus size={14} />
@@ -248,14 +248,19 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
               if (!newName.trim()) setCreating(false);
             }}
             placeholder="Folder name"
-            className="w-full text-xs bg-gh-bg border border-gh-border rounded-md px-2 py-1 text-gh-text placeholder:text-gh-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
+            className="w-full text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
           />
         </div>
       )}
 
       {/* Folder list */}
       {sortedFolders.length === 0 && !creating && (
-        <div className="text-[11px] text-gh-text-secondary px-2 py-1">No folders yet</div>
+        <div className="flex flex-col items-center text-center px-6 py-6">
+          <FolderIcon size={24} className="text-ov-text-secondary/40 mb-3" />
+          <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
+            Group related sessions into folders to stay organized.
+          </p>
+        </div>
       )}
       {sortedFolders.map((folder) => (
         <div key={folder.id} className="group">
@@ -279,15 +284,15 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   if (e.key === "Escape") setEditingId(null);
                 }}
                 onBlur={() => handleRename(folder.id)}
-                className="flex-1 text-xs bg-gh-bg border border-gh-border rounded-md px-1.5 py-0.5 text-gh-text outline-none focus:border-accent"
+                className="flex-1 text-xs bg-ov-bg border border-ov-border rounded-md px-1.5 py-0.5 text-ov-text outline-none focus:border-accent"
               />
             ) : (
               <button
                 type="button"
                 className={`flex items-center gap-1.5 flex-1 text-xs cursor-pointer truncate transition-colors ${
                   allCollapsed && expandedFolder !== folder.id
-                    ? "text-gh-text-secondary"
-                    : "text-gh-text-secondary hover:text-gh-text"
+                    ? "text-ov-text-secondary"
+                    : "text-ov-text-secondary hover:text-ov-text"
                 }`}
                 onClick={() => !allCollapsed && toggleExpand(folder.id)}
               >
@@ -300,7 +305,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                 <FolderIcon size={12} className="shrink-0" />
                 <span className="truncate">{folder.name}</span>
                 {folderSessions[folder.id] && (
-                  <span className="text-[11px] text-gh-text-secondary ml-auto">
+                  <span className="text-[11px] text-ov-text-secondary ml-auto">
                     {folderSessions[folder.id].length}
                   </span>
                 )}
@@ -314,7 +319,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                   onClick={() =>
                     setAssigningFolder(assigningFolder === folder.id ? null : folder.id)
                   }
-                  className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
                   title="Add session"
                 >
                   <Plus size={12} />
@@ -325,7 +330,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                     setEditingId(folder.id);
                     setEditName(folder.name);
                   }}
-                  className="text-gh-text-secondary hover:text-gh-text cursor-pointer p-0.5"
+                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
                   title="Rename"
                 >
                   <Pencil size={12} />
@@ -333,7 +338,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
                 <button
                   type="button"
                   onClick={() => handleDelete(folder.id)}
-                  className="text-gh-text-secondary hover:text-red-400 cursor-pointer p-0.5"
+                  className="text-ov-text-secondary hover:text-red-400 cursor-pointer p-0.5"
                   title="Delete"
                 >
                   <Trash2 size={12} />
@@ -356,7 +361,7 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
           {!allCollapsed && expandedFolder === folder.id && folderSessions[folder.id] && (
             <div>
               {folderSessions[folder.id].length === 0 ? (
-                <div className="text-[11px] text-gh-text-secondary px-2 py-1">Empty</div>
+                <div className="text-[11px] text-ov-text-secondary px-2 py-1">Empty</div>
               ) : (
                 folderSessions[folder.id].map((sid) => {
                   const sess = getSession(sid);
@@ -404,16 +409,16 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
         onClick={onSelect}
         title={session.directory || session.repository}
         className={`session-draggable sess-parent-session w-full text-left transition-all ${
-          isActive ? "sess-session-active" : "hover:bg-gh-bg-hover"
+          isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0 pr-6">
           <span
-            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-gh-text" : "text-gh-text"}`}
+            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-ov-text" : "text-ov-text"}`}
           >
             {sessionTitle(session)}
           </span>
-          <span className="shrink-0 text-[11px] text-gh-text-secondary tabular-nums">
+          <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
             {relativeTime(session.updatedAt)}
           </span>
         </div>
@@ -425,7 +430,7 @@ function FolderSessionRow({ session, isActive, onSelect, onRemove }: FolderSessi
       </button>
       <button
         type="button"
-        className="hidden group-hover/item:block absolute right-1 top-1/2 -translate-y-1/2 text-gh-text-secondary hover:text-red-400 cursor-pointer p-0.5"
+        className="hidden group-hover/item:block absolute right-1 top-1/2 -translate-y-1/2 text-ov-text-secondary hover:text-red-400 cursor-pointer p-0.5"
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
@@ -464,7 +469,7 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
   );
 
   return (
-    <div className="mx-2 my-1 border border-gh-border rounded bg-gh-bg shadow-sm max-h-40 flex flex-col">
+    <div className="mx-2 my-1 border border-ov-border rounded bg-ov-bg shadow-sm max-h-40 flex flex-col">
       <input
         ref={inputRef}
         type="text"
@@ -474,11 +479,11 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
           if (e.key === "Escape") onClose();
         }}
         placeholder="Filter sessions..."
-        className="text-xs bg-transparent border-b border-gh-border px-2 py-1 text-gh-text placeholder:text-gh-text-secondary outline-none"
+        className="text-xs bg-transparent border-b border-ov-border px-2 py-1 text-ov-text placeholder:text-ov-text-secondary outline-none"
       />
       <div className="flex-1 overflow-y-auto">
         {unassigned.length === 0 ? (
-          <div className="text-[11px] text-gh-text-secondary p-2 text-center">
+          <div className="text-[11px] text-ov-text-secondary p-2 text-center">
             No sessions to add
           </div>
         ) : (
@@ -486,12 +491,12 @@ function AssignPicker({ sessions, assignedIds, onAssign, onClose }: AssignPicker
             <button
               key={s.id}
               type="button"
-              className="w-full text-left px-2 py-1 text-xs text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer truncate"
+              className="w-full text-left px-2 py-1 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer truncate"
               onClick={() => onAssign(s.id)}
             >
               {s.title || s.id.slice(0, 12)}
               {s.repository && (
-                <span className="text-[11px] text-gh-text-secondary ml-1">({s.repository})</span>
+                <span className="text-[11px] text-ov-text-secondary ml-1">({s.repository})</span>
               )}
             </button>
           ))

@@ -1,4 +1,4 @@
-module github.com/stevencrawford/sess
+module github.com/stevencrawford/omnivue
 
 go 1.26.0
 

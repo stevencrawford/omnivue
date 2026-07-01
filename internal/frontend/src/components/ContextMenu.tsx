@@ -58,7 +58,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     <div
       ref={ref}
       role="menu"
-      className="fixed z-[100] min-w-[160px] bg-surface-elevated border border-gh-border rounded-lg shadow-xl py-1"
+      className="fixed z-[100] min-w-[160px] bg-surface-elevated border border-ov-border rounded-lg shadow-xl py-1"
       style={{ left: position.x, top: position.y }}
     >
       {items.map((item, i) => (
@@ -71,7 +71,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
             item.onClick();
             onClose();
           }}
-          className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-gh-text-secondary hover:text-gh-text hover:bg-gh-bg-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {item.icon && <span className="size-3.5 shrink-0">{item.icon}</span>}
           {item.label}

@@ -9,39 +9,39 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stevencrawford/sess/internal/ingest"
-	"github.com/stevencrawford/sess/internal/xdg"
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/xdg"
 
 	_ "modernc.org/sqlite"
 )
 
-// Store manages the sess application database (sources, folders, search index).
+// Store manages the Omnivue application database (sources, folders, search index).
 type Store struct {
 	db   *sql.DB
 	path string
 }
 
-// New creates or opens the sess database at $XDG_STATE_HOME/sess/sess.db.
+// New creates or opens the Omnivue database at $XDG_STATE_HOME/omnivue/omnivue.db.
 func New() (*Store, error) {
 	stateHome, err := xdg.StateHome()
 	if err != nil {
 		return nil, fmt.Errorf("resolving state home: %w", err)
 	}
-	stateDir := filepath.Join(stateHome, "sess")
+	stateDir := filepath.Join(stateHome, "omnivue")
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating state directory: %w", err)
 	}
 
-	dbPath := filepath.Join(stateDir, "sess.db")
+	dbPath := filepath.Join(stateDir, "omnivue.db")
 	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=wal&_busy_timeout=10000", dbPath))
 	if err != nil {
-		return nil, fmt.Errorf("opening sess.db: %w", err)
+		return nil, fmt.Errorf("opening omnivue.db: %w", err)
 	}
 
 	s := &Store{db: db, path: dbPath}
 	if err := s.migrate(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("migrating sess.db: %w", err)
+		return nil, fmt.Errorf("migrating omnivue.db: %w", err)
 	}
 
 	return s, nil
@@ -528,6 +528,15 @@ func (s *Store) UpdateScratchFile(id, title, content string) error {
 	return err
 }
 
+// RenameScratchFile updates only a scratch file's title without touching content.
+func (s *Store) RenameScratchFile(id, title string) error {
+	_, err := s.db.Exec(`
+		UPDATE scratch_files SET title = ?, updated_at = ?
+		WHERE id = ?
+	`, title, time.Now().Format(time.RFC3339), id)
+	return err
+}
+
 // DeleteScratchFile removes a scratch file.
 func (s *Store) DeleteScratchFile(id string) error {
 	_, err := s.db.Exec(`DELETE FROM scratch_files WHERE id = ?`, id)
@@ -666,6 +675,28 @@ type SearchResult struct {
 	FileTitle     string `json:"fileTitle,omitempty"`
 	FileID        string `json:"fileId,omitempty"`
 	MessageIndex  int    `json:"messageIndex,omitempty"`
+}
+
+// Reset removes all user data from the store (sources, folders, search index,
+// session names, scratch files, config, bookmarks). Agent data is unaffected.
+func (s *Store) Reset() error {
+	tables := []string{
+		"bookmarks",
+		"scratch_files",
+		"session_names",
+		"index_state",
+		"search_index",
+		"folder_sessions",
+		"folders",
+		"sources",
+		"config",
+	}
+	for _, t := range tables {
+		if _, err := s.db.Exec(`DELETE FROM ` + t); err != nil {
+			return fmt.Errorf("reset: delete %s: %w", t, err)
+		}
+	}
+	return nil
 }
 
 // migrate runs database migrations.

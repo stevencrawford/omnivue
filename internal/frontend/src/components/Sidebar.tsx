@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session, Bookmark } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
 import { ProjectPanel } from "./ProjectPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
-import { Toast } from "./Toast";
+import { useToast } from "../hooks/useToast";
 
 interface SidebarProps {
   sessions: Session[];
@@ -21,7 +21,7 @@ interface SidebarProps {
   onBookmarkDelete: (id: string) => void;
 }
 
-const SIDEBAR_WIDTH_KEY = "sess-sidebar-width";
+const SIDEBAR_WIDTH_KEY = "omnivue-sidebar-width";
 
 function getInitialWidth(): number {
   try {
@@ -48,10 +48,8 @@ export function Sidebar({
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
-  const [toastMsg, setToastMsg] = useState("");
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastKey, setToastKey] = useState(0);
   const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
+  const { showToast } = useToast();
 
   useEffect(() => {
     return () => {
@@ -60,16 +58,6 @@ export function Sidebar({
       }
       resizeListeners.current = [];
     };
-  }, []);
-
-  const showToast = useCallback((message: string) => {
-    setToastMsg(message);
-    setToastVisible(true);
-    setToastKey((k) => k + 1);
-  }, []);
-
-  const hideToast = useCallback(() => {
-    setToastVisible(false);
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -121,7 +109,7 @@ export function Sidebar({
         onSidebarToggle={onSidebarToggle}
       />
       <div
-        className={`flex-1 flex flex-col overflow-hidden bg-gh-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
+        className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
         style={{ width: `${panelWidth}px` }}
       >
         <div
@@ -155,7 +143,6 @@ export function Sidebar({
           />
         </div>
       </div>
-      <Toast key={toastKey} message={toastMsg} visible={toastVisible} onHide={hideToast} />
       {sidebarOpen && (
         <div
           className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
