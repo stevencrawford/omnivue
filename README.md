@@ -4,7 +4,7 @@
     <img src="site/app_icon.svg" alt="Omnivue" width="120">
   </picture>
 </p>
-<p align="center"><b style="font-size: 1.75rem;">Omnivue</b></p>
+<h1 align="center">Omnivue</h1>
 <p align="center">Session browser for OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex.</p>
 <p align="center">
   <img alt="Go version" src="https://img.shields.io/badge/Go-1.26-blue?style=flat-square&logo=go" />
@@ -16,7 +16,7 @@
 
 ---
 
-Omnivue is a 100% local session browser for your AI coding assistants. It reads the session data already on your machine and shows it all in one place — conversation history, file diffs, implementation plans, and more.
+Omnivue is a 100% local session browser for your AI Agent Harnesses. It reads the session data already on your machine and shows it all in one place — conversation history, file diffs, implementation plans, and more.
 
 ## Features
 
@@ -31,7 +31,7 @@ Omnivue is a 100% local session browser for your AI coding assistants. It reads 
 - **Session renaming** — Override display names from the sidebar
 - **Settings UI** — Add/remove session sources from the browser
 - **Resume sessions** — One-click copy of the CLI command to resume
-- **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘P` search
+- **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘F` search
 - **Deep linking** — Shareable URLs `#/session/{id}/step/{n}`
 - **Multi-theme** — Ayu, Nord, Catppuccino, Tokyo Night, and GitHub themes with light/dark modes
 - **Read-only access** — Never writes to agent databases (enforced at driver level)
@@ -77,7 +77,7 @@ curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/om
 | `k` / `ArrowUp` | Select previous session |
 | `⌘1` / `Ctrl+1` | Conversation tab |
 | `⌘2` / `Ctrl+2` | Diff tab |
-| `⌘P` / `Ctrl+P` or `⌘K` / `Ctrl+K` | Open search (scoped to active session) |
+| `⌘F` / `Ctrl+F` or `⌘K` / `Ctrl+K` | Open search (scoped to active session) |
 | `⌘B` / `Ctrl+B` | Toggle sidebar |
 | `Escape` | Close search / results |
 
