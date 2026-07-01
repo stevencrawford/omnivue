@@ -1,25 +1,48 @@
 import { useEffect } from "react";
-import type { Session } from "./useApi";
+import type { Session } from "./types";
 import type { Tab } from "../components/SessionViewer";
 
-export function useAppKeyboard(
-  sessions: Session[],
-  activeSessionId: string | null,
-  searchOpen: boolean,
-  drawerOpen: boolean,
-  searchHighlightQuery: string | null,
-  setSearchOpen: (open: boolean) => void,
-  setSearchSessionScope: (id: string | null) => void,
-  setDrawerOpen: (open: boolean) => void,
-  setDrawerResults: (results: never[]) => void,
-  setSearchHighlightQuery: (q: string | null) => void,
-  setSidebarOpen: (open: boolean | ((v: boolean) => boolean)) => void,
-  setActiveTab: (tab: Tab) => void,
-  setActiveSessionId: React.Dispatch<React.SetStateAction<string | null>>,
-  setFocusMessageIndex: (idx: number | undefined) => void,
-  setShowOverview: (v: boolean) => void,
-  onOpenShortcuts?: () => void,
-) {
+export interface AppKeyboardConfig {
+  sessions: Session[];
+  activeSessionId: string | null;
+  // Search state
+  searchOpen: boolean;
+  drawerOpen: boolean;
+  searchHighlightQuery: string | null;
+  // State setters
+  setSearchOpen: (open: boolean) => void;
+  setSearchSessionScope: (id: string | null) => void;
+  setDrawerOpen: (open: boolean) => void;
+  setDrawerResults: (results: never[]) => void;
+  setSearchHighlightQuery: (q: string | null) => void;
+  setSidebarOpen: (open: boolean | ((v: boolean) => boolean)) => void;
+  setActiveTab: (tab: Tab) => void;
+  setActiveSessionId: React.Dispatch<React.SetStateAction<string | null>>;
+  setFocusMessageIndex: (idx: number | undefined) => void;
+  setShowOverview: (v: boolean) => void;
+  onOpenShortcuts?: () => void;
+}
+
+export function useAppKeyboard(config: AppKeyboardConfig) {
+  const {
+    sessions,
+    activeSessionId,
+    searchOpen,
+    drawerOpen,
+    searchHighlightQuery,
+    setSearchOpen,
+    setSearchSessionScope,
+    setDrawerOpen,
+    setDrawerResults,
+    setSearchHighlightQuery,
+    setSidebarOpen,
+    setActiveTab,
+    setActiveSessionId,
+    setFocusMessageIndex,
+    setShowOverview,
+    onOpenShortcuts,
+  } = config;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;

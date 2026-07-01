@@ -16,19 +16,17 @@ import type { Tab } from "./components/SessionViewer";
 import { useSSE } from "./hooks/useSSE";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
-import type { Session, Bookmark, ScratchFile } from "./hooks/useApi";
+import type { Session, ScratchFile } from "./hooks/useApi";
 import {
   fetchSessions,
   createScratchFile,
   renameScratchFile,
-  fetchBookmarks,
   fetchAllScratchFiles,
-  createBookmark,
-  deleteBookmark,
 } from "./hooks/useApi";
+import { useBookmarks } from "./hooks/useBookmarks";
 import { useRecentSearches } from "./hooks/useRecentSearches";
 import { ToastProvider } from "./hooks/useToast";
-import { useAppKeyboard } from "./hooks/useAppKeyboard";
+import { useAppKeyboard, type AppKeyboardConfig } from "./hooks/useAppKeyboard";
 import { useSessionRouting } from "./hooks/useSessionRouting";
 import { useSearchScope } from "./hooks/useSearchScope";
 import { useSearchState } from "./hooks/useSearchState";
@@ -52,7 +50,7 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [pinningContent, setPinningContent] = useState<string | null>(null);
   const [pinTitle, setPinTitle] = useState("");
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
 
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -78,7 +76,7 @@ export function App() {
     setShowOverview,
   );
 
-  useAppKeyboard(
+  const keyboardConfig: AppKeyboardConfig = {
     sessions,
     activeSessionId,
     searchOpen,
@@ -94,8 +92,9 @@ export function App() {
     setActiveSessionId,
     setFocusMessageIndex,
     setShowOverview,
-    () => setShortcutsOpen(true),
-  );
+    onOpenShortcuts: () => setShortcutsOpen(true),
+  };
+  useAppKeyboard(keyboardConfig);
 
   useSessionRouting(
     sessions,
@@ -106,14 +105,6 @@ export function App() {
     setShowOverview,
   );
 
-  const bookmarkIdByRef = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const bm of bookmarks) {
-      const key = `${bm.sessionId}:${bm.messageIndex}:${bm.toolCallId || ""}`;
-      map[key] = bm.id;
-    }
-    return map;
-  }, [bookmarks]);
   const scrollPositions = useRef(new Map<string, number>());
   const SCROLL_POSITION_CAP = 100;
 
@@ -144,20 +135,10 @@ export function App() {
     }
   }, []);
 
-  const loadBookmarks = useCallback(async () => {
-    try {
-      const data = await fetchBookmarks();
-      setBookmarks(data || []);
-    } catch {
-      setBookmarks([]);
-    }
-  }, []);
-
   useEffect(() => {
     loadSessions();
     loadScratchFiles();
-    loadBookmarks();
-  }, [loadSessions, loadScratchFiles, loadBookmarks]);
+  }, [loadSessions, loadScratchFiles]);
 
   useSSE({
     onUpdate: () => {
@@ -191,35 +172,6 @@ export function App() {
     }
     return map;
   }, [validScratchFiles]);
-
-  const handleBookmark = useCallback(
-    async (
-      sessionId: string,
-      messageIndex: number,
-      toolCallId: string | undefined,
-      label: string,
-    ) => {
-      try {
-        await createBookmark({ sessionId, messageIndex, toolCallId, label });
-        await loadBookmarks();
-      } catch {
-        /* ignore */
-      }
-    },
-    [loadBookmarks],
-  );
-
-  const handleBookmarkDelete = useCallback(
-    async (id: string) => {
-      try {
-        await deleteBookmark(id);
-        await loadBookmarks();
-      } catch {
-        /* ignore */
-      }
-    },
-    [loadBookmarks],
-  );
 
   const handleBookmarkSelect = useCallback(
     (sessionId: string, messageIndex: number, _toolCallId?: string) => {
