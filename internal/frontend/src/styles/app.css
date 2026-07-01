@@ -4,6 +4,60 @@
 @import "@fontsource/geist-sans/600.css";
 @import "@fontsource/geist-sans/700.css";
 
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
+
+/* ─── shadcn/ui CSS variable mappings ────────────────────────────── */
+/* These reference our existing theme variables so shadcn components  */
+/* inherit the same colors across all 5 themes and light/dark modes.  */
+
+:root {
+  --background: var(--color-ov-bg);
+  --foreground: var(--color-ov-text);
+  --card: var(--color-surface-elevated);
+  --card-foreground: var(--color-ov-text);
+  --popover: var(--color-surface-elevated);
+  --popover-foreground: var(--color-ov-text);
+  --primary: var(--color-accent);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--color-accent-secondary);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: var(--color-ov-bg-hover);
+  --muted-foreground: var(--color-ov-text-secondary);
+  --accent: var(--color-accent-muted);
+  --accent-foreground: var(--color-accent);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
+  --border: var(--color-ov-border);
+  --input: var(--color-ov-border);
+  --ring: var(--color-accent);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius: var(--radius);
+}
+
 /* ─── Design tokens ─────────────────────────────────────────────── */
 
 @theme {
