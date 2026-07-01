@@ -32,7 +32,7 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <FileText size={12} className="text-amber-400 shrink-0" />
-        <span className="text-amber-400 font-semibold shrink-0">Plan</span>
+        <span className="text-amber-400 font-semibold shrink-0">Proposed Plan</span>
         <span className="text-ov-text-secondary truncate min-w-0">
           {summary ? summary.split("\n")[0].slice(0, 80) : "Proposed Plan"}
         </span>
@@ -47,7 +47,7 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
       <div className="px-4 py-3">
         <div className="flex items-center gap-2.5 mb-2">
           <FileText size={20} className="text-amber-400 shrink-0" />
-          <span className="font-semibold text-[13px] text-amber-400">Plan</span>
+          <span className="font-semibold text-[13px] text-amber-400">Proposed Plan</span>
         </div>
         {summary && (
           <div className="text-[13px]">

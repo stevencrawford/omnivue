@@ -247,8 +247,7 @@ export const definitions: ToolRendererDefinition[] = [
     markerDisplayType: "plan",
     markerPriority: 30,
     truncateOutput: 0,
-    canExpand: false,
-    cardClassName: "border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/[0.04] mb-2",
+    canExpand: true,
   },
   {
     kind: "compaction",
