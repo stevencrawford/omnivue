@@ -54,7 +54,14 @@ class ApiError extends Error {
 }
 
 async function fetchJson<T>(url: string, schema: ZodType<T>, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch (err) {
+    // Re-throw AbortError so callers can check signal.aborted
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new ApiError(`Network error: ${String(err)}`, 0, url);
+  }
   if (!res.ok) {
     throw new ApiError(
       `Request failed: ${res.status} ${res.statusText}`,
@@ -224,10 +231,11 @@ export async function fetchSearch(
   query: string,
   limit = 50,
   sessionId?: string,
+  signal?: AbortSignal,
 ): Promise<SearchResult[]> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (sessionId) params.set("session_id", sessionId);
-  return fetchJson(`/_/api/search?${params}`, SearchResultsSchema);
+  return fetchJson(`/_/api/search?${params}`, SearchResultsSchema, signal ? { signal } : undefined);
 }
 
 // ---------------------------------------------------------------------------

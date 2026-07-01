@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { SearchResult } from "./useApi";
 import { fetchSearch } from "./useApi";
 import type { Tab } from "../components/SessionViewer";
@@ -16,6 +16,10 @@ export function useSearchState(
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerQuery, setDrawerQuery] = useState("");
   const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
+
+  // AbortController ref to cancel in-flight search requests and prevent
+  // race conditions when the user rapidly changes scope or triggers searches.
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleSearchSelect = useCallback(
     (
@@ -58,13 +62,20 @@ export function useSearchState(
   const handleSearchOpenDrawer = useCallback(
     async (q: string) => {
       if (q.trim()) addSearch(q);
+      // Cancel any in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
-        const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined);
+        const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined, controller.signal);
+        if (controller.signal.aborted) return;
         setDrawerQuery(q);
         setDrawerResults(data || []);
         setDrawerOpen(true);
       } catch {
-        setDrawerResults([]);
+        if (!controller.signal.aborted) {
+          setDrawerResults([]);
+        }
       }
     },
     [searchSessionScope, addSearch],
@@ -77,12 +88,19 @@ export function useSearchState(
 
   const handleDrawerClearScope = useCallback(() => {
     if (drawerQuery.trim()) {
-      fetchSearch(drawerQuery.trim(), 100)
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      fetchSearch(drawerQuery.trim(), 100, undefined, controller.signal)
         .then((data) => {
-          setDrawerResults(data || []);
+          if (!controller.signal.aborted) {
+            setDrawerResults(data || []);
+          }
         })
         .catch(() => {
-          setDrawerResults([]);
+          if (!controller.signal.aborted) {
+            setDrawerResults([]);
+          }
         });
     }
   }, [drawerQuery]);
