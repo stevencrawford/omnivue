@@ -11,11 +11,16 @@ export const THEMES: { name: ThemeName; label: string; description: string }[] =
   { name: "github", label: "GitHub", description: "GitHub's official palette" },
 ];
 
-const THEME_NAMES: ThemeName[] = ["default", "nord", "catppuccin", "tokyo-night", "github"];
+const THEME_NAMES: readonly ThemeName[] = ["default", "nord", "catppuccin", "tokyo-night", "github"];
+
+/** Type predicate — narrows string to ThemeName at runtime. */
+function isThemeName(value: string): value is ThemeName {
+  return (THEME_NAMES as readonly string[]).includes(value);
+}
 
 function getInitialThemeName(): ThemeName {
   const stored = localStorage.getItem("omnivue-theme");
-  if (THEME_NAMES.includes(stored as ThemeName)) return stored as ThemeName;
+  if (stored && isThemeName(stored)) return stored;
   if (stored === "light" || stored === "dark") return "github";
   return "github";
 }
