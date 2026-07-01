@@ -25,13 +25,17 @@ export function useSessionRouting(
   }, [sessions, setActiveSessionId, setFocusStepIndex, setShowOverview]);
 
   useEffect(() => {
-    if (showOverview) {
-      if (window.location.hash !== "#/" && window.location.hash !== "") {
-        history.replaceState(null, "", "#/");
+    try {
+      if (showOverview) {
+        if (window.location.hash !== "#/" && window.location.hash !== "") {
+          history.replaceState(null, "", "#/");
+        }
+      } else if (activeSessionId) {
+        const hash = `#/session/${encodeURIComponent(activeSessionId)}`;
+        history.replaceState(null, "", hash);
       }
-    } else if (activeSessionId) {
-      const hash = `#/session/${encodeURIComponent(activeSessionId)}`;
-      history.replaceState(null, "", hash);
+    } catch {
+      /* history.replaceState throws SecurityError in restricted contexts */
     }
   }, [showOverview, activeSessionId]);
 

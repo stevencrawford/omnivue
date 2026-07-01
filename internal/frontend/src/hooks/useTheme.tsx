@@ -25,17 +25,25 @@ function isThemeName(value: string): value is ThemeName {
 }
 
 function getInitialThemeName(): ThemeName {
-  const stored = localStorage.getItem("omnivue-theme");
-  if (stored && isThemeName(stored)) return stored;
-  if (stored === "light" || stored === "dark") return "github";
+  try {
+    const stored = localStorage.getItem("omnivue-theme");
+    if (stored && isThemeName(stored)) return stored;
+    if (stored === "light" || stored === "dark") return "github";
+  } catch {
+    /* localStorage throws SecurityError in restricted contexts */
+  }
   return "github";
 }
 
 function getInitialThemeMode(): ThemeMode {
-  const stored = localStorage.getItem("omnivue-mode");
-  if (stored === "light" || stored === "dark") return stored;
-  const old = localStorage.getItem("omnivue-theme");
-  if (old === "light" || old === "dark") return old;
+  try {
+    const stored = localStorage.getItem("omnivue-mode");
+    if (stored === "light" || stored === "dark") return stored;
+    const old = localStorage.getItem("omnivue-theme");
+    if (old === "light" || old === "dark") return old;
+  } catch {
+    /* localStorage throws SecurityError in restricted contexts */
+  }
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
@@ -58,8 +66,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", themeName);
     document.documentElement.setAttribute("data-mode", themeMode);
-    localStorage.setItem("omnivue-theme", themeName);
-    localStorage.setItem("omnivue-mode", themeMode);
+    try {
+      localStorage.setItem("omnivue-theme", themeName);
+      localStorage.setItem("omnivue-mode", themeMode);
+    } catch {
+      /* localStorage throws SecurityError in restricted contexts */
+    }
   }, [themeName, themeMode]);
 
   const toggleTheme = () => setThemeMode((t) => (t === "dark" ? "light" : "dark"));

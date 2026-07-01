@@ -61,10 +61,14 @@ export function useSearchHighlight(
     (el: Element) => {
       const container = scrollRef.current;
       if (!container) return;
-      const rect = el.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      container.scrollTop +=
-        rect.top - containerRect.top - container.clientHeight / 2 + rect.height / 2;
+      try {
+        const rect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        container.scrollTop +=
+          rect.top - containerRect.top - container.clientHeight / 2 + rect.height / 2;
+      } catch {
+        /* scrollTop assignment can throw in restricted contexts */
+      }
     },
     [scrollRef],
   );

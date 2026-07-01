@@ -45,17 +45,21 @@ export function useConversationScroll({
 
     const isSearchNav = focusMessageIndex !== undefined || (searchHighlightQuery && isInitialLoad);
 
-    if (isInitialLoad && !isSearchNav) {
-      if (saved !== undefined) {
-        el.scrollTop = saved;
-      } else {
-        el.scrollTop = el.scrollHeight;
+    try {
+      if (isInitialLoad && !isSearchNav) {
+        if (saved !== undefined) {
+          el.scrollTop = saved;
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
+      } else if (messageCount > prevLengthRef.current) {
+        const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        if (nearBottom) {
+          el.scrollTop = el.scrollHeight;
+        }
       }
-    } else if (messageCount > prevLengthRef.current) {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-      if (nearBottom) {
-        el.scrollTop = el.scrollHeight;
-      }
+    } catch {
+      /* scrollTop assignment can throw in restricted contexts */
     }
 
     const btn = updateButtons(el);
@@ -97,11 +101,18 @@ export function useConversationScroll({
   }, [messageCount]);
 
   const scrollToTop = () => {
-    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    try {
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      /* scrollTo throws in restricted contexts or on detached elements */
+    }
   };
   const scrollToBottom = () => {
-    const el = scrollRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    try {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    } catch {
+      /* scrollTo throws in restricted contexts or on detached elements */
+    }
   };
 
   return {
