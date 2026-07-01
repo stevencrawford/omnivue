@@ -129,7 +129,7 @@ export function AssistantMessageView({
           <ToolCallList
             toolCalls={tools}
             agent={agent}
-            compact
+            variant="summary"
             onOpenModal={onOpenModal}
             onPin={onPin}
             onBookmark={

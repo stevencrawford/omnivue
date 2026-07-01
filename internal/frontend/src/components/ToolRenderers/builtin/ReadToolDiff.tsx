@@ -13,7 +13,7 @@ interface ReadInput {
 
 export function ReadToolDiff({
   tool,
-  compact,
+  variant,
   onCopy: _onCopy,
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
@@ -43,7 +43,7 @@ export function ReadToolDiff({
     .replace(/\n<\/content>\s*$/gm, "")
     .replace(/^[0-9]{5}\| ?/gm, "");
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <BookOpen size={12} className="text-cyan-400 shrink-0" />

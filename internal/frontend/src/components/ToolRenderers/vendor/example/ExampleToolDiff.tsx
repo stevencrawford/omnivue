@@ -1,9 +1,9 @@
 import type { ToolRendererProps } from "../../types";
 
-export function ExampleToolDiff({ tool, compact, onCopy }: ToolRendererProps) {
+export function ExampleToolDiff({ tool, variant, onCopy }: ToolRendererProps) {
   const kind = "example";
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <span className="font-semibold text-violet-400 shrink-0">{kind}:</span>

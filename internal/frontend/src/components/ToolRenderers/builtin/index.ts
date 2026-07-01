@@ -64,6 +64,7 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["bash", "run_terminal_command_v2", "run_terminal_command"],
     Component: BashToolDiff,
     summary: (tool) => cmd(tool),
+    display: { type: "expandable" },
     markerColor: "#eab308",
     markerLabel: "Shell",
     markerDisplayType: "bash",
@@ -75,30 +76,31 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["edit", "edit_file_v2", "edit_file", "apply_patch"],
     Component: EditToolDiff,
     summary: (tool) => `edit: ${fp(tool)}`,
+    display: { type: "expandable", defaultOpen: true },
     markerColor: "#ef4444",
     markerLabel: "Edits",
     markerDisplayType: "edit",
     markerPriority: 20,
     truncateOutput: 0,
-    defaultExpanded: true,
   },
   {
     kind: "write",
     names: ["write", "create"],
     Component: EditToolDiff,
     summary: (tool) => `write: ${fp(tool)}`,
+    display: { type: "expandable", defaultOpen: true },
     markerColor: "#ef4444",
     markerLabel: "Edits",
     markerDisplayType: "edit",
     markerPriority: 20,
     truncateOutput: 0,
-    defaultExpanded: true,
   },
   {
     kind: "read",
     names: ["read", "view", "read_file_v2", "read_file"],
     Component: ReadToolDiff,
     summary: (tool) => `read: ${fp(tool)}`,
+    display: { type: "expandable" },
     markerColor: "#06b6d4",
     markerLabel: "Reads",
     markerDisplayType: "read",
@@ -109,6 +111,7 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["grep", "ripgrep_raw_search", "grep_search"],
     Component: GrepToolDiff,
     summary: (tool) => `grep: ${pattern(tool)}`,
+    display: { type: "expandable" },
     markerColor: "#8b5cf6",
     markerLabel: "Search",
     markerDisplayType: "search",
@@ -124,6 +127,7 @@ export const definitions: ToolRendererDefinition[] = [
       if (p) return `glob: ${p.length > 60 ? p.slice(0, 60) + "…" : p}`;
       return "glob";
     },
+    display: { type: "expandable" },
     markerColor: "#8b5cf6",
     markerLabel: "Search",
     markerDisplayType: "search",
@@ -138,6 +142,7 @@ export const definitions: ToolRendererDefinition[] = [
       if (q) return q.length > 80 ? q.slice(0, 80) + "…" : q;
       return "codesearch";
     },
+    display: { type: "expandable" },
     markerColor: "#8b5cf6",
     markerLabel: "Search",
     markerDisplayType: "search",
@@ -159,6 +164,7 @@ export const definitions: ToolRendererDefinition[] = [
       }
       return "read_lints";
     },
+    display: { type: "expandable" },
     markerColor: "#8b5cf6",
     markerLabel: "Lints",
     markerDisplayType: "search",
@@ -169,6 +175,7 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["delete", "delete_file"],
     Component: DeleteToolDiff,
     summary: (tool) => `delete: ${fp(tool)}`,
+    display: { type: "expandable" },
     markerColor: "#ef4444",
     markerLabel: "Deletes",
     markerDisplayType: "delete",
@@ -179,11 +186,11 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["todowrite"],
     Component: TodoWriteToolDiff,
     summary: () => "todowrite",
+    display: { type: "expandable", defaultOpen: true },
     markerColor: "#f59e0b",
     markerLabel: "Todo",
     markerDisplayType: "todowrite",
     markerPriority: 90,
-    defaultExpanded: true,
   },
   {
     kind: "task",
@@ -195,14 +202,15 @@ export const definitions: ToolRendererDefinition[] = [
         extractJSONField(tool.input, "subagent_type") ||
         extractJSONField(tool.input, "agent_type") ||
         "";
-      if (st) return `\u{1F4CB} ${st} ${desc.slice(0, 76 - st.length)}`;
-      return `\u{1F4CB} ${desc.slice(0, 80)}`;
+      if (st) return `📋 ${st} ${desc.slice(0, 76 - st.length)}`;
+      return `📋 ${desc.slice(0, 80)}`;
     },
+    display: { type: "always-open", renderSummary: true },
+    truncateOutput: 0,
     markerColor: "#f472b6",
     markerLabel: "Sub-agent",
     markerDisplayType: "sub-agent",
     markerPriority: 10,
-    canExpand: false,
     cardClassName:
       "border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-2",
   },
@@ -212,14 +220,14 @@ export const definitions: ToolRendererDefinition[] = [
     Component: TaskCompleteToolDiff,
     summary: (tool) => {
       const s = extractJSONField(tool.input, "summary") || "";
-      return `\u2713 ${s.slice(0, 80)}`;
+      return `✓ ${s.slice(0, 80)}`;
     },
+    display: { type: "always-open" },
     markerColor: "#10b981",
     markerLabel: "Task complete",
     markerDisplayType: "task-complete",
     markerPriority: 0,
     truncateOutput: 0,
-    canExpand: false,
     cardClassName:
       "border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-2",
   },
@@ -228,11 +236,11 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["question"],
     Component: QuestionToolDiff,
     summary: (tool) => firstQuestion(tool),
+    display: { type: "always-open" },
     markerColor: "#f97316",
     markerLabel: "Questions",
     markerDisplayType: "question",
     markerPriority: 40,
-    defaultExpanded: true,
   },
   {
     kind: "exit_plan_mode",
@@ -242,12 +250,12 @@ export const definitions: ToolRendererDefinition[] = [
       const s = extractJSONField(tool.input, "summary") || "";
       return `Plan: ${s.slice(0, 80)}`;
     },
+    display: { type: "always-open" },
     markerColor: "#f59e0b",
     markerLabel: "Plans",
     markerDisplayType: "plan",
     markerPriority: 30,
     truncateOutput: 0,
-    canExpand: true,
   },
   {
     kind: "compaction",
@@ -259,12 +267,12 @@ export const definitions: ToolRendererDefinition[] = [
         extractJSONField(tool.input, "label") || extractJSONField(tool.input, "kind") || "items";
       return `${c} ${l}`;
     },
+    display: { type: "always-open" },
     markerColor: "#6b7280",
     markerLabel: "Compaction",
     markerDisplayType: "compaction",
     markerPriority: 110,
     truncateOutput: 0,
-    canExpand: false,
   },
   {
     kind: "webfetch",
@@ -275,6 +283,7 @@ export const definitions: ToolRendererDefinition[] = [
       if (url) return url.length > 80 ? url.slice(0, 80) + "…" : url;
       return "webfetch";
     },
+    display: { type: "expandable" },
     markerColor: "#ec4899",
     markerLabel: "Web",
     markerDisplayType: "web",
@@ -289,6 +298,7 @@ export const definitions: ToolRendererDefinition[] = [
       if (q) return q.length > 80 ? q.slice(0, 80) + "…" : q;
       return "websearch";
     },
+    display: { type: "expandable" },
     markerColor: "#ec4899",
     markerLabel: "Web",
     markerDisplayType: "web",

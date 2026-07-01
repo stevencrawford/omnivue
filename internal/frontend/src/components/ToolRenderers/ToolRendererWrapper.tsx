@@ -42,7 +42,7 @@ function CopyOutputBtn({ tool }: { tool: ToolCall }) {
 export function ToolRendererWrapper({
   renderer,
   tool,
-  compact,
+  variant,
   onOpenModal,
   onPin,
   onCopy,
@@ -51,7 +51,7 @@ export function ToolRendererWrapper({
 }: {
   renderer: ToolRendererDefinition;
   tool: ToolCall;
-  compact: boolean;
+  variant: "summary" | "detail";
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onCopy?: (content: string) => void;
@@ -70,30 +70,34 @@ export function ToolRendererWrapper({
     }
   }, [tool.metadata]);
 
-  const canExpand = renderer.canExpand !== false;
-  const [expanded, setExpanded] = useState(renderer.defaultExpanded ?? false);
-  const [truncExpanded, setTruncExpanded] = useState(false);
+  const isExpandable = renderer.display?.type === "expandable";
+  const defaultIsOpen =
+    renderer.display?.type === "expandable" ? (renderer.display.defaultOpen ?? false) : true;
+  const [open, setOpen] = useState(defaultIsOpen);
+  const [showFullOutput, setShowFullOutput] = useState(false);
   const maxLines = renderer.truncateOutput ?? DEFAULT_OUTPUT_MAX_LINES;
 
   const handleToggle = () => {
-    const next = !expanded;
-    setExpanded(next);
-    if (next) setTruncExpanded(false);
+    const next = !open;
+    setOpen(next);
+    if (next) setShowFullOutput(false);
   };
 
   const rendererProps: ToolRendererProps = {
     tool,
     rawOutput: tool.output,
-    compact,
+    variant,
     onOpenModal,
     onPin,
     onCopy,
     onBookmark,
     isBookmarked,
+    childSessionId,
+    navigateToSession,
   };
 
-  if (compact) {
-    if (!canExpand) {
+  if (variant === "summary") {
+    if (!isExpandable) {
       return (
         <div
           className={
@@ -138,20 +142,22 @@ export function ToolRendererWrapper({
       );
     }
 
-    const showContent = expanded;
-    const shouldTruncate = showContent && !truncExpanded && maxLines > 0;
+    const showContent = open;
+    const shouldTruncate = showContent && !showFullOutput && maxLines > 0;
     const truncated = shouldTruncate && tool.output ? truncateLines(tool.output, maxLines) : null;
     const displayTool = truncated ? { ...tool, output: truncated.display } : tool;
 
-    const expandedRendererProps: ToolRendererProps = {
+    const detailRendererProps: ToolRendererProps = {
       tool: displayTool,
       rawOutput: tool.output,
-      compact: false,
+      variant: "detail",
       onOpenModal,
       onPin,
       onCopy,
       onBookmark,
       isBookmarked,
+      childSessionId,
+      navigateToSession,
     };
 
     return (
@@ -169,7 +175,7 @@ export function ToolRendererWrapper({
           >
             <ChevronDown
               size={12}
-              className={`text-ov-text-secondary/50 shrink-0 ml-2.5 transition-transform ${expanded ? "" : "-rotate-90"}`}
+              className={`text-ov-text-secondary/50 shrink-0 ml-2.5 transition-transform ${open ? "" : "-rotate-90"}`}
             />
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
@@ -206,15 +212,15 @@ export function ToolRendererWrapper({
         </div>
         {showContent && (
           <div className="border-t border-ov-border">
-            <renderer.Component {...expandedRendererProps} />
+            <renderer.Component {...detailRendererProps} />
             {truncated && (
               <div className="text-center border-t border-ov-border">
                 <button
                   type="button"
-                  onClick={() => setTruncExpanded(!truncExpanded)}
+                  onClick={() => setShowFullOutput(!showFullOutput)}
                   className="text-[11px] font-medium text-accent hover:underline py-2 cursor-pointer"
                 >
-                  {truncExpanded ? "Show less" : "Show all"}
+                  {showFullOutput ? "Show less" : "Show all"}
                 </button>
               </div>
             )}
@@ -224,21 +230,21 @@ export function ToolRendererWrapper({
     );
   }
 
-  const shouldTruncate = !truncExpanded && maxLines > 0;
+  const shouldTruncate = !showFullOutput && maxLines > 0;
   const truncated = shouldTruncate && tool.output ? truncateLines(tool.output, maxLines) : null;
   const displayTool = truncated ? { ...tool, output: truncated.display } : tool;
 
   return (
     <>
-      <renderer.Component {...rendererProps} tool={displayTool} compact={false} />
+      <renderer.Component {...rendererProps} tool={displayTool} variant="detail" />
       {truncated && (
         <div className="text-center border-t border-ov-border">
           <button
             type="button"
-            onClick={() => setTruncExpanded(!truncExpanded)}
+            onClick={() => setShowFullOutput(!showFullOutput)}
             className="text-[11px] font-medium text-accent hover:underline py-2 cursor-pointer"
           >
-            {truncExpanded ? "Show less" : "Show all"}
+            {showFullOutput ? "Show less" : "Show all"}
           </button>
         </div>
       )}

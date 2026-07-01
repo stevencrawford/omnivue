@@ -9,7 +9,7 @@ interface DeleteInput {
 
 export function DeleteToolDiff({
   tool,
-  compact,
+  variant,
   onCopy: _onCopy,
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
@@ -24,7 +24,7 @@ export function DeleteToolDiff({
   const filePath = input.filePath || input.relativeWorkspacePath || input.path || "";
   const baseName = filePath.split("/").pop() || filePath;
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <Trash2 size={12} className="text-red-400 shrink-0" />

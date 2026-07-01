@@ -14,7 +14,7 @@ interface TodowriteInput {
 
 export function TodoWriteToolDiff({
   tool,
-  compact,
+  variant,
   onCopy: _onCopy,
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
@@ -32,7 +32,7 @@ export function TodoWriteToolDiff({
   const completed = todos.filter((t) => t.status === "completed").length;
   const inProgress = todos.filter((t) => t.status === "in_progress").length;
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <ListTodo size={12} className="text-amber-400 shrink-0" />

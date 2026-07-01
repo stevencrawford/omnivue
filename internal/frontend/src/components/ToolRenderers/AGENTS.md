@@ -14,9 +14,9 @@ ToolCallList.tsx
   │  uses effectiveToolKind(tool) via toolDisplay.ts
   │  then toolRendererRegistry.getRenderer(kind)
   │
-  └── ToolRendererWrapper (system-level truncation + expand toggle)
+  └── ToolRendererWrapper (system-level truncation + chevron toggle)
        │
-       └── renderer Component (compact or non-compact)
+       └── renderer Component (variant=summary or variant=detail)
 ```
 
 ### Registry Auto-Discovery
@@ -36,20 +36,36 @@ interface ToolRendererDefinition {
   names: string[]; // tool names mapping to this kind
   Component: ComponentType<ToolRendererProps>;
   summary?: (tool: ToolCall, agent?: string) => string;
+  display: ToolCardDisplay; // display behavior (see below)
   markerColor?: string; // hex color for scrollbar marker
   markerLabel?: string; // human-readable label for marker legend
   markerDisplayType?: string; // grouping key for markers
   markerPriority?: number; // lower = higher in marker bar
   priority?: number; // override priority (builtin=0, vendor=10)
   truncateOutput?: number; // max output lines (default 50, 0 = no truncation)
-  defaultExpanded?: boolean; // start with card open (default: false)
-  canExpand?: boolean; // allow expand/collapse (default: true).
-  // When false, compact mode renders the card
-  // border + compact line + actions (copy,
-  // bookmark, duration) but no chevron toggle
-  // or expandable section.
+  cardClassName?: string; // custom card CSS (primarily for always-open cards)
 }
 ```
+
+### ToolCardDisplay — Polymorphic Display Modes
+
+```typescript
+type ToolCardDisplay =
+  | {
+      type: "expandable";
+      /** Card starts open (default: false). A chevron toggle is shown. */
+      defaultOpen?: boolean;
+    }
+  | {
+      type: "always-open";
+      /** No chevron toggle. Content always visible, bypasses summary mode. */
+    };
+```
+
+| `display.type`  | Summary (`variant="summary"`)                                            | Detail (`variant="detail"`)     | Chevron? |
+| --------------- | ------------------------------------------------------------------------ | ------------------------------- | -------- |
+| `"expandable"`  | Card with chevron toggle; `defaultOpen` controls initial state           | Content renders inline          | ✅       |
+| `"always-open"` | **Bypassed** — always renders in detail mode with actions but no chevron | Full content, card with actions | ❌       |
 
 ### Override Rules
 
@@ -60,37 +76,31 @@ interface ToolRendererDefinition {
 | Vendor registers new `kind: "jira_create_issue"`    | Registered as new kind                 |
 | Tool name `"jira_create_issue"`                     | Maps to kind `"jira_create_issue"`     |
 
-### Compact Mode Contract
+### Summary/Detail Variant Contract
 
-Every renderer is a single component that handles both modes via the required `compact` prop:
+Every renderer is a single component that handles both modes via the required `variant` prop:
 
-| Prop value       | Expected output                                     |
-| ---------------- | --------------------------------------------------- |
-| `compact: true`  | Single-line summary (text + icon), no borders/cards |
-| `compact: false` | Full card with rich detail                          |
+| Prop value          | Expected output                                     |
+| ------------------- | --------------------------------------------------- |
+| `variant="summary"` | Single-line summary (text + icon), no borders/cards |
+| `variant="detail"`  | Full card with rich detail                          |
 
-If a renderer has no meaningful compact representation, render a minimal one-line fallback (e.g., kind label with truncated summary).
+If a renderer has no meaningful summary representation, render a minimal one-line fallback (e.g., kind label with truncated summary).
 
 ### Expand/Truncation Behavior
 
 `ToolRendererWrapper` controls two independent state flags per card:
 
-- **`expanded`** — Whether the card is open (showing expanded content)
-  or closed (showing only the compact line). Controlled by the
-  chevron toggle.
-- **`truncExpanded`** — Whether the expanded output is truncated at
-  `truncateOutput` lines or shown in full. Reset to "truncated" each
-  time the card is closed and reopened.
+- **`open`** — Whether the card is showing its content area or only the summary header. Controlled by the chevron toggle.
+- **`showFullOutput`** — Whether the expanded output is truncated at `truncateOutput` lines or shown in full. Reset to "truncated" each time the card is closed and reopened.
 
-| `canExpand` | `defaultExpanded` | Behavior                                        |
-| ----------- | ----------------- | ----------------------------------------------- |
-| `true`      | `false` (default) | Collapsed card with chevron; click to expand    |
-| `true`      | `true`            | Open card with chevron; click to collapse       |
-| `false`     | ignored           | Card border + compact line + actions, no toggle |
+| `display.type`  | `defaultOpen`     | Behavior                                        |
+| --------------- | ----------------- | ----------------------------------------------- |
+| `"expandable"`  | `false` (default) | Collapsed card with chevron; click to expand    |
+| `"expandable"`  | `true`            | Open card with chevron; click to collapse       |
+| `"always-open"` | ignored           | Card border + summary line + actions, no toggle |
 
-When `canExpand` is `false`, the card still renders with a border,
-copy/bookmark buttons, and duration display — it simply has no
-chevron toggle or expandable content section.
+When `display.type` is `"always-open"`, the card still renders with a border, copy/bookmark buttons, and duration display — it simply has no chevron toggle or expandable content section. These cards also bypass the `variant` system entirely — they always render in detail mode.
 
 ### Truncation Policy
 
@@ -115,7 +125,7 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 1. Create `builtin/MyToolDiff.tsx` following the `ToolRendererProps` interface
 2. Export from `builtin/index.ts` by adding to the `definitions` array
 
-### Option B: Vendor/renderer (third-party)
+### Option B: Vendor renderer (third-party)
 
 1. Create `vendor/<namespace>/MyToolDiff.tsx` following `ToolRendererProps`
 2. Create `vendor/<namespace>/index.ts` exporting `{ definitions: [...] }`
@@ -123,44 +133,40 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 
 ### What the renderer must handle
 
-- Both `compact` and non-compact modes via `ToolRendererProps.compact`
+- Both `variant="summary"` and `variant="detail"` modes via `ToolRendererProps.variant`
 - Accept (but can ignore) `onOpenModal`, `onPin`, `onCopy` props
 - Never truncate output — set `truncateOutput` in the definition instead
 
 ### What the system handles automatically
 
 - Truncation + "Show more/less" button (via `ToolRendererWrapper`)
-- Copy of full output via `CopyOutputBtn` in the compact header row
-- Bookmark button in the compact header row
+- Copy of full output via `CopyOutputBtn` in the card header row
+- Bookmark button in the card header row
 - Duration display (via `ToolCallRow` header)
 - Sub-agent session "View" link (via `ToolCallRow` header)
 
 ## Builtin Renderer Reference
 
-| Kind                         | Component                                       | `truncateOutput` | `defaultExpanded` | `canExpand` | `markerPriority` |
-| ---------------------------- | ----------------------------------------------- | ---------------- | ----------------- | ----------- | ---------------- |
-| `task_complete`              | `TaskCompleteToolDiff`                          | 0 (none)         | `false`           | `false`     | 0                |
-| `task`                       | `TaskToolDiff`                                  | 50 (default)     | `false`           | `false`     | 10               |
-| `edit`, `write`              | `EditToolDiff`                                  | 20               | `true`            | `true`      | 20               |
-| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | 0 (none)         | `false`           | `false`     | 30               |
-| `question`                   | `QuestionToolDiff`                              | 50 (default)     | `false`           | `true`      | 40               |
-| `read`                       | `ReadToolDiff`                                  | 50 (default)     | `false`           | `true`      | 50               |
-| `bash`                       | `BashToolDiff`                                  | 50               | `false`           | `true`      | 60               |
-| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | 50               | `false`           | `true`      | 70               |
-| `webfetch`, `websearch`      | `DefaultToolDiff`                               | 50 (default)     | `false`           | `true`      | 80               |
-| `todowrite`                  | `TodoWriteToolDiff`                             | 50 (default)     | `true`            | `true`      | 90               |
-| `delete`                     | `DeleteToolDiff`                                | 50 (default)     | `false`           | `true`      | 100              |
-| `compaction`                 | `CompactionToolDiff`                            | 0 (none)         | `false`           | `false`     | 110              |
+| Kind                         | Component                                       | `display` type | `defaultOpen` | `truncateOutput` | `markerPriority` |
+| ---------------------------- | ----------------------------------------------- | -------------- | ------------- | ---------------- | ---------------- |
+| `task_complete`              | `TaskCompleteToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 0                |
+| `task`                       | `TaskToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 10               |
+| `edit`, `write`              | `EditToolDiff`                                  | `expandable`   | `true`        | 20               | 20               |
+| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 30               |
+| `question`                   | `QuestionToolDiff`                              | `expandable`   | `true`        | 50 (default)     | 40               |
+| `read`                       | `ReadToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 50               |
+| `bash`                       | `BashToolDiff`                                  | `expandable`   | `false`       | 50               | 60               |
+| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | `expandable`   | `false`       | 50               | 70               |
+| `webfetch`, `websearch`      | `DefaultToolDiff`                               | `expandable`   | `false`       | 50 (default)     | 80               |
+| `todowrite`                  | `TodoWriteToolDiff`                             | `expandable`   | `true`        | 50 (default)     | 90               |
+| `delete`                     | `DeleteToolDiff`                                | `expandable`   | `false`       | 50 (default)     | 100              |
+| `compaction`                 | `CompactionToolDiff`                            | `always-open`  | N/A           | 0 (none)         | 110              |
 
-> **Note:** `task_complete` and `exit_plan_mode` are self-contained cards — they provide their own border/background and always render full content regardless of compact mode.
+> **Note:** `task_complete` and `exit_plan_mode` and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
 
 ### Compaction pattern
 
-The `compaction` kind is a special visual separator used when
-multiple tool calls of the same kind are collapsed into a single
-group. It renders a horizontal rule with a centered badge
-(e.g. `─── 3 reads ───`). Its input is `{ kind, count, label }`.
-Set `canExpand: false` and `truncateOutput: 0` for this pattern.
+The `compaction` kind is a special visual separator used when multiple tool calls of the same kind are collapsed into a single group. It renders a horizontal rule with a centered badge (e.g. `─── 3 reads ───`). Its input is `{ kind, count, label }`. Uses `display: { type: "always-open" }` with `truncateOutput: 0`.
 
 ## Styling Conventions
 

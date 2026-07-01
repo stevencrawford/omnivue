@@ -10,7 +10,7 @@ interface GrepInput {
 
 export function GrepToolDiff({
   tool,
-  compact,
+  variant,
   onCopy: _onCopy,
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
@@ -33,7 +33,7 @@ export function GrepToolDiff({
   const pattern = input.pattern || input.query || "";
   const results = tool.output || "";
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <Search size={12} className="text-violet-400 shrink-0" />

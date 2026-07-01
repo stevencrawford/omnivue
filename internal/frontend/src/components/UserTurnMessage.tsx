@@ -194,7 +194,7 @@ export function UserTurnView({
         <ToolCallList
           toolCalls={readTools}
           agent={undefined}
-          compact
+          variant="summary"
           onOpenModal={onOpenModal}
           onPin={onPin}
           onBookmark={toolOnBookmark}

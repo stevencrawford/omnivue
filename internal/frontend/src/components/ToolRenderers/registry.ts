@@ -70,6 +70,8 @@ class ToolRendererRegistry {
     const kind = def.kind;
     const priority = def.priority ?? 0;
 
+    def.display = def.display ?? { type: "expandable" };
+
     const existing = this.definitions.get(kind);
     if (existing) {
       if (priority > existing.priority!) {
@@ -241,7 +243,7 @@ class ToolRendererRegistry {
     if (agent === "opencode") {
       if (tool.name === "task") {
         const desc = extractJSONField(tool.input, "description") || "";
-        return `\u{1F4CB} ${desc.slice(0, 80)}`;
+        return `📋 ${desc.slice(0, 80)}`;
       }
     }
 

@@ -14,6 +14,7 @@ export const definitions: ToolRendererDefinition[] = [
         "";
       return key ? `jira: ${key}` : "jira_get_issue";
     },
+    display: { type: "expandable" },
     markerColor: "#0052CC",
     markerLabel: "Jira",
     markerDisplayType: "search",

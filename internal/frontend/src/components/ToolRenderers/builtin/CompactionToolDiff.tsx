@@ -8,7 +8,7 @@ interface CompactionInput {
 
 export function CompactionToolDiff({
   tool,
-  compact: _compact,
+  variant: _variant,
   onCopy: _onCopy,
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,

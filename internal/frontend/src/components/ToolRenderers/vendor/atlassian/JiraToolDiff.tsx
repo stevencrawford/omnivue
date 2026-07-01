@@ -104,7 +104,7 @@ const DESCRIPTION_LINE_LIMIT = 20;
 export function JiraToolDiff({
   tool,
   rawOutput,
-  compact,
+  variant,
   onBookmark,
   isBookmarked,
 }: ToolRendererProps) {
@@ -155,7 +155,7 @@ export function JiraToolDiff({
 
   const formattedCopyText = issueKey ? `[${issueKey}] ${summary}` : tool.output || "";
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <TypeIcon size={12} className={`shrink-0 ${typeConfig.color}`} />

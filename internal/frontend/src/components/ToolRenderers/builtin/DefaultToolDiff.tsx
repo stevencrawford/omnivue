@@ -33,11 +33,11 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
   );
 }
 
-export function DefaultToolDiff({ tool, compact }: ToolRendererProps) {
+export function DefaultToolDiff({ tool, variant }: ToolRendererProps) {
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool);
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>

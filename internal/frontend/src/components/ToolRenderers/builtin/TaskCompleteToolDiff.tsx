@@ -1,6 +1,7 @@
 import { CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../MarkdownContent";
+import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
   return (
@@ -16,7 +17,15 @@ function looksLikeMarkdown(text: string): boolean {
   );
 }
 
-export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
+export function TaskCompleteToolDiff({
+  tool,
+  variant,
+  onPin,
+  onBookmark,
+  isBookmarked,
+  childSessionId,
+  navigateToSession,
+}: ToolRendererProps) {
   let summary = "";
   let durationMs = 0;
 
@@ -32,7 +41,7 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
 
   const outputLabel = tool.output && tool.output !== "completed" ? tool.output : "";
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
@@ -59,11 +68,22 @@ export function TaskCompleteToolDiff({ tool, compact }: ToolRendererProps) {
         <div className="flex items-center gap-2.5">
           <CircleCheckBig size={20} className="text-emerald-400 shrink-0" />
           <span className="font-semibold text-[13px] text-emerald-400">Task Complete</span>
-          {displayDuration > 0 && (
-            <span className="text-[11px] text-ov-text-secondary/50 ml-auto">
-              {(displayDuration / 1000).toFixed(1)}s
-            </span>
-          )}
+          <div className="ml-auto flex items-center">
+            {displayDuration > 0 && (
+              <span className="text-[11px] text-ov-text-secondary/50 mr-2">
+                {(displayDuration / 1000).toFixed(1)}s
+              </span>
+            )}
+            <ToolActionsBar
+              tool={tool}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isBookmarked={isBookmarked}
+              childSessionId={childSessionId}
+              navigateToSession={navigateToSession}
+              showPin
+            />
+          </div>
         </div>
         {summary && (
           <div className="mt-2 text-[13px]">

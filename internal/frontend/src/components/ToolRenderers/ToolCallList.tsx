@@ -11,7 +11,7 @@ import { STORAGE_KEYS } from "../../utils/storageKeys";
 export function ToolCallList({
   toolCalls,
   agent,
-  compact = false,
+  variant = "summary",
   onOpenModal,
   onPin,
   onBookmark,
@@ -21,7 +21,7 @@ export function ToolCallList({
 }: {
   toolCalls: ToolCall[];
   agent?: string;
-  compact?: boolean;
+  variant?: "summary" | "detail";
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (toolCallId: string, label: string) => void;
@@ -39,7 +39,7 @@ export function ToolCallList({
     return ids;
   }, [bookmarkIdByRef, sessionId, messageIndex, toolCalls]);
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <>
         {toolCalls.map((tool) => (
@@ -47,7 +47,7 @@ export function ToolCallList({
             key={tool.id}
             tool={tool}
             agent={agent}
-            compact
+            variant="summary"
             onOpenModal={onOpenModal}
             onPin={onPin}
             onBookmark={onBookmark}
@@ -65,6 +65,7 @@ export function ToolCallList({
           key={tool.id}
           tool={tool}
           agent={agent}
+          variant="detail"
           onOpenModal={onOpenModal}
           onBookmark={onBookmark}
           isBookmarked={toolBookmarkIds.has(tool.id)}
@@ -93,7 +94,7 @@ function NonCompactCopyBtn({ tool }: { tool: ToolCall }) {
 export function ToolCallRow({
   tool,
   agent,
-  compact = false,
+  variant = "summary",
   onOpenModal,
   onPin,
   onBookmark,
@@ -101,13 +102,13 @@ export function ToolCallRow({
 }: {
   tool: ToolCall;
   agent?: string;
-  compact?: boolean;
+  variant?: "summary" | "detail";
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (toolCallId: string, label: string) => void;
   isBookmarked?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const { navigateToSession } = useSessionNav();
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
@@ -122,7 +123,7 @@ export function ToolCallRow({
 
   const renderer = !disableCustomRenderers ? toolRendererRegistry.getRenderer(kind) : null;
   const isTask = kind === "task";
-  const prominentCard = kind === "task_complete" || kind === "exit_plan_mode";
+  const isAlwaysOpen = renderer?.display?.type === "always-open";
 
   const bmOnClick = onBookmark
     ? () => {
@@ -130,14 +131,20 @@ export function ToolCallRow({
       }
     : undefined;
 
-  // Prominent cards always render as a full card regardless of compact
-  // mode — the bypass must run before the compact check
-  if (prominentCard && renderer) {
+  // always-open cards bypass the variant check —
+  // those with renderSummary pass through the variant (so they render as a
+  // summary line inside the system card with actions), while self-contained
+  // cards always render in detail mode.
+  if (isAlwaysOpen && renderer) {
+    const alwaysOpenVariant =
+      renderer.display.type === "always-open" && renderer.display.renderSummary
+        ? variant
+        : "detail";
     return (
       <ToolRendererWrapper
         renderer={renderer}
         tool={tool}
-        compact={false}
+        variant={alwaysOpenVariant}
         onOpenModal={onOpenModal}
         onPin={onPin}
         onBookmark={bmOnClick}
@@ -146,13 +153,13 @@ export function ToolCallRow({
     );
   }
 
-  if (compact) {
+  if (variant === "summary") {
     if (renderer) {
       return (
         <ToolRendererWrapper
           renderer={renderer}
           tool={tool}
-          compact
+          variant="summary"
           onOpenModal={onOpenModal}
           onPin={onPin}
           onBookmark={bmOnClick}
@@ -167,16 +174,16 @@ export function ToolCallRow({
           <button
             type="button"
             className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[11px] font-mono text-left cursor-pointer hover:bg-ov-bg-hover transition-colors"
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => setOpen(!open)}
           >
             <ChevronRight
               size={12}
-              className={`text-ov-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+              className={`text-ov-text-secondary transition-transform shrink-0 ${open ? "rotate-90" : ""}`}
             />
             <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>
             <span className="text-ov-text truncate min-w-0">{summary}</span>
           </button>
-          {expanded && (
+          {open && (
             <div className="border-t border-ov-border px-3 py-2 space-y-2">
               {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
               {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
@@ -216,11 +223,11 @@ export function ToolCallRow({
         <button
           type="button"
           className="flex items-center gap-2 flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer hover:bg-ov-bg-hover transition-colors"
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setOpen(!open)}
         >
           <ChevronRight
             size={12}
-            className={`text-ov-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+            className={`text-ov-text-secondary transition-transform shrink-0 ${open ? "rotate-90" : ""}`}
           />
           <span className={`text-[11px] ${statusColor} font-bold shrink-0`}>
             {completed ? (
@@ -256,7 +263,7 @@ export function ToolCallRow({
           </button>
         )}
       </div>
-      {expanded && (
+      {open && (
         <div
           className={`border-t ${isTask ? "border-violet-500/20" : "border-ov-border"} px-3 py-2 space-y-2 bg-ov-bg-secondary/50`}
         >
@@ -264,7 +271,7 @@ export function ToolCallRow({
             <ToolRendererWrapper
               renderer={renderer}
               tool={tool}
-              compact={false}
+              variant="detail"
               onOpenModal={onOpenModal}
               onPin={onPin}
               onBookmark={bmOnClick}
@@ -283,17 +290,17 @@ export function ToolCallRow({
 }
 
 function ToolDataBlock({ label, content }: { label: string; content: string }) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const { copied, copy } = useCopy(2000);
   const isLong = content.length > 500;
-  const displayContent = !expanded && isLong ? content.slice(0, 500) + "..." : content;
+  const displayContent = !open && isLong ? content.slice(0, 500) + "..." : content;
 
   let formatted = displayContent;
   if (displayContent.startsWith("{") || displayContent.startsWith("[")) {
     try {
       const parsed = JSON.parse(content);
       formatted =
-        !expanded && isLong
+        !open && isLong
           ? JSON.stringify(parsed, null, 2).slice(0, 500) + "..."
           : JSON.stringify(parsed, null, 2);
     } catch {
@@ -318,13 +325,13 @@ function ToolDataBlock({ label, content }: { label: string; content: string }) {
           {isLong && (
             <button
               type="button"
-              onClick={() => setExpanded(!expanded)}
+              onClick={() => setOpen(!open)}
               className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-              title={expanded ? "Collapse" : "Expand"}
+              title={open ? "Collapse" : "Expand"}
             >
               <ChevronRight
                 size={12}
-                className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+                className={`transition-transform ${open ? "rotate-90" : ""}`}
               />
             </button>
           )}

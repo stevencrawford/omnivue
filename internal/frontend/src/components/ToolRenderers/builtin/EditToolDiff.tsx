@@ -21,7 +21,7 @@ interface EditInput {
 
 export function EditToolDiff({
   tool,
-  compact,
+  variant,
   onCopy: _onCopy,
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
@@ -47,7 +47,7 @@ export function EditToolDiff({
 
   const baseName = filePath.split("/").pop() || filePath;
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         {isWrite ? (

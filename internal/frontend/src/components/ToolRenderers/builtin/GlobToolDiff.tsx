@@ -5,7 +5,7 @@ interface GlobInput {
   pattern?: string;
 }
 
-export function GlobToolDiff({ tool, compact, onCopy: _onCopy }: ToolRendererProps) {
+export function GlobToolDiff({ tool, variant, onCopy: _onCopy }: ToolRendererProps) {
   let input: GlobInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -27,7 +27,7 @@ export function GlobToolDiff({ tool, compact, onCopy: _onCopy }: ToolRendererPro
     count = output.split("\n").filter(Boolean).length;
   }
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <Files size={12} className="text-violet-400 shrink-0" />

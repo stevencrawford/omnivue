@@ -7,7 +7,7 @@ interface BashMetadata {
   truncated?: boolean;
 }
 
-export function BashToolDiff({ tool, compact, onCopy: _onCopy }: ToolRendererProps) {
+export function BashToolDiff({ tool, variant, onCopy: _onCopy }: ToolRendererProps) {
   let command = "";
   try {
     const input = JSON.parse(tool.input);
@@ -28,7 +28,7 @@ export function BashToolDiff({ tool, compact, onCopy: _onCopy }: ToolRendererPro
 
   const success = exitCode == null || exitCode === 0;
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <Terminal

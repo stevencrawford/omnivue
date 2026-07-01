@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../MarkdownContent";
+import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
   return (
@@ -16,7 +17,15 @@ function looksLikeMarkdown(text: string): boolean {
   );
 }
 
-export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
+export function ExitPlanModeToolDiff({
+  tool,
+  variant,
+  onPin,
+  onBookmark,
+  isBookmarked,
+  childSessionId,
+  navigateToSession,
+}: ToolRendererProps) {
   let summary = "";
 
   try {
@@ -28,7 +37,7 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
 
   const feedback = tool.output || "";
 
-  if (compact) {
+  if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <FileText size={12} className="text-amber-400 shrink-0" />
@@ -48,6 +57,17 @@ export function ExitPlanModeToolDiff({ tool, compact }: ToolRendererProps) {
         <div className="flex items-center gap-2.5 mb-2">
           <FileText size={20} className="text-amber-400 shrink-0" />
           <span className="font-semibold text-[13px] text-amber-400">Proposed Plan</span>
+          <div className="ml-auto">
+            <ToolActionsBar
+              tool={tool}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isBookmarked={isBookmarked}
+              childSessionId={childSessionId}
+              navigateToSession={navigateToSession}
+              showPin
+            />
+          </div>
         </div>
         {summary && (
           <div className="text-[13px]">
