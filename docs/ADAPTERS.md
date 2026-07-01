@@ -16,6 +16,9 @@ Adapters are the pluggable interface between Omnivue and AI coding agent data st
 | | | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL (agentic session transcripts) |
 | | | `~/.cursor/ai-code-tracking.db` | SQLite (summaries, model, cost, tokens) |
 | Pi | `internal/ingest/pi/` | `~/.pi/agent/sessions/*.jsonl` | JSONL (sessions, messages, tool calls, reasoning) |
+| Claude Code | `internal/ingest/claude-code/` | `~/.claude/projects/*/*.jsonl` | JSONL (sessions, messages, tool calls, plans) |
+| | | `~/.claude/projects/*/*/subagents/agent-*.jsonl` | JSONL (subagent transcripts) |
+| | | `~/.claude/file-history/*/` | File snapshots (pre-edit backups) |
 | Codex | `internal/ingest/codex/` | `~/.codex/session_index.jsonl` | JSONL (session index) |
 
 ## Adapter interface

@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## What is Omnivue
 
-`omnivue` is an AI session manager for OpenCode, GitHub Copilot, Cursor, and Pi. All your sessions, visible in one place. The Go module is `github.com/stevencrawford/omnivue`.
+`omnivue` is an AI session manager for OpenCode, GitHub Copilot, Cursor, Pi, Claude Code, and Codex. All your sessions, visible in one place. The Go module is `github.com/stevencrawford/omnivue`.
 
 Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `omnivue` repurposes the architecture for AI session management.
 
@@ -25,7 +25,7 @@ make build
 # Run in foreground (dev mode)
 ./omnivue --foreground --port 16275
 
-# Initialize sources (auto-discovers OpenCode, Copilot, Cursor, Pi)
+# Initialize sources (auto-discovers OpenCode, Copilot, Cursor, Pi, Claude Code, Codex)
 ./omnivue init
 
 # Add a source manually
@@ -33,6 +33,8 @@ make build
 ./omnivue add ~/.copilot --type copilot
 ./omnivue add ~/.cursor --type cursor
 ./omnivue add ~/.pi/agent/sessions --type pi
+./omnivue add ~/.claude --type claude-code
+./omnivue add ~/.codex --type codex
 
 # Frontend code generation only (called by make build via go generate)
 make generate
@@ -62,7 +64,7 @@ make lint
 ### Subcommands
 
 - `omnivue init` — Discover and configure AI agent session sources interactively
-- `omnivue add <path> [--type opencode|copilot|cursor|pi]` — Manually add a session source
+- `omnivue add <path> [--type opencode|copilot|cursor|pi|claude-code|codex]` — Manually add a session source
 
 ## Architecture
 
@@ -79,6 +81,7 @@ make lint
   - `copilot/copilot.go` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
   - `cursor/cursor.go` — Cursor adapter: reads `state.vscdb` (SQLite KV) + `agent-transcripts` JSONL + `ai-code-tracking.db` (read-only)
   - `pi/pi.go` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
+  - `claude-code/claude_code.go` — Claude Code adapter: reads `~/.claude/projects/*/*.jsonl` (JSONL, read-only)
 - `internal/store/store.go` — Manages `$XDG_STATE_HOME/omnivue/omnivue.db`: sources, folders, FTS5 search index, scratch files, config, session name overrides
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, adaptive polling (5s live / 30s idle)
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
@@ -93,7 +96,7 @@ make lint
 - **Read-only agent data**: We NEVER write to agent databases. All SQLite connections use `?mode=ro`. The `OpenReadOnlyDB()` helper enforces this with a write-attempt assertion.
 - **Single instance**: CLI probes `/_/api/status`. If server running, just opens browser.
 - **Unified session model**: Adapters normalize agent-specific formats to common `Session`/`Message` types.
-- **Auto-discovery**: `omnivue init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`).
+- **Auto-discovery**: `omnivue init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`, `~/.claude`, `~/.codex`).
 - **Live-reload via SSE**: Adaptive polling (5s when active sessions, 30s when idle) detects new/changed sessions, sends `update` events to frontend.
 - **Persistent search**: FTS5 in `omnivue.db` indexes all session content incrementally (content-hash dedup).
 - **User folders**: Stored in `omnivue.db` (not filesystem) — virtual organization of sessions (nested, color-coded).
@@ -185,6 +188,8 @@ make lint
 | Cursor transcripts | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL | Agentic session transcripts |
 | Cursor tracking | `~/.cursor/ai-code-tracking.db` | SQLite | Conversation summaries, model, cost, tokens |
 | Pi | `~/.pi/agent/sessions/` | JSONL | Sessions, messages, tool calls, reasoning |
+| Claude Code | `~/.claude/projects/*/*.jsonl` | JSONL | Sessions, messages, tool calls, plans, file snapshots |
+| Claude Code subagents | `~/.claude/projects/*/*/subagents/agent-*.jsonl` | JSONL | Subagent transcripts |
 
 ## Phase Status
 
@@ -199,3 +204,4 @@ make lint
 - [x] Phase 8: Scratch notes + session rename (COMPLETE)
 - [x] Phase 9: Settings UI + keyboard shortcuts + deep linking (COMPLETE)
 - [x] Phase 10: Pi adapter (COMPLETE)
+- [x] Phase 11: Claude Code adapter (COMPLETE)

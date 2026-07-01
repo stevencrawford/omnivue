@@ -5,7 +5,7 @@
   </picture>
 </p>
 <p align="center"><b style="font-size: 1.75rem;">Omnivue</b></p>
-<p align="center">Session browser for OpenCode, Copilot, Cursor, Pi, and Codex.</p>
+<p align="center">Session browser for OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex.</p>
 <p align="center">
   <img alt="Go version" src="https://img.shields.io/badge/Go-1.26-blue?style=flat-square&logo=go" />
 </p>
@@ -20,7 +20,7 @@ Omnivue is a 100% local session browser for your AI coding assistants. It reads 
 
 ## Features
 
-- **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, and Codex out of the box
+- **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex out of the box
 - **Conversation viewer** — Full message history with tool calls, reasoning, and step events
 - **File diffs** — Unified diff view of every file change made during a session
 - **Plan tracking** — Implementation plans and checkpoints with status indicators
