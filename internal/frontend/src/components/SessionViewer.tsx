@@ -15,8 +15,10 @@ import {
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
-import { Modal } from "./Modal";
 import { useCopy } from "../hooks/useCopy";
+import { Button } from "./ui/button";
+import { Separator } from "./ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
 import { ScratchEditor } from "./ScratchEditor";
@@ -195,7 +197,7 @@ export function SessionViewer({
             ),
         )}
         {(openScratchTabs.length > 0 || !session.parentId) && (
-          <div className="w-px h-4 bg-ov-border mx-1 shrink-0" />
+          <Separator orientation="vertical" className="mx-1 h-4" />
         )}
         {openScratchTabs.map((fid) => {
           const tab: Tab = `scratch:${fid}`;
@@ -335,78 +337,89 @@ export function SessionViewer({
       </div>
 
       {/* Markdown modal */}
-      <Modal
-        isOpen={markdownModal !== null}
-        onClose={() => setMarkdownModal(null)}
-        title={markdownModal?.title}
-        size="xl"
+      <Dialog
+        open={markdownModal !== null}
+        onOpenChange={(o) => {
+          if (!o) setMarkdownModal(null);
+        }}
       >
-        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
-      </Modal>
+        <DialogContent className="max-w-7xl">
+          <DialogHeader>
+            <DialogTitle>{markdownModal?.title}</DialogTitle>
+          </DialogHeader>
+          {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
+        </DialogContent>
+      </Dialog>
 
       {/* Create file dialog */}
-      <Modal
-        isOpen={createFileOpen}
-        onClose={() => setCreateFileOpen(false)}
-        title="Create new file"
-        size="md"
+      <Dialog
+        open={createFileOpen}
+        onOpenChange={(o) => {
+          if (!o) setCreateFileOpen(false);
+        }}
       >
-        <div className="p-3 space-y-1">
-          <button
-            type="button"
-            onClick={() => {
-              setCreateFileOpen(false);
-              onNewScratchFile?.();
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
-          >
-            <FilePlus size={20} className="shrink-0 text-accent" />
-            <div className="flex flex-col">
-              <span className="font-medium">Markdown</span>
-              <span className="text-[11px] text-ov-text-secondary">.md — Rich text file</span>
-            </div>
-          </button>
-        </div>
-      </Modal>
-
-      {/* Delete scratch file confirmation */}
-      <Modal
-        isOpen={deleteConfirmFileId !== null}
-        onClose={() => setDeleteConfirmFileId(null)}
-        title="Delete file"
-        size="md"
-      >
-        <div className="p-3 space-y-3">
-          <p className="text-sm text-ov-text-secondary">
-            Are you sure you want to delete this file? This action cannot be undone.
-          </p>
-          <div className="flex items-center justify-end gap-2">
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create new file</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1">
             <button
               type="button"
-              onClick={() => setDeleteConfirmFileId(null)}
-              className="px-3 py-1.5 text-xs rounded-md text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!deleteConfirmFileId) return;
-                try {
-                  await deleteScratchFile(session.id, deleteConfirmFileId);
-                } catch {
-                  /* ignore */
-                }
-                onCloseScratchTab(deleteConfirmFileId);
-                setDeleteConfirmFileId(null);
+              onClick={() => {
+                setCreateFileOpen(false);
+                onNewScratchFile?.();
               }}
-              className="px-3 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-500 cursor-pointer transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
             >
-              Delete
+              <FilePlus size={20} className="shrink-0 text-accent" />
+              <div className="flex flex-col">
+                <span className="font-medium">Markdown</span>
+                <span className="text-[11px] text-ov-text-secondary">.md — Rich text file</span>
+              </div>
             </button>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete scratch file confirmation */}
+      <Dialog
+        open={deleteConfirmFileId !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteConfirmFileId(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete file</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-ov-text-secondary">
+              Are you sure you want to delete this file? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteConfirmFileId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={async () => {
+                  if (!deleteConfirmFileId) return;
+                  try {
+                    await deleteScratchFile(session.id, deleteConfirmFileId);
+                  } catch {
+                    /* ignore */
+                  }
+                  onCloseScratchTab(deleteConfirmFileId);
+                  setDeleteConfirmFileId(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -416,14 +429,15 @@ function ModalMarkdownWrapper({ content }: { content: string }) {
   return (
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="icon-xs"
           onClick={() => copy(content)}
-          className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+          className="border-ov-border bg-surface-elevated"
           title="Copy"
         >
-          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-        </button>
+          {copied ? <Check className="text-emerald-400" /> : <Copy />}
+        </Button>
       </div>
       <MarkdownContent content={content} className="markdown-body--wide" />
     </div>

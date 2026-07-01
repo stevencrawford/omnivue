@@ -4,6 +4,9 @@ import type { Session, Message } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
+import { Button } from "./ui/button";
+import { Separator } from "./ui/separator";
+import { Badge } from "./ui/badge";
 
 export function PinnedPromptBar({
   session,
@@ -128,9 +131,9 @@ export function PinnedPromptBar({
           <User size={16} className="text-accent-secondary shrink-0" />
           <span className="text-xs font-semibold text-ov-text">Initial Prompt</span>
           {session.model && (
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-ov-bg-hover text-ov-text-secondary font-mono">
+            <Badge variant="secondary" className="font-mono text-[11px]">
               {session.model}
-            </span>
+            </Badge>
           )}
 
           {totalTokens > 0 && (
@@ -147,35 +150,37 @@ export function PinnedPromptBar({
             </span>
           )}
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="xs"
             onClick={(e) => {
               e.stopPropagation();
               handleResume();
             }}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md border cursor-pointer transition-all ml-auto shrink-0 ${
+            className={`ml-auto shrink-0 ${
               copied
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                : "border-accent-border bg-accent-muted text-accent hover:shadow-[0_0_12px_var(--color-glow)]"
+                ? "!border-emerald-500/40 !bg-emerald-500/10 !text-emerald-400"
+                : "hover:shadow-[0_0_12px_var(--color-glow)]"
             }`}
             title="Copy resume command"
           >
             {copied ? (
               <>
-                <Check size={10} className="text-emerald-400" />
+                <Check className="text-emerald-400" />
                 Copied
               </>
             ) : (
               <>
-                <Copy size={10} />
+                <Copy />
                 Resume
               </>
             )}
-          </button>
+          </Button>
         </button>
         {pinnedExpanded && (
-          <div className="px-4 pb-3 overflow-y-auto border-t border-ov-border">
-            <div className="ml-6 mt-2">
+          <div className="px-4 pb-3 overflow-y-auto">
+            <Separator className="mb-3" />
+            <div className="ml-6">
               <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
             </div>
           </div>

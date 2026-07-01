@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Folder as FolderIcon, Plus, Loader } from "lucide-react";
-import { Modal } from "./Modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { fetchFolders, createFolder, assignSessionToFolder } from "../hooks/useApi";
 import type { Folder } from "../hooks/useApi";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface AddToProjectDialogProps {
   isOpen: boolean;
@@ -81,84 +83,94 @@ export function AddToProjectDialog({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add to Project" size="md">
-      <div className="space-y-3">
-        <p className="text-xs text-ov-text-secondary">
-          Add{" "}
-          <span className="text-ov-text font-medium">{sessionTitle || sessionId.slice(0, 12)}</span>{" "}
-          to a project:
-        </p>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add to Project</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-ov-text-secondary">
+            Add{" "}
+            <span className="text-ov-text font-medium">
+              {sessionTitle || sessionId.slice(0, 12)}
+            </span>{" "}
+            to a project:
+          </p>
 
-        <input
-          ref={filterRef}
-          type="text"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter projects..."
-          className="w-full text-xs bg-ov-bg border border-ov-border rounded-md px-2.5 py-1.5 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
-        />
+          <Input
+            ref={filterRef}
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter projects..."
+            className="w-full h-auto text-xs px-2.5 py-1.5"
+          />
 
-        <div className="max-h-48 overflow-y-auto space-y-0.5 -mx-1">
-          {loading ? (
-            <div className="text-xs text-ov-text-secondary px-3 py-2">Loading...</div>
-          ) : filtered.length === 0 ? (
-            <div className="text-xs text-ov-text-secondary px-3 py-2">
-              {filter ? "No matching projects" : "No projects yet"}
-            </div>
+          <div className="max-h-48 overflow-y-auto space-y-0.5 -mx-1">
+            {loading ? (
+              <div className="text-xs text-ov-text-secondary px-3 py-2">Loading...</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-xs text-ov-text-secondary px-3 py-2">
+                {filter ? "No matching projects" : "No projects yet"}
+              </div>
+            ) : (
+              filtered.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  disabled={assigning === folder.id}
+                  onClick={() => handleAssign(folder)}
+                  className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer disabled:opacity-40 rounded transition-colors"
+                >
+                  <FolderIcon size={14} className="shrink-0" />
+                  <span className="truncate flex-1">{folder.name}</span>
+                  {assigning === folder.id && (
+                    <Loader size={12} className="animate-spin shrink-0" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+
+          {!creating ? (
+            <Button variant="link" size="sm" onClick={() => setCreating(true)}>
+              <Plus />
+              New project
+            </Button>
           ) : (
-            filtered.map((folder) => (
-              <button
-                key={folder.id}
-                type="button"
-                disabled={assigning === folder.id}
-                onClick={() => handleAssign(folder)}
-                className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer disabled:opacity-40 rounded transition-colors"
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Escape") {
+                    setCreating(false);
+                    setNewName("");
+                  }
+                }}
+                placeholder="Project name"
+                className="flex-1 h-auto text-xs px-2 py-1.5"
+                autoFocus
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!newName.trim()}
+                onClick={handleCreate}
               >
-                <FolderIcon size={14} className="shrink-0" />
-                <span className="truncate flex-1">{folder.name}</span>
-                {assigning === folder.id && <Loader size={12} className="animate-spin shrink-0" />}
-              </button>
-            ))
+                Create
+              </Button>
+            </div>
           )}
         </div>
-
-        {!creating ? (
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 text-xs text-accent hover:text-accent/80 cursor-pointer transition-colors"
-          >
-            <Plus size={12} />
-            New project
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
-                if (e.key === "Escape") {
-                  setCreating(false);
-                  setNewName("");
-                }
-              }}
-              placeholder="Project name"
-              className="flex-1 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
-              autoFocus
-            />
-            <button
-              type="button"
-              disabled={!newName.trim()}
-              onClick={handleCreate}
-              className="text-xs px-3 py-1.5 rounded-md border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-accent-border bg-accent-muted text-accent hover:bg-accent/20"
-            >
-              Create
-            </button>
-          </div>
-        )}
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 }
