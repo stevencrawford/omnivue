@@ -677,6 +677,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 	var input struct {
 		FilePath string        `json:"filePath"`
+		Path     string        `json:"path"`
 		Content  string        `json:"content"`
 		Edits    []piEditEntry `json:"edits,omitempty"`
 	}
@@ -686,13 +687,25 @@ func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 
 	filePath = input.FilePath
 	if filePath == "" {
+		filePath = input.Path
+	}
+	if filePath == "" {
 		return "", "", ""
 	}
 
-	switch tc.Name {
-	case "write":
-		return filePath, "", input.Content
-	case "edit":
+		switch tc.Name {
+		case "write":
+			newStr = input.Content
+			if newStr == "" {
+				var fallback struct {
+					NewString string `json:"newString"`
+				}
+				if err := json.Unmarshal([]byte(tc.Input), &fallback); err == nil {
+					newStr = fallback.NewString
+				}
+			}
+			return filePath, "", newStr
+		case "edit":
 		if len(input.Edits) == 0 {
 			// Some edit calls may use oldString/newString directly
 			var fallback struct {
@@ -776,9 +789,9 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
 	case "read_file", "read_files", "view_file":
 		tc.Name = "read"
-	case "write_file", "create_file", "new_file":
+	case "write", "write_file", "create_file", "new_file":
 		tc.Name = "write"
-	case "edit_file", "edit_file_content", "modify_file", "apply_diff", "replace_text":
+	case "edit", "edit_file", "edit_file_content", "modify_file", "apply_diff", "replace_text":
 		tc.Name = "edit"
 	case "delete_file", "remove_file":
 		tc.Name = "delete"
@@ -866,7 +879,8 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			if _, exists := p["newString"]; !exists {
 				p["newString"] = v
 			}
-			delete(p, "content")
+			// Keep "content" field — the frontend and parsePiEditContent
+			// both read "content" for write tool calls.
 		}
 		// Pi may use "old_content" for old string
 		if v, ok := p["old_content"]; ok {
@@ -874,6 +888,30 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 				p["oldString"] = v
 			}
 			delete(p, "old_content")
+		}
+
+		// Pi edit calls use an "edits" array of {oldText, newText} pairs.
+		// Flatten it into oldString/newString so the frontend's EditToolDiff can render diffs.
+		if editsRaw, ok := p["edits"]; ok {
+			if editsArr, ok := editsRaw.([]any); ok && len(editsArr) > 0 {
+				var oldParts, newParts []string
+				for _, e := range editsArr {
+					if em, ok := e.(map[string]any); ok {
+						if ot, ok := em["oldText"].(string); ok {
+							oldParts = append(oldParts, ot)
+						}
+						if nt, ok := em["newText"].(string); ok {
+							newParts = append(newParts, nt)
+						}
+					}
+				}
+				if _, exists := p["oldString"]; !exists && len(oldParts) > 0 {
+					p["oldString"] = strings.Join(oldParts, "\n")
+				}
+				if _, exists := p["newString"]; !exists && len(newParts) > 0 {
+					p["newString"] = strings.Join(newParts, "\n")
+				}
+			}
 		}
 
 	case "bash":
