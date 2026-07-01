@@ -258,6 +258,39 @@
       background: #818cf8;
       transform: scale(1.25);
     }
+    /* Zoom overlay */
+    .zoom-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      padding: 2rem;
+    }
+    .zoom-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .zoom-overlay img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 6px;
+      box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+      cursor: default;
+      user-select: none;
+    }
+    .feature-section img {
+      cursor: zoom-in;
+    }
   </style>
 <script type="application/ld+json">
 {
@@ -761,8 +794,13 @@
     </div>
   </footer>
 
+<div id="zoom-overlay" class="zoom-overlay">
+  <img id="zoom-image" src="" alt="Zoomed screenshot" />
+</div>
+
 <script>
 (function() {
+  /* Carousel auto-advance */
   var carousels = document.querySelectorAll('.carousel');
   if (!carousels.length) return;
 
@@ -813,6 +851,34 @@
       isVisible = true;
       start();
     }
+  });
+
+  /* Click-to-zoom on screenshots */
+  var overlay = document.getElementById('zoom-overlay');
+  var zoomImg = document.getElementById('zoom-image');
+
+  function openZoom(src) {
+    zoomImg.src = src;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeZoom() {
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  overlay.addEventListener('click', closeZoom);
+  zoomImg.addEventListener('click', function(e) { e.stopPropagation(); });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeZoom();
+  });
+
+  document.querySelectorAll('.feature-section img').forEach(function(img) {
+    img.addEventListener('click', function() {
+      openZoom(this.src);
+    });
   });
 })();
 </script>
