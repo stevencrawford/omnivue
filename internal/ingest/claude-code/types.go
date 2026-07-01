@@ -59,6 +59,27 @@ type claudeContentPart struct {
 	Input json.RawMessage `json:"input,omitempty"`
 }
 
+// progress event fields (used for agent_progress carrying Task tool results).
+type claudeProgressData struct {
+	Type    string          `json:"type"`
+	AgentID string          `json:"agentId,omitempty"`
+	Message json.RawMessage `json:"message,omitempty"`
+	Prompt  string          `json:"prompt,omitempty"`
+}
+
+// claudeProgressEnvelope wraps progress events (including agent_progress).
+type claudeProgressEnvelope struct {
+	ParentToolUseID string             `json:"parentToolUseID,omitempty"`
+	ToolUseID       string             `json:"toolUseID,omitempty"`
+	Data            *claudeProgressData `json:"data,omitempty"`
+}
+
+// progressMessageWrapper wraps the nested message inside agent_progress data.
+type progressMessageWrapper struct {
+	Type    string            `json:"type"`
+	Message *claudeMessageData `json:"message"`
+}
+
 // sessionsIndex mirrors the schema of sessions-index.json.
 type sessionsIndex struct {
 	Version      int    `json:"version"`

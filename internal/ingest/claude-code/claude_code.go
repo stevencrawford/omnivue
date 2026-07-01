@@ -403,7 +403,10 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 		// Skip non-message types
 		switch env.Type {
-		case "file-history-snapshot", "progress", "queue-operation", "system":
+		case "file-history-snapshot", "queue-operation", "system":
+			continue
+		case "progress":
+			handleProgressEvent(line, toolCallsByID, parentSID)
 			continue
 		case "user":
 			if isMetaMsg(&env) {
@@ -457,7 +460,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				for i := range toolCalls {
 					if toolResultsDir != "" {
 						if tr := readToolResultFile(toolResultsDir, toolCalls[i].ID); tr != "" {
-							toolCalls[i].Output = tr
+							toolCalls[i].Output = truncateToolOutput(tr, toolCalls[i].Name)
 							toolCalls[i].Status = "completed"
 						}
 					}
@@ -482,11 +485,14 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			}
 
 			if tc, ok := toolCallsByID[tcID]; ok {
-				tc.Output = content
+				tc.Output = truncateToolOutput(content, tc.Name)
 				if env.IsError != nil && *env.IsError {
 					tc.Status = "failed"
 				} else {
 					tc.Status = "completed"
+				}
+				if env.AgentID != "" {
+					setToolMetadataSessionID(tc, parentSID, env.AgentID)
 				}
 			}
 		}
@@ -557,7 +563,7 @@ func extractAndMergeToolResults(raw json.RawMessage, toolCallsByID map[string]*i
 		}
 		if tc, ok := toolCallsByID[r.ToolUseID]; ok {
 			if content != "" {
-				tc.Output = content
+				tc.Output = truncateToolOutput(content, tc.Name)
 			}
 			if isError != nil && *isError {
 				tc.Status = "failed"
@@ -683,7 +689,7 @@ func extractToolResultContent(raw json.RawMessage) string {
 	// Try as string first
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
-		return util.TruncateContent(s, 2000)
+		return s
 	}
 
 	// Try as content array with text parts
@@ -695,10 +701,18 @@ func extractToolResultContent(raw json.RawMessage) string {
 				texts = append(texts, p.Text)
 			}
 		}
-		return util.TruncateContent(strings.Join(texts, "\n"), 2000)
+		return strings.Join(texts, "\n")
 	}
 
 	return ""
+}
+
+// truncateToolOutput truncates content to maxContentBytes unless the tool is a task.
+func truncateToolOutput(content string, toolName string) string {
+	if toolName == "task" || toolName == "Task" {
+		return content
+	}
+	return util.TruncateContent(content, maxContentBytes)
 }
 
 const maxContentBytes = 2000
@@ -754,7 +768,67 @@ func readToolResultFile(toolResultsDir, toolUseID string) string {
 	if err != nil {
 		return ""
 	}
-	return util.TruncateContent(string(content), 2000)
+	return string(content)
+}
+
+// setToolMetadataSessionID sets the sessionId field in a tool call's metadata JSON.
+func setToolMetadataSessionID(tc *ingest.ToolCall, parentSID, agentID string) {
+	if agentID == "" {
+		return
+	}
+	childID := parentSID + "-agent-" + agentID
+	var md map[string]any
+	if tc.Metadata != "" {
+		json.Unmarshal([]byte(tc.Metadata), &md)
+	}
+	if md == nil {
+		md = make(map[string]any)
+	}
+	md["sessionId"] = childID
+	mdBytes, _ := json.Marshal(md)
+	tc.Metadata = string(mdBytes)
+}
+
+// handleProgressEvent processes agent_progress events that carry Task tool results.
+// These events contain the sub-agent's tool results and metadata linking back to
+// the parent Task tool call via parentToolUseID.
+func handleProgressEvent(line []byte, toolCallsByID map[string]*ingest.ToolCall, parentSID string) {
+	var prog claudeProgressEnvelope
+	if err := json.Unmarshal(line, &prog); err != nil {
+		return
+	}
+	if prog.ParentToolUseID == "" || prog.Data == nil {
+		return
+	}
+	tc, ok := toolCallsByID[prog.ParentToolUseID]
+	if !ok {
+		return
+	}
+
+	// Set sessionId metadata from the sub-agent ID
+	if prog.Data.AgentID != "" {
+		setToolMetadataSessionID(tc, parentSID, prog.Data.AgentID)
+	}
+
+	// Mark the task tool as completed
+	tc.Status = "completed"
+
+	// Extract content from the embedded tool result in the progress event
+	if len(prog.Data.Message) == 0 {
+		return
+	}
+	var wrapper progressMessageWrapper
+	if json.Unmarshal(prog.Data.Message, &wrapper) != nil {
+		return
+	}
+	if wrapper.Message == nil || len(wrapper.Message.Content) == 0 {
+		return
+	}
+	content := extractToolResultContent(wrapper.Message.Content)
+	if content == "" {
+		return
+	}
+	tc.Output = truncateToolOutput(content, tc.Name)
 }
 
 func normalizeToolCall(tc *ingest.ToolCall) {
