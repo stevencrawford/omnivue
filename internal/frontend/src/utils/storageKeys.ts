@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   PROJECT_FOLDER_SORT: "omnivue-project-folder-sort",
   DIFF_TREE_WIDTH: "omnivue-diff-tree-width",
   SEEN_SESSIONS: "omnivue-seen-sessions",
+  DISABLE_CUSTOM_RENDERERS: "omnivue-disable-custom-renderers",
 } as const;
 
 export function getStorageItem(key: string): string | null {

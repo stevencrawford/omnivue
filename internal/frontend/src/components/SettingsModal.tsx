@@ -58,13 +58,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const { themeName, setThemeName, theme, setTheme } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<"agent" | "appearance" | "privacy" | "about">("agent");
+  const [activeTab, setActiveTab] = useState<
+    "agent" | "appearance" | "privacy" | "developer" | "about"
+  >("agent");
 
   const [showCostsSetting, setShowCostsSetting] = useState(() => {
     try {
       return localStorage.getItem("omnivue-show-costs") !== "false";
     } catch {
       return true;
+    }
+  });
+
+  const [disableCustomRenderers, setDisableCustomRenderers] = useState(() => {
+    try {
+      return localStorage.getItem("omnivue-disable-custom-renderers") === "true";
+    } catch {
+      return false;
     }
   });
 
@@ -175,7 +185,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         {/* Sidebar tabs */}
         <div className="w-40 shrink-0 border-r border-ov-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
           <nav className="flex flex-col gap-0.5 pr-4">
-            {(["agent", "appearance", "privacy", "about"] as const).map((tab) => (
+            {(["agent", "appearance", "privacy", "developer", "about"] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -192,7 +202,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     ? "Appearance"
                     : tab === "privacy"
                       ? "Privacy"
-                      : "About"}
+                      : tab === "developer"
+                        ? "Developer"
+                        : "About"}
               </button>
             ))}
           </nav>
@@ -444,6 +456,39 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 />
                 <span className="text-xs text-ov-text">Show costs</span>
               </label>
+            </div>
+          )}
+
+          {activeTab === "developer" && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
+                Developer
+              </h3>
+              <p className="text-xs text-ov-text-secondary mb-3">
+                Tools for debugging and contributing to Omnivue.
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={disableCustomRenderers}
+                  onChange={(e) => {
+                    setDisableCustomRenderers(e.target.checked);
+                    try {
+                      localStorage.setItem(
+                        "omnivue-disable-custom-renderers",
+                        e.target.checked ? "true" : "false",
+                      );
+                    } catch {
+                      /* noop */
+                    }
+                  }}
+                  className="accent-accent"
+                />
+                <span className="text-xs text-ov-text">Disable custom tool call renderers</span>
+              </label>
+              <p className="text-[11px] text-ov-text-secondary mt-1 ml-5">
+                Display all tool calls using the default input/output view for debugging.
+              </p>
             </div>
           )}
 

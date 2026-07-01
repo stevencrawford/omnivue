@@ -6,6 +6,7 @@ import { useSessionNav } from "../../hooks/useNav";
 import { useCopy } from "../../hooks/useCopy";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
+import { STORAGE_KEYS } from "../../utils/storageKeys";
 
 export function ToolCallList({
   toolCalls,
@@ -111,7 +112,15 @@ export function ToolCallRow({
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
 
-  const renderer = toolRendererRegistry.getRenderer(kind);
+  const disableCustomRenderers = (() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS) === "true";
+    } catch {
+      return false;
+    }
+  })();
+
+  const renderer = !disableCustomRenderers ? toolRendererRegistry.getRenderer(kind) : null;
   const isTask = kind === "task";
   const prominentCard = kind === "task_complete" || kind === "exit_plan_mode";
 
@@ -149,6 +158,31 @@ export function ToolCallRow({
           onBookmark={bmOnClick}
           isBookmarked={isBookmarked}
         />
+      );
+    }
+    // When custom renderers are disabled, show an expandable raw data card
+    if (disableCustomRenderers) {
+      return (
+        <div className="border border-ov-border rounded-lg overflow-hidden mb-2 bg-ov-bg-secondary/50">
+          <button
+            type="button"
+            className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[11px] font-mono text-left cursor-pointer hover:bg-ov-bg-hover transition-colors"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <ChevronRight
+              size={12}
+              className={`text-ov-text-secondary transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
+            />
+            <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>
+            <span className="text-ov-text truncate min-w-0">{summary}</span>
+          </button>
+          {expanded && (
+            <div className="border-t border-ov-border px-3 py-2 space-y-2">
+              {tool.input && <ToolDataBlock label="Input" content={tool.input} />}
+              {tool.output && <ToolDataBlock label="Output" content={tool.output} />}
+            </div>
+          )}
+        </div>
       );
     }
     // Fallback: plain summary line
