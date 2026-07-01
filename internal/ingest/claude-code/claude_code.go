@@ -615,17 +615,52 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 		case "thinking":
 			thinkTexts = append(thinkTexts, p.Thinking)
 		case "tool_use":
-			input := ""
-			if p.Input != nil {
-				input = string(p.Input)
+			if p.Name == "ExitPlanMode" {
+				// Transform exit_plan_mode input for the frontend renderer.
+				// The frontend ExitPlanModeToolDiff expects: {"summary":"<plan markdown>"}
+				// Claude Code stores the plan under either "plan", "content", or "summary" key.
+				planText := extractPlanContent(p.Input)
+				if planText != "" {
+					transformed, _ := json.Marshal(map[string]string{
+						"summary": planText,
+					})
+					tc := ingest.ToolCall{
+						ID:     p.ID,
+						Name:   p.Name,
+						Input:  string(transformed),
+						Status: "running",
+					}
+					toolCalls = append(toolCalls, tc)
+				} else {
+					tc := ingest.ToolCall{
+						ID:     p.ID,
+						Name:   p.Name,
+						Input:  string(p.Input),
+						Status: "running",
+					}
+					toolCalls = append(toolCalls, tc)
+				}
+			} else if (p.Name == "Write" || p.Name == "Edit") && p.Input != nil {
+				tc := ingest.ToolCall{
+					ID:     p.ID,
+					Name:   p.Name,
+					Input:  truncateEditInput(p.Input),
+					Status: "running",
+				}
+				toolCalls = append(toolCalls, tc)
+			} else {
+				input := ""
+				if p.Input != nil {
+					input = string(p.Input)
+				}
+				tc := ingest.ToolCall{
+					ID:     p.ID,
+					Name:   p.Name,
+					Input:  util.TruncateContent(input, 2000),
+					Status: "running",
+				}
+				toolCalls = append(toolCalls, tc)
 			}
-			tc := ingest.ToolCall{
-				ID:     p.ID,
-				Name:   p.Name,
-				Input:  util.TruncateContent(input, 2000),
-				Status: "running",
-			}
-			toolCalls = append(toolCalls, tc)
 		}
 	}
 
@@ -657,6 +692,52 @@ func extractToolResultContent(raw json.RawMessage) string {
 		return util.TruncateContent(strings.Join(texts, "\n"), 2000)
 	}
 
+	return ""
+}
+
+const maxContentBytes = 2000
+
+// truncateEditInput truncates only the content payload fields inside a Write/Edit
+// tool call's JSON input, keeping the JSON valid so the frontend can still parse
+// structural fields like file_path, old_str, new_str.
+func truncateEditInput(raw json.RawMessage) string {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return util.TruncateContent(string(raw), maxContentBytes)
+	}
+	changed := false
+	for _, key := range []string{"content", "new_str", "newStr", "old_str", "oldStr"} {
+		if v, ok := m[key]; ok {
+			if s, ok := v.(string); ok && len(s) > maxContentBytes {
+				m[key] = s[:maxContentBytes] + "\n… (truncated)"
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return string(raw)
+	}
+	result, _ := json.Marshal(m)
+	return string(result)
+}
+
+// extractPlanContent extracts plan markdown from an ExitPlanMode tool_use input.
+// Claude Code stores the plan under "plan", "content", or "summary" keys.
+func extractPlanContent(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		return ""
+	}
+	for _, key := range []string{"plan", "content", "summary"} {
+		if v, ok := m[key]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
 	return ""
 }
 
