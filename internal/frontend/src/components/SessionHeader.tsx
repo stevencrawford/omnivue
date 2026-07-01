@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { setSessionName, clearSessionName } from "../hooks/useApi";
+import { agentLabel } from "../utils/sessionUtils";
 
 export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPrivacy?: boolean }) {
   const [editing, setEditing] = useState(false);
@@ -92,7 +93,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
             )}
           </>
         )}
-        <span className={`${badgeClass} shrink-0`}>{session.agent}</span>
+        <span className={`${badgeClass} shrink-0`}>{agentLabel(session.agent)}</span>
         {hasPrivacy && <span className="sess-privacy-badge shrink-0">Privacy mode</span>}
         <span
           className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[40%]"
