@@ -32,13 +32,8 @@ import { useState } from "react";
 
 export function App() {
   // ---- Data hooks ----
-  const {
-    sessions,
-    activeSessionId,
-    liveChangedIds,
-    activeSession,
-    setActiveSessionId,
-  } = useSessions();
+  const { sessions, activeSessionId, liveChangedIds, activeSession, setActiveSessionId } =
+    useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
 
@@ -86,7 +81,9 @@ export function App() {
     handleCloseScratchTab,
     handleRenameScratchFile,
     handlePinAsScratch,
-  } = useScratchFiles(sessions, activeSessionId, activeTab, activeSession, (tab: string) => setActiveTab(tab as Tab));
+  } = useScratchFiles(sessions, activeSessionId, activeTab, activeSession, (tab: string) =>
+    setActiveTab(tab as Tab),
+  );
 
   // ---- Pin message modal ----
   const {

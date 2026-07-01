@@ -11,7 +11,13 @@ export const THEMES: { name: ThemeName; label: string; description: string }[] =
   { name: "github", label: "GitHub", description: "GitHub's official palette" },
 ];
 
-const THEME_NAMES: readonly ThemeName[] = ["default", "nord", "catppuccin", "tokyo-night", "github"];
+const THEME_NAMES: readonly ThemeName[] = [
+  "default",
+  "nord",
+  "catppuccin",
+  "tokyo-night",
+  "github",
+];
 
 /** Type predicate — narrows string to ThemeName at runtime. */
 function isThemeName(value: string): value is ThemeName {

@@ -25,9 +25,7 @@ export function AppHeader({
           type="button"
           onClick={onGoHome}
           className={`flex items-center gap-1.5 min-w-0 rounded-md px-1.5 py-1 -ml-1.5 transition-colors cursor-pointer ${
-            showOverview
-              ? "text-accent bg-accent-muted"
-              : "hover:bg-ov-bg-hover text-ov-text"
+            showOverview ? "text-accent bg-accent-muted" : "hover:bg-ov-bg-hover text-ov-text"
           }`}
           title="Overview"
         >

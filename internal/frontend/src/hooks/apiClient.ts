@@ -63,28 +63,15 @@ async function fetchJson<T>(url: string, schema: ZodType<T>, init?: RequestInit)
     throw new ApiError(`Network error: ${String(err)}`, 0, url);
   }
   if (!res.ok) {
-    throw new ApiError(
-      `Request failed: ${res.status} ${res.statusText}`,
-      res.status,
-      url,
-    );
+    throw new ApiError(`Request failed: ${res.status} ${res.statusText}`, res.status, url);
   }
   // For 204 No Content, return undefined as T (caller handles void)
   if (res.status === 204) return undefined as unknown as T;
   const raw = await res.json();
   const result = schema.safeParse(raw);
   if (!result.success) {
-    console.error(
-      `[api] Validation error for ${url}:`,
-      result.error.issues,
-      "Raw response:",
-      raw,
-    );
-    throw new ApiError(
-      `Response validation failed for ${url}`,
-      res.status,
-      url,
-    );
+    console.error(`[api] Validation error for ${url}:`, result.error.issues, "Raw response:", raw);
+    throw new ApiError(`Response validation failed for ${url}`, res.status, url);
   }
   return result.data as T;
 }
@@ -93,11 +80,7 @@ async function fetchJson<T>(url: string, schema: ZodType<T>, init?: RequestInit)
 async function fetchVoid(url: string, init?: RequestInit): Promise<void> {
   const res = await fetch(url, init);
   if (!res.ok) {
-    throw new ApiError(
-      `Request failed: ${res.status} ${res.statusText}`,
-      res.status,
-      url,
-    );
+    throw new ApiError(`Request failed: ${res.status} ${res.statusText}`, res.status, url);
   }
 }
 

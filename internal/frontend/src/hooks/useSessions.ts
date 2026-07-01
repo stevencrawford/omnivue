@@ -47,8 +47,7 @@ export function useSessions(): SessionsState {
   );
 
   useEffect(() => {
-    document.title =
-      activeSession ? `Omnivue \u2014 ${activeSession.title}` : "Omnivue";
+    document.title = activeSession ? `Omnivue \u2014 ${activeSession.title}` : "Omnivue";
   }, [activeSession]);
 
   return {

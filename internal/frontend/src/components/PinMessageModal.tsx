@@ -16,18 +16,11 @@ export function PinMessageModal({
   onConfirm,
 }: PinMessageModalProps) {
   return (
-    <Modal
-      isOpen={pinningContent !== null}
-      onClose={onCancel}
-      title="Pin Message"
-      size="md"
-    >
+    <Modal isOpen={pinningContent !== null} onClose={onCancel} title="Pin Message" size="md">
       {pinningContent && (
         <div className="p-3 space-y-3">
           <div>
-            <label className="text-xs font-medium text-ov-text-secondary block mb-1">
-              Title
-            </label>
+            <label className="text-xs font-medium text-ov-text-secondary block mb-1">Title</label>
             <input
               type="text"
               value={pinTitle}
@@ -38,9 +31,7 @@ export function PinMessageModal({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-ov-text-secondary block mb-1">
-              Preview
-            </label>
+            <label className="text-xs font-medium text-ov-text-secondary block mb-1">Preview</label>
             <div className="max-h-32 overflow-y-auto p-2 rounded border border-ov-border bg-ov-bg-secondary/50 text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
               {pinningContent.slice(0, 500)}
               {pinningContent.length > 500 && (

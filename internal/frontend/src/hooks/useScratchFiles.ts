@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScratchFile, Session } from "./types";
-import {
-  fetchAllScratchFiles,
-  createScratchFile,
-  renameScratchFile,
-} from "./apiClient";
+import { fetchAllScratchFiles, createScratchFile, renameScratchFile } from "./apiClient";
 
 export interface ScratchFileInfo {
   title: string;

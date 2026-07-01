@@ -64,7 +64,9 @@ export function TaskToolDiff({
     <div className="px-0">
       <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-mono text-violet-400">
         {agent && <span className="text-violet-400/70">{agent}</span>}
-        <span className="font-medium text-violet-300 truncate flex-1">{description || "Sub-task"}</span>
+        <span className="font-medium text-violet-300 truncate flex-1">
+          {description || "Sub-task"}
+        </span>
         {totalCount > 0 && (
           <span className="text-violet-400/70">
             {completedCount}/{totalCount} steps

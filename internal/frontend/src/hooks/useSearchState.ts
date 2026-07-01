@@ -67,7 +67,12 @@ export function useSearchState(
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const data = await fetchSearch(q.trim(), 100, searchSessionScope ?? undefined, controller.signal);
+        const data = await fetchSearch(
+          q.trim(),
+          100,
+          searchSessionScope ?? undefined,
+          controller.signal,
+        );
         if (controller.signal.aborted) return;
         setDrawerQuery(q);
         setDrawerResults(data || []);
