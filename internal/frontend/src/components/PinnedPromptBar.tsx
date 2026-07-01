@@ -113,7 +113,7 @@ export function PinnedPromptBar({
       </div>
 
       <div
-        className="sess-pinned-bar shrink-0 overflow-hidden mb-3"
+        className="sess-pinned-bar shrink-0 overflow-hidden"
         style={pinnedExpanded ? { maxHeight: pinnedHeight } : undefined}
       >
         <button

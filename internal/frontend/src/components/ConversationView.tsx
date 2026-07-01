@@ -126,7 +126,7 @@ export function ConversationView({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden mb-3">
+    <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex-1 relative min-h-0">
         <div
           ref={scrollRef}
