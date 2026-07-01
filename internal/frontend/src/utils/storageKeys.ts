@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   DIFF_TREE_WIDTH: "omnivue-diff-tree-width",
   SEEN_SESSIONS: "omnivue-seen-sessions",
   DISABLE_CUSTOM_RENDERERS: "omnivue-disable-custom-renderers",
+  OVERVIEW_TIME_RANGE: "omnivue-overview-timerange",
 } as const;
 
 export function getStorageItem(key: string): string | null {
