@@ -10,6 +10,10 @@
   <img alt="Go version" src="https://img.shields.io/badge/Go-1.26-blue?style=flat-square&logo=go" />
 </p>
 
+<p align="center">
+  <img src="site/images/omnivue-sessions-view.png" alt="Omnivue sessions view" width="700" />
+</p>
+
 ---
 
 Omnivue is a 100% local session browser for your AI coding assistants. It reads the session data already on your machine and shows it all in one place — conversation history, file diffs, implementation plans, and more.
