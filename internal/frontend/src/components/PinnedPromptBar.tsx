@@ -93,11 +93,11 @@ export function PinnedPromptBar({
     ];
   };
 
-  function showCosts(): boolean {
+  function hideCosts(): boolean {
     try {
-      return localStorage.getItem("omnivue-show-costs") !== "false";
+      return localStorage.getItem("omnivue-hide-costs") === "true";
     } catch {
-      return true;
+      return false;
     }
   }
 
@@ -141,7 +141,7 @@ export function PinnedPromptBar({
               {formatTokenBreakdown(session)}
             </span>
           )}
-          {session.cost > 0 && showCosts() && (
+          {session.cost > 0 && !hideCosts() && (
             <span className="text-[11px] text-ov-text-secondary" title="Cost">
               {formatCost(session.cost)}
             </span>

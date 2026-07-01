@@ -13,7 +13,6 @@ import {
   sessionTitle,
   shortModel,
 } from "../utils/sessionUtils";
-import { STORAGE_KEYS } from "../utils/storageKeys";
 
 interface OverviewScreenProps {
   sessions: Session[];
@@ -36,24 +35,24 @@ interface OverviewStats {
   totalWorkspaces: number;
 }
 
-function useShowCosts(): boolean {
-  const [show, setShow] = useState(() => {
+function useHideCosts(): boolean {
+  const [hide, setHide] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEYS.SHOW_COSTS) !== "false";
+      return localStorage.getItem("omnivue-hide-costs") === "true";
     } catch {
-      return true;
+      return false;
     }
   });
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.SHOW_COSTS) {
-        setShow(e.newValue !== "false");
+      if (e.key === "omnivue-hide-costs") {
+        setHide(e.newValue === "true");
       }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-  return show;
+  return hide;
 }
 
 function computeStats(sessions: Session[]): OverviewStats {
@@ -306,7 +305,7 @@ export function OverviewScreen({
   onBookmarkSelect,
   onOpenProjects,
 }: OverviewScreenProps) {
-  const showCosts = useShowCosts();
+  const hideCosts = useHideCosts();
   const stats = useMemo(() => computeStats(sessions), [sessions]);
   const recentSessions = useMemo(() => sortByRecent(sessions).slice(0, 8), [sessions]);
   const sessionById = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
@@ -429,7 +428,7 @@ export function OverviewScreen({
           <StatCard
             icon={Coins}
             label="Spend"
-            value={showCosts && stats.totalCost > 0 ? formatCost(stats.totalCost) : "***"}
+            value={!hideCosts && stats.totalCost > 0 ? formatCost(stats.totalCost) : "***"}
             sub="Across indexed sessions"
           />
           <StatCard
@@ -591,7 +590,7 @@ export function OverviewScreen({
                   {recentSessions[0] && (
                     <p className="text-[11px] text-ov-text-secondary border-t border-ov-border pt-3">
                       Latest session: {formatTokenBreakdown(recentSessions[0])}
-                      {showCosts && recentSessions[0].cost > 0 && (
+                      {!hideCosts && recentSessions[0].cost > 0 && (
                         <> · {formatCost(recentSessions[0].cost)}</>
                       )}
                     </p>

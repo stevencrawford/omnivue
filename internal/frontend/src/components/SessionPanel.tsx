@@ -636,11 +636,11 @@ function SessionRow({
 
 // ─── VerboseStats ────────────────────────────────────────────────
 
-function showCosts(): boolean {
+function hideCosts(): boolean {
   try {
-    return localStorage.getItem("omnivue-show-costs") !== "false";
+    return localStorage.getItem("omnivue-hide-costs") === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -648,7 +648,7 @@ function VerboseStats({ session }: { session: Session }) {
   const totalTokens =
     session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const parts: ReactNode[] = [];
-  const costsVisible = showCosts();
+  const costsVisible = !hideCosts();
 
   const model = shortModel(session.model);
   if (model) {

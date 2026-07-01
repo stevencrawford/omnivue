@@ -62,11 +62,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     "agent" | "appearance" | "privacy" | "developer" | "about"
   >("agent");
 
-  const [showCostsSetting, setShowCostsSetting] = useState(() => {
+  const [hideCostsSetting, setHideCostsSetting] = useState(() => {
     try {
-      return localStorage.getItem("omnivue-show-costs") !== "false";
+      return localStorage.getItem("omnivue-hide-costs") === "true";
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -440,12 +440,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={showCostsSetting}
+                  checked={hideCostsSetting}
                   onChange={(e) => {
-                    setShowCostsSetting(e.target.checked);
+                    setHideCostsSetting(e.target.checked);
                     try {
                       localStorage.setItem(
-                        "omnivue-show-costs",
+                        "omnivue-hide-costs",
                         e.target.checked ? "true" : "false",
                       );
                     } catch {
@@ -454,7 +454,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   }}
                   className="accent-accent"
                 />
-                <span className="text-xs text-ov-text">Show costs</span>
+                <span className="text-xs text-ov-text">Hide costs</span>
               </label>
             </div>
           )}
