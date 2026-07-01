@@ -1,4 +1,4 @@
-import { Modal } from "./Modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
 interface ShortcutsModalProps {
   isOpen: boolean;
@@ -45,24 +45,34 @@ const GROUPS: ShortcutGroup[] = [
 
 export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Keyboard Shortcuts" size="md">
-      <div className="space-y-6">
-        {GROUPS.map((group) => (
-          <div key={group.title}>
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-2">
-              {group.title}
-            </h3>
-            <div className="space-y-1">
-              {group.shortcuts.map((s) => (
-                <div key={s.keys} className="flex items-center justify-between py-0.5">
-                  <span className="text-xs text-ov-text-secondary">{s.desc}</span>
-                  <span className="text-[11px] font-mono text-ov-text ml-4">{s.keys}</span>
-                </div>
-              ))}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Keyboard Shortcuts</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6">
+          {GROUPS.map((group) => (
+            <div key={group.title}>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-2">
+                {group.title}
+              </h3>
+              <div className="space-y-1">
+                {group.shortcuts.map((s) => (
+                  <div key={s.keys} className="flex items-center justify-between py-0.5">
+                    <span className="text-xs text-ov-text-secondary">{s.desc}</span>
+                    <span className="text-[11px] font-mono text-ov-text ml-4">{s.keys}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </Modal>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

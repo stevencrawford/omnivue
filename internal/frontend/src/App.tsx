@@ -14,7 +14,8 @@ import { PinMessageModal } from "./components/PinMessageModal";
 import type { Tab } from "./components/SessionViewer";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
-import { ToastProvider } from "./hooks/useToast";
+import { Toaster } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { type AppKeyboardConfig, useAppKeyboard } from "./hooks/useAppKeyboard";
 import { useSessionRouting } from "./hooks/useSessionRouting";
 import { useSearchScope } from "./hooks/useSearchScope";
@@ -185,7 +186,7 @@ export function App() {
   // ---- Render ----
   return (
     <ThemeProvider>
-      <ToastProvider>
+      <TooltipProvider>
         <div className="flex flex-col h-full font-sans text-ov-text bg-ov-bg">
           <AppHeader
             showOverview={showOverview}
@@ -304,7 +305,8 @@ export function App() {
             onConfirm={() => handleConfirmPin(handlePinAsScratch)}
           />
         </div>
-      </ToastProvider>
+        <Toaster />
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

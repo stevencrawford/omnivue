@@ -14,8 +14,13 @@ import {
 } from "../utils/sessionUtils";
 import { useSessionNav } from "../hooks/useNav";
 import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
-import { ContextMenu } from "./ContextMenu";
 import { AddToProjectDialog } from "./AddToProjectDialog";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
 
 interface SessionPanelProps {
   sessions: Session[];
@@ -95,18 +100,7 @@ export function SessionPanel({
     const session = sessions.find((s) => s.id === activeSessionId);
     return session?.parentId || null;
   });
-  const [contextMenu, setContextMenu] = useState<{
-    sessionId: string;
-    x: number;
-    y: number;
-  } | null>(null);
   const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
-
-  const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ sessionId, x: e.clientX, y: e.clientY });
-  }, []);
 
   const [filters, setFilters] = useState<SessionFilters>({
     agent: null,
@@ -324,29 +318,13 @@ export function SessionPanel({
                 onSessionSelect={onSessionSelect}
                 expandedParentId={expandedParentId}
                 onExpandParent={setExpandedParentId}
-                onContextMenu={handleContextMenu}
+                onAddToProject={(id) => setAddToProjectSessionId(id)}
                 displayMode={displayMode}
               />
             ))}
           </div>
         )}
       </div>
-
-      {contextMenu && (
-        <ContextMenu
-          position={{ x: contextMenu.x, y: contextMenu.y }}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              label: "Add to Project",
-              icon: <Folder size={14} />,
-              onClick: () => {
-                setAddToProjectSessionId(contextMenu.sessionId);
-              },
-            },
-          ]}
-        />
-      )}
 
       {addToProjectSessionId && (
         <AddToProjectDialog
@@ -452,7 +430,7 @@ function RepoNode({
   onSessionSelect,
   expandedParentId,
   onExpandParent,
-  onContextMenu,
+  onAddToProject,
   displayMode,
 }: {
   node: TreeNode;
@@ -462,7 +440,7 @@ function RepoNode({
   onSessionSelect: (sessionId: string) => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
-  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
+  onAddToProject: (sessionId: string) => void;
   displayMode: DisplayMode;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
@@ -501,7 +479,7 @@ function RepoNode({
                 onSelect={() => onSessionSelect(session.id)}
                 expandedParentId={expandedParentId}
                 onExpandParent={onExpandParent}
-                onContextMenu={onContextMenu}
+                onAddToProject={onAddToProject}
                 displayMode={displayMode}
               />
             );
@@ -531,7 +509,7 @@ function SessionRow({
   onSelect,
   expandedParentId,
   onExpandParent,
-  onContextMenu,
+  onAddToProject,
   displayMode,
 }: {
   session: Session;
@@ -541,7 +519,7 @@ function SessionRow({
   onSelect: () => void;
   expandedParentId: string | null;
   onExpandParent: (id: string) => void;
-  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
+  onAddToProject: (sessionId: string) => void;
   displayMode: DisplayMode;
 }) {
   const { navigateToSession } = useSessionNav();
@@ -560,39 +538,48 @@ function SessionRow({
 
   return (
     <div>
-      <button
-        type="button"
-        draggable
-        onDragStart={handleDragStart}
-        onClick={handleClick}
-        onContextMenu={(e) => onContextMenu(session.id, e)}
-        title={session.directory || session.repository}
-        className={`session-draggable sess-parent-session w-full text-left transition-all ${
-          isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-        }`}
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span
-            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-ov-text" : "text-ov-text"}`}
+      <ContextMenu>
+        <ContextMenuTrigger>
+          <button
+            type="button"
+            draggable
+            onDragStart={handleDragStart}
+            onClick={handleClick}
+            title={session.directory || session.repository}
+            className={`session-draggable sess-parent-session w-full text-left transition-all ${
+              isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
+            }`}
           >
-            {sessionTitle(session)}
-          </span>
-          {subCount > 0 && !subsVisible && (
-            <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
-              {subCount}
-            </span>
-          )}
-          <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
-            {relativeTime(session.updatedAt)}
-          </span>
-        </div>
-        {sessionMetaParts(session).length > 0 && (
-          <p className="sess-parent-session-meta truncate mt-0.5">
-            {sessionMetaParts(session).join(" · ")}
-          </p>
-        )}
-        {displayMode === "verbose" && <VerboseStats session={session} />}
-      </button>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-ov-text" : "text-ov-text"}`}
+              >
+                {sessionTitle(session)}
+              </span>
+              {subCount > 0 && !subsVisible && (
+                <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
+                  {subCount}
+                </span>
+              )}
+              <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
+                {relativeTime(session.updatedAt)}
+              </span>
+            </div>
+            {sessionMetaParts(session).length > 0 && (
+              <p className="sess-parent-session-meta truncate mt-0.5">
+                {sessionMetaParts(session).join(" · ")}
+              </p>
+            )}
+            {displayMode === "verbose" && <VerboseStats session={session} />}
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => onAddToProject(session.id)}>
+            <Folder size={14} />
+            Add to Project
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       {subCount > 0 && subsVisible && (
         <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
           {childNodes.map((child) => {
@@ -600,32 +587,40 @@ function SessionRow({
             if (!session) return null;
             const subActive = session.id === activeSessionId;
             return (
-              <button
-                key={session.id}
-                type="button"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", session.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
-                onClick={() => navigateToSession(session.id)}
-                onContextMenu={(e) => onContextMenu(session.id, e)}
-                title={buildChildTooltip(session)}
-                className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-                  subActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-                }`}
-              >
-                <ArrowRight size={11} className="text-accent/80 shrink-0" />
-                <span className="text-[11px] truncate flex-1">
-                  {session.subAgent ? (
-                    <span className="text-ov-text-secondary">{session.subAgent}: </span>
-                  ) : null}
-                  {sessionTitle(session)}
-                </span>
-                <span className="text-[11px] opacity-60 tabular-nums shrink-0">
-                  {relativeTime(session.updatedAt)}
-                </span>
-              </button>
+              <ContextMenu key={session.id}>
+                <ContextMenuTrigger>
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", session.id);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    onClick={() => navigateToSession(session.id)}
+                    title={buildChildTooltip(session)}
+                    className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
+                      subActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
+                    }`}
+                  >
+                    <ArrowRight size={11} className="text-accent/80 shrink-0" />
+                    <span className="text-[11px] truncate flex-1">
+                      {session.subAgent ? (
+                        <span className="text-ov-text-secondary">{session.subAgent}: </span>
+                      ) : null}
+                      {sessionTitle(session)}
+                    </span>
+                    <span className="text-[11px] opacity-60 tabular-nums shrink-0">
+                      {relativeTime(session.updatedAt)}
+                    </span>
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onClick={() => onAddToProject(session.id)}>
+                    <Folder size={14} />
+                    Add to Project
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             );
           })}
         </div>

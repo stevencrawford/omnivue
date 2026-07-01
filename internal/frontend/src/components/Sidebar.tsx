@@ -5,7 +5,7 @@ import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
 import { ProjectPanel } from "./ProjectPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
-import { useToast } from "../hooks/useToast";
+import { toast } from "sonner";
 
 interface SidebarProps {
   sessions: Session[];
@@ -49,8 +49,6 @@ export function Sidebar({
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
   const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
-  const { showToast } = useToast();
-
   useEffect(() => {
     return () => {
       for (const [type, handler] of resizeListeners.current) {
@@ -119,7 +117,7 @@ export function Sidebar({
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
-            showToast={showToast}
+            showToast={toast}
           />
         </div>
         <div
@@ -129,7 +127,7 @@ export function Sidebar({
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
-            showToast={showToast}
+            showToast={toast}
           />
         </div>
         <div

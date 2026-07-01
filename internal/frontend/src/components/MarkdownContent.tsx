@@ -117,9 +117,7 @@ export function MarkdownContent({
               <Pin size={12} />
             </button>
           )}
-          {onBookmark && (
-            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
-          )}
+          {onBookmark && <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} />}
           {onOpenModal && !shortContent && (
             <button
               type="button"
