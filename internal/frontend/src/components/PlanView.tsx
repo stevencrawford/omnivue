@@ -53,7 +53,11 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
       if ((node.textContent || "").toLowerCase().includes(q)) {
         const el = node.parentElement;
         if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          try {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          } catch {
+            /* noop */
+          }
           el.classList.add("sess-message-highlight");
           const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
           highlightTimers.current.push(timer);

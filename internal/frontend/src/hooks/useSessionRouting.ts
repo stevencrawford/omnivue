@@ -10,8 +10,11 @@ export function useSessionRouting(
   setShowOverview: (v: boolean) => void,
 ) {
   const isInitialHashRef = useRef(true);
+  const hashReadRef = useRef(false);
 
   useEffect(() => {
+    if (hashReadRef.current) return;
+    if (sessions.length === 0) return;
     const hash = window.location.hash;
     const match = hash.match(/^#\/session\/([^/]+)(?:\/step\/(\d+))?/);
     if (match) {
@@ -22,6 +25,7 @@ export function useSessionRouting(
         if (match[2]) setFocusStepIndex(parseInt(match[2], 10));
       }
     }
+    hashReadRef.current = true;
   }, [sessions, setActiveSessionId, setFocusStepIndex, setShowOverview]);
 
   useEffect(() => {

@@ -216,7 +216,12 @@ export function ScrollMarkers({
                   }}
                   onClick={() => {
                     const el = scrollRef.current?.querySelector(`[data-marker-id="${m.id}"]`);
-                    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    if (el)
+                      try {
+                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      } catch {
+                        /* noop */
+                      }
                   }}
                 >
                   <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden bg-ov-bg-secondary border border-ov-border rounded-md px-2 py-1 text-xs whitespace-nowrap z-30 shadow-lg pointer-events-none">
