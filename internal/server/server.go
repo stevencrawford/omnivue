@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/claude-code"
 	"github.com/stevencrawford/omnivue/internal/ingest/codex"
 	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
 	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
@@ -108,6 +109,8 @@ func createAdapter(src ingest.Source) (ingest.Adapter, error) {
 		return pi.New(src.Path)
 	case ingest.AgentCodex:
 		return codex.New(src.Path)
+	case ingest.AgentClaudeCode:
+		return claudecode.New(src.Path)
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %s", src.AgentType)
 	}
@@ -995,6 +998,8 @@ func handleAddSource(state *State) http.HandlerFunc {
 				body.Label = "Pi"
 			case ingest.AgentCodex:
 				body.Label = "Codex"
+			case ingest.AgentClaudeCode:
+				body.Label = "Claude Code"
 			}
 		}
 		// Generate source ID from path (same scheme as CLI)
