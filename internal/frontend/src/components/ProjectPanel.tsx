@@ -309,7 +309,7 @@ export function ProjectPanel({
               <ArrowUpDown size={14} />
             </button>
             {folderSortOpen && (
-              <div className="absolute left-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
+              <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
                 {(["name", "count"] as FolderSort[]).map((mode) => (
                   <button
                     key={mode}
@@ -370,9 +370,17 @@ export function ProjectPanel({
         {sortedFolders.length === 0 && !creating && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <FolderIcon size={24} className="text-ov-text-secondary/40 mb-3" />
-            <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
+            <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed mb-3">
               Group related sessions into folders to stay organized.
             </p>
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 cursor-pointer transition-colors"
+            >
+              <Plus size={14} />
+              <span>Add</span>
+            </button>
           </div>
         )}
         {sortedFolders.map((folder) => (
