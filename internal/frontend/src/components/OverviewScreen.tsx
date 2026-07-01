@@ -1,14 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Bookmark,
-  Bot,
-  Coins,
-  Folder,
-  GitBranch,
-  MessageSquare,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { Bookmark, Bot, Coins, Folder, GitBranch, Sparkles, Zap } from "lucide-react";
 import { SessionsIcon } from "./IconChannel";
 import type { Bookmark as BookmarkType, Folder as FolderType, Session } from "../hooks/useApi";
 import { fetchFolderSessions, fetchFolders } from "../hooks/useApi";
@@ -42,6 +33,7 @@ interface OverviewStats {
   tokensReasoning: number;
   agents: { agent: string; count: number }[];
   models: { model: string; label: string; count: number }[];
+  totalWorkspaces: number;
 }
 
 function useShowCosts(): boolean {
@@ -95,6 +87,11 @@ function computeStats(sessions: Session[]): OverviewStats {
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
+  const uniqueRepos = new Set<string>();
+  for (const s of sessions) {
+    uniqueRepos.add(s.repository || "Unknown");
+  }
+
   return {
     totalSessions: sessions.length,
     totalMessages,
@@ -105,6 +102,7 @@ function computeStats(sessions: Session[]): OverviewStats {
     tokensReasoning,
     agents,
     models,
+    totalWorkspaces: uniqueRepos.size,
   };
 }
 
@@ -406,8 +404,8 @@ export function OverviewScreen({
               <h2 className="text-lg font-semibold tracking-tight">Overview</h2>
               <p className="text-sm text-ov-text-secondary mt-0.5">
                 Your AI sessions across {stats.agents.length} agent
-                {stats.agents.length !== 1 ? "s" : ""} and {repoGroups.length} workspace
-                {repoGroups.length !== 1 ? "s" : ""}
+                {stats.agents.length !== 1 ? "s" : ""} and {stats.totalWorkspaces} workspace
+                {stats.totalWorkspaces !== 1 ? "s" : ""}
               </p>
             </div>
           </div>
@@ -415,7 +413,7 @@ export function OverviewScreen({
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
           <StatCard
-            icon={MessageSquare}
+            icon={SessionsIcon}
             label="Sessions"
             value={String(stats.totalSessions)}
             sub={`${stats.totalMessages.toLocaleString()} messages`}
@@ -428,14 +426,12 @@ export function OverviewScreen({
               tokenSegments.length > 0 ? tokenSegments.map((s) => s.label).join(" · ") : undefined
             }
           />
-          {showCosts && (
-            <StatCard
-              icon={Coins}
-              label="Spend"
-              value={stats.totalCost > 0 ? formatCost(stats.totalCost) : "—"}
-              sub="Across indexed sessions"
-            />
-          )}
+          <StatCard
+            icon={Coins}
+            label="Spend"
+            value={showCosts && stats.totalCost > 0 ? formatCost(stats.totalCost) : "***"}
+            sub="Across indexed sessions"
+          />
           <StatCard
             icon={Bot}
             label="Agents"
@@ -447,7 +443,7 @@ export function OverviewScreen({
         <section className="mb-8">
           <div className="sess-overview-section-header">
             <SessionsIcon width={14} height={14} />
-            <h3>Recent</h3>
+            <h3>Recent Sessions</h3>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {repoGroups.map(({ path, label, sessions: repoSessions }) => (
