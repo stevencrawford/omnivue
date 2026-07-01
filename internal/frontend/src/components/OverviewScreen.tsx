@@ -491,9 +491,6 @@ export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: Ov
           </section>
         )}
 
-        {/* ---- Activity charts ---- */}
-        <ActivityCharts dailyStats={dailyStats} hideCosts={hideCosts} />
-
         {/* ---- Projects (folders) ---- */}
         {folders.length > 0 && (
           <section className="mb-8">
@@ -528,6 +525,9 @@ export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: Ov
             </div>
           </section>
         )}
+
+        {/* ---- Activity charts ---- */}
+        <ActivityCharts dailyStats={dailyStats} hideCosts={hideCosts} />
 
         {/* ---- Model & Agent breakdown ---- */}
         <ModelAgentBreakdown
