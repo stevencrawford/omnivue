@@ -103,31 +103,20 @@ export function ConversationView({
     setMarkerPositions(positions);
   }, [messagesWithoutReminders.length, scrollRef]);
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
-          <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-          Loading conversation...
-        </div>
-      </div>
-    );
-  }
-
-  if (messages.length === 0) {
-    return (
-      <div className="sess-empty-state flex-1">
-        <div className="sess-empty-icon">
-          <CirclePlus size={20} />
-        </div>
-        <p className="text-sm text-ov-text-secondary">No messages in this session</p>
-      </div>
-    );
-  }
+  const showLoadingOverlay = loading && messages.length === 0;
+  const showEmptyState = !loading && messages.length === 0;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex-1 relative min-h-0">
+        {showLoadingOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 bg-ov-bg/80">
+            <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
+              <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+              Loading conversation...
+            </div>
+          </div>
+        )}
         <div
           ref={scrollRef}
           className="absolute inset-0 right-7 overflow-y-auto overflow-x-hidden py-3"
@@ -144,7 +133,14 @@ export function ConversationView({
               ))}
             </div>
           )}
-          {messagesWithoutReminders.length === 0 ? (
+          {showEmptyState ? (
+            <div className="sess-empty-state flex-1">
+              <div className="sess-empty-icon">
+                <CirclePlus size={20} />
+              </div>
+              <p className="text-sm text-ov-text-secondary">No messages in this session</p>
+            </div>
+          ) : messagesWithoutReminders.length === 0 ? (
             <p className="text-center text-xs text-ov-text-secondary py-8">
               Agent work appears here as tools run and responses stream in.
             </p>
