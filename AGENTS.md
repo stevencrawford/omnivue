@@ -124,6 +124,7 @@ make lint
 | POST | `/_/api/sessions/{id}/scratch` | Create a scratch file |
 | GET | `/_/api/sessions/{id}/scratch/{fileId}` | Get a scratch file |
 | PUT | `/_/api/sessions/{id}/scratch/{fileId}` | Update a scratch file |
+| PATCH | `/_/api/sessions/{id}/scratch/{fileId}` | Rename a scratch file (title only) |
 | DELETE | `/_/api/sessions/{id}/scratch/{fileId}` | Delete a scratch file |
 | GET | `/_/api/scratch` | List all scratch files across sessions |
 | GET | `/_/api/search?q=&limit=&session_id=` | Full-text search (optionally scoped to session) |

@@ -528,6 +528,15 @@ func (s *Store) UpdateScratchFile(id, title, content string) error {
 	return err
 }
 
+// RenameScratchFile updates only a scratch file's title without touching content.
+func (s *Store) RenameScratchFile(id, title string) error {
+	_, err := s.db.Exec(`
+		UPDATE scratch_files SET title = ?, updated_at = ?
+		WHERE id = ?
+	`, title, time.Now().Format(time.RFC3339), id)
+	return err
+}
+
 // DeleteScratchFile removes a scratch file.
 func (s *Store) DeleteScratchFile(id string) error {
 	_, err := s.db.Exec(`DELETE FROM scratch_files WHERE id = ?`, id)

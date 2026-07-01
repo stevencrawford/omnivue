@@ -874,6 +874,14 @@ func (s *State) UpdateScratchFile(id, title, content string) error {
 	return s.store.UpdateScratchFile(id, title, content)
 }
 
+// RenameScratchFile updates only the title of a scratch file.
+func (s *State) RenameScratchFile(id, title string) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	return s.store.RenameScratchFile(id, title)
+}
+
 // DeleteScratchFile deletes a scratch file.
 func (s *State) DeleteScratchFile(id string) error {
 	if s.store == nil {
@@ -908,6 +916,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("POST /_/api/sessions/{id}/scratch", handleCreateScratchFile(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/scratch/{fileId}", handleGetScratchFile(state))
 	mux.HandleFunc("PUT /_/api/sessions/{id}/scratch/{fileId}", handleUpdateScratchFile(state))
+	mux.HandleFunc("PATCH /_/api/sessions/{id}/scratch/{fileId}", handleRenameScratchFile(state))
 	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(state))
 	mux.HandleFunc("GET /_/api/scratch", handleListAllScratchFiles(state))
 	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(state))
@@ -1308,6 +1317,31 @@ func handleUpdateScratchFile(state *State) http.HandlerFunc {
 		}
 		sessionID := r.PathValue("id")
 		if err := state.UpdateScratchFile(fileID, body.Title, body.Content); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.reindexSessionScratch(sessionID)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+func handleRenameScratchFile(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileID := r.PathValue("fileId")
+		var body struct {
+			Title string `json:"title"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Title == "" {
+			http.Error(w, "title is required", http.StatusBadRequest)
+			return
+		}
+		sessionID := r.PathValue("id")
+		if err := state.RenameScratchFile(fileID, body.Title); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

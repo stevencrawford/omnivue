@@ -333,10 +333,14 @@ export async function renameScratchFile(
   fileId: string,
   newTitle: string,
 ): Promise<void> {
-  // Fetch the current file to preserve its content during rename.
-  // TODO: Replace with a dedicated PATCH endpoint that only updates title.
-  const file = await getScratchFile(sessionId, fileId);
-  await updateScratchFile(sessionId, fileId, newTitle, file.content);
+  await fetchVoid(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: newTitle }),
+    },
+  );
 }
 
 export async function deleteScratchFile(sessionId: string, fileId: string): Promise<void> {
