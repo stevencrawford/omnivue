@@ -16,6 +16,21 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
 )
 
+// piEditEntry represents a single old→new edit within a Pi edit tool call.
+type piEditEntry struct {
+	OldText string `json:"oldText"`
+	NewText string `json:"newText"`
+}
+
+// piCost holds the per-message cost breakdown from Pi's usage object.
+type piCost struct {
+	Input     float64 `json:"input"`
+	Output    float64 `json:"output"`
+	CacheRead float64 `json:"cacheRead"`
+	CacheWrite float64 `json:"cacheWrite"`
+	Total     float64 `json:"total"`
+}
+
 // Adapter reads Pi agent session data from JSONL files.
 type Adapter struct {
 	basePath string
@@ -155,11 +170,13 @@ type piMessageData struct {
 }
 
 type piUsage struct {
-	Input       int `json:"input"`
-	Output      int `json:"output"`
-	CacheRead   int `json:"cacheRead"`
-	CacheWrite  int `json:"cacheWrite"`
-	TotalTokens int `json:"totalTokens"`
+	Input       int      `json:"input"`
+	Output      int      `json:"output"`
+	CacheRead   int      `json:"cacheRead"`
+	CacheWrite  int      `json:"cacheWrite"`
+	Reasoning   int      `json:"reasoning"`
+	TotalTokens int      `json:"totalTokens"`
+	Cost        *piCost  `json:"cost,omitempty"`
 }
 
 type piContentPart struct {
@@ -214,7 +231,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 		UpdatedAt:  parsedTime,
 	}
 
-	// Count messages and track current model by scanning lines
+	// Count messages, track model, and extract cost/token data
 	var msgCount int
 	currentModel := ""
 	for scanner.Scan() {
@@ -239,6 +256,17 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 				if t, err := time.Parse(time.RFC3339, env.Timestamp); err == nil {
 					if t.After(session.UpdatedAt) {
 						session.UpdatedAt = t
+					}
+				}
+				// Extract token and cost data from assistant messages
+				if env.Message.Role == "assistant" && env.Message.Usage != nil {
+					session.TokensInput += env.Message.Usage.Input
+					session.TokensOutput += env.Message.Usage.Output
+					session.TokensReasoning += env.Message.Usage.Reasoning
+					session.TokensCacheRead += env.Message.Usage.CacheRead
+					session.TokensCacheWrite += env.Message.Usage.CacheWrite
+					if env.Message.Usage.Cost != nil {
+						session.Cost += env.Message.Usage.Cost.Total
 					}
 				}
 			}
@@ -530,15 +558,176 @@ func parseAssistantContent(raw json.RawMessage) (text string, toolCalls []ingest
 }
 
 func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	return nil, nil
+	msgs, err := a.GetMessages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var sections []string
+	for _, msg := range msgs {
+		if msg.Role != "assistant" {
+			continue
+		}
+		if msg.Content != "" && hasPlanContent(msg.Content) {
+			sections = append(sections, msg.Content)
+		}
+	}
+
+	if len(sections) == 0 {
+		return nil, nil
+	}
+
+	md := strings.Join(sections, "\n\n---\n\n")
+	return &ingest.Plan{
+		Markdown: md,
+		Source:   "synthesized",
+	}, nil
+}
+
+// hasPlanContent checks if text contains markers suggesting a plan or
+// structured task list (mirrors the OpenCode heuristic).
+func hasPlanContent(text string) bool {
+	markers := []string{
+		"- [", "## Plan", "## Implemen", "## Steps", "## Todo",
+		"## Task", "## Goal", "## Object", "## Check",
+		"Step ", "\n1. ", "\n2. ", "\n3. ",
+	}
+	for _, m := range markers {
+		if strings.Contains(text, m) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	return nil, nil
+	edits, err := a.GetEdits(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	var diffs []ingest.DiffFile
+	for _, e := range edits {
+		if seen[e.FilePath] {
+			continue
+		}
+		seen[e.FilePath] = true
+		adds := 0
+		dels := 0
+		if e.NewStr != "" {
+			adds = strings.Count(e.NewStr, "\n") + 1
+		}
+		if e.OldStr != "" {
+			dels = strings.Count(e.OldStr, "\n") + 1
+		}
+		status := "modified"
+		if e.OldStr == "" && e.NewStr != "" {
+			status = "added"
+		}
+		diffs = append(diffs, ingest.DiffFile{
+			Path:      e.FilePath,
+			Status:    status,
+			Additions: adds,
+			Deletions: dels,
+		})
+	}
+	return diffs, nil
 }
 
 func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	return nil, nil
+	msgs, err := a.GetMessages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var edits []ingest.FileEdit
+	for _, msg := range msgs {
+		for _, tc := range msg.ToolCalls {
+			if tc.Name != "edit" && tc.Name != "write" {
+				continue
+			}
+
+			fp, oldStr, newStr := parsePiEditContent(tc)
+			if fp == "" {
+				continue
+			}
+
+			content := newStr
+			if oldStr != "" {
+				content = ""
+			}
+
+			edits = append(edits, ingest.FileEdit{
+				FilePath: fp,
+				ToolName: tc.Name,
+				OldStr:   oldStr,
+				NewStr:   newStr,
+				Content:  content,
+			})
+		}
+	}
+	return edits, nil
+}
+
+// parsePiEditContent extracts file path and old/new content from an edit or
+// write tool call, handling Pi's native formats:
+//   - write:  {"content": "...", "filePath": "..."}
+//   - edit:   {"edits": [{"oldText": "...", "newText": "..."}], "filePath": "..."}
+func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
+	var input struct {
+		FilePath string        `json:"filePath"`
+		Path     string        `json:"path"`
+		Content  string        `json:"content"`
+		Edits    []piEditEntry `json:"edits,omitempty"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return "", "", ""
+	}
+
+	filePath = input.FilePath
+	if filePath == "" {
+		filePath = input.Path
+	}
+	if filePath == "" {
+		return "", "", ""
+	}
+
+		switch tc.Name {
+		case "write":
+			newStr = input.Content
+			if newStr == "" {
+				var fallback struct {
+					NewString string `json:"newString"`
+				}
+				if err := json.Unmarshal([]byte(tc.Input), &fallback); err == nil {
+					newStr = fallback.NewString
+				}
+			}
+			return filePath, "", newStr
+		case "edit":
+		if len(input.Edits) == 0 {
+			// Some edit calls may use oldString/newString directly
+			var fallback struct {
+				OldString string `json:"oldString"`
+				NewString string `json:"newString"`
+			}
+			if err := json.Unmarshal([]byte(tc.Input), &fallback); err == nil {
+				return filePath, fallback.OldString, fallback.NewString
+			}
+			return filePath, "", ""
+		}
+		// Merge all edits into a single old/new pair.
+		// Each edit entry is a standalone replacement within the file; concatenating
+		// them produces a single diff that the frontend can display as multiple hunks.
+		var oldParts, newParts []string
+		for _, e := range input.Edits {
+			oldParts = append(oldParts, e.OldText)
+			newParts = append(newParts, e.NewText)
+		}
+		return filePath, strings.Join(oldParts, "\n"), strings.Join(newParts, "\n")
+	}
+	return "", "", ""
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
@@ -600,9 +789,9 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
 	case "read_file", "read_files", "view_file":
 		tc.Name = "read"
-	case "write_file", "create_file", "new_file":
+	case "write", "write_file", "create_file", "new_file":
 		tc.Name = "write"
-	case "edit_file", "edit_file_content", "modify_file", "apply_diff", "replace_text":
+	case "edit", "edit_file", "edit_file_content", "modify_file", "apply_diff", "replace_text":
 		tc.Name = "edit"
 	case "delete_file", "remove_file":
 		tc.Name = "delete"
@@ -686,12 +875,43 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			}
 			delete(p, "updated_content")
 		}
+		if v, ok := p["content"]; ok {
+			if _, exists := p["newString"]; !exists {
+				p["newString"] = v
+			}
+			// Keep "content" field — the frontend and parsePiEditContent
+			// both read "content" for write tool calls.
+		}
 		// Pi may use "old_content" for old string
 		if v, ok := p["old_content"]; ok {
 			if _, exists := p["oldString"]; !exists {
 				p["oldString"] = v
 			}
 			delete(p, "old_content")
+		}
+
+		// Pi edit calls use an "edits" array of {oldText, newText} pairs.
+		// Flatten it into oldString/newString so the frontend's EditToolDiff can render diffs.
+		if editsRaw, ok := p["edits"]; ok {
+			if editsArr, ok := editsRaw.([]any); ok && len(editsArr) > 0 {
+				var oldParts, newParts []string
+				for _, e := range editsArr {
+					if em, ok := e.(map[string]any); ok {
+						if ot, ok := em["oldText"].(string); ok {
+							oldParts = append(oldParts, ot)
+						}
+						if nt, ok := em["newText"].(string); ok {
+							newParts = append(newParts, nt)
+						}
+					}
+				}
+				if _, exists := p["oldString"]; !exists && len(oldParts) > 0 {
+					p["oldString"] = strings.Join(oldParts, "\n")
+				}
+				if _, exists := p["newString"]; !exists && len(newParts) > 0 {
+					p["newString"] = strings.Join(newParts, "\n")
+				}
+			}
 		}
 
 	case "bash":
