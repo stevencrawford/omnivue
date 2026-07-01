@@ -401,7 +401,7 @@ export function App() {
                     Search: &ldquo;{searchHighlightQuery}&rdquo;
                   </span>
                 ) : (
-                  "Search sessions..."
+                  "Search sessions, tool calls, plans, and scratch files..."
                 )}
               </span>
               {searchHighlightQuery && (
