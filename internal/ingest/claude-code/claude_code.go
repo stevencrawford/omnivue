@@ -112,6 +112,9 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 				log.Printf("claude-code adapter: skipping %s: %v", fpath, err)
 				continue
 			}
+			if session.MessageCount == 0 {
+				continue
+			}
 			fi, err := se.Info()
 			if err == nil {
 				if m := fi.ModTime().UnixMilli(); m > maxMod {
@@ -125,6 +128,9 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 
 			sessions = append(sessions, *session)
 			for _, sa := range subagents {
+				if sa.MessageCount == 0 {
+					continue
+				}
 				if m := sa.UpdatedAt.UnixMilli(); m > maxMod {
 					maxMod = m
 				}
