@@ -37,6 +37,7 @@
     "@tiptap/starter-kit": "^3.24.0",
     "diff": "^8.0.3",
     "lowlight": "^3.3.0",
+    "lucide-react": "^0.511.0",
     "marked": "^18.0.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
@@ -44,8 +45,8 @@
     "rehype-highlight": "^7.0.2",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
-    "lucide-react": "^0.511.0",
-    "turndown": "^7.2.4"
+    "turndown": "^7.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",

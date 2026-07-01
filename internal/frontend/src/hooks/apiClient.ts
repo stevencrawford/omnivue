@@ -1,7 +1,7 @@
 // API client functions for the Omnivue frontend.
-// All functions return typed promises. Runtime validation is applied
-// via Zod schemas (see ./schemas.ts).
+// All functions return typed promises with runtime validation via Zod.
 
+import { z, type ZodType } from "zod/v4";
 import type {
   Session,
   Source,
@@ -15,67 +15,132 @@ import type {
   Folder,
   Bookmark,
 } from "./types";
+import {
+  SessionsSchema,
+  MessagesSchema,
+  PlanSchema,
+  DiffsSchema,
+  FileEditsSchema,
+  ScratchFileSchema,
+  ScratchFilesSchema,
+  StatusInfoSchema,
+  SearchResultsSchema,
+  SourcesSchema,
+  SourceSchema,
+  FoldersSchema,
+  FolderSchema,
+  FolderSessionsSchema,
+  BookmarksSchema,
+  BookmarkToggleSchema,
+  ConfigSchema,
+  ResumeCommandSchema,
+  SessionSchema,
+} from "./schemas";
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+class ApiError extends Error {
+  status: number;
+  endpoint: string;
+
+  constructor(message: string, status: number, endpoint: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.endpoint = endpoint;
+  }
+}
+
+async function fetchJson<T>(url: string, schema: ZodType<T>, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    throw new ApiError(
+      `Request failed: ${res.status} ${res.statusText}`,
+      res.status,
+      url,
+    );
+  }
+  // For 204 No Content, return undefined as T (caller handles void)
+  if (res.status === 204) return undefined as unknown as T;
+  const raw = await res.json();
+  const result = schema.safeParse(raw);
+  if (!result.success) {
+    console.error(
+      `[api] Validation error for ${url}:`,
+      result.error.issues,
+      "Raw response:",
+      raw,
+    );
+    throw new ApiError(
+      `Response validation failed for ${url}`,
+      res.status,
+      url,
+    );
+  }
+  return result.data as T;
+}
+
+/** Send a request that returns no body (or 204). Throws ApiError on non-ok status. */
+async function fetchVoid(url: string, init?: RequestInit): Promise<void> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    throw new ApiError(
+      `Request failed: ${res.status} ${res.statusText}`,
+      res.status,
+      url,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
 
 export async function fetchSessions(): Promise<Session[]> {
-  const res = await fetch("/_/api/sessions");
-  if (!res.ok) throw new Error("Failed to fetch sessions");
-  return res.json();
+  return fetchJson("/_/api/sessions", SessionsSchema);
 }
 
 export async function fetchSession(id: string): Promise<Session> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error("Failed to fetch session");
-  return res.json();
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(id)}`, SessionSchema);
 }
 
 export async function fetchMessages(sessionId: string): Promise<Message[]> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/messages`);
-  if (!res.ok) throw new Error("Failed to fetch messages");
-  return res.json();
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/messages`, MessagesSchema);
 }
 
 export async function fetchPlan(sessionId: string): Promise<Plan> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/plan`);
-  if (!res.ok) throw new Error("Failed to fetch plan");
-  return res.json();
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/plan`, PlanSchema);
 }
 
 export async function fetchDiffs(sessionId: string): Promise<DiffFile[]> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/diffs`);
-  if (!res.ok) throw new Error("Failed to fetch diffs");
-  return res.json();
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/diffs`, DiffsSchema);
 }
 
 export async function fetchEdits(sessionId: string): Promise<FileEdit[]> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/edits`);
-  if (!res.ok) throw new Error("Failed to fetch edits");
-  return res.json();
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/edits`, FileEditsSchema);
 }
 
 export async function setSessionName(sessionId: string, displayName: string): Promise<void> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/name`, {
+  await fetchVoid(`/_/api/sessions/${encodeURIComponent(sessionId)}/name`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ displayName }),
   });
-  if (!res.ok) throw new Error("Failed to set session name");
 }
 
 export async function clearSessionName(sessionId: string): Promise<void> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/name`, {
+  await fetchVoid(`/_/api/sessions/${encodeURIComponent(sessionId)}/name`, {
     method: "DELETE",
   });
-  if (!res.ok) throw new Error("Failed to clear session name");
 }
 
 export async function fetchResumeCommand(sessionId: string): Promise<string> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/resume`);
-  if (!res.ok) throw new Error("Failed to fetch resume command");
-  const data = await res.json();
+  const data = await fetchJson(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/resume`,
+    ResumeCommandSchema,
+  );
   return data.command;
 }
 
@@ -84,9 +149,7 @@ export async function fetchResumeCommand(sessionId: string): Promise<string> {
 // ---------------------------------------------------------------------------
 
 export async function fetchSources(): Promise<Source[]> {
-  const res = await fetch("/_/api/sources");
-  if (!res.ok) throw new Error("Failed to fetch sources");
-  return res.json();
+  return fetchJson("/_/api/sources", SourcesSchema);
 }
 
 export async function addSource(
@@ -95,30 +158,26 @@ export async function addSource(
   label?: string,
   enabled?: boolean,
 ): Promise<Source> {
-  const res = await fetch("/_/api/sources", {
+  return fetchJson("/_/api/sources", SourceSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, agentType, label, enabled: enabled ?? true }),
   });
-  if (!res.ok) throw new Error("Failed to add source");
-  return res.json();
 }
 
 export async function removeSource(id: string): Promise<void> {
-  const res = await fetch(`/_/api/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to remove source");
+  await fetchVoid(`/_/api/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function updateSource(
   id: string,
   data: { path?: string; agentType?: string; label?: string; enabled?: boolean },
 ): Promise<void> {
-  const res = await fetch(`/_/api/sources/${encodeURIComponent(id)}`, {
+  await fetchVoid(`/_/api/sources/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to update source");
 }
 
 // ---------------------------------------------------------------------------
@@ -126,23 +185,19 @@ export async function updateSource(
 // ---------------------------------------------------------------------------
 
 export async function resetApp(): Promise<void> {
-  const res = await fetch("/_/api/reset", { method: "POST" });
-  if (!res.ok) throw new Error("Failed to reset");
+  await fetchVoid("/_/api/reset", { method: "POST" });
 }
 
 export async function fetchConfig(): Promise<Record<string, string>> {
-  const res = await fetch("/_/api/config");
-  if (!res.ok) throw new Error("Failed to fetch config");
-  return res.json();
+  return fetchJson("/_/api/config", ConfigSchema);
 }
 
 export async function setConfig(key: string, value: string): Promise<void> {
-  const res = await fetch("/_/api/config", {
+  await fetchVoid("/_/api/config", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key, value }),
   });
-  if (!res.ok) throw new Error("Failed to set config");
 }
 
 // ---------------------------------------------------------------------------
@@ -150,24 +205,19 @@ export async function setConfig(key: string, value: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function fetchRecentSearches(): Promise<string[]> {
-  const res = await fetch("/_/api/recent-searches");
-  if (!res.ok) throw new Error("Failed to fetch recent searches");
-  return res.json();
+  return fetchJson("/_/api/recent-searches", z.array(z.string()));
 }
 
 export async function addRecentSearches(searches: string[]): Promise<void> {
-  const res = await fetch("/_/api/recent-searches", {
+  await fetchVoid("/_/api/recent-searches", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(searches),
   });
-  if (!res.ok) throw new Error("Failed to save recent searches");
 }
 
 export async function fetchStatus(): Promise<StatusInfo> {
-  const res = await fetch("/_/api/status");
-  if (!res.ok) throw new Error("Failed to fetch status");
-  return res.json();
+  return fetchJson("/_/api/status", StatusInfoSchema);
 }
 
 export async function fetchSearch(
@@ -177,9 +227,7 @@ export async function fetchSearch(
 ): Promise<SearchResult[]> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (sessionId) params.set("session_id", sessionId);
-  const res = await fetch(`/_/api/search?${params}`);
-  if (!res.ok) throw new Error("Failed to search");
-  return res.json();
+  return fetchJson(`/_/api/search?${params}`, SearchResultsSchema);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,19 +235,15 @@ export async function fetchSearch(
 // ---------------------------------------------------------------------------
 
 export async function fetchFolders(): Promise<Folder[]> {
-  const res = await fetch("/_/api/folders");
-  if (!res.ok) throw new Error("Failed to fetch folders");
-  return res.json();
+  return fetchJson("/_/api/folders", FoldersSchema);
 }
 
 export async function createFolder(name: string, color?: string, icon?: string): Promise<Folder> {
-  const res = await fetch("/_/api/folders", {
+  return fetchJson("/_/api/folders", FolderSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, color, icon }),
   });
-  if (!res.ok) throw new Error("Failed to create folder");
-  return res.json();
 }
 
 export async function updateFolder(
@@ -208,42 +252,36 @@ export async function updateFolder(
   color?: string,
   icon?: string,
 ): Promise<void> {
-  const res = await fetch(`/_/api/folders/${encodeURIComponent(id)}`, {
+  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, color: color || "", icon: icon || "" }),
   });
-  if (!res.ok) throw new Error("Failed to update folder");
 }
 
 export async function deleteFolder(id: string): Promise<void> {
-  const res = await fetch(`/_/api/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete folder");
+  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function fetchFolderSessions(folderId: string): Promise<string[]> {
-  const res = await fetch(`/_/api/folders/${encodeURIComponent(folderId)}/sessions`);
-  if (!res.ok) throw new Error("Failed to fetch folder sessions");
-  return res.json();
+  return fetchJson(`/_/api/folders/${encodeURIComponent(folderId)}/sessions`, FolderSessionsSchema);
 }
 
 export async function assignSessionToFolder(folderId: string, sessionId: string): Promise<void> {
-  const res = await fetch(
+  await fetchVoid(
     `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "POST" },
   );
-  if (!res.ok) throw new Error("Failed to assign session");
 }
 
 export async function unassignSessionFromFolder(
   folderId: string,
   sessionId: string,
 ): Promise<void> {
-  const res = await fetch(
+  await fetchVoid(
     `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "DELETE" },
   );
-  if (!res.ok) throw new Error("Failed to unassign session");
 }
 
 // ---------------------------------------------------------------------------
@@ -251,9 +289,7 @@ export async function unassignSessionFromFolder(
 // ---------------------------------------------------------------------------
 
 export async function fetchScratchFiles(sessionId: string): Promise<ScratchFile[]> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`);
-  if (!res.ok) throw new Error("Failed to fetch scratch files");
-  return res.json();
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`, ScratchFilesSchema);
 }
 
 export async function createScratchFile(
@@ -262,21 +298,18 @@ export async function createScratchFile(
   content?: string,
   mode?: "writable" | "readonly",
 ): Promise<ScratchFile> {
-  const res = await fetch(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`, {
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/scratch`, ScratchFileSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, content: content || "", mode: mode || "writable" }),
   });
-  if (!res.ok) throw new Error("Failed to create scratch file");
-  return res.json();
 }
 
 export async function getScratchFile(sessionId: string, fileId: string): Promise<ScratchFile> {
-  const res = await fetch(
+  return fetchJson(
     `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
+    ScratchFileSchema,
   );
-  if (!res.ok) throw new Error("Failed to get scratch file");
-  return res.json();
 }
 
 export async function updateScratchFile(
@@ -285,7 +318,7 @@ export async function updateScratchFile(
   title: string,
   content: string,
 ): Promise<void> {
-  const res = await fetch(
+  await fetchVoid(
     `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
     {
       method: "PUT",
@@ -293,7 +326,6 @@ export async function updateScratchFile(
       body: JSON.stringify({ title, content }),
     },
   );
-  if (!res.ok) throw new Error("Failed to update scratch file");
 }
 
 export async function renameScratchFile(
@@ -301,34 +333,21 @@ export async function renameScratchFile(
   fileId: string,
   newTitle: string,
 ): Promise<void> {
-  const getRes = await fetch(
-    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
-  );
-  if (!getRes.ok) throw new Error("Failed to get scratch file");
-  const file = await getRes.json();
-  const res = await fetch(
-    `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: newTitle, content: file.content }),
-    },
-  );
-  if (!res.ok) throw new Error("Failed to rename scratch file");
+  // Fetch the current file to preserve its content during rename.
+  // TODO: Replace with a dedicated PATCH endpoint that only updates title.
+  const file = await getScratchFile(sessionId, fileId);
+  await updateScratchFile(sessionId, fileId, newTitle, file.content);
 }
 
 export async function deleteScratchFile(sessionId: string, fileId: string): Promise<void> {
-  const res = await fetch(
+  await fetchVoid(
     `/_/api/sessions/${encodeURIComponent(sessionId)}/scratch/${encodeURIComponent(fileId)}`,
     { method: "DELETE" },
   );
-  if (!res.ok) throw new Error("Failed to delete scratch file");
 }
 
 export async function fetchAllScratchFiles(): Promise<ScratchFile[]> {
-  const res = await fetch("/_/api/scratch");
-  if (!res.ok) throw new Error("Failed to fetch scratch files");
-  return res.json();
+  return fetchJson("/_/api/scratch", ScratchFilesSchema);
 }
 
 // ---------------------------------------------------------------------------
@@ -336,9 +355,7 @@ export async function fetchAllScratchFiles(): Promise<ScratchFile[]> {
 // ---------------------------------------------------------------------------
 
 export async function fetchBookmarks(): Promise<Bookmark[]> {
-  const res = await fetch("/_/api/bookmarks");
-  if (!res.ok) throw new Error("Failed to fetch bookmarks");
-  return res.json();
+  return fetchJson("/_/api/bookmarks", BookmarksSchema);
 }
 
 export async function createBookmark(data: {
@@ -347,16 +364,13 @@ export async function createBookmark(data: {
   toolCallId?: string;
   label: string;
 }): Promise<{ action: "created" | "deleted"; bookmark?: Bookmark; id?: string }> {
-  const res = await fetch("/_/api/bookmarks", {
+  return fetchJson("/_/api/bookmarks", BookmarkToggleSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to toggle bookmark");
-  return res.json();
 }
 
 export async function deleteBookmark(id: string): Promise<void> {
-  const res = await fetch(`/_/api/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete bookmark");
+  await fetchVoid(`/_/api/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
