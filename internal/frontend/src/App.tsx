@@ -280,9 +280,7 @@ export function App() {
                 ) : sessions.length > 0 && showOverview ? (
                   <OverviewScreen
                     sessions={sessions}
-                    bookmarks={bookmarks}
                     onSessionSelect={handleSessionSelect}
-                    onBookmarkSelect={handleBookmarkSelect}
                     onOpenProjects={() => setActiveSection("projects")}
                   />
                 ) : (

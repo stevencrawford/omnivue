@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Bookmark, Bot, Coins, Folder, GitBranch, Sparkles, Zap } from "lucide-react";
+import { Bot, Coins, Folder, GitBranch, Sparkles, Zap } from "lucide-react";
 import { SessionsIcon } from "./IconChannel";
-import type { Bookmark as BookmarkType, Folder as FolderType, Session } from "../hooks/useApi";
+import { TimeRangeSelector } from "./TimeRangeSelector";
+import { ActivityCharts } from "./ActivityCharts";
+import { ModelAgentBreakdown } from "./ModelAgentBreakdown";
+import type { Folder as FolderType, Session } from "../hooks/useApi";
 import { fetchFolderSessions, fetchFolders } from "../hooks/useApi";
+import { useTimeRange } from "../hooks/useTimeRange";
 import { shortRepoName } from "../utils/buildTree";
 import {
   formatCost,
@@ -13,12 +17,16 @@ import {
   sessionTitle,
   shortModel,
 } from "../utils/sessionUtils";
+import {
+  aggregateByAgent,
+  aggregateByDay,
+  aggregateByModel,
+  filterSessionsByTimeRange,
+} from "../utils/overviewAnalytics";
 
 interface OverviewScreenProps {
   sessions: Session[];
-  bookmarks: BookmarkType[];
   onSessionSelect: (sessionId: string) => void;
-  onBookmarkSelect: (sessionId: string, messageIndex: number, toolCallId?: string) => void;
   onOpenProjects?: () => void;
 }
 
@@ -140,7 +148,11 @@ function StatCard({
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-widest text-ov-text-secondary">{label}</p>
         <p className="text-lg font-semibold tabular-nums truncate">{value}</p>
-        {sub && <p className="text-[11px] text-ov-text-secondary text-pretty">{sub}</p>}
+        {sub && (
+          <p className="text-[11px] text-ov-text-secondary truncate" title={sub}>
+            {sub}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -281,36 +293,36 @@ function RepoCard({
   );
 }
 
-function ModelBar({ label, count, max }: { label: string; count: number; max: number }) {
-  const pct = max > 0 ? Math.round((count / max) * 100) : 0;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="truncate font-mono text-ov-text">{label}</span>
-        <span className="text-ov-text-secondary tabular-nums shrink-0">{count}</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-ov-bg-hover overflow-hidden">
-        <div
-          className="h-full rounded-full bg-accent/70 transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function OverviewScreen({
-  sessions,
-  bookmarks,
-  onSessionSelect,
-  onBookmarkSelect,
-  onOpenProjects,
-}: OverviewScreenProps) {
+export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: OverviewScreenProps) {
   const hideCosts = useHideCosts();
-  const stats = useMemo(() => computeStats(sessions), [sessions]);
+  const { range, startDate, endDate, label, setPreset, setCustomRange } = useTimeRange();
+
+  // ---- Time-filtered sessions ----
+  const rangeFilter = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
+  const filteredSessions = useMemo(
+    () => filterSessionsByTimeRange(sessions, rangeFilter),
+    [sessions, rangeFilter],
+  );
+
+  // ---- Stats (time-filtered) ----
+  const stats = useMemo(() => computeStats(filteredSessions), [filteredSessions]);
+
+  // ---- Analytics (time-filtered) ----
+  const dailyStats = useMemo(
+    () => aggregateByDay(filteredSessions, rangeFilter),
+    [filteredSessions, rangeFilter],
+  );
+  const modelStats = useMemo(() => aggregateByModel(filteredSessions), [filteredSessions]);
+  const agentStats = useMemo(() => aggregateByAgent(filteredSessions), [filteredSessions]);
+
+  const maxModelTokens = modelStats[0]?.tokens ?? 1;
+  const maxAgentTokens = agentStats[0]?.tokens ?? 1;
+
+  // ---- All-time recent sessions (not time-filtered, for repo cards & latest session) ----
   const recentSessions = useMemo(() => sortByRecent(sessions).slice(0, 8), [sessions]);
   const sessionById = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
 
+  // ---- Folders ----
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
 
@@ -345,8 +357,9 @@ export function OverviewScreen({
     };
   }, [sessions]);
 
+  // ---- Repo groups (time-filtered) ----
   const repoGroups = useMemo(() => {
-    const parentSessions = sessions.filter((s) => !s.parentId);
+    const parentSessions = filteredSessions.filter((s) => !s.parentId);
     const byRepo = new Map<string, { label: string; sessions: Session[] }>();
     for (const s of parentSessions) {
       const key = s.repository || "Unknown";
@@ -370,12 +383,11 @@ export function OverviewScreen({
       }))
       .sort((a, b) => b.latestUpdatedAt - a.latestUpdatedAt)
       .slice(0, 3);
-  }, [sessions]);
+  }, [filteredSessions]);
 
+  // ---- Token display helpers ----
   const totalTokens =
     stats.tokensInput + stats.tokensOutput + stats.tokensCacheRead + stats.tokensReasoning;
-  const maxModelCount = stats.models[0]?.count ?? 1;
-  const recentBookmarks = bookmarks.slice(0, 6);
 
   const tokenSegments = [
     { label: "Input", value: stats.tokensInput, color: "var(--color-accent)" },
@@ -392,25 +404,43 @@ export function OverviewScreen({
     },
   ].filter((s) => s.value > 0);
 
+  const latestSessionTokens = recentSessions[0]
+    ? formatTokenBreakdown(recentSessions[0])
+    : undefined;
+  const latestSessionCost = recentSessions[0]?.cost;
+
   return (
     <div className="flex-1 overflow-y-auto sess-overview">
       <div className="sess-overview-inner">
+        {/* ---- Hero header with time range selector ---- */}
         <header className="sess-overview-hero">
-          <div className="flex items-start gap-3">
-            <div className="sess-overview-hero-icon">
-              <Sparkles size={18} />
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="sess-overview-hero-icon shrink-0">
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Overview</h2>
+                <p className="text-sm text-ov-text-secondary mt-0.5">
+                  {label} · {stats.totalSessions} session
+                  {stats.totalSessions !== 1 ? "s" : ""} across {stats.agents.length} agent
+                  {stats.agents.length !== 1 ? "s" : ""} and {stats.totalWorkspaces} workspace
+                  {stats.totalWorkspaces !== 1 ? "s" : ""}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Overview</h2>
-              <p className="text-sm text-ov-text-secondary mt-0.5">
-                Your AI sessions across {stats.agents.length} agent
-                {stats.agents.length !== 1 ? "s" : ""} and {stats.totalWorkspaces} workspace
-                {stats.totalWorkspaces !== 1 ? "s" : ""}
-              </p>
-            </div>
+            <TimeRangeSelector
+              preset={range.preset}
+              label={label}
+              customStart={range.start}
+              customEnd={range.end}
+              onPresetChange={setPreset}
+              onCustomRangeChange={setCustomRange}
+            />
           </div>
         </header>
 
+        {/* ---- Stat cards ---- */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
           <StatCard
             icon={SessionsIcon}
@@ -430,7 +460,7 @@ export function OverviewScreen({
             icon={Coins}
             label="Spend"
             value={!hideCosts && stats.totalCost > 0 ? formatCost(stats.totalCost) : "***"}
-            sub="Across indexed sessions"
+            sub="In selected range"
           />
           <StatCard
             icon={Bot}
@@ -440,24 +470,31 @@ export function OverviewScreen({
           />
         </div>
 
-        <section className="mb-8">
-          <div className="sess-overview-section-header">
-            <SessionsIcon width={14} height={14} />
-            <h3>Recent Sessions</h3>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {repoGroups.map(({ path, label, sessions: repoSessions }) => (
-              <RepoCard
-                key={path}
-                repoLabel={label}
-                repoPath={path}
-                sessions={repoSessions}
-                onSessionSelect={onSessionSelect}
-              />
-            ))}
-          </div>
-        </section>
+        {/* ---- Recent sessions (repo cards) ---- */}
+        {repoGroups.length > 0 && (
+          <section className="mb-8">
+            <div className="sess-overview-section-header">
+              <SessionsIcon width={14} height={14} />
+              <h3>Recent Sessions</h3>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {repoGroups.map(({ path, label: repoLabel, sessions: repoSessions }) => (
+                <RepoCard
+                  key={path}
+                  repoLabel={repoLabel}
+                  repoPath={path}
+                  sessions={repoSessions}
+                  onSessionSelect={onSessionSelect}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
+        {/* ---- Activity charts ---- */}
+        <ActivityCharts dailyStats={dailyStats} hideCosts={hideCosts} />
+
+        {/* ---- Projects (folders) ---- */}
         {folders.length > 0 && (
           <section className="mb-8">
             <div className="sess-overview-section-header">
@@ -492,115 +529,18 @@ export function OverviewScreen({
           </section>
         )}
 
-        <div className="grid lg:grid-cols-3 gap-3">
-          <section>
-            <div className="sess-overview-section-header">
-              <Bookmark size={14} />
-              <h3>Bookmarks</h3>
-              <span className="ml-auto text-[11px] text-ov-text-secondary tabular-nums">
-                {bookmarks.length}
-              </span>
-            </div>
-            <div className="sess-overview-card">
-              {recentBookmarks.length === 0 ? (
-                <p className="text-xs text-ov-text-secondary italic">
-                  Bookmark messages and tool calls to find them quickly later.
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {recentBookmarks.map((bm) => {
-                    const session = sessionById.get(bm.sessionId);
-                    return (
-                      <button
-                        key={bm.id}
-                        type="button"
-                        onClick={() =>
-                          onBookmarkSelect(bm.sessionId, bm.messageIndex, bm.toolCallId)
-                        }
-                        className="sess-overview-bookmark-row group"
-                      >
-                        <Bookmark size={12} className="shrink-0 text-accent" fill="currentColor" />
-                        <span className="flex-1 min-w-0 text-left">
-                          <span className="block text-xs truncate group-hover:text-accent transition-colors">
-                            {bm.label}
-                          </span>
-                          {session && (
-                            <span className="block text-[11px] text-ov-text-secondary truncate">
-                              {sessionTitle(session)}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <div className="sess-overview-section-header">
-              <Bot size={14} />
-              <h3>Popular models</h3>
-            </div>
-            <div className="sess-overview-card space-y-3">
-              {stats.models.length === 0 ? (
-                <p className="text-xs text-ov-text-secondary italic">No model data yet.</p>
-              ) : (
-                stats.models.map((m) => (
-                  <ModelBar key={m.model} label={m.label} count={m.count} max={maxModelCount} />
-                ))
-              )}
-            </div>
-          </section>
-
-          <section>
-            <div className="sess-overview-section-header">
-              <Zap size={14} />
-              <h3>Token analytics</h3>
-            </div>
-            <div className="sess-overview-card space-y-4">
-              {totalTokens === 0 ? (
-                <p className="text-xs text-ov-text-secondary italic">No token usage recorded.</p>
-              ) : (
-                <>
-                  <div className="flex h-2 rounded-full overflow-hidden bg-ov-bg-hover">
-                    {tokenSegments.map((seg) => (
-                      <div
-                        key={seg.label}
-                        style={{
-                          width: `${(seg.value / totalTokens) * 100}%`,
-                          background: seg.color,
-                        }}
-                        title={`${seg.label}: ${formatTokens(seg.value)}`}
-                      />
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {tokenSegments.map((seg) => (
-                      <div key={seg.label} className="flex items-center gap-2 text-xs">
-                        <span
-                          className="size-2 rounded-full shrink-0"
-                          style={{ background: seg.color }}
-                        />
-                        <span className="text-ov-text-secondary">{seg.label}</span>
-                        <span className="ml-auto tabular-nums">{formatTokens(seg.value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {recentSessions[0] && (
-                    <p className="text-[11px] text-ov-text-secondary border-t border-ov-border pt-3">
-                      Latest session: {formatTokenBreakdown(recentSessions[0])}
-                      {!hideCosts && recentSessions[0].cost > 0 && (
-                        <> · {formatCost(recentSessions[0].cost)}</>
-                      )}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          </section>
-        </div>
+        {/* ---- Model & Agent breakdown ---- */}
+        <ModelAgentBreakdown
+          models={modelStats}
+          agents={agentStats}
+          hideCosts={hideCosts}
+          maxModelTokens={maxModelTokens}
+          maxAgentTokens={maxAgentTokens}
+          totalTokens={totalTokens}
+          tokenSegments={tokenSegments}
+          latestSessionTokens={latestSessionTokens}
+          latestSessionCost={latestSessionCost}
+        />
       </div>
     </div>
   );
