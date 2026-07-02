@@ -21,6 +21,11 @@ function groupMessages(messages: Message[]): Message[] {
         const last = result[result.length - 1];
         if (last && last.role === "assistant" && last.toolCalls && last.toolCalls.length > 0) {
           last.toolCalls = [...last.toolCalls, ...tools];
+          if (msg.reasoning) {
+            last.reasoning = last.reasoning
+              ? last.reasoning + "\n\n" + msg.reasoning
+              : msg.reasoning;
+          }
           continue;
         }
       }
