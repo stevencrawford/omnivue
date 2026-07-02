@@ -81,14 +81,14 @@ func (a *Adapter) Detect(path string) bool {
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
-	if cached := a.cache.List(); cached != nil {
+	if cached := a.cache.List(); len(cached) > 0 {
 		return cached, nil
 	}
 	return a.loadSessions(ctx)
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	if s, ok := a.cache.Get(id); ok {
+	if s, ok := a.cache.Lookup(id); ok {
 		return &s, nil
 	}
 

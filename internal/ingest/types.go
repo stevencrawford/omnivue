@@ -56,7 +56,7 @@ type TodoStatus string
 
 const (
 	TodoPending     TodoStatus = "pending"
-	TodoInProgress  TodoStatus = "in_progress"
+	TodoInProgress  TodoStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from PlanItemStatus
 	TodoCompleted   TodoStatus = "completed"
 	TodoBlocked     TodoStatus = "blocked"
 )
@@ -82,7 +82,7 @@ type PlanItemStatus string
 
 const (
 	PlanItemPending     PlanItemStatus = "pending"
-	PlanItemInProgress  PlanItemStatus = "in_progress"
+	PlanItemInProgress  PlanItemStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from TodoStatus
 	PlanItemCompleted   PlanItemStatus = "completed"
 	PlanItemCanceled    PlanItemStatus = "canceled"
 )

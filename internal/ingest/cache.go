@@ -53,8 +53,8 @@ func (c *SessionCache) List() []Session {
 	return sessions
 }
 
-// Get returns a single session by ID from the cache.
-func (c *SessionCache) Get(id string) (Session, bool) {
+// Lookup returns a single session by ID from the cache.
+func (c *SessionCache) Lookup(id string) (Session, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	e, ok := c.entries[id]

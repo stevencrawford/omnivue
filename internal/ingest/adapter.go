@@ -20,33 +20,33 @@ type SessionSource interface {
 	Close() error
 }
 
-// PlanSource is optionally implemented by adapters that can provide
+// Planner is optionally implemented by adapters that can provide
 // structured plan data (checklists, task lists) for their sessions.
-type PlanSource interface {
+type Planner interface {
 	Plan(ctx context.Context, sessionID string) (*Plan, error)
 }
 
-// DiffSource is optionally implemented by adapters that can provide
+// Differ is optionally implemented by adapters that can provide
 // file-level diff summaries (additions, deletions, patches).
-type DiffSource interface {
+type Differ interface {
 	Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
 }
 
-// EditSource is optionally implemented by adapters that can provide
+// Editor is optionally implemented by adapters that can provide
 // raw edit/write tool call data for granular file change tracking.
-type EditSource interface {
+type Editor interface {
 	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
 }
 
 // Adapter is the combined interface that all session source adapters must
-// implement. It includes the core SessionSource plus PlanSource, DiffSource,
-// and EditSource. Adapters that don't support optional features should
+// implement. It includes the core SessionSource plus Planner, Differ,
+// and Editor. Adapters that don't support optional features should
 // return (nil, nil) from the corresponding methods.
 type Adapter interface {
 	SessionSource
-	PlanSource
-	DiffSource
-	EditSource
+	Planner
+	Differ
+	Editor
 }
 
 // OpenReadOnlyDB opens a SQLite database in read-only mode with WAL journal.

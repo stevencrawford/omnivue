@@ -207,7 +207,7 @@ func (s *State) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	if ps, ok := adapter.(ingest.PlanSource); ok {
+	if ps, ok := adapter.(ingest.Planner); ok {
 		return ps.Plan(ctx, sessionID)
 	}
 	return nil, nil
@@ -229,7 +229,7 @@ func (s *State) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile,
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	if ds, ok := adapter.(ingest.DiffSource); ok {
+	if ds, ok := adapter.(ingest.Differ); ok {
 		return ds.Diffs(ctx, sessionID)
 	}
 	return []ingest.DiffFile{}, nil
@@ -251,7 +251,7 @@ func (s *State) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit,
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	if es, ok := adapter.(ingest.EditSource); ok {
+	if es, ok := adapter.(ingest.Editor); ok {
 		return es.Edits(ctx, sessionID)
 	}
 	return []ingest.FileEdit{}, nil
