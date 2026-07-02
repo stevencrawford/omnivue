@@ -54,15 +54,15 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 			parentIDs = append(parentIDs, s.ID)
 		}
 
-		got, err := a.GetSession(ctx, s.ID)
+		got, err := a.Session(ctx, s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got.ID != s.ID {
-			t.Errorf("GetSession returned wrong ID: %s != %s", got.ID, s.ID)
+			t.Errorf("Session returned wrong ID: %s != %s", got.ID, s.ID)
 		}
 
-		msgs, err := a.GetMessages(ctx, s.ID)
+		msgs, err := a.Messages(ctx, s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,7 +92,7 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 			}
 		}
 
-		edits, err := a.GetEdits(ctx, s.ID)
+		edits, err := a.Edits(ctx, s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +100,7 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 			t.Logf("  edit: file=%s tool=%s newStr_len=%d", e.FilePath, e.ToolName, len(e.NewStr))
 		}
 
-		plan, err := a.GetPlan(ctx, s.ID)
+		plan, err := a.Plan(ctx, s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,11 +108,11 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 			t.Logf("  plan: source=%s len=%d", plan.Source, len(plan.Markdown))
 		}
 
-		diffs, err := a.GetDiffs(ctx, s.ID)
+		diffs, err := a.Diffs(ctx, s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if diffs != nil {
+		if len(diffs) > 0 {
 			t.Logf("  diffs: %d files", len(diffs))
 		}
 	}
@@ -160,7 +160,9 @@ func TestDetect(t *testing.T) {
 		{
 			name: "projects directory with no sessions",
 			setup: func(t *testing.T, dir string) {
-				os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755)
+				if err := os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755); err != nil {
+					t.Fatal(err)
+				}
 			},
 			want: false,
 		},
@@ -168,7 +170,9 @@ func TestDetect(t *testing.T) {
 			name: "projects directory with session file",
 			setup: func(t *testing.T, dir string) {
 				projectDir := filepath.Join(dir, "projects", "encoded-dir")
-				os.MkdirAll(projectDir, 0755)
+				if err := os.MkdirAll(projectDir, 0755); err != nil {
+					t.Fatal(err)
+				}
 				writeJSONL(t, filepath.Join(projectDir, "session-123.jsonl"), []json.RawMessage{})
 			},
 			want: true,
@@ -176,7 +180,9 @@ func TestDetect(t *testing.T) {
 		{
 			name: "projects directory with sessions in project root",
 			setup: func(t *testing.T, dir string) {
-				os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755)
+				if err := os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755); err != nil {
+					t.Fatal(err)
+				}
 				writeJSONL(t, filepath.Join(dir, "projects", "encoded-dir", "session-123.jsonl"), []json.RawMessage{})
 			},
 			want: true,
@@ -291,7 +297,7 @@ func TestMessageParsing_Basic(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-1.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-1")
+	msgs, err := a.Messages(ctx, "sid-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +325,7 @@ func TestMessageParsing_Thinking(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-2.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-2")
+	msgs, err := a.Messages(ctx, "sid-2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +351,7 @@ func TestMessageParsing_ToolCalls(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-3.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-3")
+	msgs, err := a.Messages(ctx, "sid-3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +388,7 @@ func TestToolResultMatching(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-4.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-4")
+	msgs, err := a.Messages(ctx, "sid-4")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +419,7 @@ func TestToolResultWithError(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-5.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-5")
+	msgs, err := a.Messages(ctx, "sid-5")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +519,9 @@ func TestEditExtraction(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	dir := t.TempDir()
 	projDir := filepath.Join(dir, "projects", "proj")
-	os.MkdirAll(projDir, 0755)
+	if err := os.MkdirAll(projDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	writeInput := json.RawMessage(`{"file_path":"src/main.go","content":"package main\n\nfunc main() {\n\tprintln(\"hello\")\n}\n"}`)
 	editInput := json.RawMessage(`{"file_path":"src/utils.go","old_str":"func old()","new_str":"func new()"}`)
@@ -534,7 +542,7 @@ func TestEditExtraction(t *testing.T) {
 	defer a.Close()
 
 	ctx := context.Background()
-	edits, err := a.GetEdits(ctx, "sid-6")
+	edits, err := a.Edits(ctx, "sid-6")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,7 +585,7 @@ func TestSkipMetaMessages(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-7.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-7")
+	msgs, err := a.Messages(ctx, "sid-7")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -633,12 +641,12 @@ func TestGetDiffsReturnsNil(t *testing.T) {
 	}
 	defer a.Close()
 
-	diffs, err := a.GetDiffs(context.Background(), "any-id")
+	diffs, err := a.Diffs(context.Background(), "any-id")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diffs != nil {
-		t.Error("GetDiffs should return nil for Claude Code")
+	if len(diffs) > 0 {
+		t.Error("Diffs should return nil for Claude Code")
 	}
 }
 
@@ -650,19 +658,22 @@ func TestGetPlanNoFile(t *testing.T) {
 	}
 	defer a.Close()
 
-	plan, err := a.GetPlan(context.Background(), "nonexistent")
+	plan, err := a.Plan(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plan != nil {
-		t.Error("GetPlan should return nil when no plan file exists")
+		t.Error("Plan should return nil when no plan file exists")
 	}
 }
 
 func TestContentTruncation(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	longContent := strings.Repeat("a", 5000)
-	contentJSON, _ := json.Marshal(longContent)
+	contentJSON, err := json.Marshal(longContent)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	lines := []json.RawMessage{
 		json.RawMessage(`{"type":"assistant","uuid":"a1","timestamp":"` + now + `","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Read","input":"{}"}]}}`),
@@ -672,7 +683,7 @@ func TestContentTruncation(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-trunc.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-trunc")
+	msgs, err := a.Messages(ctx, "sid-trunc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,7 +713,7 @@ func TestUserContentExtraction(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-8.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-8")
+	msgs, err := a.Messages(ctx, "sid-8")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -720,7 +731,9 @@ func TestUserContentExtraction(t *testing.T) {
 
 func TestGetSession_NotFound(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	a, err := New(dir)
 	if err != nil {
@@ -728,7 +741,7 @@ func TestGetSession_NotFound(t *testing.T) {
 	}
 	defer a.Close()
 
-	_, err = a.GetSession(context.Background(), "nonexistent-id")
+	_, err = a.Session(context.Background(), "nonexistent-id")
 	if err == nil {
 		t.Error("expected error for nonexistent session")
 	}
@@ -736,7 +749,9 @@ func TestGetSession_NotFound(t *testing.T) {
 
 func TestLastModified_NoSessions(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	a, err := New(dir)
 	if err != nil {
@@ -767,13 +782,17 @@ func TestSubagentSessionID(t *testing.T) {
 
 	dir := t.TempDir()
 	projDir := filepath.Join(dir, "projects", "encoded-proj")
-	os.MkdirAll(projDir, 0755)
+	if err := os.MkdirAll(projDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	writeJSONL(t, filepath.Join(projDir, "parent-1.jsonl"), parentLines)
 
 	sessionDir := filepath.Join(projDir, "parent-1")
 	subDir := filepath.Join(sessionDir, "subagents")
-	os.MkdirAll(subDir, 0755)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	writeJSONL(t, filepath.Join(subDir, "agent-sub-1.jsonl"), subLines)
 
 	a, err := New(dir)
@@ -822,7 +841,7 @@ func TestToolResultInUserMessage(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-9.jsonl", lines)
 	ctx := context.Background()
 
-	msgs, err := a.GetMessages(ctx, "sid-9")
+	msgs, err := a.Messages(ctx, "sid-9")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -868,12 +887,18 @@ func TestToolResultFileContent(t *testing.T) {
 
 	dir := t.TempDir()
 	projDir := filepath.Join(dir, "projects", "encoded-proj")
-	os.MkdirAll(projDir, 0755)
+	if err := os.MkdirAll(projDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	writeJSONL(t, filepath.Join(projDir, "sess.jsonl"), lines)
 
 	toolResDir := filepath.Join(projDir, "sess", "tool-results")
-	os.MkdirAll(toolResDir, 0755)
-	os.WriteFile(filepath.Join(toolResDir, "tu1.txt"), []byte("file content from disk"), 0644)
+	if err := os.MkdirAll(toolResDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(toolResDir, "tu1.txt"), []byte("file content from disk"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	a, err := New(dir)
 	if err != nil {
@@ -882,7 +907,7 @@ func TestToolResultFileContent(t *testing.T) {
 	defer a.Close()
 
 	ctx := context.Background()
-	msgs, err := a.GetMessages(ctx, "sess")
+	msgs, err := a.Messages(ctx, "sess")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -904,11 +929,11 @@ func TestGetEdits_NoEdits(t *testing.T) {
 	a := setupAdapter(t, "proj", "sid-10.jsonl", lines)
 	ctx := context.Background()
 
-	edits, err := a.GetEdits(ctx, "sid-10")
+	edits, err := a.Edits(ctx, "sid-10")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if edits != nil {
+	if len(edits) > 0 {
 		t.Errorf("expected nil edits, got %d", len(edits))
 	}
 }
@@ -920,7 +945,9 @@ func setupAdapter(t *testing.T, projName, filename string, lines []json.RawMessa
 	dir := t.TempDir()
 
 	projDir := filepath.Join(dir, "projects", projName)
-	os.MkdirAll(projDir, 0755)
+	if err := os.MkdirAll(projDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	writeJSONL(t, filepath.Join(projDir, filename), lines)
 
@@ -938,7 +965,7 @@ func writeJSONL(t *testing.T, path string, lines []json.RawMessage) {
 		b.WriteString(string(l))
 		b.WriteByte('\n')
 	}
-	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(b.String()), 0600); err != nil {
 		t.Fatal(err)
 	}
 }

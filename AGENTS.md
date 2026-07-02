@@ -49,6 +49,39 @@ go test ./...
 make lint
 ```
 
+## Pre-Commit Checks for Go Changes
+
+Before committing any Go changes, run ALL of the following:
+
+```bash
+# 1. Build must pass
+go build ./...
+
+# 2. golangci-lint must return 0 issues
+golangci-lint run ./...
+
+# 3. gostyle must return 0 issues (custom lint rules)
+go vet -vettool=$(which gostyle) -gostyle.config=.gostyle.yml ./...
+
+# 4. All Go tests must pass
+go test ./...
+
+# 5. Full test suite (frontend + Go, required before push)
+make test
+```
+
+These checks enforce style rules that, if ignored, accumulate into a large
+backlog at PR time (e.g. 197 gostyle issues had to be fixed in one batch).
+Key gostyle rules that commonly trigger:
+- `handlerrors` — never use `_ =` to discard errors
+- `getters` — no `Get` prefix on methods (use `Counts` not `GetCounts`)
+- `nilslices` — use `len(s) == 0` not `s == nil`
+- `repetition` — don't name vars after their type (`createdStr` → `created`)
+- `recvtype` — use pointer receivers
+- `errorstrings` — lowercase, no punctuation
+- `pkgnames` — avoid `util`, `helper`, `common` package names
+- `dontpanic` — never use `panic()` in production code
+
 ### CLI Flags
 
 - `--port` / `-p` — Server port (default: 6275)

@@ -18,20 +18,20 @@ type Adapter interface {
 	// ListSessions returns all sessions from this source.
 	ListSessions(ctx context.Context) ([]Session, error)
 
-	// GetSession returns detailed session info including metadata.
-	GetSession(ctx context.Context, id string) (*Session, error)
+	// Session returns detailed session info including metadata.
+	Session(ctx context.Context, id string) (*Session, error)
 
-	// GetMessages returns the conversation messages for a session.
-	GetMessages(ctx context.Context, sessionID string) ([]Message, error)
+	// Messages returns the conversation messages for a session.
+	Messages(ctx context.Context, sessionID string) ([]Message, error)
 
-	// GetPlan returns the session plan as markdown.
-	GetPlan(ctx context.Context, sessionID string) (*Plan, error)
+	// Plan returns the session plan as markdown.
+	Plan(ctx context.Context, sessionID string) (*Plan, error)
 
-	// GetDiffs returns the file diffs for a session.
-	GetDiffs(ctx context.Context, sessionID string) ([]DiffFile, error)
+	// Diffs returns the file diffs for a session.
+	Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
 
-	// GetEdits returns the raw edit/write tool call data for a session.
-	GetEdits(ctx context.Context, sessionID string) ([]FileEdit, error)
+	// Edits returns the raw edit/write tool call data for a session.
+	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
 
 	// ResumeCommand returns the command string to resume a session.
 	ResumeCommand(session *Session) string
@@ -61,7 +61,7 @@ func OpenReadOnlyDB(path string) (*sql.DB, error) {
 	_, err = db.Exec("CREATE TABLE _omnivue_write_test (id INTEGER)")
 	if err == nil {
 		db.Close()
-		return nil, fmt.Errorf("SAFETY VIOLATION: database %s opened in writable mode", path)
+		return nil, fmt.Errorf("safety violation: database %s opened in writable mode", path)
 	}
 
 	return db, nil

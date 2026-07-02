@@ -36,7 +36,7 @@ func Setup(port int) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine XDG state home: %w", err)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 
@@ -58,7 +58,6 @@ func cleanOldLogs(dir string, age time.Duration) {
 	if err != nil {
 		return
 	}
-	now := time.Now()
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasPrefix(e.Name(), logFilePrefix) {
 			continue
@@ -67,7 +66,7 @@ func cleanOldLogs(dir string, age time.Duration) {
 		if err != nil {
 			continue
 		}
-		if now.Sub(info.ModTime()) > age {
+		if time.Since(info.ModTime()) > age {
 			os.Remove(filepath.Join(dir, e.Name()))
 		}
 	}
@@ -85,7 +84,7 @@ type rotatingWriter struct {
 }
 
 func openLogFile(filename string) (*os.File, error) {
-	return os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	return os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 }
 
 func newRotatingWriter(filename string, maxSize int64, maxBackups int) (*rotatingWriter, error) {

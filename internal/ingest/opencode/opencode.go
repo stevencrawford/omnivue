@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 
 	_ "modernc.org/sqlite"
 )
@@ -96,7 +96,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 		s.Agent = ingest.AgentOpenCode
 		s.Model = extractModelID(modelJSON.String)
-		s.Repository = util.DeriveRepository(s.Directory, projectName)
+		s.Repository = ingestutil.DeriveRepository(s.Directory, projectName)
 		s.Branch = ""
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -117,13 +117,13 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		}
 
 		if summFiles.Valid {
-			s.DiffFiles = int(summFiles.Int64)
+			s.DiffFiles = int(summFiles.Int64) //nolint:gosec
 		}
 		if summAdd.Valid {
-			s.DiffAdditions = int(summAdd.Int64)
+			s.DiffAdditions = int(summAdd.Int64) //nolint:gosec
 		}
 		if summDel.Valid {
-			s.DiffDeletions = int(summDel.Int64)
+			s.DiffDeletions = int(summDel.Int64) //nolint:gosec
 		}
 
 		if s.DiffFiles == 0 {
@@ -134,10 +134,6 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.MessageCount = msgCount
 
 		sessions = append(sessions, s)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	if len(zeroDiffIDs) > 0 {
@@ -156,7 +152,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	return sessions, nil
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	var (
 		s            ingest.Session
 		parentID     sql.NullString
@@ -200,7 +196,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 
 	s.Agent = ingest.AgentOpenCode
 	s.Model = extractModelID(modelJSON.String)
-	s.Repository = util.DeriveRepository(s.Directory, projectName)
+	s.Repository = ingestutil.DeriveRepository(s.Directory, projectName)
 	s.Branch = ""
 	s.CreatedAt = time.UnixMilli(timeCreated)
 	s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -221,13 +217,13 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	}
 
 	if summFiles.Valid {
-		s.DiffFiles = int(summFiles.Int64)
+		s.DiffFiles = int(summFiles.Int64) //nolint:gosec
 	}
 	if summAdd.Valid {
-		s.DiffAdditions = int(summAdd.Int64)
+		s.DiffAdditions = int(summAdd.Int64) //nolint:gosec
 	}
 	if summDel.Valid {
-		s.DiffDeletions = int(summDel.Int64)
+		s.DiffDeletions = int(summDel.Int64) //nolint:gosec
 	}
 
 	if s.DiffFiles == 0 {
@@ -246,18 +242,257 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	return &s, nil
 }
 
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	// Query messages ordered by time
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT id, data, time_created
+		FROM message
+		WHERE session_id = ?
+		ORDER BY time_created ASC, id ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []ingest.Message
+	for rows.Next() {
+		var (
+			id          string
+			dataJSON    string
+			timeCreated int64
+		)
+		if err := rows.Scan(&id, &dataJSON, &timeCreated); err != nil {
+			return nil, fmt.Errorf("scanning message: %w", err)
+		}
+
+		msg := ingest.Message{
+			ID:        id,
+			Timestamp: time.UnixMilli(timeCreated),
+		}
+
+		// Parse the JSON data blob
+		var data messageData
+		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
+			msg.Role = data.Role
+			msg.Model = extractModelID(ingestutil.MarshalJSON(data.Model))
+			msg.Agent = data.Agent
+		}
+
+		// Get parts for this message
+		parts, err := a.messageParts(ctx, id)
+		if err == nil {
+			for _, p := range parts {
+				switch p.Type {
+		case "text":
+			if msg.Content == "" {
+				msg.Content = p.Text
+			} else {
+				msg.Content += "\n" + p.Text
+			}
+		case "reasoning":
+			if msg.Reasoning == "" {
+				msg.Reasoning = p.Text
+			} else {
+				msg.Reasoning += "\n" + p.Text
+			}
+		case "step-start":
+					msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
+						Step:     "start",
+						Snapshot: p.Snapshot,
+					})
+				case "step-finish":
+					se := ingest.StepEvent{
+						Step:     "finish",
+						Snapshot: p.Snapshot,
+						Reason:   p.Reason,
+						Cost:     p.Cost,
+					}
+					if p.Tokens != nil {
+						se.Tokens = ingest.StepTokens{
+							Input:    p.Tokens.Input,
+							Output:   p.Tokens.Output,
+							Reasoning: p.Tokens.Reasoning,
+						}
+						if p.Tokens.Cache != nil {
+							se.Tokens.CacheRead = p.Tokens.Cache.Read
+							se.Tokens.CacheWrite = p.Tokens.Cache.Write
+						}
+					}
+					msg.StepEvents = append(msg.StepEvents, se)
+				case "tool":
+					tc := ingest.ToolCall{
+						ID:     p.CallID,
+						Name:   p.Tool,
+						Input:  ingestutil.MarshalJSON(p.State.Input),
+						Output: p.State.Output,
+						Status: p.State.Status,
+					}
+					if p.State.Metadata != nil {
+						tc.Metadata = ingestutil.MarshalJSON(p.State.Metadata)
+					}
+					if p.State.Time != nil {
+						tc.Duration = p.State.Time.End - p.State.Time.Start
+					}
+					msg.ToolCalls = append(msg.ToolCalls, tc)
+				}
+			}
+		}
+
+		// Wrap large embedded code blocks in user messages with <file-context> tags
+		// so the frontend can render them as collapsible file references.
+		if msg.Role == "user" {
+			msg.Content = wrapEmbeddedFileContent(msg.Content)
+		}
+
+		messages = append(messages, msg)
+	}
+
+	return messages, rows.Err()
+}
+
+// Plan implements ingest.Adapter.
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	// Check if this is a child session (has a parent) and read agent mode
+	var parentID sql.NullString
+	var agentCol sql.NullString
+	err := a.db.QueryRowContext(ctx, `SELECT parent_id, agent FROM session WHERE id = ?`, sessionID).Scan(&parentID, &agentCol)
+	if err != nil || !parentID.Valid {
+		if agentCol.Valid && agentCol.String == "plan" {
+			return a.planFromLastMessage(ctx, sessionID)
+		}
+		return a.planFromMessages(ctx, sessionID)
+	}
+
+	// Child session: find the task output in the parent session
+	output, err := a.findTaskOutput(ctx, parentID.String, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if output != "" {
+		source := "task-output"
+		cleaned := stripTaskWrapper(output)
+		md := "# Sub-agent Response\n\n" + cleaned
+		return &ingest.Plan{Markdown: md, Source: source}, nil
+	}
+
+	if agentCol.Valid && agentCol.String == "plan" {
+		return a.planFromLastMessage(ctx, sessionID)
+	}
+
+	return a.planFromMessages(ctx, sessionID)
+}
+
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT p.data, m.time_created
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE p.session_id = ?
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') IN ('edit', 'write')
+		ORDER BY m.time_created ASC, p.time_created ASC, p.id ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying edit parts: %w", err)
+	}
+	defer rows.Close()
+
+	var edits []ingest.FileEdit
+	for rows.Next() {
+		var dataJSON string
+		var timeCreated int64
+		if err := rows.Scan(&dataJSON, &timeCreated); err != nil {
+			continue
+		}
+
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
+		}
+
+		if p.Tool != "edit" && p.Tool != "write" {
+			continue
+		}
+
+		inputJSON := ingestutil.MarshalJSON(p.State.Input)
+		if inputJSON == "" {
+			continue
+		}
+
+		var in editInput
+		if err := json.Unmarshal([]byte(inputJSON), &in); err != nil {
+			continue
+		}
+
+		filePath := in.FilePathResolved()
+		if filePath == "" {
+			continue
+		}
+
+		edits = append(edits, ingest.FileEdit{
+			FilePath:  filePath,
+			ToolName:  p.Tool,
+			OldStr:    in.OldStrResolved(),
+			NewStr:    in.NewStrResolved(),
+			Content:   in.Content,
+			ViewRange: in.ViewRange,
+			Timestamp: time.UnixMilli(timeCreated),
+		})
+	}
+
+	return edits, rows.Err()
+}
+
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	// Read summary_diffs from session table
+	var diffsJSON sql.NullString
+	err := a.db.QueryRowContext(ctx, `
+		SELECT summary_diffs FROM session WHERE id = ?
+	`, sessionID).Scan(&diffsJSON)
+	if err != nil {
+		return nil, fmt.Errorf("querying session diffs: %w", err)
+	}
+
+	if !diffsJSON.Valid || diffsJSON.String == "" {
+		return nil, nil
+	}
+
+	var diffs []ingest.DiffFile
+	if err := json.Unmarshal([]byte(diffsJSON.String), &diffs); err != nil {
+		// Try parsing as a simple string (unified diff)
+		return []ingest.DiffFile{{Patch: diffsJSON.String}}, nil
+	}
+	return diffs, nil
+}
+
+func (a *Adapter) ResumeCommand(session *ingest.Session) string {
+	return fmt.Sprintf("cd %s && opencode -s %s", session.Directory, session.ID)
+}
+
+func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
+	var maxTime int64
+	err := a.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(time_updated), 0) FROM session`).Scan(&maxTime)
+	return maxTime, err
+}
+
+func (a *Adapter) Close() error {
+	return a.db.Close()
+}
+
 func (a *Adapter) computeDiffMetrics(ctx context.Context, ids []string) (map[string][3]int, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 
 	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
+	args := make([]any, len(ids))
 	for i, id := range ids {
 		placeholders[i] = "?"
 		args[i] = id
 	}
 
+	//nolint:gosec
 	query := fmt.Sprintf(`
 		SELECT
 			m.session_id,
@@ -323,116 +558,7 @@ func (a *Adapter) computeDiffMetrics(ctx context.Context, ids []string) (map[str
 	return computed, rows.Err()
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	// Query messages ordered by time
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT id, data, time_created
-		FROM message
-		WHERE session_id = ?
-		ORDER BY time_created ASC, id ASC
-	`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("querying messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []ingest.Message
-	for rows.Next() {
-		var (
-			id          string
-			dataJSON    string
-			timeCreated int64
-		)
-		if err := rows.Scan(&id, &dataJSON, &timeCreated); err != nil {
-			return nil, fmt.Errorf("scanning message: %w", err)
-		}
-
-		msg := ingest.Message{
-			ID:        id,
-			Timestamp: time.UnixMilli(timeCreated),
-		}
-
-		// Parse the JSON data blob
-		var data messageData
-		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
-			msg.Role = data.Role
-			msg.Model = extractModelID(util.MarshalJSON(data.Model))
-			msg.Agent = data.Agent
-		}
-
-		// Get parts for this message
-		parts, err := a.getMessageParts(ctx, id)
-		if err == nil {
-			for _, p := range parts {
-				switch p.Type {
-		case "text":
-			if msg.Content == "" {
-				msg.Content = p.Text
-			} else {
-				msg.Content += "\n" + p.Text
-			}
-		case "reasoning":
-			if msg.Reasoning == "" {
-				msg.Reasoning = p.Text
-			} else {
-				msg.Reasoning += "\n" + p.Text
-			}
-		case "step-start":
-					msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
-						Step:     "start",
-						Snapshot: p.Snapshot,
-					})
-				case "step-finish":
-					se := ingest.StepEvent{
-						Step:     "finish",
-						Snapshot: p.Snapshot,
-						Reason:   p.Reason,
-						Cost:     p.Cost,
-					}
-					if p.Tokens != nil {
-						se.Tokens = ingest.StepTokens{
-							Input:    p.Tokens.Input,
-							Output:   p.Tokens.Output,
-							Reasoning: p.Tokens.Reasoning,
-						}
-						if p.Tokens.Cache != nil {
-							se.Tokens.CacheRead = p.Tokens.Cache.Read
-							se.Tokens.CacheWrite = p.Tokens.Cache.Write
-						}
-					}
-					msg.StepEvents = append(msg.StepEvents, se)
-				case "tool":
-					tc := ingest.ToolCall{
-						ID:     p.CallID,
-						Name:   p.Tool,
-						Input:  util.MarshalJSON(p.State.Input),
-						Output: p.State.Output,
-						Status: p.State.Status,
-					}
-					if p.State.Metadata != nil {
-						tc.Metadata = util.MarshalJSON(p.State.Metadata)
-					}
-					if p.State.Time != nil {
-						tc.Duration = p.State.Time.End - p.State.Time.Start
-					}
-					msg.ToolCalls = append(msg.ToolCalls, tc)
-				}
-			}
-		}
-
-		// Wrap large embedded code blocks in user messages with <file-context> tags
-		// so the frontend can render them as collapsible file references.
-		if msg.Role == "user" {
-			msg.Content = wrapEmbeddedFileContent(msg.Content)
-		}
-
-		messages = append(messages, msg)
-	}
-
-	return messages, rows.Err()
-}
-
-func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]partData, error) {
+func (a *Adapter) messageParts(ctx context.Context, messageID string) ([]partData, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT data FROM part
 		WHERE message_id = ?
@@ -455,37 +581,6 @@ func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]part
 		}
 	}
 	return parts, rows.Err()
-}
-
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	// Check if this is a child session (has a parent) and read agent mode
-	var parentID sql.NullString
-	var agentCol sql.NullString
-	err := a.db.QueryRowContext(ctx, `SELECT parent_id, agent FROM session WHERE id = ?`, sessionID).Scan(&parentID, &agentCol)
-	if err != nil || !parentID.Valid {
-		if agentCol.Valid && agentCol.String == "plan" {
-			return a.planFromLastMessage(ctx, sessionID)
-		}
-		return a.planFromMessages(ctx, sessionID)
-	}
-
-	// Child session: find the task output in the parent session
-	output, err := a.findTaskOutput(ctx, parentID.String, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	if output != "" {
-		source := "task-output"
-		cleaned := stripTaskWrapper(output)
-		md := "# Sub-agent Response\n\n" + cleaned
-		return &ingest.Plan{Markdown: md, Source: source}, nil
-	}
-
-	if agentCol.Valid && agentCol.String == "plan" {
-		return a.planFromLastMessage(ctx, sessionID)
-	}
-
-	return a.planFromMessages(ctx, sessionID)
 }
 
 func (a *Adapter) planFromLastMessage(ctx context.Context, sessionID string) (*ingest.Plan, error) {
@@ -565,7 +660,7 @@ func (a *Adapter) findTaskOutput(ctx context.Context, parentID, childID string) 
 		if p.State.Metadata == nil {
 			continue
 		}
-		meta, ok := p.State.Metadata.(map[string]interface{})
+		meta, ok := p.State.Metadata.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -633,7 +728,7 @@ func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*inge
 			if p.State.Input == nil {
 				continue
 			}
-			inputJSON := util.MarshalJSON(p.State.Input)
+			inputJSON := ingestutil.MarshalJSON(p.State.Input)
 			if inputJSON == "" {
 				continue
 			}
@@ -653,7 +748,7 @@ func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*inge
 						prefix = "- [x]"
 					case "in_progress":
 						prefix = "- [/]"
-					case "cancelled":
+					case "canceled":
 						prefix = "- [-]"
 					}
 					content := item.Content
@@ -708,7 +803,7 @@ type editInput struct {
 	ViewRange []int   `json:"view_range"`
 }
 
-func (e editInput) FilePathResolved() string {
+func (e *editInput) FilePathResolved() string {
 	switch {
 	case e.FilePath != "":
 		return e.FilePath
@@ -719,115 +814,18 @@ func (e editInput) FilePathResolved() string {
 	}
 }
 
-func (e editInput) OldStrResolved() string {
+func (e *editInput) OldStrResolved() string {
 	if e.OldStr != "" {
 		return e.OldStr
 	}
 	return e.OldString
 }
 
-func (e editInput) NewStrResolved() string {
+func (e *editInput) NewStrResolved() string {
 	if e.NewStr != "" {
 		return e.NewStr
 	}
 	return e.NewString
-}
-
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT p.data, m.time_created
-		FROM part p
-		JOIN message m ON p.message_id = m.id
-		WHERE p.session_id = ?
-		  AND json_extract(p.data, '$.type') = 'tool'
-		  AND json_extract(p.data, '$.tool') IN ('edit', 'write')
-		ORDER BY m.time_created ASC, p.time_created ASC, p.id ASC
-	`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("querying edit parts: %w", err)
-	}
-	defer rows.Close()
-
-	var edits []ingest.FileEdit
-	for rows.Next() {
-		var dataJSON string
-		var timeCreated int64
-		if err := rows.Scan(&dataJSON, &timeCreated); err != nil {
-			continue
-		}
-
-		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
-			continue
-		}
-
-		if p.Tool != "edit" && p.Tool != "write" {
-			continue
-		}
-
-		inputJSON := util.MarshalJSON(p.State.Input)
-		if inputJSON == "" {
-			continue
-		}
-
-		var in editInput
-		if err := json.Unmarshal([]byte(inputJSON), &in); err != nil {
-			continue
-		}
-
-		filePath := in.FilePathResolved()
-		if filePath == "" {
-			continue
-		}
-
-		edits = append(edits, ingest.FileEdit{
-			FilePath:  filePath,
-			ToolName:  p.Tool,
-			OldStr:    in.OldStrResolved(),
-			NewStr:    in.NewStrResolved(),
-			Content:   in.Content,
-			ViewRange: in.ViewRange,
-			Timestamp: time.UnixMilli(timeCreated),
-		})
-	}
-
-	return edits, rows.Err()
-}
-
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	// Read summary_diffs from session table
-	var diffsJSON sql.NullString
-	err := a.db.QueryRowContext(ctx, `
-		SELECT summary_diffs FROM session WHERE id = ?
-	`, sessionID).Scan(&diffsJSON)
-	if err != nil {
-		return nil, fmt.Errorf("querying session diffs: %w", err)
-	}
-
-	if !diffsJSON.Valid || diffsJSON.String == "" {
-		return nil, nil
-	}
-
-	var diffs []ingest.DiffFile
-	if err := json.Unmarshal([]byte(diffsJSON.String), &diffs); err != nil {
-		// Try parsing as a simple string (unified diff)
-		return []ingest.DiffFile{{Patch: diffsJSON.String}}, nil
-	}
-	return diffs, nil
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && opencode -s %s", session.Directory, session.ID)
-}
-
-func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
-	var maxTime int64
-	err := a.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(time_updated), 0) FROM session`).Scan(&maxTime)
-	return maxTime, err
-}
-
-func (a *Adapter) Close() error {
-	return a.db.Close()
 }
 
 // Internal JSON structs for parsing OpenCode's data blobs.
@@ -835,7 +833,7 @@ func (a *Adapter) Close() error {
 type messageData struct {
 	Role  string      `json:"role"`
 	Agent string      `json:"agent"`
-	Model interface{} `json:"model"`
+	Model any `json:"model"`
 }
 
 type partData struct {
@@ -865,9 +863,9 @@ type stepCacheTokens struct {
 
 type partState struct {
 	Status   string      `json:"status"`
-	Input    interface{} `json:"input"`
+	Input    any `json:"input"`
 	Output   string      `json:"output"`
-	Metadata interface{} `json:"metadata,omitempty"`
+	Metadata any `json:"metadata,omitempty"`
 	Time     *partTime   `json:"time,omitempty"`
 }
 
@@ -902,7 +900,7 @@ func wrapEmbeddedFileContent(text string) string {
 	}
 
 	// Match OpenCode's XML file read format: <path>...</path>\n<type>...</type>\n<content>...</content>
-	xmlRe := regexp.MustCompile("(?s)(.*?)<path>(.*?)</path>\\s*<type>(.*?)</type>\\s*<content>\\n?(.*?)</content>")
+	xmlRe := regexp.MustCompile(`(?s)(.*?)<path>(.*?)</path>\s*<type>(.*?)</type>\s*<content>\n?(.*?)</content>`)
 	text = xmlRe.ReplaceAllStringFunc(text, func(match string) string {
 		parts := xmlRe.FindStringSubmatch(match)
 		if len(parts) < 5 {
@@ -1008,5 +1006,3 @@ func stripTaskWrapper(output string) string {
 	}
 	return strings.TrimSpace(strings.Join(result, "\n"))
 }
-
-

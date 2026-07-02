@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
 // projectDir is the subdirectory within ~/.claude that holds session data.
@@ -52,12 +53,18 @@ func (a *Adapter) Detect(path string) bool {
 		return false
 	}
 	// Verify at least one session JSONL exists
-	ents, _ := os.ReadDir(projectsPath)
+	ents, err := os.ReadDir(projectsPath)
+	if err != nil {
+		return false
+	}
 	for _, ent := range ents {
 		if !ent.IsDir() {
 			continue
 		}
-		sessionEnts, _ := os.ReadDir(filepath.Join(projectsPath, ent.Name()))
+		sessionEnts, err := os.ReadDir(filepath.Join(projectsPath, ent.Name()))
+		if err != nil {
+			continue
+		}
 		for _, se := range sessionEnts {
 			if !se.IsDir() && strings.HasSuffix(se.Name(), ".jsonl") {
 				return true
@@ -71,10 +78,187 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	a.mu.RLock()
 	cached := a.sessions
 	a.mu.RUnlock()
-	if cached != nil {
+	if len(cached) > 0 {
 		return cached, nil
 	}
 	return a.loadSessions(ctx)
+}
+
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
+	a.mu.RLock()
+	if len(a.sessions) > 0 {
+		for i := range a.sessions {
+			if a.sessions[i].ID == id {
+				s := a.sessions[i]
+				a.mu.RUnlock()
+				return &s, nil
+			}
+		}
+	}
+	a.mu.RUnlock()
+
+	// Fallback: scan for the session file
+	fpath := a.findSessionFile(id)
+	if fpath == "" {
+		return nil, fmt.Errorf("session not found: %s", id)
+	}
+	projectPath := filepath.Dir(fpath)
+	// Walk up to find the project directory
+	for {
+		parent := filepath.Dir(projectPath)
+		if filepath.Base(parent) == projectDir || parent == projectPath {
+			break
+		}
+		projectPath = parent
+	}
+	return a.parseSessionFile(fpath, projectPath)
+}
+
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	fpath := a.findSessionFile(sessionID)
+	if fpath == "" {
+		return nil, fmt.Errorf("session file not found: %s", sessionID)
+	}
+	return a.parseMessages(fpath, sessionID)
+}
+
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	// First, try to find the slug from the session messages
+	fpath := a.findSessionFile(sessionID)
+	if fpath == "" {
+		return nil, nil
+	}
+
+	slug := a.findSlugFromSession(fpath)
+	if slug == "" {
+		return nil, nil
+	}
+
+	// Look for plan file in ~/.claude/plans/{slug}.md
+	planPath := filepath.Join(a.claudeDir, planDir, slug+".md")
+	if ingestutil.PathExists(planPath) {
+		content, err := os.ReadFile(planPath)
+		if err != nil {
+			return nil, nil
+		}
+		return &ingest.Plan{
+			Markdown: string(content),
+			Source:   "file",
+		}, nil
+	}
+
+	return nil, nil
+}
+
+func (a *Adapter) Diffs(_ context.Context, _ string) ([]ingest.DiffFile, error) {
+	return nil, nil
+}
+
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	msgs, err := a.Messages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var edits []ingest.FileEdit
+	for _, m := range msgs {
+		for _, tc := range m.ToolCalls {
+			if tc.Name != "write" && tc.Name != "edit" {
+				continue
+			}
+			var fp, content string
+			if tc.Name == "write" {
+				var input struct {
+					FilePath string `json:"file_path"`
+					Content  string `json:"content"`
+				}
+				if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+					continue
+				}
+				fp = input.FilePath
+				content = input.Content
+			} else {
+				var input struct {
+					FilePath string `json:"file_path"`
+					OldStr   string `json:"old_str"`
+					NewStr   string `json:"new_str"`
+					Content  string `json:"content"`
+				}
+				if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+					continue
+				}
+				fp = input.FilePath
+				content = input.NewStr
+				if content == "" {
+					content = input.Content
+				}
+			}
+			if fp == "" {
+				continue
+			}
+			edits = append(edits, ingest.FileEdit{
+				FilePath:  fp,
+				ToolName:  tc.Name,
+				NewStr:    content,
+				Timestamp: m.Timestamp,
+			})
+		}
+	}
+	if len(edits) == 0 {
+		return nil, nil
+	}
+	return edits, nil
+}
+
+func (a *Adapter) ResumeCommand(session *ingest.Session) string {
+	return fmt.Sprintf("cd %s && claude -p %s -s %s", session.Directory, session.Directory, session.ID)
+}
+
+func (a *Adapter) LastModified(_ context.Context) (int64, error) {
+	a.mu.RLock()
+	lastMod := a.lastMod
+	a.mu.RUnlock()
+
+	var maxMod int64
+	projectsPath := filepath.Join(a.claudeDir, projectDir)
+
+	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		fi, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		if m := fi.ModTime().UnixMilli(); m > maxMod {
+			maxMod = m
+		}
+		return nil
+	})
+
+	if maxMod == 0 {
+		maxMod = time.Now().UnixMilli()
+	}
+
+	// Invalidate cache if files changed
+	if maxMod > lastMod {
+		a.mu.Lock()
+		a.sessions = nil
+		a.lastMod = maxMod
+		a.mu.Unlock()
+	}
+
+	return maxMod, nil
+}
+
+func (a *Adapter) Close() error {
+	return nil
 }
 
 func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
@@ -139,8 +323,8 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 		}
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[j].UpdatedAt.Before(sessions[i].UpdatedAt)
+	slices.SortFunc(sessions, func(a, b ingest.Session) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	a.mu.Lock()
@@ -158,7 +342,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	}
 	defer f.Close()
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 
 	var (
 		parentSID   string
@@ -210,7 +394,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 			agentID = env.AgentID
 		}
 
-		ts := util.ParseTime(env.Timestamp)
+		ts := ingestutil.ParseTime(env.Timestamp)
 		if firstTS.IsZero() {
 			firstTS = ts
 		}
@@ -253,14 +437,11 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	if isSubagent {
 		// Extract agent ID from filename (agent-{agentId}.jsonl) or use env field
 		basename := strings.TrimSuffix(filepath.Base(fpath), ".jsonl")
-		if strings.HasPrefix(basename, "agent-") {
-			aid := strings.TrimPrefix(basename, "agent-")
+		if aid, ok := strings.CutPrefix(basename, "agent-"); ok {
 			if aid == "" {
 				aid = agentID
 			}
 			sessionID = parentSID + "-agent-" + aid
-		} else {
-			sessionID = basename
 		}
 	} else {
 		sessionID = parentSID
@@ -277,7 +458,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 		}
 	}
 
-	repo := util.DeriveRepository(cwd, "")
+	repo := ingestutil.DeriveRepository(cwd, "")
 
 	status := "active"
 	if hasRealUser && lastTS.Before(time.Now().Add(-5*time.Minute)) {
@@ -335,44 +516,6 @@ func (a *Adapter) discoverSubagents(sessionID, projectPath string) []ingest.Sess
 	return sessions
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
-	a.mu.RLock()
-	if a.sessions != nil {
-		for i := range a.sessions {
-			if a.sessions[i].ID == id {
-				s := a.sessions[i]
-				a.mu.RUnlock()
-				return &s, nil
-			}
-		}
-	}
-	a.mu.RUnlock()
-
-	// Fallback: scan for the session file
-	fpath := a.findSessionFile(id)
-	if fpath == "" {
-		return nil, fmt.Errorf("session not found: %s", id)
-	}
-	projectPath := filepath.Dir(fpath)
-	// Walk up to find the project directory
-	for {
-		parent := filepath.Dir(projectPath)
-		if filepath.Base(parent) == projectDir || parent == projectPath {
-			break
-		}
-		projectPath = parent
-	}
-	return a.parseSessionFile(fpath, projectPath)
-}
-
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	fpath := a.findSessionFile(sessionID)
-	if fpath == "" {
-		return nil, fmt.Errorf("session file not found: %s", sessionID)
-	}
-	return a.parseMessages(fpath, sessionID)
-}
-
 func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, error) {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -380,7 +523,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	}
 	defer f.Close()
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 
 	var messages []ingest.Message
 	toolCallsByID := make(map[string]*ingest.ToolCall)
@@ -414,7 +557,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			}
 		}
 
-		ts := util.ParseTime(env.Timestamp)
+		ts := ingestutil.ParseTime(env.Timestamp)
 
 		switch env.Type {
 		case "user", "assistant":
@@ -453,7 +596,8 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				msg.Metadata["slug"] = env.Slug
 			}
 
-			if env.Message.Role == "assistant" {
+			switch env.Message.Role {
+			case "assistant":
 				text, reasoning, toolCalls := parseAssistantContent(env.Message.Content, msg.ID)
 				msg.Content = text
 				msg.Reasoning = reasoning
@@ -468,7 +612,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				}
 				msg.ToolCalls = toolCalls
 
-			} else if env.Message.Role == "user" {
+			case "user":
 				msg.Content = extractUserContent(env.Message.Content)
 			}
 
@@ -506,6 +650,63 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	}
 
 	return messages, scanner.Err()
+}
+
+func (a *Adapter) findSlugFromSession(fpath string) string {
+	f, err := os.Open(fpath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := ingestutil.NewJSONLScanner(f)
+	for scanner.Scan() {
+		var env claudeMessageEnvelope
+		if json.Unmarshal(scanner.Bytes(), &env) != nil {
+			continue
+		}
+		if env.Slug != "" {
+			return env.Slug
+		}
+	}
+	return ""
+}
+
+func (a *Adapter) findSessionFile(sessionID string) string {
+	projectsPath := filepath.Join(a.claudeDir, projectDir)
+
+	// Check if this is a subagent session ID (format: {parentID}-agent-{agentId})
+	var subagentID string
+	if strings.Contains(sessionID, "-agent-") {
+		parts := strings.SplitN(sessionID, "-agent-", 2)
+		if len(parts) == 2 {
+			subagentID = parts[1]
+		}
+	}
+
+	var found string
+	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
+		if err != nil || found != "" {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		basename := strings.TrimSuffix(d.Name(), ".jsonl")
+		if basename == sessionID {
+			// Direct match (parent session or standalone)
+			found = p
+		} else if subagentID != "" && strings.HasPrefix(basename, "agent-") {
+			// Check for subagent match: look in subagents/ directory
+			aid := strings.TrimPrefix(basename, "agent-")
+			if aid == subagentID && strings.Contains(p, "/subagents/") {
+				found = p
+			}
+		}
+		return nil
+	})
+
+	return found
 }
 
 func isMetaMsg(env *claudeMessageEnvelope) bool {
@@ -633,9 +834,13 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 				// Claude Code stores the plan under either "plan", "content", or "summary" key.
 				planText := extractPlanContent(p.Input)
 				if planText != "" {
-					transformed, _ := json.Marshal(map[string]string{
-						"summary": planText,
-					})
+				transformed, err := json.Marshal(map[string]string{
+					"summary": planText,
+				})
+				if err != nil {
+					slog.Warn("failed to marshal plan text", "error", err)
+					transformed = []byte("{}")
+				}
 					tc := ingest.ToolCall{
 						ID:     p.ID,
 						Name:   p.Name,
@@ -668,7 +873,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 				tc := ingest.ToolCall{
 					ID:     p.ID,
 					Name:   p.Name,
-					Input:  util.TruncateContent(input, 2000),
+					Input:  ingestutil.TruncateContent(input, 2000),
 					Status: "running",
 				}
 				toolCalls = append(toolCalls, tc)
@@ -712,7 +917,7 @@ func truncateToolOutput(content string, toolName string) string {
 	if toolName == "task" || toolName == "Task" {
 		return content
 	}
-	return util.TruncateContent(content, maxContentBytes)
+	return ingestutil.TruncateContent(content, maxContentBytes)
 }
 
 const maxContentBytes = 2000
@@ -723,7 +928,7 @@ const maxContentBytes = 2000
 func truncateEditInput(raw json.RawMessage) string {
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return util.TruncateContent(string(raw), maxContentBytes)
+		return ingestutil.TruncateContent(string(raw), maxContentBytes)
 	}
 	changed := false
 	for _, key := range []string{"content", "new_str", "newStr", "old_str", "oldStr"} {
@@ -737,7 +942,11 @@ func truncateEditInput(raw json.RawMessage) string {
 	if !changed {
 		return string(raw)
 	}
-	result, _ := json.Marshal(m)
+	result, err := json.Marshal(m)
+	if err != nil {
+		slog.Warn("failed to marshal truncated content", "error", err)
+		return "{}"
+	}
 	return string(result)
 }
 
@@ -779,13 +988,19 @@ func setToolMetadataSessionID(tc *ingest.ToolCall, parentSID, agentID string) {
 	childID := parentSID + "-agent-" + agentID
 	var md map[string]any
 	if tc.Metadata != "" {
-		json.Unmarshal([]byte(tc.Metadata), &md)
+		if err := json.Unmarshal([]byte(tc.Metadata), &md); err != nil {
+			slog.Warn("failed to unmarshal metadata", "error", err)
+		}
 	}
 	if md == nil {
 		md = make(map[string]any)
 	}
 	md["sessionId"] = childID
-	mdBytes, _ := json.Marshal(md)
+	mdBytes, err := json.Marshal(md)
+	if err != nil {
+		slog.Warn("failed to marshal metadata", "error", err)
+		mdBytes = []byte("{}")
+	}
 	tc.Metadata = string(mdBytes)
 }
 
@@ -858,204 +1073,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		tc.Name = "websearch"
 	default:
 	}
-}
-
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	// First, try to find the slug from the session messages
-	fpath := a.findSessionFile(sessionID)
-	if fpath == "" {
-		return nil, nil
-	}
-
-	slug := a.findSlugFromSession(fpath)
-	if slug == "" {
-		return nil, nil
-	}
-
-	// Look for plan file in ~/.claude/plans/{slug}.md
-	planPath := filepath.Join(a.claudeDir, planDir, slug+".md")
-	if util.PathExists(planPath) {
-		content, err := os.ReadFile(planPath)
-		if err != nil {
-			return nil, nil
-		}
-		return &ingest.Plan{
-			Markdown: string(content),
-			Source:   "file",
-		}, nil
-	}
-
-	return nil, nil
-}
-
-func (a *Adapter) findSlugFromSession(fpath string) string {
-	f, err := os.Open(fpath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-
-	scanner := util.NewJSONLScanner(f)
-	for scanner.Scan() {
-		var env claudeMessageEnvelope
-		if json.Unmarshal(scanner.Bytes(), &env) != nil {
-			continue
-		}
-		if env.Slug != "" {
-			return env.Slug
-		}
-	}
-	return ""
-}
-
-func (a *Adapter) GetDiffs(_ context.Context, _ string) ([]ingest.DiffFile, error) {
-	return nil, nil
-}
-
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	var edits []ingest.FileEdit
-	for _, m := range msgs {
-		for _, tc := range m.ToolCalls {
-			if tc.Name != "write" && tc.Name != "edit" {
-				continue
-			}
-			var fp, content string
-			if tc.Name == "write" {
-				var input struct {
-					FilePath string `json:"file_path"`
-					Content  string `json:"content"`
-				}
-				if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
-					continue
-				}
-				fp = input.FilePath
-				content = input.Content
-			} else {
-				var input struct {
-					FilePath string `json:"file_path"`
-					OldStr   string `json:"old_str"`
-					NewStr   string `json:"new_str"`
-					Content  string `json:"content"`
-				}
-				if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
-					continue
-				}
-				fp = input.FilePath
-				content = input.NewStr
-				if content == "" {
-					content = input.Content
-				}
-			}
-			if fp == "" {
-				continue
-			}
-			edits = append(edits, ingest.FileEdit{
-				FilePath:  fp,
-				ToolName:  tc.Name,
-				NewStr:    content,
-				Timestamp: m.Timestamp,
-			})
-		}
-	}
-	if len(edits) == 0 {
-		return nil, nil
-	}
-	return edits, nil
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && claude -p %s -s %s", session.Directory, session.Directory, session.ID)
-}
-
-func (a *Adapter) LastModified(_ context.Context) (int64, error) {
-	a.mu.RLock()
-	lastMod := a.lastMod
-	a.mu.RUnlock()
-
-	var maxMod int64
-	projectsPath := filepath.Join(a.claudeDir, projectDir)
-
-	_ = filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(d.Name(), ".jsonl") {
-			return nil
-		}
-		fi, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		if m := fi.ModTime().UnixMilli(); m > maxMod {
-			maxMod = m
-		}
-		return nil
-	})
-
-	if maxMod == 0 {
-		maxMod = time.Now().UnixMilli()
-	}
-
-	// Invalidate cache if files changed
-	if maxMod > lastMod {
-		a.mu.Lock()
-		a.sessions = nil
-		a.lastMod = maxMod
-		a.mu.Unlock()
-	}
-
-	return maxMod, nil
-}
-
-func (a *Adapter) Close() error {
-	return nil
-}
-
-// --- Helpers ---
-
-func (a *Adapter) findSessionFile(sessionID string) string {
-	projectsPath := filepath.Join(a.claudeDir, projectDir)
-
-	// Check if this is a subagent session ID (format: {parentID}-agent-{agentId})
-	var subagentID string
-	if strings.Contains(sessionID, "-agent-") {
-		parts := strings.SplitN(sessionID, "-agent-", 2)
-		if len(parts) == 2 {
-			subagentID = parts[1]
-		}
-	}
-
-	var found string
-	_ = filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error {
-		if err != nil || found != "" {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
-			return nil
-		}
-		basename := strings.TrimSuffix(d.Name(), ".jsonl")
-		if basename == sessionID {
-			// Direct match (parent session or standalone)
-			found = p
-		} else if subagentID != "" && strings.HasPrefix(basename, "agent-") {
-			// Check for subagent match: look in subagents/ directory
-			aid := strings.TrimPrefix(basename, "agent-")
-			if aid == subagentID && strings.Contains(p, "/subagents/") {
-				found = p
-			}
-		}
-		return nil
-	})
-
-	return found
 }
 
 // resolveParentSessionID extracts the parent session ID from a subagent composite ID.

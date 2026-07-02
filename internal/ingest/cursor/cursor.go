@@ -9,12 +9,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 
 	_ "modernc.org/sqlite"
 )
@@ -29,7 +29,7 @@ type Adapter struct {
 }
 
 func New(vscdbPath string) (*Adapter, error) {
-	resolved := util.FindCursorVscdbPath(vscdbPath)
+	resolved := ingestutil.FindCursorVscdbPath(vscdbPath)
 	if resolved == "" {
 		return nil, fmt.Errorf("cursor adapter: no state.vscdb found at %s", vscdbPath)
 	}
@@ -88,18 +88,18 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	for _, ts := range transcriptSessions {
 		id := ts.ID
 		if _, exists := sessions[id]; !exists {
-			createdStr := ""
-			updatedStr := ""
+			created := ""
+			updated := ""
 			if !ts.CreatedAt.IsZero() {
-				createdStr = fmt.Sprintf("%d", ts.CreatedAt.UnixMilli())
+				created = fmt.Sprintf("%d", ts.CreatedAt.UnixMilli())
 			}
 			if !ts.UpdatedAt.IsZero() {
-				updatedStr = fmt.Sprintf("%d", ts.UpdatedAt.UnixMilli())
+				updated = fmt.Sprintf("%d", ts.UpdatedAt.UnixMilli())
 			}
 			sessions[id] = &composerData{
 				ComposerID:    id,
-				CreatedAt:     json.Number(createdStr),
-				LastUpdatedAt: json.Number(updatedStr),
+				CreatedAt:     json.Number(created),
+				LastUpdatedAt: json.Number(updated),
 				Status:        ts.Status,
 				IsAgentic:     true,
 			}
@@ -140,22 +140,25 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		result = append(result, session)
 	}
 
-	sort.Slice(result, func(i, j int) bool {
+	slices.SortFunc(result, func(a, b ingest.Session) int {
 		// Sessions with zero timestamps go to the end
-		ui, uj := result[i].UpdatedAt, result[j].UpdatedAt
+		ui, uj := a.UpdatedAt, b.UpdatedAt
+		if ui.IsZero() && uj.IsZero() {
+			return 0
+		}
 		if ui.IsZero() {
-			return false
+			return 1
 		}
 		if uj.IsZero() {
-			return true
+			return -1
 		}
-		return ui.After(uj)
+		return uj.Compare(ui)
 	})
 
 	return result, nil
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	// Try composer data from KV store first
 	var value []byte
 	err := a.db.QueryRowContext(ctx,
@@ -212,7 +215,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	return nil, fmt.Errorf("session not found: %s", id)
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	// Bubble messages contain full content plus tool calls. Prefer them when
 	// available, and only fall back to the transcript summary (which omits
 	// tool calls) when no bubble data exists.
@@ -230,12 +233,12 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	return nil, nil
 }
 
-func (a *Adapter) GetPlan(_ context.Context, _ string) (*ingest.Plan, error) {
+func (a *Adapter) Plan(_ context.Context, _ string) (*ingest.Plan, error) {
 	return nil, nil
 }
 
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	messages, err := a.GetMessages(ctx, sessionID)
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	messages, err := a.Messages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +279,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 
 	// Fallback: try codeBlockDiff entries
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT key FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:`+sessionID+`:%'`)
+		`SELECT key FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:`+sessionID+`:%'`) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("querying diffs: %w", err)
 	}
@@ -300,8 +303,8 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	return diffs, nil
 }
 
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	msgs, err := a.Messages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -312,19 +315,19 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 			if tc.Name != "edit" && tc.Name != "write" {
 				continue
 			}
-			fp, oldStr, newStr := a.parseEditContent(ctx, tc)
+			fp, oldContent, newContent := a.parseEditContent(ctx, tc)
 			if fp == "" {
 				continue
 			}
-			content := newStr
-			if oldStr != "" {
-				content = "" // prefer oldStr+newStr pair for diff rendering
+			content := newContent
+			if oldContent != "" {
+				content = ""
 			}
 			edits = append(edits, ingest.FileEdit{
 				FilePath: fp,
 				ToolName: tc.Name,
-				OldStr:   oldStr,
-				NewStr:   newStr,
+				OldStr:   oldContent,
+				NewStr:   newContent,
 				Content:  content,
 			})
 		}
@@ -332,6 +335,65 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 	return edits, nil
 }
 
+
+func (a *Adapter) ResumeCommand(session *ingest.Session) string {
+	dir := session.Directory
+	if dir == "" {
+		dir = "."
+	}
+	return fmt.Sprintf("cd %s && cursor --composer %s", dir, session.ID)
+}
+
+func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
+	var maxTs int64
+
+	rows, err := a.db.QueryContext(ctx,
+		`SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
+	if err != nil {
+		return 0, fmt.Errorf("querying last modified: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var value []byte
+		if err := rows.Scan(&value); err != nil {
+			continue
+		}
+		var cd struct {
+			LastUpdatedAt json.Number `json:"lastUpdatedAt"`
+		}
+		if err := json.Unmarshal(value, &cd); err != nil {
+			continue
+		}
+		ms := ingestutil.ParseMillis(string(cd.LastUpdatedAt))
+		if ms > maxTs {
+			maxTs = ms
+		}
+	}
+
+	transcriptDir := filepath.Join(a.cursorDir, "projects")
+	if ingestutil.PathExists(transcriptDir) {
+		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
+			if err != nil {
+				return nil
+			}
+			if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
+				if fi, e := d.Info(); e == nil {
+					if ms := fi.ModTime().UnixMilli(); ms > maxTs {
+						maxTs = ms
+					}
+				}
+			}
+			return nil
+		})
+	}
+
+	return maxTs, nil
+}
+
+func (a *Adapter) Close() error {
+	return a.db.Close()
+}
 // parseEditContent extracts file path and old/new content from a tool call,
 // handling Cursor's various edit formats:
 //   - inline content fields (contents, streamingContent, content, newStr)
@@ -408,12 +470,12 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	if err := json.Unmarshal([]byte(tc.Output), &output); err == nil {
 		if output.BeforeContentID != "" {
 			if c := a.readContentBlock(ctx, output.BeforeContentID); c != "" {
-				oldStr = util.TruncateContent(c, 2000)
+				oldStr = ingestutil.TruncateContent(c, 2000)
 			}
 		}
 		if output.AfterContentID != "" {
 			if c := a.readContentBlock(ctx, output.AfterContentID); c != "" {
-				newStr = util.TruncateContent(c, 2000)
+				newStr = ingestutil.TruncateContent(c, 2000)
 			}
 		}
 		if newStr == "" && output.Contents != "" {
@@ -464,78 +526,19 @@ func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
 	}
 	if after := a.readContentBlock(ctx, output.AfterContentID); after != "" {
 		if _, exists := input["newString"]; !exists {
-			input["newString"] = util.TruncateContent(after, 2000)
+			input["newString"] = ingestutil.TruncateContent(after, 2000)
 			delete(input, "noCodeblock")
 			delete(input, "cloudAgentEdit")
 		}
 	}
 	if before := a.readContentBlock(ctx, output.BeforeContentID); before != "" {
 		if _, exists := input["oldString"]; !exists {
-			input["oldString"] = util.TruncateContent(before, 2000)
+			input["oldString"] = ingestutil.TruncateContent(before, 2000)
 		}
 	}
 	if out, err := json.Marshal(input); err == nil {
 		tc.Input = string(out)
 	}
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	dir := session.Directory
-	if dir == "" {
-		dir = "."
-	}
-	return fmt.Sprintf("cd %s && cursor --composer %s", dir, session.ID)
-}
-
-func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
-	var maxTs int64
-
-	rows, err := a.db.QueryContext(ctx,
-		`SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
-	if err != nil {
-		return 0, fmt.Errorf("querying last modified: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var value []byte
-		if err := rows.Scan(&value); err != nil {
-			continue
-		}
-		var cd struct {
-			LastUpdatedAt json.Number `json:"lastUpdatedAt"`
-		}
-		if err := json.Unmarshal(value, &cd); err != nil {
-			continue
-		}
-		ms := util.ParseMillis(string(cd.LastUpdatedAt))
-		if ms > maxTs {
-			maxTs = ms
-		}
-	}
-
-	transcriptDir := filepath.Join(a.cursorDir, "projects")
-	if util.PathExists(transcriptDir) {
-		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return nil
-			}
-			if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
-				if fi, e := d.Info(); e == nil {
-					if ms := fi.ModTime().UnixMilli(); ms > maxTs {
-						maxTs = ms
-					}
-				}
-			}
-			return nil
-		})
-	}
-
-	return maxTs, nil
-}
-
-func (a *Adapter) Close() error {
-	return a.db.Close()
 }
 
 // --- Internal types ---
@@ -545,7 +548,7 @@ type composerContext struct {
 }
 
 type mentionsData struct {
-	FolderSelections map[string][]interface{} `json:"folderSelections,omitempty"`
+	FolderSelections map[string][]any `json:"folderSelections,omitempty"`
 }
 
 type composerData struct {
@@ -638,15 +641,15 @@ type transcriptSession struct {
 // --- composerData helpers ---
 
 func (cd *composerData) timeCreated() time.Time {
-	return util.UnixMillis(util.ParseMillis(string(cd.CreatedAt)))
+	return ingestutil.UnixMillis(ingestutil.ParseMillis(string(cd.CreatedAt)))
 }
 
 func (cd *composerData) timeUpdated() time.Time {
-	return util.UnixMillis(util.ParseMillis(string(cd.LastUpdatedAt)))
+	return ingestutil.UnixMillis(ingestutil.ParseMillis(string(cd.LastUpdatedAt)))
 }
 
 func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, outputTokens int) {
-	if cd.UsageData == nil || len(cd.UsageData) <= 2 {
+	if len(cd.UsageData) <= 2 {
 		return "", 0, 0, 0
 	}
 	var m map[string]usageStat
@@ -666,13 +669,13 @@ func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, ou
 
 func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSession {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !util.PathExists(projectsDir) {
+	if !ingestutil.PathExists(projectsDir) {
 		return nil
 	}
 
 	var sessions []transcriptSession
 
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -715,13 +718,13 @@ func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSe
 
 func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) []ingest.Message {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !util.PathExists(projectsDir) {
+	if !ingestutil.PathExists(projectsDir) {
 		return nil
 	}
 
 	var messages []ingest.Message
 
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -848,7 +851,7 @@ func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]i
 			ID:        bd.BubbleID,
 			Role:      role,
 			Content:   content,
-			Timestamp: util.ParseTime(bd.CreatedAt),
+			Timestamp: ingestutil.ParseTime(bd.CreatedAt),
 		}
 
 		if content == "" && role == "assistant" {
@@ -1047,11 +1050,11 @@ func formatGrepOutput(raw string) string {
 // pattern (mt.After(session.UpdatedAt)).
 func (a *Adapter) transcriptMtime(sessionID string) time.Time {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !util.PathExists(projectsDir) {
+	if !ingestutil.PathExists(projectsDir) {
 		return time.Time{}
 	}
 	var latest time.Time
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -1113,7 +1116,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
 	case "read":
 		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
-		tc.Output = util.ExtractJSONString(tc.Output, "contents")
+		tc.Output = ingestutil.ExtractJSONString(tc.Output, "contents")
 	case "bash":
 		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
 		if text, rejected := extractBashOutput(tc.Output); rejected {
@@ -1268,7 +1271,7 @@ func extractTextFromRichText(rt json.RawMessage) string {
 
 func resolveCursorDir(vscdbPath string) string {
 	dir := filepath.Dir(vscdbPath)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if filepath.Base(dir) == "Cursor" {
 			return filepath.Join(homeDirFallback(), ".cursor")
 		}
@@ -1281,7 +1284,7 @@ func resolveCursorDir(vscdbPath string) string {
 	home, err := os.UserHomeDir()
 	if err == nil {
 		cursorDir := filepath.Join(home, ".cursor")
-		if util.PathExists(cursorDir) {
+		if ingestutil.PathExists(cursorDir) {
 			return cursorDir
 		}
 	}
@@ -1290,7 +1293,7 @@ func resolveCursorDir(vscdbPath string) string {
 
 func resolveAppSupportDir(vscdbPath string) string {
 	dir := filepath.Dir(vscdbPath)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if filepath.Base(dir) == "Cursor" {
 			return dir
 		}
@@ -1307,7 +1310,7 @@ func resolveAppSupportDir(vscdbPath string) string {
 			filepath.Join(home, ".config", "Cursor"),
 		}
 		for _, p := range paths {
-			if util.PathExists(p) {
+			if ingestutil.PathExists(p) {
 				return p
 			}
 		}
@@ -1323,54 +1326,4 @@ func homeDirFallback() string {
 	return home
 }
 
-// --- ai-code-tracking.db reader (unused currently but available for enrichment) ---
 
-type conversationSummaryRow struct {
-	ConversationID string  `json:"conversationId"`
-	Title          string  `json:"title"`
-	TLDR           string  `json:"tldr"`
-	Overview       string  `json:"overview"`
-	Model          string  `json:"model"`
-	Mode           string  `json:"mode"`
-	CreatedAt      string  `json:"createdAt"`
-	UpdatedAt      string  `json:"updatedAt"`
-	Cost           float64 `json:"cost"`
-	InputTokens    int     `json:"inputTokens"`
-	OutputTokens   int     `json:"outputTokens"`
-}
-
-func (a *Adapter) readConversationSummaries(ctx context.Context) map[string]conversationSummaryRow {
-	result := make(map[string]conversationSummaryRow)
-
-	dbPath := filepath.Join(a.appSupportDir, "User", "globalStorage", "ai-code-tracking.db")
-	if !util.PathExists(dbPath) {
-		return result
-	}
-
-	db, err := ingest.OpenReadOnlyDB(dbPath)
-	if err != nil {
-		return result
-	}
-	defer db.Close()
-
-	rows, err := db.QueryContext(ctx,
-		`SELECT conversationId, title, tldr, overview, model, mode, createdAt, updatedAt, cost, inputTokens, outputTokens FROM conversation_summaries`)
-	if err != nil {
-		return result
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var r conversationSummaryRow
-		if err := rows.Scan(&r.ConversationID, &r.Title, &r.TLDR, &r.Overview,
-			&r.Model, &r.Mode, &r.CreatedAt, &r.UpdatedAt,
-			&r.Cost, &r.InputTokens, &r.OutputTokens); err != nil {
-			continue
-		}
-		if r.ConversationID != "" {
-			result[r.ConversationID] = r
-		}
-	}
-
-	return result
-}

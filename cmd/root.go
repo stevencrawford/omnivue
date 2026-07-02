@@ -326,7 +326,7 @@ func doStatus(addr string) error {
 	}
 	defer resp.Body.Close()
 
-	var status map[string]interface{}
+	var status map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 		return err
 	}

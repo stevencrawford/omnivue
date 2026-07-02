@@ -80,8 +80,3 @@ type progressMessageWrapper struct {
 	Message *claudeMessageData `json:"message"`
 }
 
-// sessionsIndex mirrors the schema of sessions-index.json.
-type sessionsIndex struct {
-	Version      int    `json:"version"`
-	OriginalPath string `json:"originalPath"`
-}

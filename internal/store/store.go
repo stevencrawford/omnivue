@@ -3,7 +3,9 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +30,7 @@ func New() (*Store, error) {
 		return nil, fmt.Errorf("resolving state home: %w", err)
 	}
 	stateDir := filepath.Join(stateHome, "omnivue")
-	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating state directory: %w", err)
 	}
 
@@ -88,7 +90,11 @@ func (s *Store) ListSources() ([]ingest.Source, error) {
 			return nil, err
 		}
 		src.AgentType = ingest.AgentType(agentType)
-		src.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		src.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			src.CreatedAt = time.Time{}
+		}
 		sources = append(sources, src)
 	}
 	return sources, rows.Err()
@@ -109,8 +115,8 @@ func (s *Store) UpdateSource(id, path, agentType, label string, enabled bool) er
 	return err
 }
 
-// GetSource returns a single source by ID.
-func (s *Store) GetSource(id string) (*ingest.Source, error) {
+// Source returns a single source by ID.
+func (s *Store) Source(id string) (*ingest.Source, error) {
 	var src ingest.Source
 	var agentType string
 	var createdAt string
@@ -121,17 +127,21 @@ func (s *Store) GetSource(id string) (*ingest.Source, error) {
 		return nil, err
 	}
 	src.AgentType = ingest.AgentType(agentType)
-	src.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	src.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		slog.Warn("failed to parse time", "error", err)
+		src.CreatedAt = time.Time{}
+	}
 	return &src, nil
 }
 
 // --- Config CRUD ---
 
-// GetConfig returns a config value by key. Returns empty string if not set.
-func (s *Store) GetConfig(key string) (string, error) {
+// Config returns a config value by key. Returns empty string if not set.
+func (s *Store) Config(key string) (string, error) {
 	var value string
 	err := s.db.QueryRow(`SELECT value FROM config WHERE key = ?`, key).Scan(&value)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return value, err
@@ -146,9 +156,9 @@ func (s *Store) SetConfig(key, value string) error {
 	return err
 }
 
-// GetRecentSearches returns the list of recent search queries.
-func (s *Store) GetRecentSearches() ([]string, error) {
-	val, err := s.GetConfig("recent_searches")
+// RecentSearches returns the list of recent search queries.
+func (s *Store) RecentSearches() ([]string, error) {
+	val, err := s.Config("recent_searches")
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +181,8 @@ func (s *Store) SetRecentSearches(searches []string) error {
 	return s.SetConfig("recent_searches", string(data))
 }
 
-// GetAllConfig returns all config key-value pairs.
-func (s *Store) GetAllConfig() (map[string]string, error) {
+// AllConfig returns all config key-value pairs.
+func (s *Store) AllConfig() (map[string]string, error) {
 	rows, err := s.db.Query(`SELECT key, value FROM config`)
 	if err != nil {
 		return nil, err
@@ -232,8 +242,16 @@ func (s *Store) ListFolders() ([]Folder, error) {
 		if err := rows.Scan(&f.ID, &f.Name, &f.ParentID, &f.SortOrder, &f.Color, &f.Icon, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
-		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		f.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			f.CreatedAt = time.Time{}
+		}
+		f.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			f.UpdatedAt = time.Time{}
+		}
 		folders = append(folders, f)
 	}
 	return folders, rows.Err()
@@ -271,8 +289,8 @@ func (s *Store) DeleteFolder(id string) error {
 	return err
 }
 
-// GetFolderSessions returns session IDs assigned to a folder.
-func (s *Store) GetFolderSessions(folderID string) ([]string, error) {
+// FolderSessions returns session IDs assigned to a folder.
+func (s *Store) FolderSessions(folderID string) ([]string, error) {
 	rows, err := s.db.Query(`SELECT session_id FROM folder_sessions WHERE folder_id = ? ORDER BY sort_order, added_at`, folderID)
 	if err != nil {
 		return nil, err
@@ -290,8 +308,8 @@ func (s *Store) GetFolderSessions(folderID string) ([]string, error) {
 	return ids, rows.Err()
 }
 
-// GetSessionFolders returns folder IDs that a session belongs to.
-func (s *Store) GetSessionFolders(sessionID string) ([]string, error) {
+// SessionFolders returns folder IDs that a session belongs to.
+func (s *Store) SessionFolders(sessionID string) ([]string, error) {
 	rows, err := s.db.Query(`SELECT folder_id FROM folder_sessions WHERE session_id = ?`, sessionID)
 	if err != nil {
 		return nil, err
@@ -348,27 +366,35 @@ func (s *Store) ListBookmarks() ([]Bookmark, error) {
 		if err := rows.Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.Label, &createdAt); err != nil {
 			return nil, err
 		}
-		b.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		b.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			b.CreatedAt = time.Time{}
+		}
 		bookmarks = append(bookmarks, b)
 	}
 	return bookmarks, rows.Err()
 }
 
-// GetBookmarkByRef finds a bookmark by its composite reference key.
-func (s *Store) GetBookmarkByRef(sessionID string, messageIndex int, toolCallID string) (*Bookmark, error) {
+// BookmarkByRef finds a bookmark by its composite reference key.
+func (s *Store) BookmarkByRef(sessionID string, messageIndex int, toolCallID string) (*Bookmark, error) {
 	var b Bookmark
 	var createdAt string
 	err := s.db.QueryRow(
 		`SELECT id, session_id, message_index, tool_call_id, label, created_at FROM bookmarks WHERE session_id = ? AND message_index = ? AND tool_call_id = ?`,
 		sessionID, messageIndex, toolCallID,
 	).Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.Label, &createdAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	b.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	b.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		slog.Warn("failed to parse time", "error", err)
+		b.CreatedAt = time.Time{}
+	}
 	return &b, nil
 }
 
@@ -396,11 +422,11 @@ func (s *Store) ClearSessionName(sessionID string) error {
 	return err
 }
 
-// GetSessionName returns the display name override, or empty string if not set.
-func (s *Store) GetSessionName(sessionID string) (string, error) {
+// SessionName returns the display name override, or empty string if not set.
+func (s *Store) SessionName(sessionID string) (string, error) {
 	var name string
 	err := s.db.QueryRow(`SELECT display_name FROM session_names WHERE session_id = ?`, sessionID).Scan(&name)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return name, err
@@ -470,8 +496,16 @@ func (s *Store) ListScratchFiles(sessionID string) ([]ScratchFile, error) {
 		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &f.Mode, &createdAt, &updatedAt); err != nil {
 			continue
 		}
-		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		f.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			f.CreatedAt = time.Time{}
+		}
+		f.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			f.UpdatedAt = time.Time{}
+		}
 		files = append(files, f)
 	}
 	return files, rows.Err()
@@ -496,15 +530,23 @@ func (s *Store) ListAllScratchFiles() ([]ScratchFile, error) {
 		if err := rows.Scan(&f.ID, &f.SessionID, &f.Title, &f.Content, &f.Mode, &createdAt, &updatedAt); err != nil {
 			continue
 		}
-		f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		f.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			f.CreatedAt = time.Time{}
+		}
+		f.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			f.UpdatedAt = time.Time{}
+		}
 		files = append(files, f)
 	}
 	return files, rows.Err()
 }
 
-// GetScratchFile returns a single scratch file by ID.
-func (s *Store) GetScratchFile(id string) (*ScratchFile, error) {
+// ScratchFile returns a single scratch file by ID.
+func (s *Store) ScratchFile(id string) (*ScratchFile, error) {
 	var f ScratchFile
 	var createdAt, updatedAt string
 	err := s.db.QueryRow(`
@@ -514,8 +556,16 @@ func (s *Store) GetScratchFile(id string) (*ScratchFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	f.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	f.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		slog.Warn("failed to parse time", "error", err)
+		f.CreatedAt = time.Time{}
+	}
+	f.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		slog.Warn("failed to parse time", "error", err)
+		f.UpdatedAt = time.Time{}
+	}
 	return &f, nil
 }
 
@@ -581,11 +631,11 @@ func (s *Store) UpdateIndexState(sessionID, sourceID, contentHash string) error 
 	return err
 }
 
-// GetIndexState returns the last indexed hash for a session.
-func (s *Store) GetIndexState(sessionID string) (string, error) {
+// IndexState returns the last indexed hash for a session.
+func (s *Store) IndexState(sessionID string) (string, error) {
 	var hash string
 	err := s.db.QueryRow(`SELECT content_hash FROM index_state WHERE session_id = ?`, sessionID).Scan(&hash)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return hash, err
@@ -692,7 +742,7 @@ func (s *Store) Reset() error {
 		"config",
 	}
 	for _, t := range tables {
-		if _, err := s.db.Exec(`DELETE FROM ` + t); err != nil {
+		if _, err := s.db.Exec(`DELETE FROM ` + t); err != nil { //nolint:gosec
 			return fmt.Errorf("reset: delete %s: %w", t, err)
 		}
 	}
@@ -787,7 +837,7 @@ func (s *Store) migrate() error {
 
 	// Migration: add mode column to scratch_files for existing databases.
 	if _, err := s.db.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
-		// ignore — column may already exist
+		_ = err // ignore — column may already exist
 	}
 
 	// Migration: ensure message_index, updated_at, file_title, file_id columns exist on search_index.
@@ -795,8 +845,11 @@ func (s *Store) migrate() error {
 	// test the column and drop/recreate the table if needed.
 	_, probeErr := s.db.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`)
 	if probeErr != nil {
+		//nolint:errcheck
 		s.db.Exec(`DROP TABLE IF EXISTS search_index`)
+		//nolint:errcheck
 		s.db.Exec(`DROP TABLE IF EXISTS index_state`)
+		//nolint:errcheck
 		s.db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
 			content,
 			session_id UNINDEXED,
@@ -808,6 +861,7 @@ func (s *Store) migrate() error {
 			file_id UNINDEXED,
 			message_index UNINDEXED
 		)`)
+		//nolint:errcheck
 		s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
 			session_id TEXT PRIMARY KEY,
 			source_id TEXT NOT NULL,

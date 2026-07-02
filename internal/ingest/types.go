@@ -63,7 +63,7 @@ type StepEvent struct {
 	Snapshot string     `json:"snapshot,omitempty"`
 	Reason   string     `json:"reason,omitempty"`
 	Cost     float64    `json:"cost,omitempty"`
-	Tokens   StepTokens `json:"tokens,omitempty"`
+	Tokens   StepTokens `json:"tokens,omitzero"`
 }
 
 // StepTokens represents token usage for a step.
@@ -113,7 +113,7 @@ type ToolCall struct {
 // PlanItem represents a task/todo within a session plan.
 type PlanItem struct {
 	Content  string `json:"content"`
-	Status   string `json:"status"`   // "pending", "in_progress", "completed", "cancelled"
+	Status   string `json:"status"`   // "pending", "in_progress", "completed", "canceled"
 	Priority string `json:"priority"` // "high", "medium", "low"
 }
 
