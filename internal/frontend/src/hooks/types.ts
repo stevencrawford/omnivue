@@ -25,6 +25,15 @@ export interface Session {
   diffFiles: number;
   diffAdditions: number;
   diffDeletions: number;
+  todos?: Todo[];
+}
+
+export interface Todo {
+  id: string;
+  title: string;
+  description?: string;
+  status: string; // "pending", "in_progress", "done", "blocked"
+  depends_on?: string[];
 }
 
 export interface Source {

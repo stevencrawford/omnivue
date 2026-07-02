@@ -9,6 +9,7 @@ import { GrepToolDiff } from "./GrepToolDiff";
 import { GlobToolDiff } from "./GlobToolDiff";
 import { DeleteToolDiff } from "./DeleteToolDiff";
 import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
+import { SqlToolDiff } from "./SqlToolDiff";
 import { CompactionToolDiff } from "./CompactionToolDiff";
 import { TaskToolDiff } from "./TaskToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
@@ -191,6 +192,23 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Todo",
     markerDisplayType: "todowrite",
     markerPriority: 90,
+  },
+  {
+    kind: "sql",
+    names: ["sql"],
+    Component: SqlToolDiff,
+    summary: (tool) => {
+      const desc = extractJSONField(tool.input, "description") || "";
+      if (desc) return `sql: ${desc.slice(0, 80)}`;
+      const q = extractJSONField(tool.input, "query") || "";
+      if (q) return `sql: ${q.length > 60 ? q.slice(0, 60) + "…" : q}`;
+      return "sql";
+    },
+    display: { type: "expandable" },
+    markerColor: "#38bdf8",
+    markerLabel: "SQL",
+    markerDisplayType: "database",
+    markerPriority: 85,
   },
   {
     kind: "task",
