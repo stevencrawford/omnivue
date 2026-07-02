@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.1.0](https://github.com/stevencrawford/omnivue/commits/v0.1.0) - 2026-07-02
+### Other Changes
+- Add GitHub Pages deployment workflow by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/11
+- Enable CI, tagpr, and trivy workflows by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/10
+- Fix GitHub Pages action hashes by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/13
+- Add OSS hygiene templates by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/9
+- fix: resolve 83 golangci-lint issues by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/15
+
 ## [0.1.0] - 2026-06-01
 
 Initial release of **Omnivue** (formerly **sess**) — forked from [mo](https://github.com/k1LoW/mo) v1.5.5 by Ken'ichiro Oyama (k1LoW) and completely repurposed from a Markdown viewer to an AI session manager.
