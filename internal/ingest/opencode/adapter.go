@@ -255,7 +255,6 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 }
 
 func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	// Query messages ordered by time
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT id, data, time_created
 		FROM message
@@ -267,92 +266,128 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	}
 	defer rows.Close()
 
-	var messages []ingest.Message
+	type msgRow struct {
+		id          string
+		dataJSON    string
+		timeCreated int64
+	}
+	var msgRows []msgRow
 	for rows.Next() {
-		var (
-			id          string
-			dataJSON    string
-			timeCreated int64
-		)
-		if err := rows.Scan(&id, &dataJSON, &timeCreated); err != nil {
+		var m msgRow
+		if err := rows.Scan(&m.id, &m.dataJSON, &m.timeCreated); err != nil {
 			return nil, fmt.Errorf("scanning message: %w", err)
 		}
+		msgRows = append(msgRows, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
 
+	if len(msgRows) == 0 {
+		return nil, nil
+	}
+
+	// Batch-load parts for all messages in a single query
+	msgIDSet := make(map[string]int, len(msgRows))
+	msgOrder := make([]string, len(msgRows))
+	for i, m := range msgRows {
+		msgIDSet[m.id] = i
+		msgOrder[i] = m.id
+	}
+
+	partRows, err := a.db.QueryContext(ctx, `
+		SELECT message_id, data FROM part
+		WHERE message_id IN (SELECT id FROM message WHERE session_id = ?)
+		ORDER BY message_id, time_created ASC, id ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying parts: %w", err)
+	}
+	defer partRows.Close()
+
+	partsByMsg := make(map[string][]partData, len(msgRows))
+	for partRows.Next() {
+		var messageID, dataJSON string
+		if err := partRows.Scan(&messageID, &dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err == nil {
+			partsByMsg[messageID] = append(partsByMsg[messageID], p)
+		}
+	}
+
+	messages := make([]ingest.Message, 0, len(msgRows))
+	for _, m := range msgRows {
 		msg := ingest.Message{
-			ID:        id,
-			Timestamp: time.UnixMilli(timeCreated),
+			ID:        m.id,
+			Timestamp: time.UnixMilli(m.timeCreated),
 		}
 
-		// Parse the JSON data blob
 		var data messageData
-		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
+		if err := json.Unmarshal([]byte(m.dataJSON), &data); err == nil {
 			msg.Role = ingest.MessageRole(data.Role)
 			msg.Model = extractModelID(ingestkit.MarshalJSON(data.Model))
 			msg.Agent = data.Agent
 		}
 
-		// Get parts for this message
-		parts, err := a.messageParts(ctx, id)
-		if err == nil {
-			for _, p := range parts {
-				switch p.Type {
-		case "text":
-			if msg.Content == "" {
-				msg.Content = p.Text
-			} else {
-				msg.Content += "\n" + p.Text
-			}
-		case "reasoning":
-			if msg.Reasoning == "" {
-				msg.Reasoning = p.Text
-			} else {
-				msg.Reasoning += "\n" + p.Text
-			}
-		case "step-start":
-					msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
-						Step:     ingest.StepEventStart,
-						Snapshot: p.Snapshot,
-					})
-				case "step-finish":
-					se := ingest.StepEvent{
-						Step:     ingest.StepEventFinish,
-						Snapshot: p.Snapshot,
-						Reason:   p.Reason,
-						Cost:     p.Cost,
-					}
-					if p.Tokens != nil {
-						se.Tokens = ingest.StepTokens{
-							Input:    p.Tokens.Input,
-							Output:   p.Tokens.Output,
-							Reasoning: p.Tokens.Reasoning,
-						}
-						if p.Tokens.Cache != nil {
-							se.Tokens.CacheRead = p.Tokens.Cache.Read
-							se.Tokens.CacheWrite = p.Tokens.Cache.Write
-						}
-					}
-					msg.StepEvents = append(msg.StepEvents, se)
-				case "tool":
-					tc := ingest.ToolCall{
-						ID:     p.CallID,
-						Name:   p.Tool,
-						Input:  ingestkit.MarshalJSON(p.State.Input),
-						Output: p.State.Output,
-						Status: ingest.ToolCallStatus(p.State.Status),
-					}
-					if p.State.Metadata != nil {
-						tc.Metadata = ingestkit.MarshalJSON(p.State.Metadata)
-					}
-					if p.State.Time != nil {
-						tc.Duration = p.State.Time.End - p.State.Time.Start
-					}
-					msg.ToolCalls = append(msg.ToolCalls, tc)
+		for _, p := range partsByMsg[m.id] {
+			switch p.Type {
+			case "text":
+				if msg.Content == "" {
+					msg.Content = p.Text
+				} else {
+					msg.Content += "\n" + p.Text
 				}
+			case "reasoning":
+				if msg.Reasoning == "" {
+					msg.Reasoning = p.Text
+				} else {
+					msg.Reasoning += "\n" + p.Text
+				}
+			case "step-start":
+				msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
+					Step:     ingest.StepEventStart,
+					Snapshot: p.Snapshot,
+				})
+			case "step-finish":
+				se := ingest.StepEvent{
+					Step:     ingest.StepEventFinish,
+					Snapshot: p.Snapshot,
+					Reason:   p.Reason,
+					Cost:     p.Cost,
+				}
+				if p.Tokens != nil {
+					se.Tokens = ingest.StepTokens{
+						Input:    p.Tokens.Input,
+						Output:   p.Tokens.Output,
+						Reasoning: p.Tokens.Reasoning,
+					}
+					if p.Tokens.Cache != nil {
+						se.Tokens.CacheRead = p.Tokens.Cache.Read
+						se.Tokens.CacheWrite = p.Tokens.Cache.Write
+					}
+				}
+				msg.StepEvents = append(msg.StepEvents, se)
+			case "tool":
+				tc := ingest.ToolCall{
+					ID:     p.CallID,
+					Name:   p.Tool,
+					Input:  ingestkit.MarshalJSON(p.State.Input),
+					Output: p.State.Output,
+					Status: ingest.ToolCallStatus(p.State.Status),
+				}
+				if p.State.Metadata != nil {
+					tc.Metadata = ingestkit.MarshalJSON(p.State.Metadata)
+				}
+				if p.State.Time != nil {
+					tc.Duration = p.State.Time.End - p.State.Time.Start
+				}
+				msg.ToolCalls = append(msg.ToolCalls, tc)
 			}
 		}
 
-		// Wrap large embedded code blocks in user messages with <file-context> tags
-		// so the frontend can render them as collapsible file references.
 		if msg.Role == ingest.MessageRoleUser {
 			msg.Content = wrapEmbeddedFileContent(msg.Content)
 		}
@@ -360,7 +395,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		messages = append(messages, msg)
 	}
 
-	return messages, rows.Err()
+	return messages, nil
 }
 
 // Plan implements ingest.Adapter.
@@ -490,31 +525,6 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 
 func (a *Adapter) Close() error {
 	return a.db.Close()
-}
-
-func (a *Adapter) messageParts(ctx context.Context, messageID string) ([]partData, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT data FROM part
-		WHERE message_id = ?
-		ORDER BY time_created ASC, id ASC
-	`, messageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var parts []partData
-	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
-			continue
-		}
-		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err == nil {
-			parts = append(parts, p)
-		}
-	}
-	return parts, rows.Err()
 }
 
 func (e *editInput) FilePathResolved() string {
