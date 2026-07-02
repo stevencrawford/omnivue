@@ -17,6 +17,51 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
+func init() {
+	ingest.Register(ingest.AgentClaudeCode, "Claude Code", "~/.claude",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains Claude Code session data.
+func detectPath(path string) *ingest.DiscoveredSource {
+	projectsDir := filepath.Join(path, "projects")
+	if !ingestutil.PathExists(projectsDir) {
+		return nil
+	}
+	ents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return nil
+	}
+	var found bool
+	for _, ent := range ents {
+		if !ent.IsDir() {
+			continue
+		}
+		sessionEnts, err := os.ReadDir(filepath.Join(projectsDir, ent.Name()))
+		if err != nil {
+			continue
+		}
+		for _, se := range sessionEnts {
+			if !se.IsDir() && filepath.Ext(se.Name()) == ".jsonl" {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		return nil
+	}
+	return &ingest.DiscoveredSource{
+		Path:      path,
+		AgentType: ingest.AgentClaudeCode,
+		Label:     "Claude Code",
+	}
+}
+
 // projectDir is the subdirectory within ~/.claude that holds session data.
 const projectDir = "projects"
 

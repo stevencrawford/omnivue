@@ -19,6 +19,26 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func init() {
+	ingest.Register(ingest.AgentCopilot, "GitHub Copilot", "~/.copilot",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains Copilot session data.
+func detectPath(path string) *ingest.DiscoveredSource {
+	dbPath := filepath.Join(path, "session-store.db")
+	statePath := filepath.Join(path, "session-state")
+	if !ingestutil.PathExists(dbPath) && !ingestutil.PathExists(statePath) {
+		return nil
+	}
+	return &ingest.DiscoveredSource{
+		Path:      path,
+		AgentType: ingest.AgentCopilot,
+		Label:     "GitHub Copilot",
+	}
+}
+
 // syntheticSession holds a virtual child session created from sub-agent delegation events.
 type syntheticSession struct {
 	session  ingest.Session

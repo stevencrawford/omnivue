@@ -16,6 +16,37 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
+func init() {
+	ingest.Register(ingest.AgentPi, "Pi", "~/.pi/agent/sessions",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains Pi JSONL session files.
+func detectPath(path string) *ingest.DiscoveredSource {
+	if !ingestutil.PathExists(path) {
+		return nil
+	}
+	var found bool
+	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
+		if err != nil || found {
+			return err
+		}
+		if !d.IsDir() && filepath.Ext(d.Name()) == ".jsonl" {
+			found = true
+		}
+		return nil
+	})
+	if !found {
+		return nil
+	}
+	return &ingest.DiscoveredSource{
+		Path:      path,
+		AgentType: ingest.AgentPi,
+		Label:     "Pi",
+	}
+}
+
 // piEditEntry represents a single old→new edit within a Pi edit tool call.
 type piEditEntry struct {
 	OldText string `json:"oldText"`

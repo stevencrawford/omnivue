@@ -17,6 +17,25 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
+func init() {
+	ingest.Register(ingest.AgentCodex, "Codex", "~/.codex",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains a Codex session index.
+func detectPath(path string) *ingest.DiscoveredSource {
+	indexPath := filepath.Join(path, "session_index.jsonl")
+	if !ingestutil.PathExists(indexPath) {
+		return nil
+	}
+	return &ingest.DiscoveredSource{
+		Path:      path,
+		AgentType: ingest.AgentCodex,
+		Label:     "Codex",
+	}
+}
+
 type Adapter struct {
 	basePath string
 	mu       sync.RWMutex

@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	claudecode "github.com/stevencrawford/omnivue/internal/ingest/claude-code"
-	"github.com/stevencrawford/omnivue/internal/ingest/codex"
-	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
-	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
-	"github.com/stevencrawford/omnivue/internal/ingest/opencode"
-	"github.com/stevencrawford/omnivue/internal/ingest/pi"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/claude-code"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/codex"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/copilot"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/cursor"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/opencode"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/pi"
 	"github.com/stevencrawford/omnivue/internal/static"
 	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/stevencrawford/omnivue/version"
@@ -99,22 +99,7 @@ func NewState(ctx context.Context) *State {
 }
 
 func createAdapter(src ingest.Source) (ingest.Adapter, error) {
-	switch src.AgentType {
-	case ingest.AgentOpenCode:
-		return opencode.New(src.Path)
-	case ingest.AgentCopilot:
-		return copilot.New(src.Path)
-	case ingest.AgentCursor:
-		return cursor.New(src.Path)
-	case ingest.AgentPi:
-		return pi.New(src.Path)
-	case ingest.AgentCodex:
-		return codex.New(src.Path)
-	case ingest.AgentClaudeCode:
-		return claudecode.New(src.Path)
-	default:
-		return nil, fmt.Errorf("unsupported agent type: %s", src.AgentType)
-	}
+	return ingest.CreateAdapter(src)
 }
 
 // liveWindow defines how recently a session must have been updated to be
@@ -1018,19 +1003,11 @@ func handleAddSource(state *State) http.HandlerFunc {
 		}
 		// Auto-set a label if not provided
 		if body.Label == "" {
-			switch ingest.AgentType(body.AgentType) {
-			case ingest.AgentOpenCode:
-				body.Label = "OpenCode"
-			case ingest.AgentCopilot:
-				body.Label = "GitHub Copilot"
-			case ingest.AgentCursor:
-				body.Label = "Cursor"
-			case ingest.AgentPi:
-				body.Label = "Pi"
-			case ingest.AgentCodex:
-				body.Label = "Codex"
-			case ingest.AgentClaudeCode:
-				body.Label = "Claude Code"
+			for _, ai := range ingest.KnownAgentTypes() {
+				if ai.Type == ingest.AgentType(body.AgentType) {
+					body.Label = ai.Label
+					break
+				}
 			}
 		}
 		// Generate source ID from path (same scheme as CLI)

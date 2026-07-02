@@ -19,6 +19,25 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func init() {
+	ingest.Register(ingest.AgentCursor, "Cursor", "~/.cursor",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains a Cursor state database.
+func detectPath(path string) *ingest.DiscoveredSource {
+	dbPath := ingestutil.FindCursorVscdbPath(path)
+	if dbPath != "" {
+		return &ingest.DiscoveredSource{
+			Path:      dbPath,
+			AgentType: ingest.AgentCursor,
+			Label:     "Cursor",
+		}
+	}
+	return nil
+}
+
 // Adapter reads Cursor session data from state.vscdb (SQLite KV store) and
 // optionally from agent-transcripts JSONL and ai-code-tracking.db.
 type Adapter struct {

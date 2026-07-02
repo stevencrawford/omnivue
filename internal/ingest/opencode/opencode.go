@@ -17,6 +17,25 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func init() {
+	ingest.Register(ingest.AgentOpenCode, "OpenCode", "~/.local/share/opencode",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains an OpenCode database.
+func detectPath(path string) *ingest.DiscoveredSource {
+	dbPath := filepath.Join(path, "opencode.db")
+	if !ingestutil.PathExists(dbPath) {
+		return nil
+	}
+	return &ingest.DiscoveredSource{
+		Path:      path,
+		AgentType: ingest.AgentOpenCode,
+		Label:     "OpenCode",
+	}
+}
+
 // Adapter reads OpenCode session data from its SQLite database.
 type Adapter struct {
 	db       *sql.DB
