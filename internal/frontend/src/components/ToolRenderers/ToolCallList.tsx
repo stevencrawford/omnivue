@@ -202,7 +202,7 @@ export function ToolCallRow({
   }
 
   let childSessionId: string | null = null;
-  if (kind === "task" && tool.metadata) {
+  if (tool.metadata) {
     try {
       const meta = JSON.parse(tool.metadata);
       childSessionId = meta.sessionId || null;
@@ -250,7 +250,7 @@ export function ToolCallRow({
           ) : null}
         </button>
         {!isTask && <NonCompactCopyBtn tool={tool} />}
-        {isTask && childSessionId && (
+        {childSessionId && (
           <button
             type="button"
             className="shrink-0 px-2 py-1.5 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 cursor-pointer transition-colors"

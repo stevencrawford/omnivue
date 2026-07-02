@@ -55,6 +55,18 @@ type Session struct {
 	DiffFiles     int `json:"diffFiles"`
 	DiffAdditions int `json:"diffAdditions"`
 	DiffDeletions int `json:"diffDeletions"`
+
+	// TODOs extracted from agent task tracking (e.g. Copilot's todo table in session.db)
+	TODOs []Todo `json:"todos,omitempty"`
+}
+
+// Todo represents a tracked task within a session.
+type Todo struct {
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Status      string   `json:"status"` // pending, in_progress, done, blocked
+	DependsOn   []string `json:"depends_on,omitempty"`
 }
 
 // StepEvent represents a step-start or step-finish event in a message.

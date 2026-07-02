@@ -20,11 +20,12 @@ import { useCopy } from "../hooks/useCopy";
 import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
 import { ScratchEditor } from "./ScratchEditor";
+import { TodosView } from "./TodosView";
 import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
 
-export type Tab = "session" | "diff" | "plan" | "summary" | `scratch:${string}`;
+export type Tab = "session" | "diff" | "plan" | "summary" | "todos" | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
@@ -50,7 +51,7 @@ interface SessionViewerProps {
 }
 
 const MAIN_TABS: {
-  tab: "session" | "diff" | "plan" | "summary";
+  tab: "session" | "diff" | "plan" | "summary" | "todos";
   label: string;
   icon: ReactNode;
 }[] = [
@@ -58,6 +59,7 @@ const MAIN_TABS: {
   { tab: "diff", label: "Diff", icon: <FileText size={14} /> },
   { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
   { tab: "summary", label: "Summary", icon: <BarChart3 size={14} /> },
+  { tab: "todos", label: "TODOs", icon: <BarChart3 size={14} /> },
 ];
 
 export function SessionViewer({
@@ -163,7 +165,8 @@ export function SessionViewer({
       <div className="flex items-center gap-1 px-4 py-2 border-b border-ov-border shrink-0 overflow-x-auto">
         {MAIN_TABS.map(
           (meta) =>
-            (meta.tab !== "diff" || !session.parentId) && (
+            (meta.tab !== "diff" || !session.parentId) &&
+            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) && (
               <button
                 key={meta.tab}
                 type="button"
@@ -314,6 +317,11 @@ export function SessionViewer({
         {(summaryLoaded || activeTab === "summary") && (
           <div className={`absolute inset-0 ${activeTab !== "summary" ? "hidden" : ""}`}>
             <SessionSummary session={session} messages={messages} />
+          </div>
+        )}
+        {activeTab === "todos" && session.todos && (
+          <div className="absolute inset-0">
+            <TodosView todos={session.todos} />
           </div>
         )}
         {isScratchTab(activeTab) &&
