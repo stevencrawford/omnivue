@@ -207,7 +207,10 @@ func (s *State) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.Plan(ctx, sessionID)
+	if ps, ok := adapter.(ingest.PlanSource); ok {
+		return ps.Plan(ctx, sessionID)
+	}
+	return nil, nil
 }
 
 // Diffs returns file diffs for a session.
@@ -226,7 +229,10 @@ func (s *State) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile,
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.Diffs(ctx, sessionID)
+	if ds, ok := adapter.(ingest.DiffSource); ok {
+		return ds.Diffs(ctx, sessionID)
+	}
+	return []ingest.DiffFile{}, nil
 }
 
 // Edits returns raw edit tool call data for a session.
@@ -245,7 +251,10 @@ func (s *State) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit,
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.Edits(ctx, sessionID)
+	if es, ok := adapter.(ingest.EditSource); ok {
+		return es.Edits(ctx, sessionID)
+	}
+	return []ingest.FileEdit{}, nil
 }
 
 // AddSource adds a new source, creates its adapter (if enabled), and triggers a refresh.

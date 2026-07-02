@@ -7,41 +7,46 @@ import (
 	"os"
 )
 
-// Adapter is the interface that session source adapters must implement.
-type Adapter interface {
-	// Type returns the agent type this adapter handles.
+// SessionSource is the core interface that every session source adapter
+// must implement. It provides session listing, message retrieval, and lifecycle.
+type SessionSource interface {
 	Type() AgentType
-
-	// Detect returns true if the given path contains session data this adapter can read.
 	Detect(path string) bool
-
-	// ListSessions returns all sessions from this source.
 	ListSessions(ctx context.Context) ([]Session, error)
-
-	// Session returns detailed session info including metadata.
 	Session(ctx context.Context, id string) (*Session, error)
-
-	// Messages returns the conversation messages for a session.
 	Messages(ctx context.Context, sessionID string) ([]Message, error)
-
-	// Plan returns the session plan as markdown.
-	Plan(ctx context.Context, sessionID string) (*Plan, error)
-
-	// Diffs returns the file diffs for a session.
-	Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
-
-	// Edits returns the raw edit/write tool call data for a session.
-	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
-
-	// ResumeCommand returns the command string to resume a session.
 	ResumeCommand(session *Session) string
-
-	// LastModified returns the latest modification time across all sessions (unix ms).
-	// Used by the poller to detect changes.
 	LastModified(ctx context.Context) (int64, error)
-
-	// Close releases any resources held by the adapter.
 	Close() error
+}
+
+// PlanSource is optionally implemented by adapters that can provide
+// structured plan data (checklists, task lists) for their sessions.
+type PlanSource interface {
+	Plan(ctx context.Context, sessionID string) (*Plan, error)
+}
+
+// DiffSource is optionally implemented by adapters that can provide
+// file-level diff summaries (additions, deletions, patches).
+type DiffSource interface {
+	Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
+}
+
+// EditSource is optionally implemented by adapters that can provide
+// raw edit/write tool call data for granular file change tracking.
+type EditSource interface {
+	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
+}
+
+// Adapter is the combined interface that all session source adapters must
+// implement. It includes the core SessionSource plus PlanSource, DiffSource,
+// and EditSource. Adapters that don't support optional features should
+// return (nil, nil) from the corresponding methods.
+type Adapter interface {
+	SessionSource
+	PlanSource
+	DiffSource
+	EditSource
 }
 
 // OpenReadOnlyDB opens a SQLite database in read-only mode with WAL journal.
