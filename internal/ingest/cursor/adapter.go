@@ -243,7 +243,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		}
 	} else {
 		// Log the error but continue to try transcript fallback
-		slog.Warn("cursor: bubble messages unavailable", "session", sessionID, "error", err)
+		slog.Debug("cursor: bubble messages unavailable", "session", sessionID, "error", err)
 	}
 	if msgs := a.readTranscriptMessages(ctx, sessionID); len(msgs) > 0 {
 		return msgs, nil
