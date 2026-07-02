@@ -285,7 +285,3 @@ func TestMigrate_Idempotent(t *testing.T) {
 		t.Fatalf("expected version 1 after second open, got %d", v2)
 	}
 }
-
-func TestMigrate_CreatesPreMigrationBackup(t *testing.T) {
-	t.Skip("covered by migrate_internal_test.go in the store package")
-}
