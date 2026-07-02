@@ -105,7 +105,7 @@ func detectPi(path string) *DiscoveredSource {
 		return nil
 	}
 	var found bool
-	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
 		if err != nil || found {
 			return err
 		}

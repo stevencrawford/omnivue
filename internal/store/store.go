@@ -28,7 +28,7 @@ func New() (*Store, error) {
 		return nil, fmt.Errorf("resolving state home: %w", err)
 	}
 	stateDir := filepath.Join(stateHome, "omnivue")
-	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating state directory: %w", err)
 	}
 
@@ -692,7 +692,7 @@ func (s *Store) Reset() error {
 		"config",
 	}
 	for _, t := range tables {
-		if _, err := s.db.Exec(`DELETE FROM ` + t); err != nil {
+		if _, err := s.db.Exec(`DELETE FROM ` + t); err != nil { //nolint:gosec
 			return fmt.Errorf("reset: delete %s: %w", t, err)
 		}
 	}
@@ -787,7 +787,7 @@ func (s *Store) migrate() error {
 
 	// Migration: add mode column to scratch_files for existing databases.
 	if _, err := s.db.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
-		// ignore — column may already exist
+		_ = err // ignore — column may already exist
 	}
 
 	// Migration: ensure message_index, updated_at, file_title, file_id columns exist on search_index.
@@ -795,9 +795,9 @@ func (s *Store) migrate() error {
 	// test the column and drop/recreate the table if needed.
 	_, probeErr := s.db.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`)
 	if probeErr != nil {
-		s.db.Exec(`DROP TABLE IF EXISTS search_index`)
-		s.db.Exec(`DROP TABLE IF EXISTS index_state`)
-		s.db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+		_, _ = s.db.Exec(`DROP TABLE IF EXISTS search_index`)
+		_, _ = s.db.Exec(`DROP TABLE IF EXISTS index_state`)
+		_, _ = s.db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
 			content,
 			session_id UNINDEXED,
 			source_id UNINDEXED,
@@ -808,7 +808,7 @@ func (s *Store) migrate() error {
 			file_id UNINDEXED,
 			message_index UNINDEXED
 		)`)
-		s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
+		_, _ = s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
 			session_id TEXT PRIMARY KEY,
 			source_id TEXT NOT NULL,
 			last_indexed_at TEXT NOT NULL,

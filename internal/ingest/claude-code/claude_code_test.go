@@ -160,7 +160,7 @@ func TestDetect(t *testing.T) {
 		{
 			name: "projects directory with no sessions",
 			setup: func(t *testing.T, dir string) {
-				os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755)
 			},
 			want: false,
 		},
@@ -168,7 +168,7 @@ func TestDetect(t *testing.T) {
 			name: "projects directory with session file",
 			setup: func(t *testing.T, dir string) {
 				projectDir := filepath.Join(dir, "projects", "encoded-dir")
-				os.MkdirAll(projectDir, 0755)
+				_ = os.MkdirAll(projectDir, 0755)
 				writeJSONL(t, filepath.Join(projectDir, "session-123.jsonl"), []json.RawMessage{})
 			},
 			want: true,
@@ -176,7 +176,7 @@ func TestDetect(t *testing.T) {
 		{
 			name: "projects directory with sessions in project root",
 			setup: func(t *testing.T, dir string) {
-				os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "projects", "encoded-dir"), 0755)
 				writeJSONL(t, filepath.Join(dir, "projects", "encoded-dir", "session-123.jsonl"), []json.RawMessage{})
 			},
 			want: true,
@@ -513,7 +513,7 @@ func TestEditExtraction(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	dir := t.TempDir()
 	projDir := filepath.Join(dir, "projects", "proj")
-	os.MkdirAll(projDir, 0755)
+	_ = os.MkdirAll(projDir, 0755)
 
 	writeInput := json.RawMessage(`{"file_path":"src/main.go","content":"package main\n\nfunc main() {\n\tprintln(\"hello\")\n}\n"}`)
 	editInput := json.RawMessage(`{"file_path":"src/utils.go","old_str":"func old()","new_str":"func new()"}`)
@@ -720,7 +720,7 @@ func TestUserContentExtraction(t *testing.T) {
 
 func TestGetSession_NotFound(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755)
 
 	a, err := New(dir)
 	if err != nil {
@@ -736,7 +736,7 @@ func TestGetSession_NotFound(t *testing.T) {
 
 func TestLastModified_NoSessions(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "projects", "proj"), 0755)
 
 	a, err := New(dir)
 	if err != nil {
@@ -767,13 +767,13 @@ func TestSubagentSessionID(t *testing.T) {
 
 	dir := t.TempDir()
 	projDir := filepath.Join(dir, "projects", "encoded-proj")
-	os.MkdirAll(projDir, 0755)
+	_ = os.MkdirAll(projDir, 0755)
 
 	writeJSONL(t, filepath.Join(projDir, "parent-1.jsonl"), parentLines)
 
 	sessionDir := filepath.Join(projDir, "parent-1")
 	subDir := filepath.Join(sessionDir, "subagents")
-	os.MkdirAll(subDir, 0755)
+	_ = os.MkdirAll(subDir, 0755)
 	writeJSONL(t, filepath.Join(subDir, "agent-sub-1.jsonl"), subLines)
 
 	a, err := New(dir)
@@ -868,12 +868,12 @@ func TestToolResultFileContent(t *testing.T) {
 
 	dir := t.TempDir()
 	projDir := filepath.Join(dir, "projects", "encoded-proj")
-	os.MkdirAll(projDir, 0755)
+	_ = os.MkdirAll(projDir, 0755)
 	writeJSONL(t, filepath.Join(projDir, "sess.jsonl"), lines)
 
 	toolResDir := filepath.Join(projDir, "sess", "tool-results")
-	os.MkdirAll(toolResDir, 0755)
-	os.WriteFile(filepath.Join(toolResDir, "tu1.txt"), []byte("file content from disk"), 0644)
+	_ = os.MkdirAll(toolResDir, 0755)
+	_ = os.WriteFile(filepath.Join(toolResDir, "tu1.txt"), []byte("file content from disk"), 0600)
 
 	a, err := New(dir)
 	if err != nil {
@@ -920,7 +920,7 @@ func setupAdapter(t *testing.T, projName, filename string, lines []json.RawMessa
 	dir := t.TempDir()
 
 	projDir := filepath.Join(dir, "projects", projName)
-	os.MkdirAll(projDir, 0755)
+	_ = os.MkdirAll(projDir, 0755)
 
 	writeJSONL(t, filepath.Join(projDir, filename), lines)
 
@@ -938,7 +938,7 @@ func writeJSONL(t *testing.T, path string, lines []json.RawMessage) {
 		b.WriteString(string(l))
 		b.WriteByte('\n')
 	}
-	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(b.String()), 0600); err != nil {
 		t.Fatal(err)
 	}
 }

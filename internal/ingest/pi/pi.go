@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -55,7 +55,7 @@ func (a *Adapter) Detect(path string) bool {
 		return false
 	}
 	var found bool
-	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
 		if err != nil || found {
 			return err
 		}
@@ -77,10 +77,144 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	return a.loadSessions(ctx)
 }
 
-func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
-	var sessions []ingest.Session
-	var maxMod int64
+func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+	// Check cache first (fast path)
+	a.mu.RLock()
+	if a.sessions != nil {
+		for i := range a.sessions {
+			if a.sessions[i].ID == id {
+				s := a.sessions[i]
+				a.mu.RUnlock()
+				return &s, nil
+			}
+		}
+	}
+	a.mu.RUnlock()
 
+	// Fallback: find and parse just the one session file
+	fpath := a.findSessionFile(id)
+	if fpath == "" {
+		return nil, fmt.Errorf("session not found: %s", id)
+	}
+	return a.parseSessionFile(fpath)
+}
+
+func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	filePath := a.findSessionFile(sessionID)
+	if filePath == "" {
+		return nil, fmt.Errorf("session file not found: %s", sessionID)
+	}
+	return a.parsePiMessages(filePath, sessionID)
+}
+
+func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	msgs, err := a.GetMessages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var sections []string
+	for _, msg := range msgs {
+		if msg.Role != "assistant" {
+			continue
+		}
+		if msg.Content != "" && hasPlanContent(msg.Content) {
+			sections = append(sections, msg.Content)
+		}
+	}
+
+	if len(sections) == 0 {
+		return nil, nil
+	}
+
+	md := strings.Join(sections, "\n\n---\n\n")
+	return &ingest.Plan{
+		Markdown: md,
+		Source:   "synthesized",
+	}, nil
+}
+
+func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	edits, err := a.GetEdits(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	var diffs []ingest.DiffFile
+	for _, e := range edits {
+		if seen[e.FilePath] {
+			continue
+		}
+		seen[e.FilePath] = true
+		adds := 0
+		dels := 0
+		if e.NewStr != "" {
+			adds = strings.Count(e.NewStr, "\n") + 1
+		}
+		if e.OldStr != "" {
+			dels = strings.Count(e.OldStr, "\n") + 1
+		}
+		status := "modified"
+		if e.OldStr == "" && e.NewStr != "" {
+			status = "added"
+		}
+		diffs = append(diffs, ingest.DiffFile{
+			Path:      e.FilePath,
+			Status:    status,
+			Additions: adds,
+			Deletions: dels,
+		})
+	}
+	return diffs, nil
+}
+
+func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	msgs, err := a.GetMessages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var edits []ingest.FileEdit
+	for _, msg := range msgs {
+		for _, tc := range msg.ToolCalls {
+			if tc.Name != "edit" && tc.Name != "write" {
+				continue
+			}
+
+			fp, oldStr, newStr := parsePiEditContent(tc)
+			if fp == "" {
+				continue
+			}
+
+			content := newStr
+			if oldStr != "" {
+				content = ""
+			}
+
+			edits = append(edits, ingest.FileEdit{
+				FilePath: fp,
+				ToolName: tc.Name,
+				OldStr:   oldStr,
+				NewStr:   newStr,
+				Content:  content,
+			})
+		}
+	}
+	return edits, nil
+}
+
+func (a *Adapter) ResumeCommand(session *ingest.Session) string {
+	return fmt.Sprintf("cd %s && pi --session %s", session.Directory, session.ID)
+}
+
+func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
+	a.mu.RLock()
+	lastMod := a.lastMod
+	a.mu.RUnlock()
+
+	// Re-scan to get fresh mod times
+	var maxMod int64
 	err := filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -96,28 +230,31 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		if mod > maxMod {
 			maxMod = mod
 		}
-
-		session, err := a.parseSessionFile(p)
-		if err != nil {
-			return nil
-		}
-		sessions = append(sessions, *session)
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("pi adapter: walking directory: %w", err)
+		if lastMod > 0 {
+			return lastMod, nil
+		}
+		return time.Now().UnixMilli(), nil
+	}
+	if maxMod == 0 {
+		maxMod = time.Now().UnixMilli()
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[j].UpdatedAt.Before(sessions[i].UpdatedAt)
-	})
+	// Invalidate cache if files changed
+	if maxMod > lastMod {
+		a.mu.Lock()
+		a.sessions = nil
+		a.lastMod = maxMod
+		a.mu.Unlock()
+	}
 
-	a.mu.Lock()
-	a.sessions = sessions
-	a.lastMod = maxMod
-	a.mu.Unlock()
+	return maxMod, nil
+}
 
-	return sessions, nil
+func (a *Adapter) Close() error {
+	return nil
 }
 
 // piSessionHeader is the JSONL session header line.
@@ -189,6 +326,49 @@ type piContentPart struct {
 	ToolCallID string          `json:"id,omitempty"`
 	Name       string          `json:"name,omitempty"`
 	Arguments  json.RawMessage `json:"arguments,omitempty"`
+}
+
+func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
+	var sessions []ingest.Session
+	var maxMod int64
+
+	err := filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		fi, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		mod := fi.ModTime().UnixMilli()
+		if mod > maxMod {
+			maxMod = mod
+		}
+
+		session, err := a.parseSessionFile(p)
+		if err != nil {
+			return nil
+		}
+		sessions = append(sessions, *session)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("pi adapter: walking directory: %w", err)
+	}
+
+	slices.SortFunc(sessions, func(a, b ingest.Session) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
+
+	a.mu.Lock()
+	a.sessions = sessions
+	a.lastMod = maxMod
+	a.mu.Unlock()
+
+	return sessions, nil
 }
 
 func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
@@ -279,39 +459,9 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 	return session, nil
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
-	// Check cache first (fast path)
-	a.mu.RLock()
-	if a.sessions != nil {
-		for i := range a.sessions {
-			if a.sessions[i].ID == id {
-				s := a.sessions[i]
-				a.mu.RUnlock()
-				return &s, nil
-			}
-		}
-	}
-	a.mu.RUnlock()
-
-	// Fallback: find and parse just the one session file
-	fpath := a.findSessionFile(id)
-	if fpath == "" {
-		return nil, fmt.Errorf("session not found: %s", id)
-	}
-	return a.parseSessionFile(fpath)
-}
-
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	filePath := a.findSessionFile(sessionID)
-	if filePath == "" {
-		return nil, fmt.Errorf("session file not found: %s", sessionID)
-	}
-	return a.parsePiMessages(filePath, sessionID)
-}
-
 func (a *Adapter) findSessionFile(sessionID string) string {
 	var found string
-	filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
 		if err != nil || found != "" {
 			return err
 		}
@@ -325,7 +475,7 @@ func (a *Adapter) findSessionFile(sessionID string) string {
 			return nil
 		}
 		// Fallback: read first line
-		f, err := os.Open(p)
+		f, err := os.Open(p) //nolint:gosec
 		if err != nil {
 			return nil
 		}
@@ -386,8 +536,8 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 		}
 	}
 
-	sort.Slice(parsed, func(i, j int) bool {
-		return parsed[i].Timestamp.Before(parsed[j].Timestamp)
+	slices.SortFunc(parsed, func(a, b ingest.Message) int {
+		return a.Timestamp.Compare(b.Timestamp)
 	})
 
 	// Pass 1: Index all tool calls by ID and collect toolResult messages separately.
@@ -409,7 +559,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 
 	// Pass 2: Merge toolResult output into the corresponding ToolCall.Output.
 	for _, tr := range toolResults {
-		tcID, _ := tr.Metadata["toolCallId"]
+		tcID := tr.Metadata["toolCallId"]
 		if tcID == "" {
 			continue
 		}
@@ -557,33 +707,6 @@ func parseAssistantContent(raw json.RawMessage) (text string, toolCalls []ingest
 	return text, toolCalls, reasoning, nil
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	var sections []string
-	for _, msg := range msgs {
-		if msg.Role != "assistant" {
-			continue
-		}
-		if msg.Content != "" && hasPlanContent(msg.Content) {
-			sections = append(sections, msg.Content)
-		}
-	}
-
-	if len(sections) == 0 {
-		return nil, nil
-	}
-
-	md := strings.Join(sections, "\n\n---\n\n")
-	return &ingest.Plan{
-		Markdown: md,
-		Source:   "synthesized",
-	}, nil
-}
-
 // hasPlanContent checks if text contains markers suggesting a plan or
 // structured task list (mirrors the OpenCode heuristic).
 func hasPlanContent(text string) bool {
@@ -598,76 +721,6 @@ func hasPlanContent(text string) bool {
 		}
 	}
 	return false
-}
-
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	edits, err := a.GetEdits(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	seen := make(map[string]bool)
-	var diffs []ingest.DiffFile
-	for _, e := range edits {
-		if seen[e.FilePath] {
-			continue
-		}
-		seen[e.FilePath] = true
-		adds := 0
-		dels := 0
-		if e.NewStr != "" {
-			adds = strings.Count(e.NewStr, "\n") + 1
-		}
-		if e.OldStr != "" {
-			dels = strings.Count(e.OldStr, "\n") + 1
-		}
-		status := "modified"
-		if e.OldStr == "" && e.NewStr != "" {
-			status = "added"
-		}
-		diffs = append(diffs, ingest.DiffFile{
-			Path:      e.FilePath,
-			Status:    status,
-			Additions: adds,
-			Deletions: dels,
-		})
-	}
-	return diffs, nil
-}
-
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	var edits []ingest.FileEdit
-	for _, msg := range msgs {
-		for _, tc := range msg.ToolCalls {
-			if tc.Name != "edit" && tc.Name != "write" {
-				continue
-			}
-
-			fp, oldStr, newStr := parsePiEditContent(tc)
-			if fp == "" {
-				continue
-			}
-
-			content := newStr
-			if oldStr != "" {
-				content = ""
-			}
-
-			edits = append(edits, ingest.FileEdit{
-				FilePath: fp,
-				ToolName: tc.Name,
-				OldStr:   oldStr,
-				NewStr:   newStr,
-				Content:  content,
-			})
-		}
-	}
-	return edits, nil
 }
 
 // parsePiEditContent extracts file path and old/new content from an edit or
@@ -693,19 +746,19 @@ func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 		return "", "", ""
 	}
 
-		switch tc.Name {
-		case "write":
-			newStr = input.Content
-			if newStr == "" {
-				var fallback struct {
-					NewString string `json:"newString"`
-				}
-				if err := json.Unmarshal([]byte(tc.Input), &fallback); err == nil {
-					newStr = fallback.NewString
-				}
+	switch tc.Name {
+	case "write":
+		newStr = input.Content
+		if newStr == "" {
+			var fallback struct {
+				NewString string `json:"newString"`
 			}
-			return filePath, "", newStr
-		case "edit":
+			if err := json.Unmarshal([]byte(tc.Input), &fallback); err == nil {
+				newStr = fallback.NewString
+			}
+		}
+		return filePath, "", newStr
+	case "edit":
 		if len(input.Edits) == 0 {
 			// Some edit calls may use oldString/newString directly
 			var fallback struct {
@@ -728,59 +781,6 @@ func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 		return filePath, strings.Join(oldParts, "\n"), strings.Join(newParts, "\n")
 	}
 	return "", "", ""
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && pi --session %s", session.Directory, session.ID)
-}
-
-func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
-	a.mu.RLock()
-	lastMod := a.lastMod
-	a.mu.RUnlock()
-
-	// Re-scan to get fresh mod times
-	var maxMod int64
-	err := filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
-			return nil
-		}
-		fi, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		mod := fi.ModTime().UnixMilli()
-		if mod > maxMod {
-			maxMod = mod
-		}
-		return nil
-	})
-	if err != nil {
-		if lastMod > 0 {
-			return lastMod, nil
-		}
-		return time.Now().UnixMilli(), nil
-	}
-	if maxMod == 0 {
-		maxMod = time.Now().UnixMilli()
-	}
-
-	// Invalidate cache if files changed
-	if maxMod > lastMod {
-		a.mu.Lock()
-		a.sessions = nil
-		a.lastMod = maxMod
-		a.mu.Unlock()
-	}
-
-	return maxMod, nil
-}
-
-func (a *Adapter) Close() error {
-	return nil
 }
 
 // normalizeToolCall maps Pi-native tool call names and field names to the
@@ -975,5 +975,3 @@ func deriveTitle(id, cwd string) string {
 	}
 	return id
 }
-
-

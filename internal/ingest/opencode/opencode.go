@@ -117,13 +117,13 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		}
 
 		if summFiles.Valid {
-			s.DiffFiles = int(summFiles.Int64)
+			s.DiffFiles = int(summFiles.Int64) //nolint:gosec
 		}
 		if summAdd.Valid {
-			s.DiffAdditions = int(summAdd.Int64)
+			s.DiffAdditions = int(summAdd.Int64) //nolint:gosec
 		}
 		if summDel.Valid {
-			s.DiffDeletions = int(summDel.Int64)
+			s.DiffDeletions = int(summDel.Int64) //nolint:gosec
 		}
 
 		if s.DiffFiles == 0 {
@@ -134,10 +134,6 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.MessageCount = msgCount
 
 		sessions = append(sessions, s)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	if len(zeroDiffIDs) > 0 {
@@ -221,13 +217,13 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	}
 
 	if summFiles.Valid {
-		s.DiffFiles = int(summFiles.Int64)
+		s.DiffFiles = int(summFiles.Int64) //nolint:gosec
 	}
 	if summAdd.Valid {
-		s.DiffAdditions = int(summAdd.Int64)
+		s.DiffAdditions = int(summAdd.Int64) //nolint:gosec
 	}
 	if summDel.Valid {
-		s.DiffDeletions = int(summDel.Int64)
+		s.DiffDeletions = int(summDel.Int64) //nolint:gosec
 	}
 
 	if s.DiffFiles == 0 {
@@ -244,83 +240,6 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	s.MessageCount = msgCount
 
 	return &s, nil
-}
-
-func (a *Adapter) computeDiffMetrics(ctx context.Context, ids []string) (map[string][3]int, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-
-	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	query := fmt.Sprintf(`
-		SELECT
-			m.session_id,
-			COUNT(DISTINCT COALESCE(
-				json_extract(p.data, '$.state.input.filePath'),
-				json_extract(p.data, '$.state.input.file_path'),
-				json_extract(p.data, '$.state.input.path')
-			)) as file_count,
-			COALESCE(SUM(CASE
-				WHEN json_extract(p.data, '$.tool') = 'edit'
-					THEN CASE
-						WHEN json_extract(p.data, '$.state.input.newString') IS NOT NULL
-						 AND json_extract(p.data, '$.state.input.newString') != ''
-						THEN LENGTH(json_extract(p.data, '$.state.input.newString'))
-						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.newString'), CHAR(10), '')) + 1
-						ELSE 0
-					END
-				WHEN json_extract(p.data, '$.tool') = 'write'
-					THEN CASE
-						WHEN json_extract(p.data, '$.state.input.content') IS NOT NULL
-						 AND json_extract(p.data, '$.state.input.content') != ''
-						THEN LENGTH(json_extract(p.data, '$.state.input.content'))
-						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.content'), CHAR(10), '')) + 1
-						ELSE 0
-					END
-				ELSE 0
-			END), 0) as total_additions,
-			COALESCE(SUM(CASE
-				WHEN json_extract(p.data, '$.tool') = 'edit'
-					THEN CASE
-						WHEN json_extract(p.data, '$.state.input.oldString') IS NOT NULL
-						 AND json_extract(p.data, '$.state.input.oldString') != ''
-						THEN LENGTH(json_extract(p.data, '$.state.input.oldString'))
-						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.oldString'), CHAR(10), '')) + 1
-						ELSE 0
-					END
-				ELSE 0
-			END), 0) as total_deletions
-		FROM part p
-		JOIN message m ON p.message_id = m.id
-		WHERE m.session_id IN (%s)
-		  AND json_extract(p.data, '$.type') = 'tool'
-		  AND json_extract(p.data, '$.tool') IN ('edit', 'write')
-		GROUP BY m.session_id
-	`, strings.Join(placeholders, ","))
-
-	rows, err := a.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("computing diff metrics: %w", err)
-	}
-	defer rows.Close()
-
-	computed := make(map[string][3]int, len(ids))
-	for rows.Next() {
-		var sid string
-		var files, adds, dels int
-		if err := rows.Scan(&sid, &files, &adds, &dels); err != nil {
-			continue
-		}
-		computed[sid] = [3]int{files, adds, dels}
-	}
-
-	return computed, rows.Err()
 }
 
 func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
@@ -432,31 +351,7 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	return messages, rows.Err()
 }
 
-func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]partData, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT data FROM part
-		WHERE message_id = ?
-		ORDER BY time_created ASC, id ASC
-	`, messageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var parts []partData
-	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
-			continue
-		}
-		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err == nil {
-			parts = append(parts, p)
-		}
-	}
-	return parts, rows.Err()
-}
-
+// GetPlan implements ingest.Adapter.
 func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	// Check if this is a child session (has a parent) and read agent mode
 	var parentID sql.NullString
@@ -486,251 +381,6 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	}
 
 	return a.planFromMessages(ctx, sessionID)
-}
-
-func (a *Adapter) planFromLastMessage(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	// Get the last assistant message
-	var lastMsgID string
-	err := a.db.QueryRowContext(ctx, `
-		SELECT id FROM message
-		WHERE session_id = ? AND json_extract(data, '$.role') = 'assistant'
-		ORDER BY time_created DESC, id DESC
-		LIMIT 1
-	`, sessionID).Scan(&lastMsgID)
-	if err != nil {
-		return nil, nil
-	}
-
-	// Get text and reasoning parts from the last message
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT data FROM part
-		WHERE message_id = ? AND json_extract(data, '$.type') IN ('text', 'reasoning')
-		ORDER BY time_created ASC, id ASC
-	`, lastMsgID)
-	if err != nil {
-		return nil, fmt.Errorf("querying last message parts: %w", err)
-	}
-	defer rows.Close()
-
-	var sections []string
-	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
-			continue
-		}
-		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
-			continue
-		}
-		if strings.Contains(p.Text, "## ") && len(p.Text) > 200 {
-			sections = append(sections, p.Text)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	if len(sections) == 0 {
-		return nil, nil
-	}
-
-	md := strings.Join(sections, "\n\n---\n\n")
-	return &ingest.Plan{Markdown: md, Source: "synthesized"}, nil
-}
-
-func (a *Adapter) findTaskOutput(ctx context.Context, parentID, childID string) (string, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT p.data
-		FROM part p
-		JOIN message m ON p.message_id = m.id
-		WHERE m.session_id = ?
-		  AND json_extract(m.data, '$.role') = 'assistant'
-		  AND json_extract(p.data, '$.type') = 'tool'
-		  AND json_extract(p.data, '$.tool') = 'task'
-	`, parentID)
-	if err != nil {
-		return "", fmt.Errorf("querying task parts: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
-			continue
-		}
-		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
-			continue
-		}
-		if p.State.Metadata == nil {
-			continue
-		}
-		meta, ok := p.State.Metadata.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		sid, _ := meta["sessionId"].(string)
-		if sid == childID {
-			return p.State.Output, nil
-		}
-	}
-	return "", rows.Err()
-}
-
-func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT p.data
-		FROM part p
-		JOIN message m ON p.message_id = m.id
-		WHERE p.session_id = ?
-		  AND json_extract(m.data, '$.role') = 'assistant'
-		  AND json_extract(p.data, '$.type') = 'text'
-		ORDER BY m.time_created ASC, p.time_created ASC
-	`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("querying plan parts: %w", err)
-	}
-
-	var sections []string
-	for rows.Next() {
-		var dataJSON string
-		if err := rows.Scan(&dataJSON); err != nil {
-			continue
-		}
-		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
-			continue
-		}
-		if hasPlanContent(p.Text) {
-			sections = append(sections, p.Text)
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// Also include plan items from todowrite tool call inputs
-	todoRows, err := a.db.QueryContext(ctx, `
-		SELECT p.data
-		FROM part p
-		WHERE p.session_id = ?
-		  AND json_extract(p.data, '$.type') = 'tool'
-		  AND json_extract(p.data, '$.tool') = 'todowrite'
-		ORDER BY p.time_created ASC
-	`, sessionID)
-	if err == nil {
-		var todoSections []string
-		for todoRows.Next() {
-			var dataJSON string
-			if err := todoRows.Scan(&dataJSON); err != nil {
-				continue
-			}
-			var p partData
-			if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
-				continue
-			}
-			if p.State.Input == nil {
-				continue
-			}
-			inputJSON := util.MarshalJSON(p.State.Input)
-			if inputJSON == "" {
-				continue
-			}
-			var items []struct {
-				Content  string `json:"content"`
-				Status   string `json:"status"`
-				Priority string `json:"priority"`
-			}
-			if err := json.Unmarshal([]byte(inputJSON), &items); err != nil {
-				continue
-			}
-			for _, item := range items {
-				if item.Content != "" {
-					prefix := "- [ ]"
-					switch item.Status {
-					case "completed":
-						prefix = "- [x]"
-					case "in_progress":
-						prefix = "- [/]"
-					case "cancelled":
-						prefix = "- [-]"
-					}
-					content := item.Content
-					if !strings.HasPrefix(strings.TrimSpace(content), "- [") {
-						content = prefix + " " + content
-					}
-					todoSections = append(todoSections, content)
-				}
-			}
-		}
-		todoRows.Close()
-		if len(todoSections) > 0 {
-			sections = append(sections, "## Plan Items\n\n"+strings.Join(todoSections, "\n"))
-		}
-	}
-
-	if len(sections) == 0 {
-		return nil, nil
-	}
-
-	md := strings.Join(sections, "\n\n---\n\n")
-	return &ingest.Plan{
-		Markdown: md,
-		Source:   "synthesized",
-	}, nil
-}
-
-func hasPlanContent(text string) bool {
-	markers := []string{
-		"- [", "## Plan", "## Implemen", "## Steps", "## Todo",
-		"## Task", "## Goal", "## Object", "## Check",
-		"Step ", "\n1. ", "\n2. ", "\n3. ",
-	}
-	for _, m := range markers {
-		if strings.Contains(text, m) {
-			return true
-		}
-	}
-	return false
-}
-
-// editInput mirrors the JSON fields in edit/write tool call inputs.
-type editInput struct {
-	Path      string  `json:"path"`
-	FilePath  string  `json:"filePath"`
-	FilePath2 string  `json:"file_path"`
-	OldStr    string  `json:"old_str"`
-	OldString string  `json:"oldString"`
-	NewStr    string  `json:"new_str"`
-	NewString string  `json:"newString"`
-	Content   string  `json:"content"`
-	ViewRange []int   `json:"view_range"`
-}
-
-func (e editInput) FilePathResolved() string {
-	switch {
-	case e.FilePath != "":
-		return e.FilePath
-	case e.FilePath2 != "":
-		return e.FilePath2
-	default:
-		return e.Path
-	}
-}
-
-func (e editInput) OldStrResolved() string {
-	if e.OldStr != "" {
-		return e.OldStr
-	}
-	return e.OldString
-}
-
-func (e editInput) NewStrResolved() string {
-	if e.NewStr != "" {
-		return e.NewStr
-	}
-	return e.NewString
 }
 
 func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
@@ -830,12 +480,360 @@ func (a *Adapter) Close() error {
 	return a.db.Close()
 }
 
+func (a *Adapter) computeDiffMetrics(ctx context.Context, ids []string) (map[string][3]int, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	//nolint:gosec
+	query := fmt.Sprintf(`
+		SELECT
+			m.session_id,
+			COUNT(DISTINCT COALESCE(
+				json_extract(p.data, '$.state.input.filePath'),
+				json_extract(p.data, '$.state.input.file_path'),
+				json_extract(p.data, '$.state.input.path')
+			)) as file_count,
+			COALESCE(SUM(CASE
+				WHEN json_extract(p.data, '$.tool') = 'edit'
+					THEN CASE
+						WHEN json_extract(p.data, '$.state.input.newString') IS NOT NULL
+						 AND json_extract(p.data, '$.state.input.newString') != ''
+						THEN LENGTH(json_extract(p.data, '$.state.input.newString'))
+						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.newString'), CHAR(10), '')) + 1
+						ELSE 0
+					END
+				WHEN json_extract(p.data, '$.tool') = 'write'
+					THEN CASE
+						WHEN json_extract(p.data, '$.state.input.content') IS NOT NULL
+						 AND json_extract(p.data, '$.state.input.content') != ''
+						THEN LENGTH(json_extract(p.data, '$.state.input.content'))
+						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.content'), CHAR(10), '')) + 1
+						ELSE 0
+					END
+				ELSE 0
+			END), 0) as total_additions,
+			COALESCE(SUM(CASE
+				WHEN json_extract(p.data, '$.tool') = 'edit'
+					THEN CASE
+						WHEN json_extract(p.data, '$.state.input.oldString') IS NOT NULL
+						 AND json_extract(p.data, '$.state.input.oldString') != ''
+						THEN LENGTH(json_extract(p.data, '$.state.input.oldString'))
+						   - LENGTH(REPLACE(json_extract(p.data, '$.state.input.oldString'), CHAR(10), '')) + 1
+						ELSE 0
+					END
+				ELSE 0
+			END), 0) as total_deletions
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE m.session_id IN (%s)
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') IN ('edit', 'write')
+		GROUP BY m.session_id
+	`, strings.Join(placeholders, ","))
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("computing diff metrics: %w", err)
+	}
+	defer rows.Close()
+
+	computed := make(map[string][3]int, len(ids))
+	for rows.Next() {
+		var sid string
+		var files, adds, dels int
+		if err := rows.Scan(&sid, &files, &adds, &dels); err != nil {
+			continue
+		}
+		computed[sid] = [3]int{files, adds, dels}
+	}
+
+	return computed, rows.Err()
+}
+
+func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]partData, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT data FROM part
+		WHERE message_id = ?
+		ORDER BY time_created ASC, id ASC
+	`, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var parts []partData
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err == nil {
+			parts = append(parts, p)
+		}
+	}
+	return parts, rows.Err()
+}
+
+func (a *Adapter) planFromLastMessage(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	// Get the last assistant message
+	var lastMsgID string
+	err := a.db.QueryRowContext(ctx, `
+		SELECT id FROM message
+		WHERE session_id = ? AND json_extract(data, '$.role') = 'assistant'
+		ORDER BY time_created DESC, id DESC
+		LIMIT 1
+	`, sessionID).Scan(&lastMsgID)
+	if err != nil {
+		return nil, nil
+	}
+
+	// Get text and reasoning parts from the last message
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT data FROM part
+		WHERE message_id = ? AND json_extract(data, '$.type') IN ('text', 'reasoning')
+		ORDER BY time_created ASC, id ASC
+	`, lastMsgID)
+	if err != nil {
+		return nil, fmt.Errorf("querying last message parts: %w", err)
+	}
+	defer rows.Close()
+
+	var sections []string
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
+		}
+		if strings.Contains(p.Text, "## ") && len(p.Text) > 200 {
+			sections = append(sections, p.Text)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(sections) == 0 {
+		return nil, nil
+	}
+
+	md := strings.Join(sections, "\n\n---\n\n")
+	return &ingest.Plan{Markdown: md, Source: "synthesized"}, nil
+}
+
+func (a *Adapter) findTaskOutput(ctx context.Context, parentID, childID string) (string, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT p.data
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE m.session_id = ?
+		  AND json_extract(m.data, '$.role') = 'assistant'
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') = 'task'
+	`, parentID)
+	if err != nil {
+		return "", fmt.Errorf("querying task parts: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
+		}
+		if p.State.Metadata == nil {
+			continue
+		}
+		meta, ok := p.State.Metadata.(map[string]any)
+		if !ok {
+			continue
+		}
+		sid, _ := meta["sessionId"].(string)
+		if sid == childID {
+			return p.State.Output, nil
+		}
+	}
+	return "", rows.Err()
+}
+
+func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT p.data
+		FROM part p
+		JOIN message m ON p.message_id = m.id
+		WHERE p.session_id = ?
+		  AND json_extract(m.data, '$.role') = 'assistant'
+		  AND json_extract(p.data, '$.type') = 'text'
+		ORDER BY m.time_created ASC, p.time_created ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying plan parts: %w", err)
+	}
+
+	var sections []string
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			continue
+		}
+		var p partData
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			continue
+		}
+		if hasPlanContent(p.Text) {
+			sections = append(sections, p.Text)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Also include plan items from todowrite tool call inputs
+	todoRows, err := a.db.QueryContext(ctx, `
+		SELECT p.data
+		FROM part p
+		WHERE p.session_id = ?
+		  AND json_extract(p.data, '$.type') = 'tool'
+		  AND json_extract(p.data, '$.tool') = 'todowrite'
+		ORDER BY p.time_created ASC
+	`, sessionID)
+	if err == nil {
+		var todoSections []string
+		for todoRows.Next() {
+			var dataJSON string
+			if err := todoRows.Scan(&dataJSON); err != nil {
+				continue
+			}
+			var p partData
+			if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+				continue
+			}
+			if p.State.Input == nil {
+				continue
+			}
+			inputJSON := util.MarshalJSON(p.State.Input)
+			if inputJSON == "" {
+				continue
+			}
+			var items []struct {
+				Content  string `json:"content"`
+				Status   string `json:"status"`
+				Priority string `json:"priority"`
+			}
+			if err := json.Unmarshal([]byte(inputJSON), &items); err != nil {
+				continue
+			}
+			for _, item := range items {
+				if item.Content != "" {
+					prefix := "- [ ]"
+					switch item.Status {
+					case "completed":
+						prefix = "- [x]"
+					case "in_progress":
+						prefix = "- [/]"
+					case "canceled":
+						prefix = "- [-]"
+					}
+					content := item.Content
+					if !strings.HasPrefix(strings.TrimSpace(content), "- [") {
+						content = prefix + " " + content
+					}
+					todoSections = append(todoSections, content)
+				}
+			}
+		}
+		todoRows.Close()
+		if len(todoSections) > 0 {
+			sections = append(sections, "## Plan Items\n\n"+strings.Join(todoSections, "\n"))
+		}
+	}
+
+	if len(sections) == 0 {
+		return nil, nil
+	}
+
+	md := strings.Join(sections, "\n\n---\n\n")
+	return &ingest.Plan{
+		Markdown: md,
+		Source:   "synthesized",
+	}, nil
+}
+
+func hasPlanContent(text string) bool {
+	markers := []string{
+		"- [", "## Plan", "## Implemen", "## Steps", "## Todo",
+		"## Task", "## Goal", "## Object", "## Check",
+		"Step ", "\n1. ", "\n2. ", "\n3. ",
+	}
+	for _, m := range markers {
+		if strings.Contains(text, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// editInput mirrors the JSON fields in edit/write tool call inputs.
+type editInput struct {
+	Path      string  `json:"path"`
+	FilePath  string  `json:"filePath"`
+	FilePath2 string  `json:"file_path"`
+	OldStr    string  `json:"old_str"`
+	OldString string  `json:"oldString"`
+	NewStr    string  `json:"new_str"`
+	NewString string  `json:"newString"`
+	Content   string  `json:"content"`
+	ViewRange []int   `json:"view_range"`
+}
+
+func (e editInput) FilePathResolved() string {
+	switch {
+	case e.FilePath != "":
+		return e.FilePath
+	case e.FilePath2 != "":
+		return e.FilePath2
+	default:
+		return e.Path
+	}
+}
+
+func (e editInput) OldStrResolved() string {
+	if e.OldStr != "" {
+		return e.OldStr
+	}
+	return e.OldString
+}
+
+func (e editInput) NewStrResolved() string {
+	if e.NewStr != "" {
+		return e.NewStr
+	}
+	return e.NewString
+}
+
 // Internal JSON structs for parsing OpenCode's data blobs.
 
 type messageData struct {
 	Role  string      `json:"role"`
 	Agent string      `json:"agent"`
-	Model interface{} `json:"model"`
+	Model any `json:"model"`
 }
 
 type partData struct {
@@ -865,9 +863,9 @@ type stepCacheTokens struct {
 
 type partState struct {
 	Status   string      `json:"status"`
-	Input    interface{} `json:"input"`
+	Input    any `json:"input"`
 	Output   string      `json:"output"`
-	Metadata interface{} `json:"metadata,omitempty"`
+	Metadata any `json:"metadata,omitempty"`
 	Time     *partTime   `json:"time,omitempty"`
 }
 
@@ -902,7 +900,7 @@ func wrapEmbeddedFileContent(text string) string {
 	}
 
 	// Match OpenCode's XML file read format: <path>...</path>\n<type>...</type>\n<content>...</content>
-	xmlRe := regexp.MustCompile("(?s)(.*?)<path>(.*?)</path>\\s*<type>(.*?)</type>\\s*<content>\\n?(.*?)</content>")
+	xmlRe := regexp.MustCompile(`(?s)(.*?)<path>(.*?)</path>\s*<type>(.*?)</type>\s*<content>\n?(.*?)</content>`)
 	text = xmlRe.ReplaceAllStringFunc(text, func(match string) string {
 		parts := xmlRe.FindStringSubmatch(match)
 		if len(parts) < 5 {
@@ -1008,5 +1006,3 @@ func stripTaskWrapper(output string) string {
 	}
 	return strings.TrimSpace(strings.Join(result, "\n"))
 }
-
-

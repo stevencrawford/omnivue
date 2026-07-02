@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -198,21 +198,11 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	sessions = a.appendSyntheticSessions(sessions)
 
 	// Re-sort by UpdatedAt desc since appended filesystem sessions
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	slices.SortFunc(sessions, func(a, b ingest.Session) int {
+		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
 	return sessions, nil
-}
-
-// appendSyntheticSessions adds any synthetic child sessions to the list.
-func (a *Adapter) appendSyntheticSessions(sessions []ingest.Session) []ingest.Session {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, syn := range a.syntheticSessions {
-		sessions = append(sessions, syn.session)
-	}
-	return sessions
 }
 
 func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
@@ -312,330 +302,6 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 
 	// Fall back to the turns table in the SQLite database
 	return a.getMessagesFromTurns(ctx, sessionID)
-}
-
-func (a *Adapter) getMessagesFromTurns(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT turn_index, user_message, assistant_response, timestamp
-		FROM turns
-		WHERE session_id = ?
-		ORDER BY turn_index ASC
-	`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("querying turns: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []ingest.Message
-	for rows.Next() {
-		var (
-			turnIndex int
-			userMsg   sql.NullString
-			assistMsg sql.NullString
-			timestamp string
-		)
-		if err := rows.Scan(&turnIndex, &userMsg, &assistMsg, &timestamp); err != nil {
-			return nil, fmt.Errorf("scanning turn: %w", err)
-		}
-
-		ts := util.ParseTime(timestamp)
-
-		if userMsg.Valid && userMsg.String != "" {
-			messages = append(messages, ingest.Message{
-				ID:        fmt.Sprintf("%s-turn-%d-user", sessionID, turnIndex),
-				Role:      "user",
-				Content:   userMsg.String,
-				Timestamp: ts,
-			})
-		}
-
-		if assistMsg.Valid && assistMsg.String != "" {
-			messages = append(messages, ingest.Message{
-				ID:        fmt.Sprintf("%s-turn-%d-assistant", sessionID, turnIndex),
-				Role:      "assistant",
-				Content:   assistMsg.String,
-				Timestamp: ts,
-			})
-		}
-	}
-
-	return messages, rows.Err()
-}
-
-func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, error) {
-	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
-	f, err := os.Open(eventsPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var messages []ingest.Message
-	var currentModel string
-	var subAgentStack []*subAgentState
-
-	scanner := bufio.NewScanner(f)
-	// Allow large lines (events can contain tool output)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
-
-	for scanner.Scan() {
-		var event eventEnvelope
-		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-			continue
-		}
-
-		switch event.Type {
-		case "session.model_change":
-			var data modelChangeData
-			if json.Unmarshal(event.Data, &data) == nil {
-				currentModel = data.NewModel
-			}
-
-		case "user.message":
-			var data userMessageData
-			if json.Unmarshal(event.Data, &data) == nil {
-				msg := ingest.Message{
-					ID:        event.ID,
-					Role:      "user",
-					Content:   data.Content,
-					Timestamp: util.ParseTime(event.Timestamp),
-				}
-				if len(subAgentStack) > 0 {
-					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
-				} else {
-					messages = append(messages, msg)
-				}
-			}
-
-		case "assistant.message":
-			var data assistantMessageData
-			if json.Unmarshal(event.Data, &data) == nil {
-				msg := ingest.Message{
-					ID:        data.MessageID,
-					Role:      "assistant",
-					Content:   data.Content,
-					Model:     currentModel,
-					Timestamp: util.ParseTime(event.Timestamp),
-				}
-
-				// Extract tool calls from tool requests
-				for _, req := range data.ToolRequests {
-					inputJSON, _ := json.Marshal(req.Arguments)
-					tc := ingest.ToolCall{
-						ID:     req.ToolCallID,
-						Name:   req.Name,
-						Input:  string(inputJSON),
-						Status: "running",
-					}
-					// Normalize ask_user to standard question kind
-					if tc.Name == "ask_user" {
-						tc.Name = "question"
-						tc.Input = normalizeAskUserInput(tc.Input)
-					}
-					// Normalize Copilot JIRA tool call to standard kind
-					if tc.Name == "atlassian-getJiraIssue" || tc.Name == "atlassian_getJiraIssue" {
-						tc.Name = "jira"
-					}
-					// Normalize apply_patch to edit, transforming input to structured format
-					if tc.Name == "apply_patch" {
-						tc.Name = "edit"
-						var patchText string
-						if err := json.Unmarshal(req.Arguments, &patchText); err == nil && patchText != "" {
-							filePath := extractCopilotPatchPath(patchText)
-							if filePath != "" {
-								newInput, _ := json.Marshal(map[string]string{
-									"filePath": filePath,
-									"content":  patchText,
-								})
-								tc.Input = string(newInput)
-							}
-						}
-					}
-					msg.ToolCalls = append(msg.ToolCalls, tc)
-				}
-
-				if len(subAgentStack) > 0 {
-					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
-				} else {
-					messages = append(messages, msg)
-				}
-			}
-
-		case "tool.execution_complete":
-			var data toolCompleteData
-			if json.Unmarshal(event.Data, &data) == nil {
-				if len(subAgentStack) > 0 {
-					updateToolCallResult(&subAgentStack[len(subAgentStack)-1].messages, data)
-				} else {
-					updateToolCallResult(&messages, data)
-				}
-			}
-
-		case "subagent.started":
-			var data subAgentStartedData
-			if json.Unmarshal(event.Data, &data) == nil && data.ToolCallID != "" {
-				sa := &subAgentState{
-					toolCallID:   data.ToolCallID,
-					agentName:    data.AgentName,
-					agentDisplay: data.AgentDisplayName,
-					parentMsgIdx: -1,
-					parentToolIdx: -1,
-				}
-				// Find the matching task tool call in the parent messages and mark it
-				// as the delegation point for this sub-agent.
-				for i := len(messages) - 1; i >= 0; i-- {
-					msg := &messages[i]
-					for j := range msg.ToolCalls {
-						if msg.ToolCalls[j].ID == data.ToolCallID {
-							sa.parentMsgIdx = i
-							sa.parentToolIdx = j
-							break
-						}
-					}
-					if sa.parentMsgIdx >= 0 {
-						break
-					}
-				}
-				subAgentStack = append(subAgentStack, sa)
-			}
-
-		case "subagent.completed":
-			if len(subAgentStack) > 0 {
-				sa := subAgentStack[len(subAgentStack)-1]
-				subAgentStack = subAgentStack[:len(subAgentStack)-1]
-
-				// Create synthetic child session from buffered messages
-				synID := fmt.Sprintf("%s-sub-%s-%s", sessionID, sa.agentName, sa.toolCallID)
-				if len(synID) > 100 {
-					synID = synID[:100]
-				}
-
-				// Only create if there are actual messages
-				if len(sa.messages) > 0 {
-					// Use the first message's timestamp as created, last as updated
-					createdAt := sa.messages[0].Timestamp
-					updatedAt := sa.messages[len(sa.messages)-1].Timestamp
-
-					syn := &syntheticSession{
-						session: ingest.Session{
-							ID:        synID,
-							ParentID:  sessionID,
-							Agent:     ingest.AgentCopilot,
-							SubAgent:  sa.agentName,
-							Title:     sa.agentDisplay,
-							Status:    "completed",
-							CreatedAt: createdAt,
-							UpdatedAt: updatedAt,
-						},
-						messages: sa.messages,
-					}
-
-					a.mu.Lock()
-					a.syntheticSessions[synID] = syn
-					a.mu.Unlock()
-				}
-
-				// Update the parent's task tool call metadata to link to the synthetic session
-				if sa.parentMsgIdx >= 0 && sa.parentToolIdx >= 0 && sa.parentMsgIdx < len(messages) {
-					parentMsg := &messages[sa.parentMsgIdx]
-					if sa.parentToolIdx < len(parentMsg.ToolCalls) {
-						tc := &parentMsg.ToolCalls[sa.parentToolIdx]
-						meta := make(map[string]string)
-						if tc.Metadata != "" {
-							json.Unmarshal([]byte(tc.Metadata), &meta)
-						}
-						meta["sessionId"] = synID
-						metaBytes, _ := json.Marshal(meta)
-						tc.Metadata = string(metaBytes)
-					}
-				}
-			}
-
-		case "system_reminder":
-			var data systemReminderData
-			if json.Unmarshal(event.Data, &data) == nil {
-				fileName := "AGENTS.md"
-				if data.File != "" {
-					fileName = data.File
-				}
-				msg := ingest.Message{
-					ID:        event.ID,
-					Role:      "system",
-					Content:   data.Content,
-					Timestamp: util.ParseTime(event.Timestamp),
-					Metadata: map[string]string{
-						"type": "system_reminder",
-						"file": fileName,
-					},
-				}
-				if len(subAgentStack) > 0 {
-					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
-				} else {
-					messages = append(messages, msg)
-				}
-			}
-		}
-	}
-
-	return messages, scanner.Err()
-}
-
-// subAgentState tracks the buffering of sub-agent events between subagent.started and subagent.completed.
-type subAgentState struct {
-	toolCallID   string
-	agentName    string
-	agentDisplay string
-	parentMsgIdx int
-	parentToolIdx int
-	messages     []ingest.Message
-}
-
-// updateToolCallResult finds the tool call by ID and updates its output/status.
-func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
-	for i := len(*messages) - 1; i >= 0; i-- {
-		msg := &(*messages)[i]
-		for j := range msg.ToolCalls {
-			if msg.ToolCalls[j].ID == data.ToolCallID {
-				if data.Success {
-					msg.ToolCalls[j].Status = "completed"
-				} else {
-					msg.ToolCalls[j].Status = "failed"
-				}
-				if data.Result.Content != "" {
-					msg.ToolCalls[j].Output = data.Result.Content
-				} else if data.Result.DetailedContent != "" {
-					msg.ToolCalls[j].Output = data.Result.DetailedContent
-				}
-				if data.Model != "" {
-					msg.Model = data.Model
-				}
-				return
-			}
-		}
-	}
-}
-
-// extractCopilotPatchPath extracts the file path from apply_patch text.
-// Format: "*** Begin Patch\n*** Update File: <path>\n...\n*** End Patch"
-func extractCopilotPatchPath(patch string) string {
-	for _, prefix := range []string{"*** Update File: ", "*** Add File: ", "*** Modify File: "} {
-		if idx := strings.Index(patch, prefix); idx >= 0 {
-			rest := patch[idx+len(prefix):]
-			if nl := strings.IndexAny(rest, "\n\r"); nl >= 0 {
-				return strings.TrimSpace(rest[:nl])
-			}
-			return strings.TrimSpace(rest)
-		}
-	}
-	return ""
-}
-
-// toolEditArgs mirrors the actual arguments in Copilot file edit/create tool requests.
-type toolEditArgs struct {
-	Path    string `json:"path"`
-	OldStr  string `json:"old_str"`
-	NewStr  string `json:"new_str"`
-	FileText string `json:"file_text"`
 }
 
 // GetEdits extracts file edits from assistant.message tool requests in events.jsonl.
@@ -866,6 +532,282 @@ func (a *Adapter) Close() error {
 	return a.db.Close()
 }
 
+// appendSyntheticSessions adds any synthetic child sessions to the list.
+func (a *Adapter) appendSyntheticSessions(sessions []ingest.Session) []ingest.Session {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, syn := range a.syntheticSessions {
+		sessions = append(sessions, syn.session)
+	}
+	return sessions
+}
+
+func (a *Adapter) getMessagesFromTurns(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT turn_index, user_message, assistant_response, timestamp
+		FROM turns
+		WHERE session_id = ?
+		ORDER BY turn_index ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying turns: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []ingest.Message
+	for rows.Next() {
+		var (
+			turnIndex int
+			userMsg   sql.NullString
+			assistMsg sql.NullString
+			timestamp string
+		)
+		if err := rows.Scan(&turnIndex, &userMsg, &assistMsg, &timestamp); err != nil {
+			return nil, fmt.Errorf("scanning turn: %w", err)
+		}
+
+		ts := util.ParseTime(timestamp)
+
+		if userMsg.Valid && userMsg.String != "" {
+			messages = append(messages, ingest.Message{
+				ID:        fmt.Sprintf("%s-turn-%d-user", sessionID, turnIndex),
+				Role:      "user",
+				Content:   userMsg.String,
+				Timestamp: ts,
+			})
+		}
+
+		if assistMsg.Valid && assistMsg.String != "" {
+			messages = append(messages, ingest.Message{
+				ID:        fmt.Sprintf("%s-turn-%d-assistant", sessionID, turnIndex),
+				Role:      "assistant",
+				Content:   assistMsg.String,
+				Timestamp: ts,
+			})
+		}
+	}
+
+	return messages, rows.Err()
+}
+
+func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, error) {
+	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var messages []ingest.Message
+	var currentModel string
+	var subAgentStack []*subAgentState
+
+	scanner := bufio.NewScanner(f)
+	// Allow large lines (events can contain tool output)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
+
+	for scanner.Scan() {
+		var event eventEnvelope
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			continue
+		}
+
+		switch event.Type {
+		case "session.model_change":
+			var data modelChangeData
+			if json.Unmarshal(event.Data, &data) == nil {
+				currentModel = data.NewModel
+			}
+
+		case "user.message":
+			var data userMessageData
+			if json.Unmarshal(event.Data, &data) == nil {
+				msg := ingest.Message{
+					ID:        event.ID,
+					Role:      "user",
+					Content:   data.Content,
+					Timestamp: util.ParseTime(event.Timestamp),
+				}
+				if len(subAgentStack) > 0 {
+					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
+				} else {
+					messages = append(messages, msg)
+				}
+			}
+
+		case "assistant.message":
+			var data assistantMessageData
+			if json.Unmarshal(event.Data, &data) == nil {
+				msg := ingest.Message{
+					ID:        data.MessageID,
+					Role:      "assistant",
+					Content:   data.Content,
+					Model:     currentModel,
+					Timestamp: util.ParseTime(event.Timestamp),
+				}
+
+				// Extract tool calls from tool requests
+				for _, req := range data.ToolRequests {
+					inputJSON, _ := json.Marshal(req.Arguments)
+					tc := ingest.ToolCall{
+						ID:     req.ToolCallID,
+						Name:   req.Name,
+						Input:  string(inputJSON),
+						Status: "running",
+					}
+					// Normalize ask_user to standard question kind
+					if tc.Name == "ask_user" {
+						tc.Name = "question"
+						tc.Input = normalizeAskUserInput(tc.Input)
+					}
+					// Normalize Copilot JIRA tool call to standard kind
+					if tc.Name == "atlassian-getJiraIssue" || tc.Name == "atlassian_getJiraIssue" {
+						tc.Name = "jira"
+					}
+					// Normalize apply_patch to edit, transforming input to structured format
+					if tc.Name == "apply_patch" {
+						tc.Name = "edit"
+						var patchText string
+						if err := json.Unmarshal(req.Arguments, &patchText); err == nil && patchText != "" {
+							filePath := extractCopilotPatchPath(patchText)
+							if filePath != "" {
+								newInput, _ := json.Marshal(map[string]string{
+									"filePath": filePath,
+									"content":  patchText,
+								})
+								tc.Input = string(newInput)
+							}
+						}
+					}
+					msg.ToolCalls = append(msg.ToolCalls, tc)
+				}
+
+				if len(subAgentStack) > 0 {
+					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
+				} else {
+					messages = append(messages, msg)
+				}
+			}
+
+		case "tool.execution_complete":
+			var data toolCompleteData
+			if json.Unmarshal(event.Data, &data) == nil {
+				if len(subAgentStack) > 0 {
+					updateToolCallResult(&subAgentStack[len(subAgentStack)-1].messages, data)
+				} else {
+					updateToolCallResult(&messages, data)
+				}
+			}
+
+		case "subagent.started":
+			var data subAgentStartedData
+			if json.Unmarshal(event.Data, &data) == nil && data.ToolCallID != "" {
+				sa := &subAgentState{
+					toolCallID:   data.ToolCallID,
+					agentName:    data.AgentName,
+					agentDisplay: data.AgentDisplayName,
+					parentMsgIdx: -1,
+					parentToolIdx: -1,
+				}
+				// Find the matching task tool call in the parent messages and mark it
+				// as the delegation point for this sub-agent.
+				for i := range slices.Backward(messages) {
+					msg := &messages[i]
+					for j := range msg.ToolCalls {
+						if msg.ToolCalls[j].ID == data.ToolCallID {
+							sa.parentMsgIdx = i
+							sa.parentToolIdx = j
+							break
+						}
+					}
+					if sa.parentMsgIdx >= 0 {
+						break
+					}
+				}
+				subAgentStack = append(subAgentStack, sa)
+			}
+
+		case "subagent.completed":
+			if len(subAgentStack) > 0 {
+				sa := subAgentStack[len(subAgentStack)-1]
+				subAgentStack = subAgentStack[:len(subAgentStack)-1]
+
+				// Create synthetic child session from buffered messages
+				synID := fmt.Sprintf("%s-sub-%s-%s", sessionID, sa.agentName, sa.toolCallID)
+				if len(synID) > 100 {
+					synID = synID[:100]
+				}
+
+				// Only create if there are actual messages
+				if len(sa.messages) > 0 {
+					// Use the first message's timestamp as created, last as updated
+					createdAt := sa.messages[0].Timestamp
+					updatedAt := sa.messages[len(sa.messages)-1].Timestamp
+
+					syn := &syntheticSession{
+						session: ingest.Session{
+							ID:        synID,
+							ParentID:  sessionID,
+							Agent:     ingest.AgentCopilot,
+							SubAgent:  sa.agentName,
+							Title:     sa.agentDisplay,
+							Status:    "completed",
+							CreatedAt: createdAt,
+							UpdatedAt: updatedAt,
+						},
+						messages: sa.messages,
+					}
+
+					a.mu.Lock()
+					a.syntheticSessions[synID] = syn
+					a.mu.Unlock()
+				}
+
+				// Update the parent's task tool call metadata to link to the synthetic session
+				if sa.parentMsgIdx >= 0 && sa.parentToolIdx >= 0 && sa.parentMsgIdx < len(messages) {
+					parentMsg := &messages[sa.parentMsgIdx]
+					if sa.parentToolIdx < len(parentMsg.ToolCalls) {
+						tc := &parentMsg.ToolCalls[sa.parentToolIdx]
+						meta := make(map[string]string)
+						if tc.Metadata != "" {
+							_ = json.Unmarshal([]byte(tc.Metadata), &meta)
+						}
+						meta["sessionId"] = synID
+						metaBytes, _ := json.Marshal(meta)
+						tc.Metadata = string(metaBytes)
+					}
+				}
+			}
+
+		case "system_reminder":
+			var data systemReminderData
+			if json.Unmarshal(event.Data, &data) == nil {
+				fileName := "AGENTS.md"
+				if data.File != "" {
+					fileName = data.File
+				}
+				msg := ingest.Message{
+					ID:        event.ID,
+					Role:      "system",
+					Content:   data.Content,
+					Timestamp: util.ParseTime(event.Timestamp),
+					Metadata: map[string]string{
+						"type": "system_reminder",
+						"file": fileName,
+					},
+				}
+				if len(subAgentStack) > 0 {
+					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
+				} else {
+					messages = append(messages, msg)
+				}
+			}
+		}
+	}
+
+	return messages, scanner.Err()
+}
+
 // countMessagesFromEvents counts user.message and assistant.message events
 // in a session's events.jsonl file. Returns 0 if the file doesn't exist.
 func (a *Adapter) countMessagesFromEvents(sessionID string) int {
@@ -890,6 +832,150 @@ func (a *Adapter) countMessagesFromEvents(sessionID string) int {
 		}
 	}
 	return count
+}
+
+// scanEventsMetadata reads a session's events.jsonl and extracts model, cost, token, and diff
+// information from session.model_change and session.shutdown events.
+func (a *Adapter) scanEventsMetadata(sessionID string) *eventsMetadata {
+	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
+	f, err := os.Open(eventsPath)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	meta := &eventsMetadata{}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	for scanner.Scan() {
+		var env struct {
+			Type string          `json:"type"`
+			Data json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &env); err != nil {
+			continue
+		}
+
+		switch env.Type {
+		case "session.model_change":
+			var data struct {
+				NewModel string `json:"newModel"`
+			}
+			if json.Unmarshal(env.Data, &data) == nil && data.NewModel != "" {
+				meta.Model = data.NewModel
+			}
+
+		case "session.shutdown":
+			var data struct {
+				CurrentModel string `json:"currentModel"`
+				CodeChanges  *struct {
+					LinesAdded    int      `json:"linesAdded"`
+					LinesRemoved  int      `json:"linesRemoved"`
+					FilesModified []string `json:"filesModified"`
+				} `json:"codeChanges"`
+				ModelMetrics map[string]*struct {
+					Requests *struct {
+						Cost float64 `json:"cost"`
+					} `json:"requests"`
+					Usage *struct {
+						InputTokens     int `json:"inputTokens"`
+						OutputTokens    int `json:"outputTokens"`
+						ReasoningTokens int `json:"reasoningTokens"`
+						CacheReadTokens int `json:"cacheReadTokens"`
+						CacheWriteTokens int `json:"cacheWriteTokens"`
+					} `json:"usage"`
+				} `json:"modelMetrics"`
+			}
+			if json.Unmarshal(env.Data, &data) != nil {
+				continue
+			}
+			if data.CurrentModel != "" {
+				meta.Model = data.CurrentModel
+			}
+			if data.CodeChanges != nil {
+				meta.DiffAdditions = data.CodeChanges.LinesAdded
+				meta.DiffDeletions = data.CodeChanges.LinesRemoved
+				if n := len(data.CodeChanges.FilesModified); n > 0 {
+					meta.DiffFiles = n
+				}
+			}
+			if data.ModelMetrics != nil {
+				for _, m := range data.ModelMetrics {
+					if m.Requests != nil {
+						meta.Cost += m.Requests.Cost
+					}
+					if m.Usage != nil {
+						meta.TokensInput += m.Usage.InputTokens
+						meta.TokensOutput += m.Usage.OutputTokens
+						meta.TokensReasoning += m.Usage.ReasoningTokens
+						meta.TokensCacheRead += m.Usage.CacheReadTokens
+						meta.TokensCacheWrite += m.Usage.CacheWriteTokens
+					}
+				}
+			}
+		}
+	}
+
+	return meta
+}
+
+// subAgentState tracks the buffering of sub-agent events between subagent.started and subagent.completed.
+type subAgentState struct {
+	toolCallID    string
+	agentName     string
+	agentDisplay  string
+	parentMsgIdx  int
+	parentToolIdx int
+	messages      []ingest.Message
+}
+
+// updateToolCallResult finds the tool call by ID and updates its output/status.
+func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
+	for i := range slices.Backward(*messages) {
+		msg := &(*messages)[i]
+		for j := range msg.ToolCalls {
+			if msg.ToolCalls[j].ID == data.ToolCallID {
+				if data.Success {
+					msg.ToolCalls[j].Status = "completed"
+				} else {
+					msg.ToolCalls[j].Status = "failed"
+				}
+				if data.Result.Content != "" {
+					msg.ToolCalls[j].Output = data.Result.Content
+				} else if data.Result.DetailedContent != "" {
+					msg.ToolCalls[j].Output = data.Result.DetailedContent
+				}
+				if data.Model != "" {
+					msg.Model = data.Model
+				}
+				return
+			}
+		}
+	}
+}
+
+// extractCopilotPatchPath extracts the file path from apply_patch text.
+// Format: "*** Begin Patch\n*** Update File: <path>\n...\n*** End Patch".
+func extractCopilotPatchPath(patch string) string {
+	for _, prefix := range []string{"*** Update File: ", "*** Add File: ", "*** Modify File: "} {
+		if _, after, found := strings.Cut(patch, prefix); found {
+			rest := after
+			if nl := strings.IndexAny(rest, "\n\r"); nl >= 0 {
+				return strings.TrimSpace(rest[:nl])
+			}
+			return strings.TrimSpace(rest)
+		}
+	}
+	return ""
+}
+
+// toolEditArgs mirrors the actual arguments in Copilot file edit/create tool requests.
+type toolEditArgs struct {
+	Path     string `json:"path"`
+	OldStr   string `json:"old_str"`
+	NewStr   string `json:"new_str"`
+	FileText string `json:"file_text"`
 }
 
 // contains reports whether sub is a substring of b.
@@ -930,7 +1016,7 @@ func normalizeAskUserInput(input string) string {
 	for i, c := range raw.Choices {
 		options[i] = map[string]string{"label": c}
 	}
-			transformed := map[string]any{
+	transformed := map[string]any{
 		"questions": []map[string]any{
 			{
 				"question": raw.Question,
@@ -945,105 +1031,19 @@ func normalizeAskUserInput(input string) string {
 
 // eventsMetadata holds summary info extracted from events.jsonl.
 type eventsMetadata struct {
-	Model          string
-	Cost           float64
-	TokensInput    int
-	TokensOutput   int
-	TokensReasoning int
-	TokensCacheRead int
+	Model            string
+	Cost             float64
+	TokensInput      int
+	TokensOutput     int
+	TokensReasoning  int
+	TokensCacheRead  int
 	TokensCacheWrite int
-	DiffAdditions  int
-	DiffDeletions  int
-	DiffFiles      int
+	DiffAdditions    int
+	DiffDeletions    int
+	DiffFiles        int
 }
 
-// scanEventsMetadata reads a session's events.jsonl and extracts model, cost, token, and diff
-// information from session.model_change and session.shutdown events.
-func (a *Adapter) scanEventsMetadata(sessionID string) *eventsMetadata {
-	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
-	f, err := os.Open(eventsPath)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-
-	meta := &eventsMetadata{}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-
-	for scanner.Scan() {
-		var env struct {
-			Type string          `json:"type"`
-			Data json.RawMessage `json:"data"`
-		}
-		if err := json.Unmarshal(scanner.Bytes(), &env); err != nil {
-			continue
-		}
-
-		switch env.Type {
-		case "session.model_change":
-			var data struct {
-				NewModel string `json:"newModel"`
-			}
-			if json.Unmarshal(env.Data, &data) == nil && data.NewModel != "" {
-				meta.Model = data.NewModel
-			}
-
-		case "session.shutdown":
-			var data struct {
-				CurrentModel string `json:"currentModel"`
-				CodeChanges  *struct {
-					LinesAdded   int      `json:"linesAdded"`
-					LinesRemoved int      `json:"linesRemoved"`
-					FilesModified []string `json:"filesModified"`
-				} `json:"codeChanges"`
-				ModelMetrics map[string]*struct {
-					Requests *struct {
-						Cost float64 `json:"cost"`
-					} `json:"requests"`
-					Usage *struct {
-						InputTokens    int `json:"inputTokens"`
-						OutputTokens   int `json:"outputTokens"`
-						ReasoningTokens int `json:"reasoningTokens"`
-						CacheReadTokens int `json:"cacheReadTokens"`
-						CacheWriteTokens int `json:"cacheWriteTokens"`
-					} `json:"usage"`
-				} `json:"modelMetrics"`
-			}
-			if json.Unmarshal(env.Data, &data) != nil {
-				continue
-			}
-			if data.CurrentModel != "" {
-				meta.Model = data.CurrentModel
-			}
-			if data.CodeChanges != nil {
-				meta.DiffAdditions = data.CodeChanges.LinesAdded
-				meta.DiffDeletions = data.CodeChanges.LinesRemoved
-				if n := len(data.CodeChanges.FilesModified); n > 0 {
-					meta.DiffFiles = n
-				}
-			}
-			if data.ModelMetrics != nil {
-				for _, m := range data.ModelMetrics {
-					if m.Requests != nil {
-						meta.Cost += m.Requests.Cost
-					}
-					if m.Usage != nil {
-						meta.TokensInput += m.Usage.InputTokens
-						meta.TokensOutput += m.Usage.OutputTokens
-						meta.TokensReasoning += m.Usage.ReasoningTokens
-						meta.TokensCacheRead += m.Usage.CacheReadTokens
-						meta.TokensCacheWrite += m.Usage.CacheWriteTokens
-					}
-				}
-			}
-		}
-	}
-
-	return meta
-}
-
-// Event types for parsing events.jsonl
+// Event types for parsing events.jsonl.
 
 type eventEnvelope struct {
 	Type      string          `json:"type"`
@@ -1059,12 +1059,6 @@ type modelChangeData struct {
 }
 
 type subAgentStartedData struct {
-	ToolCallID       string `json:"toolCallId"`
-	AgentName        string `json:"agentName"`
-	AgentDisplayName string `json:"agentDisplayName"`
-}
-
-type subAgentCompletedData struct {
 	ToolCallID       string `json:"toolCallId"`
 	AgentName        string `json:"agentName"`
 	AgentDisplayName string `json:"agentDisplayName"`

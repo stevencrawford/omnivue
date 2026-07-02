@@ -25,7 +25,7 @@ func getCursorDB(t *testing.T) string {
 	}
 
 	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
+		if _, err := os.Stat(p); err == nil { //nolint:gosec
 			return p
 		}
 	}

@@ -54,7 +54,7 @@ func ParseMillis(s string) int64 {
 	// Try float (seconds with decimals)
 	var f float64
 	if _, err := fmt.Sscanf(s, "%f", &f); err == nil {
-		return int64(f)
+		return int64(f) //nolint:gosec
 	}
 	return 0
 }

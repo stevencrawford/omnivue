@@ -82,7 +82,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			break
 		}
 		ans := strings.TrimSpace(scanner.Text())
-		if ans != "" && strings.ToLower(ans) != "y" && strings.ToLower(ans) != "yes" {
+		if ans != "" && !strings.EqualFold(ans, "y") && !strings.EqualFold(ans, "yes") {
 			fmt.Fprintln(os.Stderr, "  Skipped.")
 			fmt.Fprintln(os.Stderr)
 			continue

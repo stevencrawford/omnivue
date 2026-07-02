@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"strconv"
@@ -16,7 +17,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/claude-code"
+	claudecode "github.com/stevencrawford/omnivue/internal/ingest/claude-code"
 	"github.com/stevencrawford/omnivue/internal/ingest/codex"
 	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
 	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
@@ -138,313 +139,7 @@ func pollInterval(liveCount int) time.Duration {
 	return pollCadenceIdle
 }
 
-// refreshSessions re-reads the session list from every adapter, applies the
-// liveness heuristic (sets Status="active" when UpdatedAt is within liveWindow),
-// and returns the set of session IDs whose UpdatedAt changed since the last
-// refresh plus the total live count.
-func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveCount int) {
-	s.mu.RLock()
-	adapters := make(map[string]ingest.Adapter, len(s.adapters))
-	for k, v := range s.adapters {
-		adapters[k] = v
-	}
-	prev := make(map[string]time.Time, len(s.sessions))
-	for _, sess := range s.sessions {
-		prev[sess.ID] = sess.UpdatedAt
-	}
-	s.mu.RUnlock()
-
-	var allSessions []ingest.Session
-	now := time.Now()
-	for sourceID, adapter := range adapters {
-		sessions, err := adapter.ListSessions(ctx)
-		if err != nil {
-			slog.Warn("failed to list sessions", "source", sourceID, "error", err)
-			continue
-		}
-		for i := range sessions {
-			sessions[i].SourceID = sourceID
-			// Liveness heuristic: a session is "active" if its last update is
-			// within liveWindow. We override whatever the adapter hardcoded so
-			// the frontend gets a single source of truth.
-			if !sessions[i].UpdatedAt.IsZero() && now.Sub(sessions[i].UpdatedAt) < liveWindow {
-				if sessions[i].Status != "active" {
-					sessions[i].Status = "active"
-				}
-				liveCount++
-			} else if sessions[i].Status == "active" {
-				sessions[i].Status = "completed"
-			}
-		}
-		allSessions = append(allSessions, sessions...)
-	}
-
-	// Filter out Copilot sessions with no messages (e.g. sessions created on CLI launch)
-	filtered := allSessions[:0]
-	for _, sess := range allSessions {
-		if sess.Agent == ingest.AgentCopilot && sess.MessageCount == 0 {
-			continue
-		}
-		filtered = append(filtered, sess)
-	}
-	allSessions = filtered
-
-	// Apply display name overrides
-	if s.store != nil {
-		overrides, err := s.store.AllSessionNames()
-		if err == nil {
-			for i := range allSessions {
-				if name, ok := overrides[allSessions[i].ID]; ok {
-					allSessions[i].Title = name
-				}
-			}
-		}
-	}
-
-	// Diff against the previous snapshot to identify sessions whose content
-	// has changed since the last refresh. Newly-arrived sessions and sessions
-	// whose UpdatedAt moved forward are both considered changed.
-	for _, sess := range allSessions {
-		if prevTime, ok := prev[sess.ID]; !ok || !sess.UpdatedAt.Equal(prevTime) {
-			changedIDs = append(changedIDs, sess.ID)
-		}
-	}
-
-	s.mu.Lock()
-	s.sessions = allSessions
-	s.mu.Unlock()
-	return changedIDs, liveCount
-}
-
-func isSQLiteBusy(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "SQLITE_BUSY")
-}
-
-func retryOnBusy(fn func() error) error {
-	var err error
-	for i := 0; i < 3; i++ {
-		err = fn()
-		if err == nil || !isSQLiteBusy(err) {
-			return err
-		}
-		time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
-	}
-	return err
-}
-
-// isPlanTool returns true for tool call names whose Input should be included
-// in the search index along with Name and Output.
-func isPlanTool(name string) bool {
-	switch name {
-	case "todowrite", "task", "task_complete", "task-complete":
-		return true
-	}
-	return false
-}
-
-// indexSessions indexes session content into the FTS5 search index.
-// It runs incrementally: sessions are only re-indexed if their content hash changes.
-func (s *State) indexSessions(ctx context.Context) {
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Error("panic in indexSessions", "recover", r)
-		}
-	}()
-	if s.store == nil {
-		return
-	}
-
-	s.mu.RLock()
-	sessions := make([]ingest.Session, len(s.sessions))
-	copy(sessions, s.sessions)
-	adapters := make(map[string]ingest.Adapter, len(s.adapters))
-	for k, v := range s.adapters {
-		adapters[k] = v
-	}
-	s.mu.RUnlock()
-
-	for _, sess := range sessions {
-		adapter := adapters[sess.SourceID]
-		if adapter == nil {
-			continue
-		}
-
-		// Get messages for hashing
-		messages, err := adapter.GetMessages(ctx, sess.ID)
-		if err != nil {
-			continue
-		}
-		if len(messages) == 0 {
-			continue
-		}
-
-		// Build content for each chunk type
-		var messagesBuilder strings.Builder
-		for _, msg := range messages {
-			messagesBuilder.WriteString(msg.Content)
-			messagesBuilder.WriteString("\n")
-			for _, tc := range msg.ToolCalls {
-				messagesBuilder.WriteString(tc.Name)
-				messagesBuilder.WriteString(" ")
-				if isPlanTool(tc.Name) && tc.Input != "" {
-					messagesBuilder.WriteString(tc.Input)
-					messagesBuilder.WriteString(" ")
-				}
-				messagesBuilder.WriteString(tc.Output)
-				messagesBuilder.WriteString("\n")
-			}
-		}
-		messagesContent := messagesBuilder.String()
-
-		// Build plan content
-		var planContent string
-		if plan, err := adapter.GetPlan(ctx, sess.ID); err == nil && plan != nil {
-			planContent = plan.Markdown
-		}
-
-		// Build name content (title is searchable)
-		nameContent := sess.Title
-
-		// Get scratch files for hash comparison and indexing
-		scratchFiles, _ := s.store.ListScratchFiles(sess.ID)
-		var scratchBuilder strings.Builder
-		for _, sf := range scratchFiles {
-			scratchBuilder.WriteString(sf.Title)
-			scratchBuilder.WriteString("\n")
-			scratchBuilder.WriteString(sf.Content)
-			scratchBuilder.WriteString("\n")
-		}
-		scratchContent := scratchBuilder.String()
-
-		// Combined content for hash comparison
-		combined := nameContent + "\n" + planContent + "\n" + messagesContent + "\n" + scratchContent
-		h := sha256.Sum256([]byte(combined))
-		contentHash := hex.EncodeToString(h[:8])
-
-		// Check if already indexed with same hash
-		existingHash, err := s.store.GetIndexState(sess.ID)
-		if err != nil {
-			continue
-		}
-		if existingHash == contentHash {
-			continue // already up to date
-		}
-
-		// Clear old index entries and re-index
-		if err := retryOnBusy(func() error { return s.store.ClearSessionIndex(sess.ID) }); err != nil {
-			slog.Warn("failed to clear session index", "session", sess.ID, "error", err)
-			continue
-		}
-
-		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
-
-		// Index name chunk
-		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0) }); err != nil {
-			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
-		}
-
-		// Index plan chunk
-		if planContent != "" {
-			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0) }); err != nil {
-				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
-			}
-		}
-
-		// Index individual messages with their index for exact message targeting
-		for mi, msg := range messages {
-			var msgBuilder strings.Builder
-			msgBuilder.WriteString(msg.Content)
-			msgBuilder.WriteString("\n")
-			for _, tc := range msg.ToolCalls {
-				msgBuilder.WriteString(tc.Name)
-				msgBuilder.WriteString(" ")
-				if isPlanTool(tc.Name) && tc.Input != "" {
-					msgBuilder.WriteString(tc.Input)
-					msgBuilder.WriteString(" ")
-				}
-				msgBuilder.WriteString(tc.Output)
-				msgBuilder.WriteString("\n")
-			}
-			msgContent := msgBuilder.String()
-			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi) }); err != nil {
-				slog.Warn("failed to index session message", "session", sess.ID, "idx", mi, "error", err)
-			}
-		}
-
-		// Index scratch files chunk
-		if len(scratchFiles) > 0 {
-			if err := retryOnBusy(func() error { return s.store.ClearSessionChunkType(sess.ID, "scratch") }); err != nil {
-				slog.Warn("failed to clear scratch index", "session", sess.ID, "error", err)
-			}
-			for _, sf := range scratchFiles {
-				if sf.Content == "" {
-					continue
-				}
-				fileContent := sf.Title + "\n" + sf.Content
-				if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
-					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
-				}
-			}
-		}
-
-		// Update index state
-		if err := retryOnBusy(func() error { return s.store.UpdateIndexState(sess.ID, sess.SourceID, contentHash) }); err != nil {
-			slog.Warn("failed to update index state", "session", sess.ID, "error", err)
-		}
-	}
-}
-
-func (s *State) pollLoop(ctx context.Context) {
-	// Track last known modification times per source
-	lastMod := make(map[string]int64)
-	var liveCount int
-
-	for {
-		interval := pollInterval(liveCount)
-		timer := time.NewTimer(interval)
-
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-			changed := false
-			for sourceID, adapter := range s.adapters {
-				ts, err := adapter.LastModified(ctx)
-				if err != nil {
-					continue
-				}
-				if prev, ok := lastMod[sourceID]; !ok || ts > prev {
-					lastMod[sourceID] = ts
-					if ok { // skip first iteration
-						changed = true
-					}
-				}
-			}
-			if changed {
-				ids, lc := s.refreshSessions(ctx)
-				liveCount = lc
-				go s.indexSessions(ctx)
-				s.sendEvent(sseEvent{Name: "update"})
-				if len(ids) > 0 {
-					data, _ := json.Marshal(map[string]any{"ids": ids})
-					s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
-				}
-			} else if liveCount > 0 {
-				// No source-level change, but liveness windows may have expired
-				// since the last refresh (e.g. a session went idle 3 min ago).
-				// Re-run the heuristic to keep Status fresh without the heavier
-				// full reload cost — but only if the snapshot might be stale.
-				_, lc := s.refreshSessions(ctx)
-				if lc != liveCount {
-					// Status transitions are visible to clients; push an update.
-					s.sendEvent(sseEvent{Name: "update"})
-				}
-				liveCount = lc
-			}
-		}
-	}
-}
+// --- Exported State methods ---
 
 // ShutdownCh returns the shutdown signal channel.
 func (s *State) ShutdownCh() <-chan struct{} {
@@ -460,35 +155,12 @@ func (s *State) RestartCh() <-chan string {
 func (s *State) CloseAllSubscribers() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.pollStop != nil {
+		s.pollStop()
+	}
 	for ch := range s.subscribers {
 		close(ch)
 		delete(s.subscribers, ch)
-	}
-}
-
-func (s *State) subscribe() chan sseEvent {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ch := make(chan sseEvent, 16)
-	s.subscribers[ch] = struct{}{}
-	return ch
-}
-
-func (s *State) unsubscribe(ch chan sseEvent) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.subscribers, ch)
-}
-
-func (s *State) sendEvent(event sseEvent) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for ch := range s.subscribers {
-		select {
-		case ch <- event:
-		default:
-			// Drop event if subscriber is slow
-		}
 	}
 }
 
@@ -706,42 +378,6 @@ func (s *State) GetResumeCommand(ctx context.Context, sessionID string) (string,
 	return adapter.ResumeCommand(sess), nil
 }
 
-// reindexSessionScratch re-indexes all scratch files for a session.
-func (s *State) reindexSessionScratch(sessionID string) {
-	if s.store == nil {
-		return
-	}
-	scratchFiles, err := s.store.ListScratchFiles(sessionID)
-	if err != nil {
-		return
-	}
-	// Look up session info for sourceID/repository
-	sourceID := ""
-	repository := ""
-	s.mu.RLock()
-	for _, sess := range s.sessions {
-		if sess.ID == sessionID {
-			sourceID = sess.SourceID
-			repository = sess.Repository
-			break
-		}
-	}
-	s.mu.RUnlock()
-
-	if err := retryOnBusy(func() error { return s.store.ClearSessionChunkType(sessionID, "scratch") }); err != nil {
-		return
-	}
-	for _, sf := range scratchFiles {
-		if sf.Content == "" {
-			continue
-		}
-		content := sf.Title + "\n" + sf.Content
-		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
-			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
-		}
-	}
-}
-
 // Search performs full-text search across indexed session content.
 func (s *State) Search(query string, limit int, sessionID string) ([]store.SearchResult, error) {
 	if s.store == nil {
@@ -890,6 +526,375 @@ func (s *State) DeleteScratchFile(id string) error {
 	return s.store.DeleteScratchFile(id)
 }
 
+// --- Standalone helper functions ---
+
+func isSQLiteBusy(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "SQLITE_BUSY")
+}
+
+func retryOnBusy(fn func() error) error {
+	var err error
+	for i := range 3 {
+		err = fn()
+		if err == nil || !isSQLiteBusy(err) {
+			return err
+		}
+		time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
+	}
+	return err
+}
+
+// isPlanTool returns true for tool call names whose Input should be included
+// in the search index along with Name and Output.
+func isPlanTool(name string) bool {
+	switch name {
+	case "todowrite", "task", "task_complete", "task-complete":
+		return true
+	}
+	return false
+}
+
+// --- Unexported State methods ---
+
+// refreshSessions re-reads the session list from every adapter, applies the
+// liveness heuristic (sets Status="active" when UpdatedAt is within liveWindow),
+// and returns the set of session IDs whose UpdatedAt changed since the last
+// refresh plus the total live count.
+func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveCount int) {
+	s.mu.RLock()
+	adapters := make(map[string]ingest.Adapter, len(s.adapters))
+	maps.Copy(adapters, s.adapters)
+	prev := make(map[string]time.Time, len(s.sessions))
+	for _, sess := range s.sessions {
+		prev[sess.ID] = sess.UpdatedAt
+	}
+	s.mu.RUnlock()
+
+	var allSessions []ingest.Session
+	for sourceID, adapter := range adapters {
+		sessions, err := adapter.ListSessions(ctx)
+		if err != nil {
+			slog.Warn("failed to list sessions", "source", sourceID, "error", err)
+			continue
+		}
+		for i := range sessions {
+			sessions[i].SourceID = sourceID
+			// Liveness heuristic: a session is "active" if its last update is
+			// within liveWindow. We override whatever the adapter hardcoded so
+			// the frontend gets a single source of truth.
+			if !sessions[i].UpdatedAt.IsZero() && time.Since(sessions[i].UpdatedAt) < liveWindow {
+				if sessions[i].Status != "active" {
+					sessions[i].Status = "active"
+				}
+				liveCount++
+			} else if sessions[i].Status == "active" {
+				sessions[i].Status = "completed"
+			}
+		}
+		allSessions = append(allSessions, sessions...)
+	}
+
+	// Filter out Copilot sessions with no messages (e.g. sessions created on CLI launch)
+	filtered := allSessions[:0]
+	for _, sess := range allSessions {
+		if sess.Agent == ingest.AgentCopilot && sess.MessageCount == 0 {
+			continue
+		}
+		filtered = append(filtered, sess)
+	}
+	allSessions = filtered
+
+	// Apply display name overrides
+	if s.store != nil {
+		overrides, err := s.store.AllSessionNames()
+		if err == nil {
+			for i := range allSessions {
+				if name, ok := overrides[allSessions[i].ID]; ok {
+					allSessions[i].Title = name
+				}
+			}
+		}
+	}
+
+	// Diff against the previous snapshot to identify sessions whose content
+	// has changed since the last refresh. Newly-arrived sessions and sessions
+	// whose UpdatedAt moved forward are both considered changed.
+	for _, sess := range allSessions {
+		if prevTime, ok := prev[sess.ID]; !ok || !sess.UpdatedAt.Equal(prevTime) {
+			changedIDs = append(changedIDs, sess.ID)
+		}
+	}
+
+	s.mu.Lock()
+	s.sessions = allSessions
+	s.mu.Unlock()
+	return changedIDs, liveCount
+}
+
+// indexSessions indexes session content into the FTS5 search index.
+// It runs incrementally: sessions are only re-indexed if their content hash changes.
+func (s *State) indexSessions(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in indexSessions", "recover", r)
+		}
+	}()
+	if s.store == nil {
+		return
+	}
+
+	s.mu.RLock()
+	sessions := make([]ingest.Session, len(s.sessions))
+	copy(sessions, s.sessions)
+	adapters := make(map[string]ingest.Adapter, len(s.adapters))
+	maps.Copy(adapters, s.adapters)
+	s.mu.RUnlock()
+
+	for _, sess := range sessions {
+		adapter := adapters[sess.SourceID]
+		if adapter == nil {
+			continue
+		}
+
+		// Get messages for hashing
+		messages, err := adapter.GetMessages(ctx, sess.ID)
+		if err != nil {
+			continue
+		}
+		if len(messages) == 0 {
+			continue
+		}
+
+		// Build content for each chunk type
+		var messagesBuilder strings.Builder
+		for _, msg := range messages {
+			messagesBuilder.WriteString(msg.Content)
+			messagesBuilder.WriteString("\n")
+			for _, tc := range msg.ToolCalls {
+				messagesBuilder.WriteString(tc.Name)
+				messagesBuilder.WriteString(" ")
+				if isPlanTool(tc.Name) && tc.Input != "" {
+					messagesBuilder.WriteString(tc.Input)
+					messagesBuilder.WriteString(" ")
+				}
+				messagesBuilder.WriteString(tc.Output)
+				messagesBuilder.WriteString("\n")
+			}
+		}
+		messagesContent := messagesBuilder.String()
+
+		// Build plan content
+		var planContent string
+		if plan, err := adapter.GetPlan(ctx, sess.ID); err == nil && plan != nil {
+			planContent = plan.Markdown
+		}
+
+		// Build name content (title is searchable)
+		nameContent := sess.Title
+
+		// Get scratch files for hash comparison and indexing
+		scratchFiles, _ := s.store.ListScratchFiles(sess.ID)
+		var scratchBuilder strings.Builder
+		for _, sf := range scratchFiles {
+			scratchBuilder.WriteString(sf.Title)
+			scratchBuilder.WriteString("\n")
+			scratchBuilder.WriteString(sf.Content)
+			scratchBuilder.WriteString("\n")
+		}
+		scratchContent := scratchBuilder.String()
+
+		// Combined content for hash comparison
+		combined := nameContent + "\n" + planContent + "\n" + messagesContent + "\n" + scratchContent
+		h := sha256.Sum256([]byte(combined))
+		contentHash := hex.EncodeToString(h[:8])
+
+		// Check if already indexed with same hash
+		existingHash, err := s.store.GetIndexState(sess.ID)
+		if err != nil {
+			continue
+		}
+		if existingHash == contentHash {
+			continue // already up to date
+		}
+
+		// Clear old index entries and re-index
+		if err := retryOnBusy(func() error { return s.store.ClearSessionIndex(sess.ID) }); err != nil {
+			slog.Warn("failed to clear session index", "session", sess.ID, "error", err)
+			continue
+		}
+
+		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
+
+		// Index name chunk
+		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0) }); err != nil {
+			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
+		}
+
+		// Index plan chunk
+		if planContent != "" {
+			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0) }); err != nil {
+				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
+			}
+		}
+
+		// Index individual messages with their index for exact message targeting
+		for mi, msg := range messages {
+			var msgBuilder strings.Builder
+			msgBuilder.WriteString(msg.Content)
+			msgBuilder.WriteString("\n")
+			for _, tc := range msg.ToolCalls {
+				msgBuilder.WriteString(tc.Name)
+				msgBuilder.WriteString(" ")
+				if isPlanTool(tc.Name) && tc.Input != "" {
+					msgBuilder.WriteString(tc.Input)
+					msgBuilder.WriteString(" ")
+				}
+				msgBuilder.WriteString(tc.Output)
+				msgBuilder.WriteString("\n")
+			}
+			msgContent := msgBuilder.String()
+			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi) }); err != nil {
+				slog.Warn("failed to index session message", "session", sess.ID, "idx", mi, "error", err)
+			}
+		}
+
+		// Index scratch files chunk
+		if len(scratchFiles) > 0 {
+			if err := retryOnBusy(func() error { return s.store.ClearSessionChunkType(sess.ID, "scratch") }); err != nil {
+				slog.Warn("failed to clear scratch index", "session", sess.ID, "error", err)
+			}
+			for _, sf := range scratchFiles {
+				if sf.Content == "" {
+					continue
+				}
+				fileContent := sf.Title + "\n" + sf.Content
+				if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
+					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
+				}
+			}
+		}
+
+		// Update index state
+		if err := retryOnBusy(func() error { return s.store.UpdateIndexState(sess.ID, sess.SourceID, contentHash) }); err != nil {
+			slog.Warn("failed to update index state", "session", sess.ID, "error", err)
+		}
+	}
+}
+
+func (s *State) pollLoop(ctx context.Context) {
+	// Track last known modification times per source
+	lastMod := make(map[string]int64)
+	var liveCount int
+
+	for {
+		interval := pollInterval(liveCount)
+		timer := time.NewTimer(interval)
+
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+			changed := false
+			for sourceID, adapter := range s.adapters {
+				ts, err := adapter.LastModified(ctx)
+				if err != nil {
+					continue
+				}
+				if prev, ok := lastMod[sourceID]; !ok || ts > prev {
+					lastMod[sourceID] = ts
+					if ok { // skip first iteration
+						changed = true
+					}
+				}
+			}
+			if changed {
+				ids, lc := s.refreshSessions(ctx)
+				liveCount = lc
+				go s.indexSessions(ctx)
+				s.sendEvent(sseEvent{Name: "update"})
+				if len(ids) > 0 {
+					data, _ := json.Marshal(map[string]any{"ids": ids})
+					s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+				}
+			} else if liveCount > 0 {
+				// No source-level change, but liveness windows may have expired
+				// since the last refresh (e.g. a session went idle 3 min ago).
+				// Re-run the heuristic to keep Status fresh without the heavier
+				// full reload cost — but only if the snapshot might be stale.
+				_, lc := s.refreshSessions(ctx)
+				if lc != liveCount {
+					// Status transitions are visible to clients; push an update.
+					s.sendEvent(sseEvent{Name: "update"})
+				}
+				liveCount = lc
+			}
+		}
+	}
+}
+
+func (s *State) subscribe() chan sseEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ch := make(chan sseEvent, 16)
+	s.subscribers[ch] = struct{}{}
+	return ch
+}
+
+func (s *State) unsubscribe(ch chan sseEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.subscribers, ch)
+}
+
+func (s *State) sendEvent(event sseEvent) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for ch := range s.subscribers {
+		select {
+		case ch <- event:
+		default:
+			// Drop event if subscriber is slow
+		}
+	}
+}
+
+// reindexSessionScratch re-indexes all scratch files for a session.
+func (s *State) reindexSessionScratch(sessionID string) {
+	if s.store == nil {
+		return
+	}
+	scratchFiles, err := s.store.ListScratchFiles(sessionID)
+	if err != nil {
+		return
+	}
+	// Look up session info for sourceID/repository
+	sourceID := ""
+	repository := ""
+	s.mu.RLock()
+	for _, sess := range s.sessions {
+		if sess.ID == sessionID {
+			sourceID = sess.SourceID
+			repository = sess.Repository
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if err := retryOnBusy(func() error { return s.store.ClearSessionChunkType(sessionID, "scratch") }); err != nil {
+		return
+	}
+	for _, sf := range scratchFiles {
+		if sf.Content == "" {
+			continue
+		}
+		content := sf.Title + "\n" + sf.Content
+		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
+			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
+		}
+	}
+}
+
 // --- HTTP Handler ---
 
 // NewHandler creates the HTTP handler for the Omnivue server.
@@ -946,14 +951,14 @@ func NewHandler(state *State) http.Handler {
 
 func handleStatus(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		resp := map[string]interface{}{
+		resp := map[string]any{
 			"version": version.Version,
 			"pid":     os.Getpid(),
 			"sources": len(state.GetSources()),
 			"sessions": len(state.GetSessions()),
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}
 }
 
@@ -964,7 +969,7 @@ func handleSources(state *State) http.HandlerFunc {
 			sources = []ingest.Source{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sources)
+		_ = json.NewEncoder(w).Encode(sources)
 	}
 }
 
@@ -1029,7 +1034,7 @@ func handleAddSource(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(src)
+		_ = json.NewEncoder(w).Encode(src)
 	}
 }
 
@@ -1080,7 +1085,7 @@ func handleGetConfig(state *State) http.HandlerFunc {
 			cfg = make(map[string]string)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cfg)
+		_ = json.NewEncoder(w).Encode(cfg)
 	}
 }
 
@@ -1103,7 +1108,7 @@ func handleSetConfig(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1111,7 +1116,7 @@ func handleSessions(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessions := state.GetSessions()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sessions)
+		_ = json.NewEncoder(w).Encode(sessions)
 	}
 }
 
@@ -1124,7 +1129,7 @@ func handleGetSession(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(session)
+		_ = json.NewEncoder(w).Encode(session)
 	}
 }
 
@@ -1137,7 +1142,7 @@ func handleGetMessages(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(messages)
+		_ = json.NewEncoder(w).Encode(messages)
 	}
 }
 
@@ -1150,7 +1155,7 @@ func handleGetPlan(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(plan)
+		_ = json.NewEncoder(w).Encode(plan)
 	}
 }
 
@@ -1166,7 +1171,7 @@ func handleGetDiffs(state *State) http.HandlerFunc {
 			diffs = []ingest.DiffFile{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(diffs)
+		_ = json.NewEncoder(w).Encode(diffs)
 	}
 }
 
@@ -1182,7 +1187,7 @@ func handleGetEdits(state *State) http.HandlerFunc {
 			edits = []ingest.FileEdit{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(edits)
+		_ = json.NewEncoder(w).Encode(edits)
 	}
 }
 
@@ -1195,7 +1200,7 @@ func handleGetResumeCommand(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"command": cmd})
+		_ = json.NewEncoder(w).Encode(map[string]string{"command": cmd})
 	}
 }
 
@@ -1218,7 +1223,7 @@ func handleSetSessionName(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1230,7 +1235,7 @@ func handleClearSessionName(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1246,7 +1251,7 @@ func handleListScratchFiles(state *State) http.HandlerFunc {
 			files = []store.ScratchFile{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(files)
+		_ = json.NewEncoder(w).Encode(files)
 	}
 }
 
@@ -1284,7 +1289,7 @@ func handleCreateScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(f)
+		_ = json.NewEncoder(w).Encode(f)
 	}
 }
 
@@ -1297,7 +1302,7 @@ func handleGetScratchFile(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(f)
+		_ = json.NewEncoder(w).Encode(f)
 	}
 }
 
@@ -1322,7 +1327,7 @@ func handleUpdateScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1347,7 +1352,7 @@ func handleRenameScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1361,7 +1366,7 @@ func handleDeleteScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1376,7 +1381,7 @@ func handleListAllScratchFiles(state *State) http.HandlerFunc {
 			files = []store.ScratchFile{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(files)
+		_ = json.NewEncoder(w).Encode(files)
 	}
 }
 
@@ -1391,7 +1396,7 @@ func handleGetRecentSearches(state *State) http.HandlerFunc {
 			searches = []string{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(searches)
+		_ = json.NewEncoder(w).Encode(searches)
 	}
 }
 
@@ -1407,7 +1412,7 @@ func handleSetRecentSearches(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1416,7 +1421,7 @@ func handleSearch(state *State) http.HandlerFunc {
 		q := r.URL.Query().Get("q")
 		if q == "" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]store.SearchResult{})
+			_ = json.NewEncoder(w).Encode([]store.SearchResult{})
 			return
 		}
 		limit := 50
@@ -1431,14 +1436,14 @@ func handleSearch(state *State) http.HandlerFunc {
 			// FTS5 syntax errors should return empty results, not 500
 			slog.Warn("search error", "query", q, "error", err)
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]store.SearchResult{})
+			_ = json.NewEncoder(w).Encode([]store.SearchResult{})
 			return
 		}
 		if results == nil {
 			results = []store.SearchResult{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(results)
+		_ = json.NewEncoder(w).Encode(results)
 	}
 }
 
@@ -1448,7 +1453,7 @@ func handleListFolders(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]store.Folder{})
+			_ = json.NewEncoder(w).Encode([]store.Folder{})
 			return
 		}
 		folders, err := state.store.ListFolders()
@@ -1460,7 +1465,7 @@ func handleListFolders(state *State) http.HandlerFunc {
 			folders = []store.Folder{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(folders)
+		_ = json.NewEncoder(w).Encode(folders)
 	}
 }
 
@@ -1501,7 +1506,7 @@ func handleCreateFolder(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(f)
+		_ = json.NewEncoder(w).Encode(f)
 	}
 }
 
@@ -1554,7 +1559,7 @@ func handleGetFolderSessions(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]string{})
+			_ = json.NewEncoder(w).Encode([]string{})
 			return
 		}
 		id := r.PathValue("id")
@@ -1567,7 +1572,7 @@ func handleGetFolderSessions(state *State) http.HandlerFunc {
 			sessionIDs = []string{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(sessionIDs)
+		_ = json.NewEncoder(w).Encode(sessionIDs)
 	}
 }
 
@@ -1609,7 +1614,7 @@ func handleListBookmarks(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]store.Bookmark{})
+			_ = json.NewEncoder(w).Encode([]store.Bookmark{})
 			return
 		}
 		bookmarks, err := state.store.ListBookmarks()
@@ -1621,7 +1626,7 @@ func handleListBookmarks(state *State) http.HandlerFunc {
 			bookmarks = []store.Bookmark{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(bookmarks)
+		_ = json.NewEncoder(w).Encode(bookmarks)
 	}
 }
 
@@ -1658,7 +1663,7 @@ func handleCreateBookmark(state *State) http.HandlerFunc {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"action": "deleted",
 				"id":     existing.ID,
 			})
@@ -1680,7 +1685,7 @@ func handleCreateBookmark(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"action":   "created",
 			"bookmark": b,
 		})
@@ -1754,7 +1759,7 @@ func handleReset(state *State) http.HandlerFunc {
 		// Notify frontend to reload
 		state.sendEvent(sseEvent{Name: "reset"})
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -1823,5 +1828,3 @@ func handleSPA() http.HandlerFunc {
 		fileServer.ServeHTTP(w, r)
 	}
 }
-
-

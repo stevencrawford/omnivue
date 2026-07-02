@@ -80,7 +80,7 @@ func TestHandleStatus(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 
-	var body map[string]interface{}
+	var body map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,9 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 	}
 
 	// Simulate the session aging out: 5 min ago, well outside the 2-min window.
-	state.adapters["src-1"].(*mockAdapter).sessions[0].UpdatedAt = fresh.Add(-5 * time.Minute)
+	if ma, ok := state.adapters["src-1"].(*mockAdapter); ok {
+		ma.sessions[0].UpdatedAt = fresh.Add(-5 * time.Minute)
+	}
 
 	changed, live := state.refreshSessions(context.Background())
 	if live != 0 {

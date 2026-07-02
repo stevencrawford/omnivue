@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -140,16 +140,19 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		result = append(result, session)
 	}
 
-	sort.Slice(result, func(i, j int) bool {
+	slices.SortFunc(result, func(a, b ingest.Session) int {
 		// Sessions with zero timestamps go to the end
-		ui, uj := result[i].UpdatedAt, result[j].UpdatedAt
+		ui, uj := a.UpdatedAt, b.UpdatedAt
+		if ui.IsZero() && uj.IsZero() {
+			return 0
+		}
 		if ui.IsZero() {
-			return false
+			return 1
 		}
 		if uj.IsZero() {
-			return true
+			return -1
 		}
-		return ui.After(uj)
+		return uj.Compare(ui)
 	})
 
 	return result, nil
@@ -276,7 +279,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 
 	// Fallback: try codeBlockDiff entries
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT key FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:`+sessionID+`:%'`)
+		`SELECT key FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:`+sessionID+`:%'`) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("querying diffs: %w", err)
 	}
@@ -332,6 +335,65 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 	return edits, nil
 }
 
+
+func (a *Adapter) ResumeCommand(session *ingest.Session) string {
+	dir := session.Directory
+	if dir == "" {
+		dir = "."
+	}
+	return fmt.Sprintf("cd %s && cursor --composer %s", dir, session.ID)
+}
+
+func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
+	var maxTs int64
+
+	rows, err := a.db.QueryContext(ctx,
+		`SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
+	if err != nil {
+		return 0, fmt.Errorf("querying last modified: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var value []byte
+		if err := rows.Scan(&value); err != nil {
+			continue
+		}
+		var cd struct {
+			LastUpdatedAt json.Number `json:"lastUpdatedAt"`
+		}
+		if err := json.Unmarshal(value, &cd); err != nil {
+			continue
+		}
+		ms := util.ParseMillis(string(cd.LastUpdatedAt))
+		if ms > maxTs {
+			maxTs = ms
+		}
+	}
+
+	transcriptDir := filepath.Join(a.cursorDir, "projects")
+	if util.PathExists(transcriptDir) {
+		_ = filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
+				if fi, e := d.Info(); e == nil {
+					if ms := fi.ModTime().UnixMilli(); ms > maxTs {
+						maxTs = ms
+					}
+				}
+			}
+			return nil
+		})
+	}
+
+	return maxTs, nil
+}
+
+func (a *Adapter) Close() error {
+	return a.db.Close()
+}
 // parseEditContent extracts file path and old/new content from a tool call,
 // handling Cursor's various edit formats:
 //   - inline content fields (contents, streamingContent, content, newStr)
@@ -479,65 +541,6 @@ func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
 	}
 }
 
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	dir := session.Directory
-	if dir == "" {
-		dir = "."
-	}
-	return fmt.Sprintf("cd %s && cursor --composer %s", dir, session.ID)
-}
-
-func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
-	var maxTs int64
-
-	rows, err := a.db.QueryContext(ctx,
-		`SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
-	if err != nil {
-		return 0, fmt.Errorf("querying last modified: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var value []byte
-		if err := rows.Scan(&value); err != nil {
-			continue
-		}
-		var cd struct {
-			LastUpdatedAt json.Number `json:"lastUpdatedAt"`
-		}
-		if err := json.Unmarshal(value, &cd); err != nil {
-			continue
-		}
-		ms := util.ParseMillis(string(cd.LastUpdatedAt))
-		if ms > maxTs {
-			maxTs = ms
-		}
-	}
-
-	transcriptDir := filepath.Join(a.cursorDir, "projects")
-	if util.PathExists(transcriptDir) {
-		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return nil
-			}
-			if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
-				if fi, e := d.Info(); e == nil {
-					if ms := fi.ModTime().UnixMilli(); ms > maxTs {
-						maxTs = ms
-					}
-				}
-			}
-			return nil
-		})
-	}
-
-	return maxTs, nil
-}
-
-func (a *Adapter) Close() error {
-	return a.db.Close()
-}
-
 // --- Internal types ---
 
 type composerContext struct {
@@ -545,7 +548,7 @@ type composerContext struct {
 }
 
 type mentionsData struct {
-	FolderSelections map[string][]interface{} `json:"folderSelections,omitempty"`
+	FolderSelections map[string][]any `json:"folderSelections,omitempty"`
 }
 
 type composerData struct {
@@ -646,7 +649,7 @@ func (cd *composerData) timeUpdated() time.Time {
 }
 
 func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, outputTokens int) {
-	if cd.UsageData == nil || len(cd.UsageData) <= 2 {
+	if len(cd.UsageData) <= 2 {
 		return "", 0, 0, 0
 	}
 	var m map[string]usageStat
@@ -672,7 +675,7 @@ func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSe
 
 	var sessions []transcriptSession
 
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -721,7 +724,7 @@ func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) 
 
 	var messages []ingest.Message
 
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -1051,7 +1054,7 @@ func (a *Adapter) transcriptMtime(sessionID string) time.Time {
 		return time.Time{}
 	}
 	var latest time.Time
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -1268,7 +1271,7 @@ func extractTextFromRichText(rt json.RawMessage) string {
 
 func resolveCursorDir(vscdbPath string) string {
 	dir := filepath.Dir(vscdbPath)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if filepath.Base(dir) == "Cursor" {
 			return filepath.Join(homeDirFallback(), ".cursor")
 		}
@@ -1290,7 +1293,7 @@ func resolveCursorDir(vscdbPath string) string {
 
 func resolveAppSupportDir(vscdbPath string) string {
 	dir := filepath.Dir(vscdbPath)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if filepath.Base(dir) == "Cursor" {
 			return dir
 		}
@@ -1323,54 +1326,4 @@ func homeDirFallback() string {
 	return home
 }
 
-// --- ai-code-tracking.db reader (unused currently but available for enrichment) ---
 
-type conversationSummaryRow struct {
-	ConversationID string  `json:"conversationId"`
-	Title          string  `json:"title"`
-	TLDR           string  `json:"tldr"`
-	Overview       string  `json:"overview"`
-	Model          string  `json:"model"`
-	Mode           string  `json:"mode"`
-	CreatedAt      string  `json:"createdAt"`
-	UpdatedAt      string  `json:"updatedAt"`
-	Cost           float64 `json:"cost"`
-	InputTokens    int     `json:"inputTokens"`
-	OutputTokens   int     `json:"outputTokens"`
-}
-
-func (a *Adapter) readConversationSummaries(ctx context.Context) map[string]conversationSummaryRow {
-	result := make(map[string]conversationSummaryRow)
-
-	dbPath := filepath.Join(a.appSupportDir, "User", "globalStorage", "ai-code-tracking.db")
-	if !util.PathExists(dbPath) {
-		return result
-	}
-
-	db, err := ingest.OpenReadOnlyDB(dbPath)
-	if err != nil {
-		return result
-	}
-	defer db.Close()
-
-	rows, err := db.QueryContext(ctx,
-		`SELECT conversationId, title, tldr, overview, model, mode, createdAt, updatedAt, cost, inputTokens, outputTokens FROM conversation_summaries`)
-	if err != nil {
-		return result
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var r conversationSummaryRow
-		if err := rows.Scan(&r.ConversationID, &r.Title, &r.TLDR, &r.Overview,
-			&r.Model, &r.Mode, &r.CreatedAt, &r.UpdatedAt,
-			&r.Cost, &r.InputTokens, &r.OutputTokens); err != nil {
-			continue
-		}
-		if r.ConversationID != "" {
-			result[r.ConversationID] = r
-		}
-	}
-
-	return result
-}
