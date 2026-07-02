@@ -608,6 +608,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var messages []ingest.Message
 	var currentModel string
 	var subAgentStack []*subAgentState
+	var pendingReasoning string
 
 	scanner := bufio.NewScanner(f)
 	// Allow large lines (events can contain tool output)
@@ -624,6 +625,12 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 			var data modelChangeData
 			if json.Unmarshal(event.Data, &data) == nil {
 				currentModel = data.NewModel
+			}
+
+		case "assistant.reasoning":
+			var data assistantReasoningData
+			if json.Unmarshal(event.Data, &data) == nil && data.Content != "" {
+				pendingReasoning = data.Content
 			}
 
 		case "user.message":
@@ -652,6 +659,21 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					Model:     currentModel,
 					Timestamp: ingestutil.ParseTime(event.Timestamp),
 				}
+
+				// Populate reasoning from the richest available source:
+				//   1. explicit reasoningText on the event
+				//   2. assistant.reasoning event content (pendingReasoning)
+				//   3. content during thinking phase
+				switch {
+				case data.ReasoningText != "":
+					msg.Reasoning = data.ReasoningText
+				case data.Phase == "thinking" && data.Content != "":
+					msg.Reasoning = data.Content
+					msg.Content = ""
+				case pendingReasoning != "":
+					msg.Reasoning = pendingReasoning
+				}
+				pendingReasoning = ""
 
 				// Extract tool calls from tool requests
 				for _, req := range data.ToolRequests {
@@ -1095,9 +1117,18 @@ type userMessageData struct {
 }
 
 type assistantMessageData struct {
-	MessageID    string        `json:"messageId"`
-	Content      string        `json:"content"`
-	ToolRequests []toolRequest `json:"toolRequests"`
+	MessageID        string        `json:"messageId"`
+	Content          string        `json:"content"`
+	ToolRequests     []toolRequest `json:"toolRequests"`
+	ReasoningText    string        `json:"reasoningText"`
+	ReasoningOpaque  string        `json:"reasoningOpaque"`
+	EncryptedContent string        `json:"encryptedContent"`
+	Phase            string        `json:"phase"`
+}
+
+type assistantReasoningData struct {
+	ReasoningID string `json:"reasoningId"`
+	Content     string `json:"content"`
 }
 
 type toolRequest struct {
