@@ -41,7 +41,7 @@ func findCursorDB() string {
 		candidates = append([]string{p}, candidates...)
 	}
 	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
+		if _, err := os.Stat(p); err == nil { //nolint:gosec // test helper, path from env
 			return p
 		}
 	}
