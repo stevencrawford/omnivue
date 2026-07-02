@@ -3,6 +3,10 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -78,9 +82,26 @@ func (s *Store) migrate() error {
 	if err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
+	applied := current
+	backedUp := false
 	for _, m := range migrations {
-		if m.version <= current {
+		if m.version <= applied {
 			continue
+		}
+		// The v1 baseline is additive/idempotent (CREATE IF NOT EXISTS, ADD
+		// COLUMN, rebuildable FTS) and runs on fresh installs where there is
+		// nothing to lose, so it never needs a backup. Real schema changes start
+		// at v2: snapshot the database once before the first such migration.
+		if !backedUp && m.version > 1 {
+			backupPath, berr := s.backupBeforeMigrate(applied)
+			if berr != nil {
+				// A failed backup is not fatal — warn and continue. Losing the
+				// ability to back up should not block a required migration.
+				slog.Warn("failed to create pre-migration backup", "error", berr)
+			} else {
+				slog.Info("created pre-migration backup", "path", backupPath, "from", applied)
+			}
+			backedUp = true
 		}
 		if err := m.up(s.db); err != nil {
 			return fmt.Errorf("apply migration %d (%s): %w", m.version, m.desc, err)
@@ -88,8 +109,45 @@ func (s *Store) migrate() error {
 		if err := s.recordMigration(m); err != nil {
 			return fmt.Errorf("record migration %d: %w", m.version, err)
 		}
+		applied = m.version
 	}
 	return nil
+}
+
+// backupBeforeMigrate makes a timestamped copy of omnivue.db (after checkpointing
+// the WAL into the main file) so the user can recover if a migration corrupts
+// state. The copy lives next to the database in the state directory.
+func (s *Store) backupBeforeMigrate(fromVersion int) (string, error) {
+	// Flush WAL pages into the main database file so the copy is consistent on
+	// its own. TRUNCATE resets the -wal file to zero size after checkpointing.
+	if _, err := s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		return "", fmt.Errorf("wal checkpoint before backup: %w", err)
+	}
+	stamp := time.Now().Format("20060102-150405")
+	backupPath := filepath.Join(filepath.Dir(s.path), fmt.Sprintf("omnivue.db.premigrate-v%d-%s.bak", fromVersion, stamp))
+	if err := copyFile(s.path, backupPath); err != nil {
+		return "", fmt.Errorf("copy database: %w", err)
+	}
+	return backupPath, nil
+}
+
+// copyFile copies src to dst with a 0600 mode, matching the state directory's
+// privacy posture.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 // migrateV1Baseline is the baseline migration. It reproduces the schema as it
