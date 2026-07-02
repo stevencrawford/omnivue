@@ -1058,11 +1058,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 		case "tool.execution_complete":
 			var data toolCompleteData
 			if json.Unmarshal(event.Data, &data) == nil {
-				if len(subAgentStack) > 0 {
-					updateToolCallResult(&subAgentStack[len(subAgentStack)-1].messages, data)
-				} else {
-					updateToolCallResult(&messages, data)
-				}
+				updateToolCallResultAcrossStack(&messages, subAgentStack, data)
 			}
 
 		case "subagent.started":
@@ -1088,6 +1084,28 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					}
 					if sa.parentMsgIdx >= 0 {
 						break
+					}
+				}
+				// If not found in main messages, search existing sub-agent buffers
+				// (outermost to innermost) for nested sub-agent delegations.
+				if sa.parentMsgIdx < 0 {
+					for _, existing := range subAgentStack {
+						for i := range slices.Backward(existing.messages) {
+							msg := &existing.messages[i]
+							for j := range msg.ToolCalls {
+								if msg.ToolCalls[j].ID == data.ToolCallID {
+									sa.parentMsgIdx = i
+									sa.parentToolIdx = j
+									break
+								}
+							}
+							if sa.parentMsgIdx >= 0 {
+								break
+							}
+						}
+						if sa.parentMsgIdx >= 0 {
+							break
+						}
 					}
 				}
 				subAgentStack = append(subAgentStack, sa)
@@ -1127,26 +1145,26 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					a.mu.Lock()
 					a.syntheticSessions[synID] = syn
 					a.mu.Unlock()
-				}
 
-				// Update the parent's task tool call metadata to link to the synthetic session
-				if sa.parentMsgIdx >= 0 && sa.parentToolIdx >= 0 && sa.parentMsgIdx < len(messages) {
-					parentMsg := &messages[sa.parentMsgIdx]
-					if sa.parentToolIdx < len(parentMsg.ToolCalls) {
-						tc := &parentMsg.ToolCalls[sa.parentToolIdx]
-						meta := make(map[string]string)
-						if tc.Metadata != "" {
-						if err := json.Unmarshal([]byte(tc.Metadata), &meta); err != nil {
-							slog.Warn("failed to unmarshal metadata", "error", err)
+					// Update the parent's task tool call metadata to link to the synthetic session
+					if sa.parentMsgIdx >= 0 && sa.parentToolIdx >= 0 && sa.parentMsgIdx < len(messages) {
+						parentMsg := &messages[sa.parentMsgIdx]
+						if sa.parentToolIdx < len(parentMsg.ToolCalls) {
+							tc := &parentMsg.ToolCalls[sa.parentToolIdx]
+							meta := make(map[string]string)
+							if tc.Metadata != "" {
+								if err := json.Unmarshal([]byte(tc.Metadata), &meta); err != nil {
+									slog.Warn("failed to unmarshal metadata", "error", err)
+								}
+							}
+							meta["sessionId"] = synID
+							metaBytes, err := json.Marshal(meta)
+							if err != nil {
+								slog.Warn("failed to marshal metadata", "error", err)
+								metaBytes = []byte("{}")
+							}
+							tc.Metadata = string(metaBytes)
 						}
-					}
-					meta["sessionId"] = synID
-					metaBytes, err := json.Marshal(meta)
-					if err != nil {
-						slog.Warn("failed to marshal metadata", "error", err)
-							metaBytes = []byte("{}")
-						}
-						tc.Metadata = string(metaBytes)
 					}
 				}
 			}
@@ -1303,7 +1321,8 @@ type subAgentState struct {
 }
 
 // updateToolCallResult finds the tool call by ID and updates its output/status.
-func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
+// Returns true if the tool call was found and updated.
+func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) bool {
 	for i := range slices.Backward(*messages) {
 		msg := &(*messages)[i]
 		for j := range msg.ToolCalls {
@@ -1321,10 +1340,22 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 				if data.Model != "" {
 					msg.Model = data.Model
 				}
-				return
+				return true
 			}
 		}
 	}
+	return false
+}
+
+// updateToolCallResultAcrossStack searches for a tool call across all stack levels
+// (innermost sub-agent → outermost sub-agent → main messages) and updates it.
+func updateToolCallResultAcrossStack(messages *[]ingest.Message, stack []*subAgentState, data toolCompleteData) bool {
+	for i := range slices.Backward(stack) {
+		if updateToolCallResult(&stack[i].messages, data) {
+			return true
+		}
+	}
+	return updateToolCallResult(messages, data)
 }
 
 // extractCopilotPatchPath extracts the file path from apply_patch text.
