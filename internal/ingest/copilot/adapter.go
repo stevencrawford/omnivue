@@ -75,6 +75,11 @@ func (a *Adapter) Detect(path string) bool {
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
+	var tblCount int
+	if err := a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&tblCount); err != nil || tblCount == 0 {
+		return nil, nil
+	}
+
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT id, cwd, repository, branch, summary, created_at, updated_at
 		FROM sessions
@@ -235,6 +240,11 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 		return &s, nil
 	}
 	a.mu.Unlock()
+
+	var tblCount int
+	if err := a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&tblCount); err != nil || tblCount == 0 {
+		return nil, fmt.Errorf("session not found: %s", id)
+	}
 
 	var (
 		s          ingest.Session
