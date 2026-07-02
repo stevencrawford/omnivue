@@ -1,0 +1,224 @@
+package store
+
+import (
+	"database/sql"
+	"fmt"
+	"time"
+)
+
+// migration is a single forward-only schema change identified by a monotonic
+// version number.
+type migration struct {
+	version int
+	desc    string
+	up      func(*sql.DB) error
+}
+
+// migrations is the append-only, ordered list of schema migrations. Version 1
+// is the baseline reproducing the pre-versioning schema in full; it is
+// idempotent so that running it against a pre-versioning (legacy) database is
+// safe and equivalent to what prior binaries did on every startup.
+//
+// New schema changes append a higher-numbered migration here. NEVER modify,
+// reorder, or delete an existing entry — that would corrupt databases already
+// migrated past that version.
+var migrations = []migration{
+	{version: 1, desc: "baseline", up: migrateV1Baseline},
+}
+
+// SchemaVersion reports the highest migration version recorded as applied to
+// the database, or 0 if the schema_migrations table is empty (e.g. a fresh or
+// legacy database that has not yet been migrated).
+func (s *Store) SchemaVersion() (int, error) {
+	var v int
+	err := s.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&v)
+	return v, err
+}
+
+// ensureMigrationsTable creates the schema_migrations bookkeeping table.
+func (s *Store) ensureMigrationsTable() error {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			version INTEGER PRIMARY KEY,
+			desc TEXT NOT NULL,
+			applied_at TEXT NOT NULL
+		)
+	`)
+	return err
+}
+
+// recordMigration stamps a migration version as applied. It is called only
+// after the migration's up function returned successfully.
+func (s *Store) recordMigration(m migration) error {
+	_, err := s.db.Exec(
+		`INSERT INTO schema_migrations (version, desc, applied_at) VALUES (?, ?, ?)
+		 ON CONFLICT(version) DO NOTHING`,
+		m.version, m.desc, time.Now().Format(time.RFC3339),
+	)
+	return err
+}
+
+// migrate runs forward-only schema migrations.
+//
+// On a pre-versioning database (no schema_migrations table, but application
+// tables already present), the baseline migration runs once — it is
+// idempotent, so this is exactly what prior binaries did on every startup —
+// and is then recorded so it never re-runs. Fresh databases run the baseline
+// normally. Each subsequent migration runs exactly once in version order.
+//
+// TODO: wrap each migration's up function in a transaction so a partial
+// failure leaves the schema untouched. The baseline is intentionally left
+// non-transactional in this step to preserve the exact failure semantics of
+// the prior monolithic migrate().
+func (s *Store) migrate() error {
+	if err := s.ensureMigrationsTable(); err != nil {
+		return fmt.Errorf("ensure schema_migrations: %w", err)
+	}
+	current, err := s.SchemaVersion()
+	if err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	for _, m := range migrations {
+		if m.version <= current {
+			continue
+		}
+		if err := m.up(s.db); err != nil {
+			return fmt.Errorf("apply migration %d (%s): %w", m.version, m.desc, err)
+		}
+		if err := s.recordMigration(m); err != nil {
+			return fmt.Errorf("record migration %d: %w", m.version, err)
+		}
+	}
+	return nil
+}
+
+// migrateV1Baseline is the baseline migration. It reproduces the schema as it
+// existed under the prior monolithic migrate(): every CREATE TABLE IF NOT
+// EXISTS, the bookmarks unique index, the scratch_files.mode column backfill,
+// and the search_index column probe-and-rebuild. All of it is idempotent, so
+// running it against a database already shaped by a prior binary is a no-op
+// (matching the previous per-startup behavior) while a fresh database gets the
+// complete current schema.
+//
+//nolint:errcheck // search_index rebuild intentionally swallows probe errors
+func migrateV1Baseline(db *sql.DB) error {
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS sources (
+			id TEXT PRIMARY KEY,
+			path TEXT NOT NULL UNIQUE,
+			agent_type TEXT NOT NULL,
+			label TEXT,
+			enabled INTEGER DEFAULT 1,
+			last_scanned_at TEXT,
+			created_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS folders (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			parent_id TEXT REFERENCES folders(id),
+			sort_order INTEGER DEFAULT 0,
+			color TEXT,
+			icon TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS folder_sessions (
+			folder_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+			session_id TEXT NOT NULL,
+			sort_order INTEGER DEFAULT 0,
+			added_at TEXT NOT NULL,
+			PRIMARY KEY (folder_id, session_id)
+		);
+
+		CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+			content,
+			session_id UNINDEXED,
+			source_id UNINDEXED,
+			chunk_type UNINDEXED,
+			repository UNINDEXED,
+			updated_at UNINDEXED,
+			file_title UNINDEXED,
+			file_id UNINDEXED
+		);
+
+		CREATE TABLE IF NOT EXISTS index_state (
+			session_id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			last_indexed_at TEXT NOT NULL,
+			content_hash TEXT
+		);
+
+		CREATE TABLE IF NOT EXISTS session_names (
+			session_id TEXT PRIMARY KEY,
+			display_name TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS scratch_files (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT 'Untitled',
+			content TEXT NOT NULL DEFAULT '',
+			mode TEXT NOT NULL DEFAULT 'writable',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS config (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS bookmarks (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			message_index INTEGER NOT NULL,
+			tool_call_id TEXT,
+			label TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		);
+	`); err != nil {
+		return err
+	}
+
+	// Migration: ensure bookmarks unique index.
+	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_ref ON bookmarks(session_id, message_index, tool_call_id)`); err != nil {
+		return err
+	}
+
+	// Migration: add mode column to scratch_files for existing databases.
+	// Swallow the error when the column already exists, matching prior behavior.
+	if _, err := db.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
+		// column may already exist — ignore
+		_ = err
+	}
+
+	// Migration: ensure message_index, updated_at, file_title, file_id columns
+	// exist on search_index. FTS5 ALTER TABLE ADD COLUMN may fail on some
+	// platforms, so test the column and drop/recreate the table if needed.
+	if _, probeErr := db.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`); probeErr != nil {
+		db.Exec(`DROP TABLE IF EXISTS search_index`)
+		db.Exec(`DROP TABLE IF EXISTS index_state`)
+		db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+			content,
+			session_id UNINDEXED,
+			source_id UNINDEXED,
+			chunk_type UNINDEXED,
+			repository UNINDEXED,
+			updated_at UNINDEXED,
+			file_title UNINDEXED,
+			file_id UNINDEXED,
+			message_index UNINDEXED
+		)`)
+		db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
+			session_id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			last_indexed_at TEXT NOT NULL,
+			content_hash TEXT
+		)`)
+	}
+
+	return nil
+}
