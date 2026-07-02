@@ -729,10 +729,14 @@ func (ts *todoState) synthesizeInput() string {
 
 	var entries []todoEntry
 	for _, item := range ts.items {
+		status := item.Status
+		if status == "done" {
+			status = "completed"
+		}
 		entries = append(entries, todoEntry{
 			ID:      item.ID,
 			Content: item.Content,
-			Status:  item.Status,
+			Status:  status,
 		})
 	}
 
