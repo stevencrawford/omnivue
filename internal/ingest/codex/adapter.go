@@ -23,7 +23,6 @@ func init() {
 		detectPath)
 }
 
-// detectPath checks whether the given path contains a Codex session index.
 func detectPath(path string) *ingest.DiscoveredSource {
 	indexPath := filepath.Join(path, "session_index.jsonl")
 	if !ingestkit.PathExists(indexPath) {
@@ -50,7 +49,6 @@ func New(basePath string) (*Adapter, error) {
 			basePath = home + basePath[1:]
 		}
 	}
-	// Walk up one level if basePath is a sessions/ subdirectory
 	if !hasIndexFile(basePath) {
 		parent := filepath.Dir(basePath)
 		if hasIndexFile(parent) {
@@ -67,8 +65,6 @@ func hasIndexFile(basePath string) bool {
 	_, err := os.Stat(filepath.Join(basePath, "session_index.jsonl"))
 	return err == nil
 }
-
-// --- Exported methods ---
 
 func (a *Adapter) Type() ingest.AgentType {
 	return ingest.AgentCodex
@@ -91,7 +87,6 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	// Check cache first (fast path)
 	a.mu.RLock()
 	if len(a.sessions) > 0 {
 		for i := range a.sessions {
@@ -104,7 +99,6 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	}
 	a.mu.RUnlock()
 
-	// Fallback: find just the one session by scanning the index for this ID
 	indexPath := filepath.Join(a.basePath, "session_index.jsonl")
 	indexEntries, err := readIndex(indexPath)
 	if err != nil {
@@ -117,8 +111,6 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 		}
 	}
 
-	// Last resort: scan the filesystem for the session file directly.
-	// This covers orphan sessions not yet in session_index.jsonl.
 	fpath := a.sessionFilePath(id)
 	if fpath != "" {
 		return a.parseSessionFileMinimal(ctx, id, fpath)
@@ -425,103 +417,6 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
-// --- Type definitions ---
-
-type codexIndexEntry struct {
-	ID         string `json:"id"`
-	ThreadName string `json:"thread_name"`
-	UpdatedAt  string `json:"updated_at"`
-}
-
-type codexEnvelope struct {
-	Timestamp string          `json:"timestamp"`
-	Type      string          `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
-}
-
-type sessionMetaPayload struct {
-	ID            string `json:"id"`
-	Timestamp     string `json:"timestamp"`
-	CWD           string `json:"cwd"`
-	ModelProvider string `json:"model_provider"`
-	Git           *struct {
-		CommitHash    string `json:"commit_hash"`
-		Branch        string `json:"branch"`
-		RepositoryURL string `json:"repository_url"`
-	} `json:"git,omitempty"`
-}
-
-type turnContextPayload struct {
-	TurnID string `json:"turn_id"`
-	CWD    string `json:"cwd"`
-	Model  string `json:"model"`
-}
-
-type eventMsgPayload struct {
-	Type        string          `json:"type"`
-	TurnID      string          `json:"turn_id,omitempty"`
-	Message     string          `json:"message,omitempty"`
-	Phase       string          `json:"phase,omitempty"`
-	StartedAt   int64           `json:"started_at,omitempty"`
-	CompletedAt int64           `json:"completed_at,omitempty"`
-	DurationMs  int64           `json:"duration_ms,omitempty"`
-	Info        *tokenCountInfo `json:"info,omitempty"`
-	Item        *itemComplete   `json:"item,omitempty"`
-	Changes     json.RawMessage `json:"changes,omitempty"`
-	CallID      string          `json:"call_id,omitempty"`
-	Success     bool            `json:"success,omitempty"`
-}
-
-type tokenCountInfo struct {
-	TotalTokenUsage *tokenUsage `json:"total_token_usage"`
-}
-
-type tokenUsage struct {
-	InputTokens       int `json:"input_tokens"`
-	OutputTokens      int `json:"output_tokens"`
-	CachedInputTokens int `json:"cached_input_tokens"`
-	TotalTokens       int `json:"total_tokens"`
-}
-
-type itemComplete struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
-	Text string `json:"text"`
-}
-
-type responseItemPayload struct {
-	Type      string             `json:"type"`
-	Role      string             `json:"role,omitempty"`
-	Content   []responseContent  `json:"content,omitempty"`
-	Name      string             `json:"name,omitempty"`
-	Arguments string             `json:"arguments,omitempty"`
-	CallID    string             `json:"call_id,omitempty"`
-	Output    string             `json:"output,omitempty"`
-	Phase     string             `json:"phase,omitempty"`
-	Status    string             `json:"status,omitempty"`
-	Input     string             `json:"input,omitempty"`
-	Metadata  map[string]string  `json:"metadata,omitempty"`
-	Summary   []json.RawMessage  `json:"summary,omitempty"`
-}
-
-type responseContent struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-}
-
-type changeEntry struct {
-	Type        string `json:"type"`
-	Content     string `json:"content"`
-	UnifiedDiff string `json:"unified_diff"`
-}
-
-type rawPatchResult struct {
-	filePath string
-	content  string
-}
-
-// --- Unexported methods ---
-
 func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 	indexPath := filepath.Join(a.basePath, "session_index.jsonl")
 	indexEntries, err := readIndex(indexPath)
@@ -559,9 +454,6 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		}
 	}
 
-	// Scan the sessions/ directory for orphan .jsonl files not yet in the index.
-	// Codex may write a session file to disk before adding it to session_index.jsonl,
-	// so we need to discover these the same way we handle Copilot's session-state/.
 	indexIDs := make(map[string]bool, len(indexEntries))
 	for _, entry := range indexEntries {
 		indexIDs[entry.ID] = true
@@ -576,7 +468,7 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		if id == "" || indexIDs[id] {
 			return nil
 		}
-		indexIDs[id] = true // avoid duplicates
+		indexIDs[id] = true
 		fi, err := d.Info()
 		if err != nil {
 			fi = nil
@@ -897,10 +789,10 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 			case "task_complete":
 				summaryBytes, err := json.Marshal(pl.Message)
-			if err != nil {
-				slog.Warn("failed to marshal summary", "error", err)
-				summaryBytes = []byte("{}")
-			}
+				if err != nil {
+					slog.Warn("failed to marshal summary", "error", err)
+					summaryBytes = []byte("{}")
+				}
 				tc := &ingest.ToolCall{
 					ID:     pl.TurnID,
 					Name:   "task_complete",
@@ -913,7 +805,6 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 		}
 	}
 
-	// Collect any remaining tool calls (e.g., at end of session) into a synthetic message
 	if len(toolCallsByID) > 0 {
 		var msgToolCalls []ingest.ToolCall
 		for _, tc := range toolCallsByID {
@@ -935,8 +826,6 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	return messages, nil
 }
 
-// parseSessionFileMinimal builds a basic Session from a session .jsonl file
-// without requiring an index entry. Used by Session for orphan sessions.
 func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (*ingest.Session, error) {
 	fi, err := os.Stat(fpath)
 	if err != nil {
@@ -953,7 +842,6 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 	if len(id) > 8 {
 		s.Title = id[:8]
 	}
-	// Try to read a few events for richer metadata
 	f, err := os.Open(fpath)
 	if err != nil {
 		return s, nil
@@ -993,8 +881,6 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 	}
 	return s, nil
 }
-
-// --- Helper functions ---
 
 func readIndex(path string) ([]codexIndexEntry, error) {
 	f, err := os.Open(path)
@@ -1050,49 +936,6 @@ func extractContentText(content []responseContent) string {
 	return strings.Join(parts, "\n")
 }
 
-func normalizeToolName(name string) string {
-	switch name {
-	case "exec_command":
-		return "bash"
-	case "apply_patch":
-		return "edit"
-	case "read_file":
-		return "read"
-	case "write_file":
-		return "write"
-	case "multi_tool_use.parallel":
-		return name
-	case "request_user_input":
-		return "question"
-	default:
-		if strings.HasPrefix(name, "exec_") {
-			return "bash"
-		}
-		if strings.HasPrefix(name, "edit_") || strings.HasSuffix(name, "_patch") {
-			return "edit"
-		}
-		if strings.HasPrefix(name, "read_") {
-			return "read"
-		}
-		return name
-	}
-}
-
-func extractFilePathFromPatch(patch string) string {
-	for _, prefix := range []string{"*** Add File: ", "*** Modify File: ", "*** Update File: ", "--- Add File: ", "--- Modify File: ", "--- Update File: "} {
-		if _, after, found := strings.Cut(patch, prefix); found {
-			if nl := strings.IndexAny(after, "\n\r"); nl >= 0 {
-				return strings.TrimSpace(after[:nl])
-			}
-			return strings.TrimSpace(after)
-		}
-	}
-	return ""
-}
-
-// extractIDFromSessionFile reads the first event of a Codex session .jsonl file
-// to extract the session ID. Falls back to the filename stem (without .jsonl) if
-// no session_meta event is found.
 func extractIDFromSessionFile(path, name string) string {
 	f, err := os.Open(path)
 	if err != nil {
@@ -1109,123 +952,10 @@ func extractIDFromSessionFile(path, name string) string {
 			}
 		}
 	}
-	// Fallback: use filename stem
 	if idx := strings.LastIndex(name, ".jsonl"); idx > 0 {
 		return name[:idx]
 	}
 	return name
-}
-
-func normalizeBashInput(tc *ingest.ToolCall) {
-	if tc.Name != "bash" || tc.Input == "" {
-		return
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(tc.Input), &raw); err != nil {
-		return
-	}
-	// Rename "cmd" to "command" for frontend compatibility
-	if cmd, ok := raw["cmd"]; ok {
-		if _, hasCommand := raw["command"]; !hasCommand {
-			raw["command"] = cmd
-		}
-	}
-	out, err := json.Marshal(raw)
-	if err != nil {
-		slog.Warn("failed to marshal tool input", "error", err)
-		out = []byte("{}")
-	}
-	tc.Input = string(out)
-}
-
-func normalizeBashOutput(tc *ingest.ToolCall) {
-	if tc.Name != "bash" || tc.Output == "" {
-		return
-	}
-	output := tc.Output
-	if !strings.HasPrefix(output, "Chunk ID:") {
-		return
-	}
-	_, after, found := strings.Cut(output, "\nOutput:\n")
-	if found {
-		tc.Output = after
-	}
-}
-
-func normalizeEditInput(tc *ingest.ToolCall) {
-	if tc.Name != "edit" || tc.Input == "" {
-		return
-	}
-	// Skip if already valid JSON
-	if tc.Input[0] == '{' {
-		var check any
-		if json.Unmarshal([]byte(tc.Input), &check) == nil {
-			return
-		}
-	}
-
-	result := parseRawPatch(tc.Input)
-	if result.filePath == "" {
-		return
-	}
-
-	out := map[string]string{
-		"filePath": result.filePath,
-		"content":  result.content,
-	}
-	encoded, err := json.Marshal(out)
-	if err != nil {
-		slog.Warn("failed to marshal write input", "error", err)
-		encoded = []byte("{}")
-	}
-	tc.Input = string(encoded)
-}
-
-// parseRawPatch parses Codex raw patch format:
-//
-//	*** Begin Patch
-//	*** Add File: auth.go
-//	+content
-//	*** End Patch
-func parseRawPatch(input string) rawPatchResult {
-	filePath := ""
-	var contentLines []string
-	inContent := false
-	for line := range strings.SplitSeq(input, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "*** Add File: "):
-			filePath = strings.TrimPrefix(trimmed, "*** Add File: ")
-		case strings.HasPrefix(trimmed, "*** Modify File: "):
-			filePath = strings.TrimPrefix(trimmed, "*** Modify File: ")
-		case strings.HasPrefix(trimmed, "*** Update File: "):
-			filePath = strings.TrimPrefix(trimmed, "*** Update File: ")
-		case strings.HasPrefix(trimmed, "--- Add File: "):
-			filePath = strings.TrimPrefix(trimmed, "--- Add File: ")
-		case strings.HasPrefix(trimmed, "--- Modify File: "):
-			filePath = strings.TrimPrefix(trimmed, "--- Modify File: ")
-		case strings.HasPrefix(trimmed, "--- Update File: "):
-			filePath = strings.TrimPrefix(trimmed, "--- Update File: ")
-		case strings.HasPrefix(trimmed, "*** Chunk: "):
-			rest := strings.TrimPrefix(trimmed, "*** Chunk: ")
-			if idx := strings.Index(rest, " : "); idx > 0 {
-				filePath = rest[:idx]
-			} else {
-				filePath = rest
-			}
-		case strings.HasPrefix(trimmed, "*** Begin Patch"):
-			inContent = true
-		case strings.HasPrefix(trimmed, "*** End Patch"):
-			inContent = false
-		case inContent && filePath != "":
-			contentLines = append(contentLines, line)
-		}
-	}
-	content := strings.TrimRight(strings.Join(contentLines, "\n"), "\n")
-	return rawPatchResult{
-		filePath: filePath,
-		content:  content,
-	}
 }
 
 func normalizeUserContent(content string) (string, map[string]string) {
