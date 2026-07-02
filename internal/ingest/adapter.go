@@ -57,11 +57,14 @@ func OpenReadOnlyDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("opening database %s: %w", path, err)
 	}
 
-	// Verify read-only mode by attempting a write
-	_, err = db.Exec("CREATE TABLE _omnivue_write_test (id INTEGER)")
-	if err == nil {
+	// Limit concurrent connections to prevent WAL conflicts on read-only DBs.
+	db.SetMaxOpenConns(1)
+
+	// Enforce read-only at the SQLite layer using a no-op pragma.
+	// This is a safety net in case the ?mode=ro driver enforcement is bypassed.
+	if _, err := db.Exec("PRAGMA query_only = ON"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("safety violation: database %s opened in writable mode", path)
+		return nil, fmt.Errorf("failed to enforce read-only mode: %w", err)
 	}
 
 	return db, nil
