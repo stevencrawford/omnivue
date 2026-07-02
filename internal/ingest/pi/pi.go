@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 func init() {
@@ -24,7 +24,7 @@ func init() {
 
 // detectPath checks whether the given path contains Pi JSONL session files.
 func detectPath(path string) *ingest.DiscoveredSource {
-	if !ingestutil.PathExists(path) {
+	if !ingestkit.PathExists(path) {
 		return nil
 	}
 	var found bool
@@ -409,7 +409,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("empty file: %s", fpath)
 	}
@@ -427,7 +427,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 		parsedTime = extractTimestampFromFilename(filepath.Base(fpath))
 	}
 
-	repo := ingestutil.DeriveRepository(header.CWD, "")
+	repo := ingestkit.DeriveRepository(header.CWD, "")
 	title := deriveTitle(header.ID, header.CWD)
 
 	session := &ingest.Session{
@@ -530,7 +530,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 	var parsed []ingest.Message
 	currentModel := ""
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	// Skip session header
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("empty file: %s", filePath)
@@ -627,7 +627,7 @@ func parseMessage(env piMessageEnvelope, currentModel string) (ingest.Message, e
 	}
 
 	if env.Timestamp != "" {
-		msg.Timestamp = ingestutil.ParseTime(env.Timestamp)
+		msg.Timestamp = ingestkit.ParseTime(env.Timestamp)
 	}
 
 	if env.Message.Model != "" {
@@ -870,7 +870,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			delete(p, "path")
 		}
 		// Pi read output format: {"content":"...","filePath":"..."}
-		if content := ingestutil.ExtractJSONString(tc.Output, "content"); content != "" {
+		if content := ingestkit.ExtractJSONString(tc.Output, "content"); content != "" {
 			tc.Output = content
 		}
 
@@ -947,14 +947,14 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 
 	case "bash":
 		// Pi bash output: {"stdout":"...","stderr":"...","exitCode":N}
-		if stdout := ingestutil.ExtractJSONString(tc.Output, "stdout"); stdout != "" {
-			if stderr := ingestutil.ExtractJSONString(tc.Output, "stderr"); stderr != "" {
+		if stdout := ingestkit.ExtractJSONString(tc.Output, "stdout"); stdout != "" {
+			if stderr := ingestkit.ExtractJSONString(tc.Output, "stderr"); stderr != "" {
 				tc.Output = stdout + "\n" + stderr
 			} else {
 				tc.Output = stdout
 			}
 		}
-		if exitCode := ingestutil.ExtractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
+		if exitCode := ingestkit.ExtractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
 			tc.Metadata = `{"exit":` + exitCode + `}`
 		}
 

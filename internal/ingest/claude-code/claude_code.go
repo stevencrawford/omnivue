@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 func init() {
@@ -26,7 +26,7 @@ func init() {
 // detectPath checks whether the given path contains Claude Code session data.
 func detectPath(path string) *ingest.DiscoveredSource {
 	projectsDir := filepath.Join(path, "projects")
-	if !ingestutil.PathExists(projectsDir) {
+	if !ingestkit.PathExists(projectsDir) {
 		return nil
 	}
 	ents, err := os.ReadDir(projectsDir)
@@ -181,7 +181,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 
 	// Look for plan file in ~/.claude/plans/{slug}.md
 	planPath := filepath.Join(a.claudeDir, planDir, slug+".md")
-	if ingestutil.PathExists(planPath) {
+	if ingestkit.PathExists(planPath) {
 		content, err := os.ReadFile(planPath)
 		if err != nil {
 			return nil, nil
@@ -387,7 +387,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	var (
 		parentSID   string
@@ -439,7 +439,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 			agentID = env.AgentID
 		}
 
-		ts := ingestutil.ParseTime(env.Timestamp)
+		ts := ingestkit.ParseTime(env.Timestamp)
 		if firstTS.IsZero() {
 			firstTS = ts
 		}
@@ -503,7 +503,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 		}
 	}
 
-	repo := ingestutil.DeriveRepository(cwd, "")
+	repo := ingestkit.DeriveRepository(cwd, "")
 
 	status := "active"
 	if hasRealUser && lastTS.Before(time.Now().Add(-5*time.Minute)) {
@@ -568,7 +568,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	var messages []ingest.Message
 	toolCallsByID := make(map[string]*ingest.ToolCall)
@@ -602,7 +602,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			}
 		}
 
-		ts := ingestutil.ParseTime(env.Timestamp)
+		ts := ingestkit.ParseTime(env.Timestamp)
 
 		switch env.Type {
 		case "user", "assistant":
@@ -704,7 +704,7 @@ func (a *Adapter) findSlugFromSession(fpath string) string {
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		var env claudeMessageEnvelope
 		if json.Unmarshal(scanner.Bytes(), &env) != nil {
@@ -918,7 +918,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 				tc := ingest.ToolCall{
 					ID:     p.ID,
 					Name:   p.Name,
-					Input:  ingestutil.TruncateContent(input, 2000),
+					Input:  ingestkit.TruncateContent(input, 2000),
 					Status: "running",
 				}
 				toolCalls = append(toolCalls, tc)
@@ -962,7 +962,7 @@ func truncateToolOutput(content string, toolName string) string {
 	if toolName == "task" || toolName == "Task" {
 		return content
 	}
-	return ingestutil.TruncateContent(content, maxContentBytes)
+	return ingestkit.TruncateContent(content, maxContentBytes)
 }
 
 const maxContentBytes = 2000
@@ -973,7 +973,7 @@ const maxContentBytes = 2000
 func truncateEditInput(raw json.RawMessage) string {
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return ingestutil.TruncateContent(string(raw), maxContentBytes)
+		return ingestkit.TruncateContent(string(raw), maxContentBytes)
 	}
 	changed := false
 	for _, key := range []string{"content", "new_str", "newStr", "old_str", "oldStr"} {

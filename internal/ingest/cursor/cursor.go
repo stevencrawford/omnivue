@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 
 	_ "modernc.org/sqlite"
 )
@@ -27,7 +27,7 @@ func init() {
 
 // detectPath checks whether the given path contains a Cursor state database.
 func detectPath(path string) *ingest.DiscoveredSource {
-	dbPath := ingestutil.FindCursorVscdbPath(path)
+	dbPath := ingestkit.FindCursorVscdbPath(path)
 	if dbPath != "" {
 		return &ingest.DiscoveredSource{
 			Path:      dbPath,
@@ -48,7 +48,7 @@ type Adapter struct {
 }
 
 func New(vscdbPath string) (*Adapter, error) {
-	resolved := ingestutil.FindCursorVscdbPath(vscdbPath)
+	resolved := ingestkit.FindCursorVscdbPath(vscdbPath)
 	if resolved == "" {
 		return nil, fmt.Errorf("cursor adapter: no state.vscdb found at %s", vscdbPath)
 	}
@@ -384,14 +384,14 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 		if err := json.Unmarshal(value, &cd); err != nil {
 			continue
 		}
-		ms := ingestutil.ParseMillis(string(cd.LastUpdatedAt))
+		ms := ingestkit.ParseMillis(string(cd.LastUpdatedAt))
 		if ms > maxTs {
 			maxTs = ms
 		}
 	}
 
 	transcriptDir := filepath.Join(a.cursorDir, "projects")
-	if ingestutil.PathExists(transcriptDir) {
+	if ingestkit.PathExists(transcriptDir) {
 		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 			if err != nil {
 				return nil
@@ -489,12 +489,12 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	if err := json.Unmarshal([]byte(tc.Output), &output); err == nil {
 		if output.BeforeContentID != "" {
 			if c := a.readContentBlock(ctx, output.BeforeContentID); c != "" {
-				oldStr = ingestutil.TruncateContent(c, 2000)
+				oldStr = ingestkit.TruncateContent(c, 2000)
 			}
 		}
 		if output.AfterContentID != "" {
 			if c := a.readContentBlock(ctx, output.AfterContentID); c != "" {
-				newStr = ingestutil.TruncateContent(c, 2000)
+				newStr = ingestkit.TruncateContent(c, 2000)
 			}
 		}
 		if newStr == "" && output.Contents != "" {
@@ -545,14 +545,14 @@ func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
 	}
 	if after := a.readContentBlock(ctx, output.AfterContentID); after != "" {
 		if _, exists := input["newString"]; !exists {
-			input["newString"] = ingestutil.TruncateContent(after, 2000)
+			input["newString"] = ingestkit.TruncateContent(after, 2000)
 			delete(input, "noCodeblock")
 			delete(input, "cloudAgentEdit")
 		}
 	}
 	if before := a.readContentBlock(ctx, output.BeforeContentID); before != "" {
 		if _, exists := input["oldString"]; !exists {
-			input["oldString"] = ingestutil.TruncateContent(before, 2000)
+			input["oldString"] = ingestkit.TruncateContent(before, 2000)
 		}
 	}
 	if out, err := json.Marshal(input); err == nil {
@@ -660,11 +660,11 @@ type transcriptSession struct {
 // --- composerData helpers ---
 
 func (cd *composerData) timeCreated() time.Time {
-	return ingestutil.UnixMillis(ingestutil.ParseMillis(string(cd.CreatedAt)))
+	return ingestkit.UnixMillis(ingestkit.ParseMillis(string(cd.CreatedAt)))
 }
 
 func (cd *composerData) timeUpdated() time.Time {
-	return ingestutil.UnixMillis(ingestutil.ParseMillis(string(cd.LastUpdatedAt)))
+	return ingestkit.UnixMillis(ingestkit.ParseMillis(string(cd.LastUpdatedAt)))
 }
 
 func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, outputTokens int) {
@@ -688,7 +688,7 @@ func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, ou
 
 func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSession {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !ingestutil.PathExists(projectsDir) {
+	if !ingestkit.PathExists(projectsDir) {
 		return nil
 	}
 
@@ -737,7 +737,7 @@ func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSe
 
 func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) []ingest.Message {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !ingestutil.PathExists(projectsDir) {
+	if !ingestkit.PathExists(projectsDir) {
 		return nil
 	}
 
@@ -870,7 +870,7 @@ func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]i
 			ID:        bd.BubbleID,
 			Role:      role,
 			Content:   content,
-			Timestamp: ingestutil.ParseTime(bd.CreatedAt),
+			Timestamp: ingestkit.ParseTime(bd.CreatedAt),
 		}
 
 		if content == "" && role == "assistant" {
@@ -1069,7 +1069,7 @@ func formatGrepOutput(raw string) string {
 // pattern (mt.After(session.UpdatedAt)).
 func (a *Adapter) transcriptMtime(sessionID string) time.Time {
 	projectsDir := filepath.Join(a.cursorDir, "projects")
-	if !ingestutil.PathExists(projectsDir) {
+	if !ingestkit.PathExists(projectsDir) {
 		return time.Time{}
 	}
 	var latest time.Time
@@ -1135,7 +1135,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
 	case "read":
 		// Cursor read output: {"contents":"...","totalLinesInFile":N} → raw text
-		tc.Output = ingestutil.ExtractJSONString(tc.Output, "contents")
+		tc.Output = ingestkit.ExtractJSONString(tc.Output, "contents")
 	case "bash":
 		// Cursor bash output: {"output":"...","rejected":bool,"notInterrupted":bool}
 		if text, rejected := extractBashOutput(tc.Output); rejected {
@@ -1303,7 +1303,7 @@ func resolveCursorDir(vscdbPath string) string {
 	home, err := os.UserHomeDir()
 	if err == nil {
 		cursorDir := filepath.Join(home, ".cursor")
-		if ingestutil.PathExists(cursorDir) {
+		if ingestkit.PathExists(cursorDir) {
 			return cursorDir
 		}
 	}
@@ -1329,7 +1329,7 @@ func resolveAppSupportDir(vscdbPath string) string {
 			filepath.Join(home, ".config", "Cursor"),
 		}
 		for _, p := range paths {
-			if ingestutil.PathExists(p) {
+			if ingestkit.PathExists(p) {
 				return p
 			}
 		}

@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 
 	_ "modernc.org/sqlite"
 )
@@ -29,7 +29,7 @@ func init() {
 func detectPath(path string) *ingest.DiscoveredSource {
 	dbPath := filepath.Join(path, "session-store.db")
 	statePath := filepath.Join(path, "session-state")
-	if !ingestutil.PathExists(dbPath) && !ingestutil.PathExists(statePath) {
+	if !ingestkit.PathExists(dbPath) && !ingestkit.PathExists(statePath) {
 		return nil
 	}
 	return &ingest.DiscoveredSource{
@@ -111,8 +111,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Repository = repository.String
 		s.Branch = branch.String
 		s.Status = "completed"
-		s.CreatedAt = ingestutil.ParseTime(createdAt)
-		s.UpdatedAt = ingestutil.ParseTime(updatedAt)
+		s.CreatedAt = ingestkit.ParseTime(createdAt)
+		s.UpdatedAt = ingestkit.ParseTime(updatedAt)
 
 		// events.jsonl often updates faster than the SQLite sessions.updated_at
 		// column during an active conversation. Check the filesystem mtime as
@@ -265,8 +265,8 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	s.Repository = repository.String
 	s.Branch = branch.String
 	s.Status = "completed"
-	s.CreatedAt = ingestutil.ParseTime(createdAt)
-	s.UpdatedAt = ingestutil.ParseTime(updatedAt)
+	s.CreatedAt = ingestkit.ParseTime(createdAt)
+	s.UpdatedAt = ingestkit.ParseTime(updatedAt)
 
 	if s.Title == "" {
 		s.Title = filepath.Base(s.Directory)
@@ -366,7 +366,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		}
 
 		for _, req := range data.ToolRequests {
-			ts := ingestutil.ParseTime(event.Timestamp)
+			ts := ingestkit.ParseTime(event.Timestamp)
 
 			if req.Name == "apply_patch" {
 				var patchText string
@@ -773,7 +773,7 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	// Check SQLite sessions table
 	var maxTime sql.NullString
 	if err := a.db.QueryRowContext(ctx, `SELECT MAX(updated_at) FROM sessions`).Scan(&maxTime); err == nil && maxTime.Valid {
-		maxTS = ingestutil.ParseTime(maxTime.String).UnixMilli()
+		maxTS = ingestkit.ParseTime(maxTime.String).UnixMilli()
 	}
 
 	// Check filesystem mtimes of events.jsonl files — Copilot may update JSONL
@@ -896,7 +896,7 @@ func (a *Adapter) messagesFromTurns(ctx context.Context, sessionID string) ([]in
 			return nil, fmt.Errorf("scanning turn: %w", err)
 		}
 
-		ts := ingestutil.ParseTime(timestamp)
+		ts := ingestkit.ParseTime(timestamp)
 
 		if userMsg.Valid && userMsg.String != "" {
 			messages = append(messages, ingest.Message{
@@ -964,7 +964,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					ID:        event.ID,
 					Role:      "user",
 					Content:   data.Content,
-					Timestamp: ingestutil.ParseTime(event.Timestamp),
+					Timestamp: ingestkit.ParseTime(event.Timestamp),
 				}
 				if len(subAgentStack) > 0 {
 					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
@@ -991,7 +991,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					Role:      "assistant",
 					Content:   data.Content,
 					Model:     currentModel,
-					Timestamp: ingestutil.ParseTime(event.Timestamp),
+					Timestamp: ingestkit.ParseTime(event.Timestamp),
 				}
 
 				// Populate reasoning from the richest available source:
@@ -1200,7 +1200,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					ID:        event.ID,
 					Role:      "system",
 					Content:   data.Content,
-					Timestamp: ingestutil.ParseTime(event.Timestamp),
+					Timestamp: ingestkit.ParseTime(event.Timestamp),
 					Metadata: map[string]string{
 						"type": "system_reminder",
 						"file": fileName,

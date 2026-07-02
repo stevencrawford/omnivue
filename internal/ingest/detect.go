@@ -1,7 +1,7 @@
 package ingest
 
 import (
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 // AutoDiscover scans known paths for AI agent session sources
@@ -10,8 +10,8 @@ func AutoDiscover() []DiscoveredSource {
 	var discovered []DiscoveredSource
 
 	for _, r := range registry {
-		path := ingestutil.ExpandHome(r.defaultPath)
-		if !ingestutil.PathExists(path) {
+		path := ingestkit.ExpandHome(r.defaultPath)
+		if !ingestkit.PathExists(path) {
 			continue
 		}
 		if d := r.detector(path); d != nil {

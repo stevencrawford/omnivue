@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 
 	_ "modernc.org/sqlite"
 )
@@ -26,7 +26,7 @@ func init() {
 // detectPath checks whether the given path contains an OpenCode database.
 func detectPath(path string) *ingest.DiscoveredSource {
 	dbPath := filepath.Join(path, "opencode.db")
-	if !ingestutil.PathExists(dbPath) {
+	if !ingestkit.PathExists(dbPath) {
 		return nil
 	}
 	return &ingest.DiscoveredSource{
@@ -115,7 +115,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 		s.Agent = ingest.AgentOpenCode
 		s.Model = extractModelID(modelJSON.String)
-		s.Repository = ingestutil.DeriveRepository(s.Directory, projectName)
+		s.Repository = ingestkit.DeriveRepository(s.Directory, projectName)
 		s.Branch = ""
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -215,7 +215,7 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 
 	s.Agent = ingest.AgentOpenCode
 	s.Model = extractModelID(modelJSON.String)
-	s.Repository = ingestutil.DeriveRepository(s.Directory, projectName)
+	s.Repository = ingestkit.DeriveRepository(s.Directory, projectName)
 	s.Branch = ""
 	s.CreatedAt = time.UnixMilli(timeCreated)
 	s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -294,7 +294,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		var data messageData
 		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
 			msg.Role = data.Role
-			msg.Model = extractModelID(ingestutil.MarshalJSON(data.Model))
+			msg.Model = extractModelID(ingestkit.MarshalJSON(data.Model))
 			msg.Agent = data.Agent
 		}
 
@@ -343,12 +343,12 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					tc := ingest.ToolCall{
 						ID:     p.CallID,
 						Name:   p.Tool,
-						Input:  ingestutil.MarshalJSON(p.State.Input),
+						Input:  ingestkit.MarshalJSON(p.State.Input),
 						Output: p.State.Output,
 						Status: p.State.Status,
 					}
 					if p.State.Metadata != nil {
-						tc.Metadata = ingestutil.MarshalJSON(p.State.Metadata)
+						tc.Metadata = ingestkit.MarshalJSON(p.State.Metadata)
 					}
 					if p.State.Time != nil {
 						tc.Duration = p.State.Time.End - p.State.Time.Start
@@ -434,7 +434,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			continue
 		}
 
-		inputJSON := ingestutil.MarshalJSON(p.State.Input)
+		inputJSON := ingestkit.MarshalJSON(p.State.Input)
 		if inputJSON == "" {
 			continue
 		}
@@ -747,7 +747,7 @@ func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*inge
 			if p.State.Input == nil {
 				continue
 			}
-			inputJSON := ingestutil.MarshalJSON(p.State.Input)
+			inputJSON := ingestkit.MarshalJSON(p.State.Input)
 			if inputJSON == "" {
 				continue
 			}

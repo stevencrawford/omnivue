@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 func init() {
@@ -26,7 +26,7 @@ func init() {
 // detectPath checks whether the given path contains a Codex session index.
 func detectPath(path string) *ingest.DiscoveredSource {
 	indexPath := filepath.Join(path, "session_index.jsonl")
-	if !ingestutil.PathExists(indexPath) {
+	if !ingestkit.PathExists(indexPath) {
 		return nil
 	}
 	return &ingest.DiscoveredSource{
@@ -148,7 +148,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 	defer f.Close()
 
 	var sections []string
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -200,7 +200,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 	defer f.Close()
 
 	var diffs []ingest.DiffFile
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -270,7 +270,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 
 	var edits []ingest.FileEdit
 	patchSeen := make(map[string]bool)
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -292,7 +292,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 				continue
 			}
 
-			ts := ingestutil.ParseTime(env.Timestamp)
+			ts := ingestkit.ParseTime(env.Timestamp)
 
 			var changes map[string]changeEntry
 			if err := json.Unmarshal(pl.Changes, &changes); err != nil {
@@ -327,7 +327,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 				continue
 			}
 
-			ts := ingestutil.ParseTime(env.Timestamp)
+			ts := ingestkit.ParseTime(env.Timestamp)
 			patchText := pl.Input
 			if patchText == "" {
 				patchText = pl.Arguments
@@ -645,7 +645,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	var cost float64
 	var tokensInput, tokensOutput int
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -665,7 +665,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 					session.Directory = pl.CWD
 				}
 				if pl.Git != nil {
-					session.Repository = ingestutil.DeriveRepoFromURL(pl.Git.RepositoryURL)
+					session.Repository = ingestkit.DeriveRepoFromURL(pl.Git.RepositoryURL)
 					session.Branch = pl.Git.Branch
 				}
 				if session.Title == "" && pl.ID != "" {
@@ -722,7 +722,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	}
 
 	if session.Repository == "" {
-		session.Repository = ingestutil.DeriveRepoFromURL("")
+		session.Repository = ingestkit.DeriveRepoFromURL("")
 		if session.Repository == "" {
 			session.Repository = filepath.Base(session.Directory)
 		}
@@ -769,7 +769,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	toolCallsByID := make(map[string]*ingest.ToolCall)
 	hasDeveloperContent := false
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -791,7 +791,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			switch pl.Type {
 			case "message":
 				msg := ingest.Message{
-					Timestamp: ingestutil.ParseTime(env.Timestamp),
+					Timestamp: ingestkit.ParseTime(env.Timestamp),
 				}
 
 				switch pl.Role {
@@ -823,7 +823,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 						msg := ingest.Message{
 							Role:      "system",
 							Content:   extractContentText(pl.Content),
-							Timestamp: ingestutil.ParseTime(env.Timestamp),
+							Timestamp: ingestkit.ParseTime(env.Timestamp),
 						}
 						messages = append(messages, msg)
 					}
@@ -877,7 +877,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					Role:      "user",
 					Content:   normalized,
 					Metadata:  meta,
-					Timestamp: ingestutil.ParseTime(env.Timestamp),
+					Timestamp: ingestkit.ParseTime(env.Timestamp),
 				}
 				messages = append(messages, msg)
 
@@ -885,7 +885,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				msg := ingest.Message{
 					Role:      "assistant",
 					Content:   pl.Message,
-					Timestamp: ingestutil.ParseTime(env.Timestamp),
+					Timestamp: ingestkit.ParseTime(env.Timestamp),
 				}
 				var msgToolCalls []ingest.ToolCall
 				for _, tc := range toolCallsByID {
@@ -959,7 +959,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 		return s, nil
 	}
 	defer f.Close()
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	var msgCount int
 	for scanner.Scan() {
 		var env codexEnvelope
@@ -974,7 +974,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 					s.Directory = meta.CWD
 				}
 				if meta.Git != nil {
-					s.Repository = ingestutil.DeriveRepoFromURL(meta.Git.RepositoryURL)
+					s.Repository = ingestkit.DeriveRepoFromURL(meta.Git.RepositoryURL)
 					s.Branch = meta.Git.Branch
 				}
 			}
@@ -1004,7 +1004,7 @@ func readIndex(path string) ([]codexIndexEntry, error) {
 	defer f.Close()
 
 	var entries []codexIndexEntry
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -1099,7 +1099,7 @@ func extractIDFromSessionFile(path, name string) string {
 		return ""
 	}
 	defer f.Close()
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	if scanner.Scan() {
 		var env codexEnvelope
 		if json.Unmarshal(scanner.Bytes(), &env) == nil && env.Type == "session_meta" {
