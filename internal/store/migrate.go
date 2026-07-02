@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,11 +12,14 @@ import (
 )
 
 // migration is a single forward-only schema change identified by a monotonic
-// version number.
+// version number. The up function runs inside a transaction begun by the
+// runner; it must use the provided *sql.Tx for every statement so that a
+// failure rolls the whole migration (schema change + version stamp) back
+// atomically.
 type migration struct {
 	version int
 	desc    string
-	up      func(*sql.DB) error
+	up      func(*sql.Tx) error
 }
 
 // migrations is the append-only, ordered list of schema migrations. Version 1
@@ -51,15 +55,38 @@ func (s *Store) ensureMigrationsTable() error {
 	return err
 }
 
-// recordMigration stamps a migration version as applied. It is called only
-// after the migration's up function returned successfully.
-func (s *Store) recordMigration(m migration) error {
-	_, err := s.db.Exec(
+// applyMigration runs a single migration inside a transaction. The schema
+// change (m.up) and the version stamp are committed atomically: if either
+// fails the transaction is rolled back, leaving the database exactly as it was
+// before the migration was attempted. On success the migration is never
+// re-run because the stamp is now recorded.
+func (s *Store) applyMigration(m migration) (retErr error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin migration %d: %w", m.version, err)
+	}
+	defer func() {
+		if retErr != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				slog.Warn("failed to rollback failed migration", "error", rbErr)
+			}
+		}
+	}()
+
+	if err := m.up(tx); err != nil {
+		return fmt.Errorf("apply migration %d (%s): %w", m.version, m.desc, err)
+	}
+	if _, err := tx.Exec(
 		`INSERT INTO schema_migrations (version, desc, applied_at) VALUES (?, ?, ?)
 		 ON CONFLICT(version) DO NOTHING`,
 		m.version, m.desc, time.Now().Format(time.RFC3339),
-	)
-	return err
+	); err != nil {
+		return fmt.Errorf("record migration %d: %w", m.version, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %d: %w", m.version, err)
+	}
+	return nil
 }
 
 // migrate runs forward-only schema migrations.
@@ -68,12 +95,8 @@ func (s *Store) recordMigration(m migration) error {
 // tables already present), the baseline migration runs once — it is
 // idempotent, so this is exactly what prior binaries did on every startup —
 // and is then recorded so it never re-runs. Fresh databases run the baseline
-// normally. Each subsequent migration runs exactly once in version order.
-//
-// TODO: wrap each migration's up function in a transaction so a partial
-// failure leaves the schema untouched. The baseline is intentionally left
-// non-transactional in this step to preserve the exact failure semantics of
-// the prior monolithic migrate().
+// normally. Each subsequent migration runs exactly once in version order,
+// each inside its own transaction.
 func (s *Store) migrate() error {
 	if err := s.ensureMigrationsTable(); err != nil {
 		return fmt.Errorf("ensure schema_migrations: %w", err)
@@ -103,11 +126,8 @@ func (s *Store) migrate() error {
 			}
 			backedUp = true
 		}
-		if err := m.up(s.db); err != nil {
-			return fmt.Errorf("apply migration %d (%s): %w", m.version, m.desc, err)
-		}
-		if err := s.recordMigration(m); err != nil {
-			return fmt.Errorf("record migration %d: %w", m.version, err)
+		if err := s.applyMigration(m); err != nil {
+			return err
 		}
 		applied = m.version
 	}
@@ -156,11 +176,12 @@ func copyFile(src, dst string) error {
 // and the search_index column probe-and-rebuild. All of it is idempotent, so
 // running it against a database already shaped by a prior binary is a no-op
 // (matching the previous per-startup behavior) while a fresh database gets the
-// complete current schema.
+// complete current schema. It runs inside the transaction provided by
+// applyMigration; a partial failure rolls the whole baseline back.
 //
 //nolint:errcheck // search_index rebuild intentionally swallows probe errors
-func migrateV1Baseline(db *sql.DB) error {
-	if _, err := db.Exec(`
+func migrateV1Baseline(tx *sql.Tx) error {
+	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS sources (
 			id TEXT PRIMARY KEY,
 			path TEXT NOT NULL UNIQUE,
@@ -242,13 +263,15 @@ func migrateV1Baseline(db *sql.DB) error {
 	}
 
 	// Migration: ensure bookmarks unique index.
-	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_ref ON bookmarks(session_id, message_index, tool_call_id)`); err != nil {
+	if _, err := tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_ref ON bookmarks(session_id, message_index, tool_call_id)`); err != nil {
 		return err
 	}
 
 	// Migration: add mode column to scratch_files for existing databases.
 	// Swallow the error when the column already exists, matching prior behavior.
-	if _, err := db.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
+	// A statement-level error like "duplicate column name" does not abort the
+	// surrounding transaction in SQLite, so subsequent statements still run.
+	if _, err := tx.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
 		// column may already exist — ignore
 		_ = err
 	}
@@ -256,10 +279,10 @@ func migrateV1Baseline(db *sql.DB) error {
 	// Migration: ensure message_index, updated_at, file_title, file_id columns
 	// exist on search_index. FTS5 ALTER TABLE ADD COLUMN may fail on some
 	// platforms, so test the column and drop/recreate the table if needed.
-	if _, probeErr := db.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`); probeErr != nil {
-		db.Exec(`DROP TABLE IF EXISTS search_index`)
-		db.Exec(`DROP TABLE IF EXISTS index_state`)
-		db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+	if _, probeErr := tx.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`); probeErr != nil {
+		tx.Exec(`DROP TABLE IF EXISTS search_index`)
+		tx.Exec(`DROP TABLE IF EXISTS index_state`)
+		tx.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
 			content,
 			session_id UNINDEXED,
 			source_id UNINDEXED,
@@ -270,7 +293,7 @@ func migrateV1Baseline(db *sql.DB) error {
 			file_id UNINDEXED,
 			message_index UNINDEXED
 		)`)
-		db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
+		tx.Exec(`CREATE TABLE IF NOT EXISTS index_state (
 			session_id TEXT PRIMARY KEY,
 			source_id TEXT NOT NULL,
 			last_indexed_at TEXT NOT NULL,

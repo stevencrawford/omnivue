@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ func TestMigrate_PreMigrationBackupCreated(t *testing.T) {
 	t.Cleanup(func() { migrations = orig })
 	migrations = []migration{
 		orig[0], // baseline v1
-		{version: 2, desc: "noop-for-test", up: func(*sql.DB) error { return nil }},
+		{version: 2, desc: "noop-for-test", up: func(*sql.Tx) error { return nil }},
 	}
 
 	s, err := New()
@@ -48,5 +49,58 @@ func TestMigrate_PreMigrationBackupCreated(t *testing.T) {
 	}
 	if info.Size() == 0 {
 		t.Fatal("backup file is empty")
+	}
+}
+
+// TestMigrate_FailedMigrationRollsBack stamps a database at v1, then attempts a
+// v2 migration whose up returns an error. It asserts that migrate() propagates
+// the error, the v2 stamp is NOT recorded (the transaction rolled back), and
+// the database is still usable afterwards with the original schema intact.
+func TestMigrate_FailedMigrationRollsBack(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	// 1. Bring the database up to v1 with the real migrations.
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	// 2. Swap in a v2 that always fails. A backup is attempted first; that is
+	//    expected and fine — the point is that the failed migration does not
+	//    leave a v2 stamp behind.
+	orig := migrations
+	t.Cleanup(func() { migrations = orig })
+	boom := errors.New("simulated migration failure")
+	migrations = []migration{
+		orig[0], // baseline v1
+		{version: 2, desc: "always-fails", up: func(*sql.Tx) error { return boom }},
+	}
+
+	// 3. Reopen: migrate() should return the wrapped failure.
+	s2, err := New()
+	if err == nil {
+		s2.Close()
+		t.Fatal("expected migration to fail, but New() succeeded")
+	}
+	if !errors.Is(err, boom) {
+		t.Fatalf("expected error to wrap %v, got %v", boom, err)
+	}
+
+	// 4. Restore the real migrations and reopen: the DB must still be at v1,
+	//    proving the failed v2 transaction rolled back (no partial stamp).
+	migrations = orig
+	s3, err := New()
+	if err != nil {
+		t.Fatalf("reopen after failed migration: %v", err)
+	}
+	defer s3.Close()
+	v, err := s3.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 1 {
+		t.Fatalf("expected version 1 after rolled-back v2, got %d", v)
 	}
 }
