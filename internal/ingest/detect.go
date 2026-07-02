@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
 // KnownPaths are the default locations to scan for AI agent session data.
@@ -26,8 +26,8 @@ func AutoDiscover() []DiscoveredSource {
 	var discovered []DiscoveredSource
 
 	for _, known := range KnownPaths {
-		path := util.ExpandHome(known.Path)
-		if !util.PathExists(path) {
+		path := ingestutil.ExpandHome(known.Path)
+		if !ingestutil.PathExists(path) {
 			continue
 		}
 
@@ -64,7 +64,7 @@ func AutoDiscover() []DiscoveredSource {
 
 func detectOpenCode(path string) *DiscoveredSource {
 	dbPath := filepath.Join(path, "opencode.db")
-	if !util.PathExists(dbPath) {
+	if !ingestutil.PathExists(dbPath) {
 		return nil
 	}
 	return &DiscoveredSource{
@@ -78,7 +78,7 @@ func detectCopilot(path string) *DiscoveredSource {
 	// Check for session-store.db or session-state directory
 	dbPath := filepath.Join(path, "session-store.db")
 	statePath := filepath.Join(path, "session-state")
-	if !util.PathExists(dbPath) && !util.PathExists(statePath) {
+	if !ingestutil.PathExists(dbPath) && !ingestutil.PathExists(statePath) {
 		return nil
 	}
 	return &DiscoveredSource{
@@ -89,7 +89,7 @@ func detectCopilot(path string) *DiscoveredSource {
 }
 
 func detectCursor(path string) *DiscoveredSource {
-	dbPath := util.FindCursorVscdbPath(path)
+	dbPath := ingestutil.FindCursorVscdbPath(path)
 	if dbPath != "" {
 		return &DiscoveredSource{
 			Path:      dbPath,
@@ -101,11 +101,11 @@ func detectCursor(path string) *DiscoveredSource {
 }
 
 func detectPi(path string) *DiscoveredSource {
-	if !util.PathExists(path) {
+	if !ingestutil.PathExists(path) {
 		return nil
 	}
 	var found bool
-	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || found {
 			return err
 		}
@@ -126,7 +126,7 @@ func detectPi(path string) *DiscoveredSource {
 
 func detectCodex(path string) *DiscoveredSource {
 	indexPath := filepath.Join(path, "session_index.jsonl")
-	if !util.PathExists(indexPath) {
+	if !ingestutil.PathExists(indexPath) {
 		return nil
 	}
 	return &DiscoveredSource{
@@ -138,7 +138,7 @@ func detectCodex(path string) *DiscoveredSource {
 
 func detectClaudeCode(path string) *DiscoveredSource {
 	projectsDir := filepath.Join(path, "projects")
-	if !util.PathExists(projectsDir) {
+	if !ingestutil.PathExists(projectsDir) {
 		return nil
 	}
 	ents, err := os.ReadDir(projectsDir)

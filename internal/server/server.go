@@ -164,8 +164,8 @@ func (s *State) CloseAllSubscribers() {
 	}
 }
 
-// GetSessions returns the cached session list.
-func (s *State) GetSessions() []ingest.Session {
+// Sessions returns the cached session list.
+func (s *State) Sessions() []ingest.Session {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	result := make([]ingest.Session, len(s.sessions))
@@ -173,8 +173,8 @@ func (s *State) GetSessions() []ingest.Session {
 	return result
 }
 
-// GetSession returns a single session by ID.
-func (s *State) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+// Session returns a single session by ID.
+func (s *State) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -186,8 +186,8 @@ func (s *State) GetSession(ctx context.Context, id string) (*ingest.Session, err
 	return nil, fmt.Errorf("session not found: %s", id)
 }
 
-// GetMessages returns messages for a session.
-func (s *State) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+// Messages returns messages for a session.
+func (s *State) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	s.mu.RLock()
 	// Find which adapter owns this session
 	var sourceID string
@@ -203,11 +203,11 @@ func (s *State) GetMessages(ctx context.Context, sessionID string) ([]ingest.Mes
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.GetMessages(ctx, sessionID)
+	return adapter.Messages(ctx, sessionID)
 }
 
-// GetPlan returns the plan for a session.
-func (s *State) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+// Plan returns the plan for a session.
+func (s *State) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	s.mu.RLock()
 	var sourceID string
 	for _, sess := range s.sessions {
@@ -222,11 +222,11 @@ func (s *State) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, er
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.GetPlan(ctx, sessionID)
+	return adapter.Plan(ctx, sessionID)
 }
 
-// GetDiffs returns file diffs for a session.
-func (s *State) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+// Diffs returns file diffs for a session.
+func (s *State) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
 	s.mu.RLock()
 	var sourceID string
 	for _, sess := range s.sessions {
@@ -241,11 +241,11 @@ func (s *State) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFi
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.GetDiffs(ctx, sessionID)
+	return adapter.Diffs(ctx, sessionID)
 }
 
-// GetEdits returns raw edit tool call data for a session.
-func (s *State) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+// Edits returns raw edit tool call data for a session.
+func (s *State) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
 	s.mu.RLock()
 	var sourceID string
 	for _, sess := range s.sessions {
@@ -260,7 +260,7 @@ func (s *State) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEd
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.GetEdits(ctx, sessionID)
+	return adapter.Edits(ctx, sessionID)
 }
 
 // AddSource adds a new source, creates its adapter (if enabled), and triggers a refresh.
@@ -325,7 +325,7 @@ func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label str
 
 	// Re-create adapter if enabled
 	if enabled {
-		src, err := s.store.GetSource(id)
+		src, err := s.store.Source(id)
 		if err != nil {
 			return fmt.Errorf("failed to get updated source: %w", err)
 		}
@@ -344,8 +344,8 @@ func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label str
 	return nil
 }
 
-// GetSources returns configured sources from the store.
-func (s *State) GetSources() []ingest.Source {
+// Sources returns configured sources from the store.
+func (s *State) Sources() []ingest.Source {
 	if s.store == nil {
 		return nil
 	}
@@ -357,8 +357,8 @@ func (s *State) GetSources() []ingest.Source {
 	return sources
 }
 
-// GetResumeCommand returns the CLI command to resume a session.
-func (s *State) GetResumeCommand(ctx context.Context, sessionID string) (string, error) {
+// ResumeCommand returns the CLI command to resume a session.
+func (s *State) ResumeCommand(ctx context.Context, sessionID string) (string, error) {
 	s.mu.RLock()
 	var sourceID string
 	var sess *ingest.Session
@@ -402,12 +402,12 @@ func (s *State) Search(query string, limit int, sessionID string) ([]store.Searc
 	return results, nil
 }
 
-// GetConfig returns all config key-value pairs.
-func (s *State) GetConfig() (map[string]string, error) {
+// Config returns all config key-value pairs.
+func (s *State) Config() (map[string]string, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("store not available")
 	}
-	return s.store.GetAllConfig()
+	return s.store.AllConfig()
 }
 
 // SetConfig upserts a config key-value pair.
@@ -418,12 +418,12 @@ func (s *State) SetConfig(key, value string) error {
 	return s.store.SetConfig(key, value)
 }
 
-// GetRecentSearches returns the list of recent search queries.
-func (s *State) GetRecentSearches() ([]string, error) {
+// RecentSearches returns the list of recent search queries.
+func (s *State) RecentSearches() ([]string, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("store not available")
 	}
-	return s.store.GetRecentSearches()
+	return s.store.RecentSearches()
 }
 
 // SetRecentSearches stores the list of recent search queries.
@@ -494,12 +494,12 @@ func (s *State) CreateScratchFile(f store.ScratchFile) error {
 	return s.store.CreateScratchFile(f)
 }
 
-// GetScratchFile returns a scratch file by ID.
-func (s *State) GetScratchFile(id string) (*store.ScratchFile, error) {
+// ScratchFile returns a scratch file by ID.
+func (s *State) ScratchFile(id string) (*store.ScratchFile, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("store not available")
 	}
-	return s.store.GetScratchFile(id)
+	return s.store.ScratchFile(id)
 }
 
 // UpdateScratchFile updates a scratch file.
@@ -657,7 +657,7 @@ func (s *State) indexSessions(ctx context.Context) {
 		}
 
 		// Get messages for hashing
-		messages, err := adapter.GetMessages(ctx, sess.ID)
+		messages, err := adapter.Messages(ctx, sess.ID)
 		if err != nil {
 			continue
 		}
@@ -685,7 +685,7 @@ func (s *State) indexSessions(ctx context.Context) {
 
 		// Build plan content
 		var planContent string
-		if plan, err := adapter.GetPlan(ctx, sess.ID); err == nil && plan != nil {
+		if plan, err := adapter.Plan(ctx, sess.ID); err == nil && plan != nil {
 			planContent = plan.Markdown
 		}
 
@@ -693,7 +693,10 @@ func (s *State) indexSessions(ctx context.Context) {
 		nameContent := sess.Title
 
 		// Get scratch files for hash comparison and indexing
-		scratchFiles, _ := s.store.ListScratchFiles(sess.ID)
+		scratchFiles, err := s.store.ListScratchFiles(sess.ID)
+		if err != nil {
+			slog.Warn("failed to list scratch files", "session_id", sess.ID, "error", err)
+		}
 		var scratchBuilder strings.Builder
 		for _, sf := range scratchFiles {
 			scratchBuilder.WriteString(sf.Title)
@@ -709,7 +712,7 @@ func (s *State) indexSessions(ctx context.Context) {
 		contentHash := hex.EncodeToString(h[:8])
 
 		// Check if already indexed with same hash
-		existingHash, err := s.store.GetIndexState(sess.ID)
+		existingHash, err := s.store.IndexState(sess.ID)
 		if err != nil {
 			continue
 		}
@@ -814,8 +817,12 @@ func (s *State) pollLoop(ctx context.Context) {
 				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
 				if len(ids) > 0 {
-					data, _ := json.Marshal(map[string]any{"ids": ids})
-					s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+					data, err := json.Marshal(map[string]any{"ids": ids})
+					if err != nil {
+						slog.Warn("failed to marshal session change event", "error", err)
+					} else {
+						s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+					}
 				}
 			} else if liveCount > 0 {
 				// No source-level change, but liveness windows may have expired
@@ -954,22 +961,26 @@ func handleStatus(state *State) http.HandlerFunc {
 		resp := map[string]any{
 			"version": version.Version,
 			"pid":     os.Getpid(),
-			"sources": len(state.GetSources()),
-			"sessions": len(state.GetSessions()),
+			"sources": len(state.Sources()),
+			"sessions": len(state.Sessions()),
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleSources(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sources := state.GetSources()
-		if sources == nil {
+		sources := state.Sources()
+		if len(sources) == 0 {
 			sources = []ingest.Source{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(sources)
+		if err := json.NewEncoder(w).Encode(sources); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1034,7 +1045,9 @@ func handleAddSource(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(src)
+		if err := json.NewEncoder(w).Encode(src); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1076,7 +1089,7 @@ func handleUpdateSource(state *State) http.HandlerFunc {
 
 func handleGetConfig(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cfg, err := state.GetConfig()
+		cfg, err := state.Config()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1085,7 +1098,9 @@ func handleGetConfig(state *State) http.HandlerFunc {
 			cfg = make(map[string]string)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(cfg)
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1108,99 +1123,115 @@ func handleSetConfig(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleSessions(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessions := state.GetSessions()
+		sessions := state.Sessions()
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(sessions)
+		if err := json.NewEncoder(w).Encode(sessions); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetSession(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		session, err := state.GetSession(r.Context(), id)
+		session, err := state.Session(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(session)
+		if err := json.NewEncoder(w).Encode(session); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetMessages(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		messages, err := state.GetMessages(r.Context(), id)
+		messages, err := state.Messages(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(messages)
+		if err := json.NewEncoder(w).Encode(messages); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetPlan(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		plan, err := state.GetPlan(r.Context(), id)
+		plan, err := state.Plan(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(plan)
+		if err := json.NewEncoder(w).Encode(plan); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetDiffs(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		diffs, err := state.GetDiffs(r.Context(), id)
+		diffs, err := state.Diffs(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		if diffs == nil {
+		if len(diffs) == 0 {
 			diffs = []ingest.DiffFile{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(diffs)
+		if err := json.NewEncoder(w).Encode(diffs); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetEdits(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		edits, err := state.GetEdits(r.Context(), id)
+		edits, err := state.Edits(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		if edits == nil {
+		if len(edits) == 0 {
 			edits = []ingest.FileEdit{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(edits)
+		if err := json.NewEncoder(w).Encode(edits); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetResumeCommand(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		cmd, err := state.GetResumeCommand(r.Context(), id)
+		cmd, err := state.ResumeCommand(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"command": cmd})
+		if err := json.NewEncoder(w).Encode(map[string]string{"command": cmd}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1223,7 +1254,9 @@ func handleSetSessionName(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1235,7 +1268,9 @@ func handleClearSessionName(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1247,11 +1282,13 @@ func handleListScratchFiles(state *State) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if files == nil {
+		if len(files) == 0 {
 			files = []store.ScratchFile{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(files)
+		if err := json.NewEncoder(w).Encode(files); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1289,20 +1326,24 @@ func handleCreateScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(f)
+		if err := json.NewEncoder(w).Encode(f); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetScratchFile(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fileID := r.PathValue("fileId")
-		f, err := state.GetScratchFile(fileID)
+		f, err := state.ScratchFile(fileID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(f)
+		if err := json.NewEncoder(w).Encode(f); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1327,7 +1368,9 @@ func handleUpdateScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1352,7 +1395,9 @@ func handleRenameScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1366,7 +1411,9 @@ func handleDeleteScratchFile(state *State) http.HandlerFunc {
 		}
 		state.reindexSessionScratch(sessionID)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1377,26 +1424,30 @@ func handleListAllScratchFiles(state *State) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if files == nil {
+		if len(files) == 0 {
 			files = []store.ScratchFile{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(files)
+		if err := json.NewEncoder(w).Encode(files); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
 func handleGetRecentSearches(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		searches, err := state.GetRecentSearches()
+		searches, err := state.RecentSearches()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if searches == nil {
+		if len(searches) == 0 {
 			searches = []string{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(searches)
+		if err := json.NewEncoder(w).Encode(searches); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1412,7 +1463,9 @@ func handleSetRecentSearches(state *State) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1421,7 +1474,9 @@ func handleSearch(state *State) http.HandlerFunc {
 		q := r.URL.Query().Get("q")
 		if q == "" {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]store.SearchResult{})
+			if err := json.NewEncoder(w).Encode([]store.SearchResult{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
 			return
 		}
 		limit := 50
@@ -1436,14 +1491,18 @@ func handleSearch(state *State) http.HandlerFunc {
 			// FTS5 syntax errors should return empty results, not 500
 			slog.Warn("search error", "query", q, "error", err)
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]store.SearchResult{})
+			if err := json.NewEncoder(w).Encode([]store.SearchResult{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
 			return
 		}
-		if results == nil {
+		if len(results) == 0 {
 			results = []store.SearchResult{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(results)
+		if err := json.NewEncoder(w).Encode(results); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1453,7 +1512,9 @@ func handleListFolders(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]store.Folder{})
+			if err := json.NewEncoder(w).Encode([]store.Folder{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
 			return
 		}
 		folders, err := state.store.ListFolders()
@@ -1461,11 +1522,13 @@ func handleListFolders(state *State) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if folders == nil {
+		if len(folders) == 0 {
 			folders = []store.Folder{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(folders)
+		if err := json.NewEncoder(w).Encode(folders); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1506,7 +1569,9 @@ func handleCreateFolder(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(f)
+		if err := json.NewEncoder(w).Encode(f); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1559,20 +1624,24 @@ func handleGetFolderSessions(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]string{})
+			if err := json.NewEncoder(w).Encode([]string{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
 			return
 		}
 		id := r.PathValue("id")
-		sessionIDs, err := state.store.GetFolderSessions(id)
+		sessionIDs, err := state.store.FolderSessions(id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if sessionIDs == nil {
+		if len(sessionIDs) == 0 {
 			sessionIDs = []string{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(sessionIDs)
+		if err := json.NewEncoder(w).Encode(sessionIDs); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1614,7 +1683,9 @@ func handleListBookmarks(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]store.Bookmark{})
+			if err := json.NewEncoder(w).Encode([]store.Bookmark{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
 			return
 		}
 		bookmarks, err := state.store.ListBookmarks()
@@ -1622,11 +1693,13 @@ func handleListBookmarks(state *State) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if bookmarks == nil {
+		if len(bookmarks) == 0 {
 			bookmarks = []store.Bookmark{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(bookmarks)
+		if err := json.NewEncoder(w).Encode(bookmarks); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1652,7 +1725,7 @@ func handleCreateBookmark(state *State) http.HandlerFunc {
 		}
 
 		// Toggle: if bookmark already exists for this ref, delete it
-		existing, err := state.store.GetBookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID)
+		existing, err := state.store.BookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1663,10 +1736,12 @@ func handleCreateBookmark(state *State) http.HandlerFunc {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"action": "deleted",
 				"id":     existing.ID,
-			})
+			}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
 			return
 		}
 
@@ -1685,10 +1760,12 @@ func handleCreateBookmark(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"action":   "created",
 			"bookmark": b,
-		})
+		}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1759,7 +1836,9 @@ func handleReset(state *State) http.HandlerFunc {
 		// Notify frontend to reload
 		state.sendEvent(sseEvent{Name: "reset"})
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
@@ -1805,7 +1884,10 @@ func handleSSE(state *State) http.HandlerFunc {
 }
 
 func handleSPA() http.HandlerFunc {
-	fsys, _ := fs.Sub(static.Frontend, "dist")
+	fsys, err := fs.Sub(static.Frontend, "dist")
+	if err != nil {
+		slog.Warn("failed to open frontend dist", "error", err)
+	}
 	fileServer := http.FileServer(http.FS(fsys))
 
 	return func(w http.ResponseWriter, r *http.Request) {

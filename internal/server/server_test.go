@@ -42,7 +42,7 @@ func (m *mockAdapter) ListSessions(context.Context) ([]ingest.Session, error) {
 	}
 	return m.sessions, nil
 }
-func (m *mockAdapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (m *mockAdapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	for _, s := range m.sessions {
 		if s.ID == id {
 			return &s, nil
@@ -50,10 +50,10 @@ func (m *mockAdapter) GetSession(ctx context.Context, id string) (*ingest.Sessio
 	}
 	return nil, os.ErrNotExist
 }
-func (m *mockAdapter) GetMessages(context.Context, string) ([]ingest.Message, error) { return m.messages, nil }
-func (m *mockAdapter) GetPlan(context.Context, string) (*ingest.Plan, error)         { return nil, nil }
-func (m *mockAdapter) GetDiffs(context.Context, string) ([]ingest.DiffFile, error)    { return nil, nil }
-func (m *mockAdapter) GetEdits(context.Context, string) ([]ingest.FileEdit, error)   { return nil, nil }
+func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error) { return m.messages, nil }
+func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)         { return nil, nil }
+func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error)    { return nil, nil }
+func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error)   { return nil, nil }
 func (m *mockAdapter) ResumeCommand(*ingest.Session) string                          { return "echo resume" }
 func (m *mockAdapter) LastModified(context.Context) (int64, error)                   { return 0, nil }
 func (m *mockAdapter) Close() error                                                  { return nil }
@@ -224,7 +224,7 @@ func TestGetSessions_ReturnsCopy(t *testing.T) {
 		sessions: []ingest.Session{{ID: "ses-1"}},
 	}
 
-	sessions := state.GetSessions()
+	sessions := state.Sessions()
 	if len(sessions) != 1 {
 		t.Fatalf("expected 1 session, got %d", len(sessions))
 	}
@@ -251,7 +251,7 @@ func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 		t.Errorf("expected 1 live session, got %d", live)
 	}
 
-	got := state.GetSessions()
+	got := state.Sessions()
 	statusByID := map[string]string{}
 	for _, s := range got {
 		statusByID[s.ID] = s.Status
@@ -291,7 +291,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 	if live != 0 {
 		t.Errorf("expected 0 live sessions after staleness, got %d", live)
 	}
-	if got := state.GetSessions()[0].Status; got != "completed" {
+	if got := state.Sessions()[0].Status; got != "completed" {
 		t.Errorf("expected status reverted to completed, got %q", got)
 	}
 	// UpdatedAt moved backwards → still "changed" from the diff's perspective.
@@ -390,14 +390,20 @@ func TestPollLoop_EmitsSessionChangedOnFirstDetectedChange(t *testing.T) {
 	// pipeline (refresh → diff → event) without depending on the 30s idle
 	// cadence the loop uses in its first iteration.
 	lastMod := map[string]int64{"src-1": 1}
-	ts, _ := adapter.LastModified(context.Background())
+	ts, err := adapter.LastModified(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if prev, ok := lastMod["src-1"]; !ok || ts > prev {
 		lastMod["src-1"] = ts
 		if ok {
 			ids, _ := state.refreshSessions(context.Background())
 			state.sendEvent(sseEvent{Name: "update"})
 			if len(ids) > 0 {
-				data, _ := json.Marshal(map[string]any{"ids": ids})
+				data, err := json.Marshal(map[string]any{"ids": ids})
+				if err != nil {
+					t.Fatal(err)
+				}
 				state.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
 			}
 		}

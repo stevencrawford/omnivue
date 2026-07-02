@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
 // piEditEntry represents a single old→new edit within a Pi edit tool call.
@@ -55,7 +55,7 @@ func (a *Adapter) Detect(path string) bool {
 		return false
 	}
 	var found bool
-	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || found {
 			return err
 		}
@@ -71,16 +71,16 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	a.mu.RLock()
 	cached := a.sessions
 	a.mu.RUnlock()
-	if cached != nil {
+	if len(cached) > 0 {
 		return cached, nil
 	}
 	return a.loadSessions(ctx)
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	// Check cache first (fast path)
 	a.mu.RLock()
-	if a.sessions != nil {
+	if len(a.sessions) > 0 {
 		for i := range a.sessions {
 			if a.sessions[i].ID == id {
 				s := a.sessions[i]
@@ -99,7 +99,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	return a.parseSessionFile(fpath)
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	filePath := a.findSessionFile(sessionID)
 	if filePath == "" {
 		return nil, fmt.Errorf("session file not found: %s", sessionID)
@@ -107,8 +107,8 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	return a.parsePiMessages(filePath, sessionID)
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	msgs, err := a.Messages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -134,8 +134,8 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	}, nil
 }
 
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	edits, err := a.GetEdits(ctx, sessionID)
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	edits, err := a.Edits(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -169,8 +169,8 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	return diffs, nil
 }
 
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	msgs, err := a.Messages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -182,21 +182,21 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 				continue
 			}
 
-			fp, oldStr, newStr := parsePiEditContent(tc)
+			fp, oldContent, newContent := parsePiEditContent(tc)
 			if fp == "" {
 				continue
 			}
 
-			content := newStr
-			if oldStr != "" {
+			content := newContent
+			if oldContent != "" {
 				content = ""
 			}
 
 			edits = append(edits, ingest.FileEdit{
 				FilePath: fp,
 				ToolName: tc.Name,
-				OldStr:   oldStr,
-				NewStr:   newStr,
+				OldStr:   oldContent,
+				NewStr:   newContent,
 				Content:  content,
 			})
 		}
@@ -378,7 +378,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 	}
 	defer f.Close()
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("empty file: %s", fpath)
 	}
@@ -396,7 +396,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 		parsedTime = extractTimestampFromFilename(filepath.Base(fpath))
 	}
 
-	repo := util.DeriveRepository(header.CWD, "")
+	repo := ingestutil.DeriveRepository(header.CWD, "")
 	title := deriveTitle(header.ID, header.CWD)
 
 	session := &ingest.Session{
@@ -461,7 +461,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 
 func (a *Adapter) findSessionFile(sessionID string) string {
 	var found string
-	_ = filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || found != "" {
 			return err
 		}
@@ -499,7 +499,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 	var parsed []ingest.Message
 	currentModel := ""
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	// Skip session header
 	if !scanner.Scan() {
 		return nil, fmt.Errorf("empty file: %s", filePath)
@@ -596,7 +596,7 @@ func parseMessage(env piMessageEnvelope, currentModel string) (ingest.Message, e
 	}
 
 	if env.Timestamp != "" {
-		msg.Timestamp = util.ParseTime(env.Timestamp)
+		msg.Timestamp = ingestutil.ParseTime(env.Timestamp)
 	}
 
 	if env.Message.Model != "" {
@@ -839,7 +839,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 			delete(p, "path")
 		}
 		// Pi read output format: {"content":"...","filePath":"..."}
-		if content := util.ExtractJSONString(tc.Output, "content"); content != "" {
+		if content := ingestutil.ExtractJSONString(tc.Output, "content"); content != "" {
 			tc.Output = content
 		}
 
@@ -916,14 +916,14 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 
 	case "bash":
 		// Pi bash output: {"stdout":"...","stderr":"...","exitCode":N}
-		if stdout := util.ExtractJSONString(tc.Output, "stdout"); stdout != "" {
-			if stderr := util.ExtractJSONString(tc.Output, "stderr"); stderr != "" {
+		if stdout := ingestutil.ExtractJSONString(tc.Output, "stdout"); stdout != "" {
+			if stderr := ingestutil.ExtractJSONString(tc.Output, "stderr"); stderr != "" {
 				tc.Output = stdout + "\n" + stderr
 			} else {
 				tc.Output = stdout
 			}
 		}
-		if exitCode := util.ExtractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
+		if exitCode := ingestutil.ExtractJSONString(tc.Output, "exitCode"); exitCode != "" && exitCode != "0" {
 			tc.Metadata = `{"exit":` + exitCode + `}`
 		}
 

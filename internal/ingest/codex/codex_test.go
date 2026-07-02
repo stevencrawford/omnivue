@@ -73,9 +73,9 @@ func TestAdapter_GetSession(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	session, err := adapter.GetSession(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	session, err := adapter.Session(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
 	if err != nil {
-		t.Fatalf("GetSession() failed: %v", err)
+		t.Fatalf("Session() failed: %v", err)
 	}
 
 	if session.ID != "019ee1dc-d721-7933-adff-18b07b510043" {
@@ -106,9 +106,9 @@ func TestAdapter_GetMessages(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	messages, err := adapter.GetMessages(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	messages, err := adapter.Messages(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
 	if err != nil {
-		t.Fatalf("GetMessages() failed: %v", err)
+		t.Fatalf("Messages() failed: %v", err)
 	}
 
 	if len(messages) == 0 {
@@ -161,9 +161,9 @@ func TestAdapter_ToolCallNormalization(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	messages, err := adapter.GetMessages(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	messages, err := adapter.Messages(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
 	if err != nil {
-		t.Fatalf("GetMessages() failed: %v", err)
+		t.Fatalf("Messages() failed: %v", err)
 	}
 
 	for _, msg := range messages {
@@ -192,9 +192,9 @@ func TestAdapter_ToolCallOutputMerging(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	messages, err := adapter.GetMessages(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
+	messages, err := adapter.Messages(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
 	if err != nil {
-		t.Fatalf("GetMessages() failed: %v", err)
+		t.Fatalf("Messages() failed: %v", err)
 	}
 
 	for _, msg := range messages {
@@ -218,9 +218,9 @@ func TestAdapter_GetPlan(t *testing.T) {
 
 	ctx := context.Background()
 
-	plan, err := adapter.GetPlan(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
+	plan, err := adapter.Plan(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
 	if err != nil {
-		t.Fatalf("GetPlan() failed: %v", err)
+		t.Fatalf("Plan() failed: %v", err)
 	}
 	if plan == nil {
 		t.Fatal("expected a plan for session with item_completed Plan record")
@@ -232,9 +232,9 @@ func TestAdapter_GetPlan(t *testing.T) {
 		t.Errorf("expected source 'codex', got %q", plan.Source)
 	}
 
-	plan2, err := adapter.GetPlan(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	plan2, err := adapter.Plan(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
 	if err != nil {
-		t.Fatalf("GetPlan() for non-plan session failed: %v", err)
+		t.Fatalf("Plan() for non-plan session failed: %v", err)
 	}
 	if plan2 != nil {
 		t.Error("expected nil plan for session without plan records")
@@ -249,9 +249,9 @@ func TestAdapter_GetDiffs(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	diffs, err := adapter.GetDiffs(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
+	diffs, err := adapter.Diffs(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
 	if err != nil {
-		t.Fatalf("GetDiffs() failed: %v", err)
+		t.Fatalf("Diffs() failed: %v", err)
 	}
 	if len(diffs) == 0 {
 		t.Fatal("expected diff entries for session with patch_apply_end")
@@ -286,9 +286,9 @@ func TestAdapter_GetEdits(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	edits, err := adapter.GetEdits(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
+	edits, err := adapter.Edits(ctx, "019ee2ab-c812-7a33-beee-29c07b620054")
 	if err != nil {
-		t.Fatalf("GetEdits() failed: %v", err)
+		t.Fatalf("Edits() failed: %v", err)
 	}
 	if len(edits) == 0 {
 		t.Fatal("expected edit entries for session with patch_apply_end and custom_tool_call apply_patch")
@@ -320,9 +320,9 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	session, err := adapter.GetSession(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	session, err := adapter.Session(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
 	if err != nil {
-		t.Fatalf("GetSession() failed: %v", err)
+		t.Fatalf("Session() failed: %v", err)
 	}
 
 	cmd := adapter.ResumeCommand(session)
@@ -362,14 +362,14 @@ func TestAdapter_MissingSession(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	_, err = adapter.GetSession(ctx, "nonexistent-id")
+	_, err = adapter.Session(ctx, "nonexistent-id")
 	if err == nil {
-		t.Error("GetSession() should return error for nonexistent session")
+		t.Error("Session() should return error for nonexistent session")
 	}
 
-	_, err = adapter.GetMessages(ctx, "nonexistent-id")
+	_, err = adapter.Messages(ctx, "nonexistent-id")
 	if err == nil {
-		t.Error("GetMessages() should return error for nonexistent session")
+		t.Error("Messages() should return error for nonexistent session")
 	}
 }
 

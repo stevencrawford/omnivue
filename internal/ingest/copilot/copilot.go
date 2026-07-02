@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 
 	_ "modernc.org/sqlite"
 )
@@ -90,8 +91,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Repository = repository.String
 		s.Branch = branch.String
 		s.Status = "completed"
-		s.CreatedAt = util.ParseTime(createdAt)
-		s.UpdatedAt = util.ParseTime(updatedAt)
+		s.CreatedAt = ingestutil.ParseTime(createdAt)
+		s.UpdatedAt = ingestutil.ParseTime(updatedAt)
 
 		// events.jsonl often updates faster than the SQLite sessions.updated_at
 		// column during an active conversation. Check the filesystem mtime as
@@ -108,9 +109,11 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 		// Count files changed from session_files table
 		var fileCount int
-		_ = a.db.QueryRowContext(ctx,
+		if err := a.db.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM session_files WHERE session_id = ?`, s.ID,
-		).Scan(&fileCount)
+		).Scan(&fileCount); err != nil {
+			fileCount = 0
+		}
 		s.DiffFiles = fileCount
 
 		// Enrich with metadata from events.jsonl (model, cost, tokens, diffs)
@@ -129,7 +132,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			}
 		}
 
-		// Count messages from events.jsonl when available (aligns with GetMessages)
+		// Count messages from events.jsonl when available (aligns with Messages)
 		s.MessageCount = a.countMessagesFromEvents(s.ID)
 
 		dbIDs[s.ID] = true
@@ -205,7 +208,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	return sessions, nil
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	// Check for synthetic child session first
 	a.mu.Lock()
 	if syn, ok := a.syntheticSessions[id]; ok {
@@ -242,8 +245,8 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	s.Repository = repository.String
 	s.Branch = branch.String
 	s.Status = "completed"
-	s.CreatedAt = util.ParseTime(createdAt)
-	s.UpdatedAt = util.ParseTime(updatedAt)
+	s.CreatedAt = ingestutil.ParseTime(createdAt)
+	s.UpdatedAt = ingestutil.ParseTime(updatedAt)
 
 	if s.Title == "" {
 		s.Title = filepath.Base(s.Directory)
@@ -251,9 +254,11 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 
 	// Count diff files (same as ListSessions)
 	var fileCount int
-	_ = a.db.QueryRowContext(ctx,
+	if err := a.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM session_files WHERE session_id = ?`, id,
-	).Scan(&fileCount)
+	).Scan(&fileCount); err != nil {
+		fileCount = 0
+	}
 	s.DiffFiles = fileCount
 
 	// Enrich with metadata from events.jsonl
@@ -274,18 +279,20 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 
 	// Count messages (same as ListSessions)
 	var msgCount int
-	_ = a.db.QueryRowContext(ctx, `
+	if err := a.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM turns
 		WHERE session_id = ?
 		AND (user_message IS NOT NULL AND user_message != ''
 		     OR assistant_response IS NOT NULL AND assistant_response != '')
-	`, id).Scan(&msgCount)
+	`, id).Scan(&msgCount); err != nil {
+		msgCount = 0
+	}
 	s.MessageCount = msgCount
 
 	return &s, nil
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	// Check for synthetic child session first
 	a.mu.Lock()
 	if syn, ok := a.syntheticSessions[sessionID]; ok {
@@ -295,18 +302,18 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	a.mu.Unlock()
 
 	// First try to load rich data from events.jsonl
-	messages, err := a.getMessagesFromEvents(sessionID)
+	messages, err := a.messagesFromEvents(sessionID)
 	if err == nil && len(messages) > 0 {
 		return messages, nil
 	}
 
 	// Fall back to the turns table in the SQLite database
-	return a.getMessagesFromTurns(ctx, sessionID)
+	return a.messagesFromTurns(ctx, sessionID)
 }
 
-// GetEdits extracts file edits from assistant.message tool requests in events.jsonl.
+// Edits extracts file edits from assistant.message tool requests in events.jsonl.
 // It looks for "edit" tools (with path/old_str/new_str) and "create" tools (with path/file_text).
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
 	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
 	f, err := os.Open(eventsPath)
 	if err != nil {
@@ -334,7 +341,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 		}
 
 		for _, req := range data.ToolRequests {
-			ts := util.ParseTime(event.Timestamp)
+			ts := ingestutil.ParseTime(event.Timestamp)
 
 			if req.Name == "apply_patch" {
 				var patchText string
@@ -388,7 +395,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 	return edits, scanner.Err()
 }
 
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT file_path, tool_name
 		FROM session_files
@@ -426,7 +433,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	return diffs, rows.Err()
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	// Try to read plan.md from the session-state directory
 	planPath := filepath.Join(a.basePath, "session-state", sessionID, "plan.md")
 	data, err := os.ReadFile(planPath)
@@ -490,7 +497,7 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	// Check SQLite sessions table
 	var maxTime sql.NullString
 	if err := a.db.QueryRowContext(ctx, `SELECT MAX(updated_at) FROM sessions`).Scan(&maxTime); err == nil && maxTime.Valid {
-		maxTS = util.ParseTime(maxTime.String).UnixMilli()
+		maxTS = ingestutil.ParseTime(maxTime.String).UnixMilli()
 	}
 
 	// Check filesystem mtimes of events.jsonl files — Copilot may update JSONL
@@ -542,7 +549,7 @@ func (a *Adapter) appendSyntheticSessions(sessions []ingest.Session) []ingest.Se
 	return sessions
 }
 
-func (a *Adapter) getMessagesFromTurns(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) messagesFromTurns(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT turn_index, user_message, assistant_response, timestamp
 		FROM turns
@@ -566,7 +573,7 @@ func (a *Adapter) getMessagesFromTurns(ctx context.Context, sessionID string) ([
 			return nil, fmt.Errorf("scanning turn: %w", err)
 		}
 
-		ts := util.ParseTime(timestamp)
+		ts := ingestutil.ParseTime(timestamp)
 
 		if userMsg.Valid && userMsg.String != "" {
 			messages = append(messages, ingest.Message{
@@ -590,7 +597,7 @@ func (a *Adapter) getMessagesFromTurns(ctx context.Context, sessionID string) ([
 	return messages, rows.Err()
 }
 
-func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error) {
 	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
 	f, err := os.Open(eventsPath)
 	if err != nil {
@@ -626,7 +633,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					ID:        event.ID,
 					Role:      "user",
 					Content:   data.Content,
-					Timestamp: util.ParseTime(event.Timestamp),
+					Timestamp: ingestutil.ParseTime(event.Timestamp),
 				}
 				if len(subAgentStack) > 0 {
 					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, msg)
@@ -643,12 +650,16 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					Role:      "assistant",
 					Content:   data.Content,
 					Model:     currentModel,
-					Timestamp: util.ParseTime(event.Timestamp),
+					Timestamp: ingestutil.ParseTime(event.Timestamp),
 				}
 
 				// Extract tool calls from tool requests
 				for _, req := range data.ToolRequests {
-					inputJSON, _ := json.Marshal(req.Arguments)
+					inputJSON, err := json.Marshal(req.Arguments)
+				if err != nil {
+					slog.Warn("failed to marshal arguments", "error", err)
+					inputJSON = []byte("{}")
+				}
 					tc := ingest.ToolCall{
 						ID:     req.ToolCallID,
 						Name:   req.Name,
@@ -671,10 +682,14 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 						if err := json.Unmarshal(req.Arguments, &patchText); err == nil && patchText != "" {
 							filePath := extractCopilotPatchPath(patchText)
 							if filePath != "" {
-								newInput, _ := json.Marshal(map[string]string{
-									"filePath": filePath,
-									"content":  patchText,
-								})
+							newInput, err := json.Marshal(map[string]string{
+								"filePath": filePath,
+								"content":  patchText,
+							})
+							if err != nil {
+								slog.Warn("failed to marshal patch input", "error", err)
+								newInput = []byte("{}")
+							}
 								tc.Input = string(newInput)
 							}
 						}
@@ -770,10 +785,16 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 						tc := &parentMsg.ToolCalls[sa.parentToolIdx]
 						meta := make(map[string]string)
 						if tc.Metadata != "" {
-							_ = json.Unmarshal([]byte(tc.Metadata), &meta)
+						if err := json.Unmarshal([]byte(tc.Metadata), &meta); err != nil {
+							slog.Warn("failed to unmarshal metadata", "error", err)
 						}
-						meta["sessionId"] = synID
-						metaBytes, _ := json.Marshal(meta)
+					}
+					meta["sessionId"] = synID
+					metaBytes, err := json.Marshal(meta)
+					if err != nil {
+						slog.Warn("failed to marshal metadata", "error", err)
+							metaBytes = []byte("{}")
+						}
 						tc.Metadata = string(metaBytes)
 					}
 				}
@@ -790,7 +811,7 @@ func (a *Adapter) getMessagesFromEvents(sessionID string) ([]ingest.Message, err
 					ID:        event.ID,
 					Role:      "system",
 					Content:   data.Content,
-					Timestamp: util.ParseTime(event.Timestamp),
+					Timestamp: ingestutil.ParseTime(event.Timestamp),
 					Metadata: map[string]string{
 						"type": "system_reminder",
 						"file": fileName,
@@ -1025,7 +1046,11 @@ func normalizeAskUserInput(input string) string {
 			},
 		},
 	}
-	out, _ := json.Marshal(transformed)
+	out, err := json.Marshal(transformed)
+	if err != nil {
+		slog.Warn("failed to marshal ask_user input", "error", err)
+		return "{}"
+	}
 	return string(out)
 }
 

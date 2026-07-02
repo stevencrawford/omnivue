@@ -9,7 +9,7 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
 )
 
-func getCursorDB(t *testing.T) string {
+func cursorDB(t *testing.T) string {
 	t.Helper()
 
 	// Check common locations for state.vscdb
@@ -35,7 +35,7 @@ func getCursorDB(t *testing.T) string {
 }
 
 func TestAdapter_ListSessions(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestAdapter_ListSessions(t *testing.T) {
 }
 
 func TestAdapter_SessionOrder(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestAdapter_SessionOrder(t *testing.T) {
 }
 
 func TestAdapter_GetMessages(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestAdapter_GetMessages(t *testing.T) {
 		sessionID = sessions[0].ID
 	}
 
-	messages, err := adapter.GetMessages(context.Background(), sessionID)
+	messages, err := adapter.Messages(context.Background(), sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,14 +140,14 @@ func TestAdapter_GetMessages(t *testing.T) {
 }
 
 func TestAdapter_GetPlan(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer adapter.Close()
 
-	plan, err := adapter.GetPlan(context.Background(), "nonexistent")
+	plan, err := adapter.Plan(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestAdapter_GetPlan(t *testing.T) {
 }
 
 func TestAdapter_GetDiffs(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestAdapter_GetDiffs(t *testing.T) {
 	}
 
 	for _, s := range sessions {
-		diffs, err := adapter.GetDiffs(context.Background(), s.ID)
+		diffs, err := adapter.Diffs(context.Background(), s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +189,7 @@ func TestAdapter_GetDiffs(t *testing.T) {
 }
 
 func TestAdapter_GetEdits(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ func TestAdapter_GetEdits(t *testing.T) {
 	}
 
 	for _, s := range sessions {
-		edits, err := adapter.GetEdits(context.Background(), s.ID)
+		edits, err := adapter.Edits(context.Background(), s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -221,7 +221,7 @@ func TestAdapter_GetEdits(t *testing.T) {
 }
 
 func TestAdapter_ResumeCommand(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 }
 
 func TestAdapter_LastModified(t *testing.T) {
-	path := getCursorDB(t)
+	path := cursorDB(t)
 	adapter, err := cursor.New(path)
 	if err != nil {
 		t.Fatal(err)

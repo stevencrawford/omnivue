@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 
 	_ "modernc.org/sqlite"
 )
@@ -96,7 +96,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 		s.Agent = ingest.AgentOpenCode
 		s.Model = extractModelID(modelJSON.String)
-		s.Repository = util.DeriveRepository(s.Directory, projectName)
+		s.Repository = ingestutil.DeriveRepository(s.Directory, projectName)
 		s.Branch = ""
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -152,7 +152,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	return sessions, nil
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	var (
 		s            ingest.Session
 		parentID     sql.NullString
@@ -196,7 +196,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 
 	s.Agent = ingest.AgentOpenCode
 	s.Model = extractModelID(modelJSON.String)
-	s.Repository = util.DeriveRepository(s.Directory, projectName)
+	s.Repository = ingestutil.DeriveRepository(s.Directory, projectName)
 	s.Branch = ""
 	s.CreatedAt = time.UnixMilli(timeCreated)
 	s.UpdatedAt = time.UnixMilli(timeUpdated)
@@ -242,7 +242,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	return &s, nil
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	// Query messages ordered by time
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT id, data, time_created
@@ -275,12 +275,12 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 		var data messageData
 		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
 			msg.Role = data.Role
-			msg.Model = extractModelID(util.MarshalJSON(data.Model))
+			msg.Model = extractModelID(ingestutil.MarshalJSON(data.Model))
 			msg.Agent = data.Agent
 		}
 
 		// Get parts for this message
-		parts, err := a.getMessageParts(ctx, id)
+		parts, err := a.messageParts(ctx, id)
 		if err == nil {
 			for _, p := range parts {
 				switch p.Type {
@@ -324,12 +324,12 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 					tc := ingest.ToolCall{
 						ID:     p.CallID,
 						Name:   p.Tool,
-						Input:  util.MarshalJSON(p.State.Input),
+						Input:  ingestutil.MarshalJSON(p.State.Input),
 						Output: p.State.Output,
 						Status: p.State.Status,
 					}
 					if p.State.Metadata != nil {
-						tc.Metadata = util.MarshalJSON(p.State.Metadata)
+						tc.Metadata = ingestutil.MarshalJSON(p.State.Metadata)
 					}
 					if p.State.Time != nil {
 						tc.Duration = p.State.Time.End - p.State.Time.Start
@@ -351,8 +351,8 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	return messages, rows.Err()
 }
 
-// GetPlan implements ingest.Adapter.
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+// Plan implements ingest.Adapter.
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	// Check if this is a child session (has a parent) and read agent mode
 	var parentID sql.NullString
 	var agentCol sql.NullString
@@ -383,7 +383,7 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	return a.planFromMessages(ctx, sessionID)
 }
 
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT p.data, m.time_created
 		FROM part p
@@ -415,7 +415,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 			continue
 		}
 
-		inputJSON := util.MarshalJSON(p.State.Input)
+		inputJSON := ingestutil.MarshalJSON(p.State.Input)
 		if inputJSON == "" {
 			continue
 		}
@@ -444,7 +444,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 	return edits, rows.Err()
 }
 
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
 	// Read summary_diffs from session table
 	var diffsJSON sql.NullString
 	err := a.db.QueryRowContext(ctx, `
@@ -558,7 +558,7 @@ func (a *Adapter) computeDiffMetrics(ctx context.Context, ids []string) (map[str
 	return computed, rows.Err()
 }
 
-func (a *Adapter) getMessageParts(ctx context.Context, messageID string) ([]partData, error) {
+func (a *Adapter) messageParts(ctx context.Context, messageID string) ([]partData, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT data FROM part
 		WHERE message_id = ?
@@ -728,7 +728,7 @@ func (a *Adapter) planFromMessages(ctx context.Context, sessionID string) (*inge
 			if p.State.Input == nil {
 				continue
 			}
-			inputJSON := util.MarshalJSON(p.State.Input)
+			inputJSON := ingestutil.MarshalJSON(p.State.Input)
 			if inputJSON == "" {
 				continue
 			}
@@ -803,7 +803,7 @@ type editInput struct {
 	ViewRange []int   `json:"view_range"`
 }
 
-func (e editInput) FilePathResolved() string {
+func (e *editInput) FilePathResolved() string {
 	switch {
 	case e.FilePath != "":
 		return e.FilePath
@@ -814,14 +814,14 @@ func (e editInput) FilePathResolved() string {
 	}
 }
 
-func (e editInput) OldStrResolved() string {
+func (e *editInput) OldStrResolved() string {
 	if e.OldStr != "" {
 		return e.OldStr
 	}
 	return e.OldString
 }
 
-func (e editInput) NewStrResolved() string {
+func (e *editInput) NewStrResolved() string {
 	if e.NewStr != "" {
 		return e.NewStr
 	}

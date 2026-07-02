@@ -9,7 +9,7 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/opencode"
 )
 
-func getOpenCodePath(t *testing.T) string {
+func opencodePath(t *testing.T) string {
 	t.Helper()
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -23,7 +23,7 @@ func getOpenCodePath(t *testing.T) string {
 }
 
 func TestAdapter_ListSessions(t *testing.T) {
-	path := getOpenCodePath(t)
+	path := opencodePath(t)
 	adapter, err := opencode.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestAdapter_ListSessions(t *testing.T) {
 }
 
 func TestAdapter_GetMessages(t *testing.T) {
-	path := getOpenCodePath(t)
+	path := opencodePath(t)
 	adapter, err := opencode.New(path)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestAdapter_GetMessages(t *testing.T) {
 		sessionID = sessions[0].ID
 	}
 
-	messages, err := adapter.GetMessages(context.Background(), sessionID)
+	messages, err := adapter.Messages(context.Background(), sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestAdapter_GetMessages(t *testing.T) {
 }
 
 func TestAdapter_LastModified(t *testing.T) {
-	path := getOpenCodePath(t)
+	path := opencodePath(t)
 	adapter, err := opencode.New(path)
 	if err != nil {
 		t.Fatal(err)

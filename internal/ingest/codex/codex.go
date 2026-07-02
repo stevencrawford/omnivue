@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +14,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
 type Adapter struct {
@@ -64,16 +65,16 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	a.mu.RLock()
 	cached := a.sessions
 	a.mu.RUnlock()
-	if cached != nil {
+	if len(cached) > 0 {
 		return cached, nil
 	}
 	return a.loadSessions(ctx)
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	// Check cache first (fast path)
 	a.mu.RLock()
-	if a.sessions != nil {
+	if len(a.sessions) > 0 {
 		for i := range a.sessions {
 			if a.sessions[i].ID == id {
 				s := a.sessions[i]
@@ -107,7 +108,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	return nil, fmt.Errorf("session not found: %s", id)
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	fpath := a.sessionFilePath(sessionID)
 	if fpath == "" {
 		return nil, fmt.Errorf("session file not found: %s", sessionID)
@@ -115,7 +116,7 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	return a.parseMessages(fpath, sessionID)
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	fpath := a.sessionFilePath(sessionID)
 	if fpath == "" {
 		return nil, nil
@@ -128,7 +129,7 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	defer f.Close()
 
 	var sections []string
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -167,7 +168,7 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	}, nil
 }
 
-func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
 	fpath := a.sessionFilePath(sessionID)
 	if fpath == "" {
 		return nil, nil
@@ -180,7 +181,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	defer f.Close()
 
 	var diffs []ingest.DiffFile
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -236,7 +237,7 @@ func (a *Adapter) GetDiffs(ctx context.Context, sessionID string) ([]ingest.Diff
 	return diffs, nil
 }
 
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
 	fpath := a.sessionFilePath(sessionID)
 	if fpath == "" {
 		return nil, nil
@@ -250,7 +251,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 
 	var edits []ingest.FileEdit
 	patchSeen := make(map[string]bool)
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -272,7 +273,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 				continue
 			}
 
-			ts := util.ParseTime(env.Timestamp)
+			ts := ingestutil.ParseTime(env.Timestamp)
 
 			var changes map[string]changeEntry
 			if err := json.Unmarshal(pl.Changes, &changes); err != nil {
@@ -307,7 +308,7 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 				continue
 			}
 
-			ts := util.ParseTime(env.Timestamp)
+			ts := ingestutil.ParseTime(env.Timestamp)
 			patchText := pl.Input
 			if patchText == "" {
 				patchText = pl.Arguments
@@ -319,14 +320,14 @@ func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.File
 			}
 
 			result := parseRawPatch(patchText)
-			newStr := result.content
-			if newStr == "" {
-				newStr = patchText
+			editContent := result.content
+			if editContent == "" {
+				editContent = patchText
 			}
 			edits = append(edits, ingest.FileEdit{
 				FilePath:  filePath,
 				ToolName:  "edit",
-				NewStr:    newStr,
+				NewStr:    editContent,
 				Content:   patchText,
 				Timestamp: ts,
 			})
@@ -548,7 +549,7 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 	}
 
 	sessionsDir := filepath.Join(a.basePath, "sessions")
-	_ = filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
 			return nil
 		}
@@ -557,7 +558,10 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 			return nil
 		}
 		indexIDs[id] = true // avoid duplicates
-		fi, _ := d.Info()
+		fi, err := d.Info()
+		if err != nil {
+			fi = nil
+		}
 		s := ingest.Session{
 			ID:     id,
 			Agent:  ingest.AgentCodex,
@@ -622,7 +626,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	var cost float64
 	var tokensInput, tokensOutput int
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -642,7 +646,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 					session.Directory = pl.CWD
 				}
 				if pl.Git != nil {
-					session.Repository = util.DeriveRepoFromURL(pl.Git.RepositoryURL)
+					session.Repository = ingestutil.DeriveRepoFromURL(pl.Git.RepositoryURL)
 					session.Branch = pl.Git.Branch
 				}
 				if session.Title == "" && pl.ID != "" {
@@ -699,7 +703,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	}
 
 	if session.Repository == "" {
-		session.Repository = util.DeriveRepoFromURL("")
+		session.Repository = ingestutil.DeriveRepoFromURL("")
 		if session.Repository == "" {
 			session.Repository = filepath.Base(session.Directory)
 		}
@@ -722,13 +726,13 @@ func (a *Adapter) sessionFilePath(sessionID string) string {
 			return nil
 		}
 		if strings.Contains(name, sessionID) {
-			return fmt.Errorf("FOUND:%s", p)
+			return fmt.Errorf("found:%s", p)
 		}
 		return nil
 	})
 	if err != nil {
 		msg := err.Error()
-		if strings.HasPrefix(msg, "FOUND:") {
+		if strings.HasPrefix(msg, "found:") {
 			return msg[6:]
 		}
 	}
@@ -746,7 +750,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	toolCallsByID := make(map[string]*ingest.ToolCall)
 	hasDeveloperContent := false
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -768,7 +772,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			switch pl.Type {
 			case "message":
 				msg := ingest.Message{
-					Timestamp: util.ParseTime(env.Timestamp),
+					Timestamp: ingestutil.ParseTime(env.Timestamp),
 				}
 
 				switch pl.Role {
@@ -800,7 +804,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 						msg := ingest.Message{
 							Role:      "system",
 							Content:   extractContentText(pl.Content),
-							Timestamp: util.ParseTime(env.Timestamp),
+							Timestamp: ingestutil.ParseTime(env.Timestamp),
 						}
 						messages = append(messages, msg)
 					}
@@ -854,7 +858,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					Role:      "user",
 					Content:   normalized,
 					Metadata:  meta,
-					Timestamp: util.ParseTime(env.Timestamp),
+					Timestamp: ingestutil.ParseTime(env.Timestamp),
 				}
 				messages = append(messages, msg)
 
@@ -862,7 +866,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				msg := ingest.Message{
 					Role:      "assistant",
 					Content:   pl.Message,
-					Timestamp: util.ParseTime(env.Timestamp),
+					Timestamp: ingestutil.ParseTime(env.Timestamp),
 				}
 				var msgToolCalls []ingest.ToolCall
 				for _, tc := range toolCallsByID {
@@ -873,7 +877,11 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				toolCallsByID = make(map[string]*ingest.ToolCall)
 
 			case "task_complete":
-				summaryBytes, _ := json.Marshal(pl.Message)
+				summaryBytes, err := json.Marshal(pl.Message)
+			if err != nil {
+				slog.Warn("failed to marshal summary", "error", err)
+				summaryBytes = []byte("{}")
+			}
 				tc := &ingest.ToolCall{
 					ID:     pl.TurnID,
 					Name:   "task_complete",
@@ -909,7 +917,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 }
 
 // parseSessionFileMinimal builds a basic Session from a session .jsonl file
-// without requiring an index entry. Used by GetSession for orphan sessions.
+// without requiring an index entry. Used by Session for orphan sessions.
 func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (*ingest.Session, error) {
 	fi, err := os.Stat(fpath)
 	if err != nil {
@@ -932,7 +940,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 		return s, nil
 	}
 	defer f.Close()
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	var msgCount int
 	for scanner.Scan() {
 		var env codexEnvelope
@@ -947,7 +955,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 					s.Directory = meta.CWD
 				}
 				if meta.Git != nil {
-					s.Repository = util.DeriveRepoFromURL(meta.Git.RepositoryURL)
+					s.Repository = ingestutil.DeriveRepoFromURL(meta.Git.RepositoryURL)
 					s.Branch = meta.Git.Branch
 				}
 			}
@@ -977,7 +985,7 @@ func readIndex(path string) ([]codexIndexEntry, error) {
 	defer f.Close()
 
 	var entries []codexIndexEntry
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -1072,7 +1080,7 @@ func extractIDFromSessionFile(path, name string) string {
 		return ""
 	}
 	defer f.Close()
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	if scanner.Scan() {
 		var env codexEnvelope
 		if json.Unmarshal(scanner.Bytes(), &env) == nil && env.Type == "session_meta" {
@@ -1103,7 +1111,11 @@ func normalizeBashInput(tc *ingest.ToolCall) {
 			raw["command"] = cmd
 		}
 	}
-	out, _ := json.Marshal(raw)
+	out, err := json.Marshal(raw)
+	if err != nil {
+		slog.Warn("failed to marshal tool input", "error", err)
+		out = []byte("{}")
+	}
 	tc.Input = string(out)
 }
 
@@ -1142,7 +1154,11 @@ func normalizeEditInput(tc *ingest.ToolCall) {
 		"filePath": result.filePath,
 		"content":  result.content,
 	}
-	encoded, _ := json.Marshal(out)
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		slog.Warn("failed to marshal write input", "error", err)
+		encoded = []byte("{}")
+	}
 	tc.Input = string(encoded)
 }
 

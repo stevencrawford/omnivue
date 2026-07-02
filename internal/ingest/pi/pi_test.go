@@ -42,7 +42,7 @@ func TestAdapter_WithSampleSession(t *testing.T) {
 			t.Errorf("expected >=1 messages, got %d", s.MessageCount)
 		}
 
-		msgs, err := a.GetMessages(ctx, s.ID)
+		msgs, err := a.Messages(ctx, s.ID)
 		if err != nil {
 			t.Fatal(err)
 		}

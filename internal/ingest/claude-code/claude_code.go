@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +14,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/util"
+	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
 )
 
 // projectDir is the subdirectory within ~/.claude that holds session data.
@@ -52,12 +53,18 @@ func (a *Adapter) Detect(path string) bool {
 		return false
 	}
 	// Verify at least one session JSONL exists
-	ents, _ := os.ReadDir(projectsPath)
+	ents, err := os.ReadDir(projectsPath)
+	if err != nil {
+		return false
+	}
 	for _, ent := range ents {
 		if !ent.IsDir() {
 			continue
 		}
-		sessionEnts, _ := os.ReadDir(filepath.Join(projectsPath, ent.Name()))
+		sessionEnts, err := os.ReadDir(filepath.Join(projectsPath, ent.Name()))
+		if err != nil {
+			continue
+		}
 		for _, se := range sessionEnts {
 			if !se.IsDir() && strings.HasSuffix(se.Name(), ".jsonl") {
 				return true
@@ -71,15 +78,15 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	a.mu.RLock()
 	cached := a.sessions
 	a.mu.RUnlock()
-	if cached != nil {
+	if len(cached) > 0 {
 		return cached, nil
 	}
 	return a.loadSessions(ctx)
 }
 
-func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, error) {
+func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	a.mu.RLock()
-	if a.sessions != nil {
+	if len(a.sessions) > 0 {
 		for i := range a.sessions {
 			if a.sessions[i].ID == id {
 				s := a.sessions[i]
@@ -107,7 +114,7 @@ func (a *Adapter) GetSession(ctx context.Context, id string) (*ingest.Session, e
 	return a.parseSessionFile(fpath, projectPath)
 }
 
-func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	fpath := a.findSessionFile(sessionID)
 	if fpath == "" {
 		return nil, fmt.Errorf("session file not found: %s", sessionID)
@@ -115,7 +122,7 @@ func (a *Adapter) GetMessages(ctx context.Context, sessionID string) ([]ingest.M
 	return a.parseMessages(fpath, sessionID)
 }
 
-func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	// First, try to find the slug from the session messages
 	fpath := a.findSessionFile(sessionID)
 	if fpath == "" {
@@ -129,7 +136,7 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 
 	// Look for plan file in ~/.claude/plans/{slug}.md
 	planPath := filepath.Join(a.claudeDir, planDir, slug+".md")
-	if util.PathExists(planPath) {
+	if ingestutil.PathExists(planPath) {
 		content, err := os.ReadFile(planPath)
 		if err != nil {
 			return nil, nil
@@ -143,12 +150,12 @@ func (a *Adapter) GetPlan(ctx context.Context, sessionID string) (*ingest.Plan, 
 	return nil, nil
 }
 
-func (a *Adapter) GetDiffs(_ context.Context, _ string) ([]ingest.DiffFile, error) {
+func (a *Adapter) Diffs(_ context.Context, _ string) ([]ingest.DiffFile, error) {
 	return nil, nil
 }
 
-func (a *Adapter) GetEdits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	msgs, err := a.GetMessages(ctx, sessionID)
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	msgs, err := a.Messages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +222,7 @@ func (a *Adapter) LastModified(_ context.Context) (int64, error) {
 	var maxMod int64
 	projectsPath := filepath.Join(a.claudeDir, projectDir)
 
-	_ = filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil {
 			return nil
 		}
@@ -335,7 +342,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	}
 	defer f.Close()
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 
 	var (
 		parentSID   string
@@ -387,7 +394,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 			agentID = env.AgentID
 		}
 
-		ts := util.ParseTime(env.Timestamp)
+		ts := ingestutil.ParseTime(env.Timestamp)
 		if firstTS.IsZero() {
 			firstTS = ts
 		}
@@ -451,7 +458,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 		}
 	}
 
-	repo := util.DeriveRepository(cwd, "")
+	repo := ingestutil.DeriveRepository(cwd, "")
 
 	status := "active"
 	if hasRealUser && lastTS.Before(time.Now().Add(-5*time.Minute)) {
@@ -516,7 +523,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	}
 	defer f.Close()
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 
 	var messages []ingest.Message
 	toolCallsByID := make(map[string]*ingest.ToolCall)
@@ -550,7 +557,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			}
 		}
 
-		ts := util.ParseTime(env.Timestamp)
+		ts := ingestutil.ParseTime(env.Timestamp)
 
 		switch env.Type {
 		case "user", "assistant":
@@ -652,7 +659,7 @@ func (a *Adapter) findSlugFromSession(fpath string) string {
 	}
 	defer f.Close()
 
-	scanner := util.NewJSONLScanner(f)
+	scanner := ingestutil.NewJSONLScanner(f)
 	for scanner.Scan() {
 		var env claudeMessageEnvelope
 		if json.Unmarshal(scanner.Bytes(), &env) != nil {
@@ -678,7 +685,7 @@ func (a *Adapter) findSessionFile(sessionID string) string {
 	}
 
 	var found string
-	_ = filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || found != "" {
 			return err
 		}
@@ -827,9 +834,13 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 				// Claude Code stores the plan under either "plan", "content", or "summary" key.
 				planText := extractPlanContent(p.Input)
 				if planText != "" {
-					transformed, _ := json.Marshal(map[string]string{
-						"summary": planText,
-					})
+				transformed, err := json.Marshal(map[string]string{
+					"summary": planText,
+				})
+				if err != nil {
+					slog.Warn("failed to marshal plan text", "error", err)
+					transformed = []byte("{}")
+				}
 					tc := ingest.ToolCall{
 						ID:     p.ID,
 						Name:   p.Name,
@@ -862,7 +873,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 				tc := ingest.ToolCall{
 					ID:     p.ID,
 					Name:   p.Name,
-					Input:  util.TruncateContent(input, 2000),
+					Input:  ingestutil.TruncateContent(input, 2000),
 					Status: "running",
 				}
 				toolCalls = append(toolCalls, tc)
@@ -906,7 +917,7 @@ func truncateToolOutput(content string, toolName string) string {
 	if toolName == "task" || toolName == "Task" {
 		return content
 	}
-	return util.TruncateContent(content, maxContentBytes)
+	return ingestutil.TruncateContent(content, maxContentBytes)
 }
 
 const maxContentBytes = 2000
@@ -917,7 +928,7 @@ const maxContentBytes = 2000
 func truncateEditInput(raw json.RawMessage) string {
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return util.TruncateContent(string(raw), maxContentBytes)
+		return ingestutil.TruncateContent(string(raw), maxContentBytes)
 	}
 	changed := false
 	for _, key := range []string{"content", "new_str", "newStr", "old_str", "oldStr"} {
@@ -931,7 +942,11 @@ func truncateEditInput(raw json.RawMessage) string {
 	if !changed {
 		return string(raw)
 	}
-	result, _ := json.Marshal(m)
+	result, err := json.Marshal(m)
+	if err != nil {
+		slog.Warn("failed to marshal truncated content", "error", err)
+		return "{}"
+	}
 	return string(result)
 }
 
@@ -973,13 +988,19 @@ func setToolMetadataSessionID(tc *ingest.ToolCall, parentSID, agentID string) {
 	childID := parentSID + "-agent-" + agentID
 	var md map[string]any
 	if tc.Metadata != "" {
-		_ = json.Unmarshal([]byte(tc.Metadata), &md)
+		if err := json.Unmarshal([]byte(tc.Metadata), &md); err != nil {
+			slog.Warn("failed to unmarshal metadata", "error", err)
+		}
 	}
 	if md == nil {
 		md = make(map[string]any)
 	}
 	md["sessionId"] = childID
-	mdBytes, _ := json.Marshal(md)
+	mdBytes, err := json.Marshal(md)
+	if err != nil {
+		slog.Warn("failed to marshal metadata", "error", err)
+		mdBytes = []byte("{}")
+	}
 	tc.Metadata = string(mdBytes)
 }
 
