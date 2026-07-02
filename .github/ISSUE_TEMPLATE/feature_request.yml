@@ -1,0 +1,52 @@
+name: Feature Request
+description: Suggest an idea for Omnivue
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm always frustrated when [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to see happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What alternative solutions or workarounds have you considered?
+
+  - type: dropdown
+    id: agents
+    attributes:
+      label: Affected agent(s)
+      description: Does this feature relate to a specific AI agent adapter?
+      multiple: true
+      options:
+        - OpenCode
+        - Copilot
+        - Cursor
+        - Pi
+        - Claude Code
+        - Codex
+        - All / General
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add any other context, mockups, or screenshots here.
