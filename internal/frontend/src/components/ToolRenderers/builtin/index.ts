@@ -12,6 +12,7 @@ import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
 import { SqlToolDiff } from "./SqlToolDiff";
 import { CompactionToolDiff } from "./CompactionToolDiff";
 import { TaskToolDiff } from "./TaskToolDiff";
+import { SkillToolDiff } from "./SkillToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
@@ -231,6 +232,26 @@ export const definitions: ToolRendererDefinition[] = [
     markerPriority: 10,
     cardClassName:
       "border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-2",
+  },
+  {
+    kind: "skill",
+    names: ["skill"],
+    Component: SkillToolDiff,
+    summary: (tool) => {
+      const name =
+        extractJSONField(tool.input, "name") || extractJSONField(tool.input, "skill") || "";
+      if (name) return `skill: ${name.slice(0, 80)}`;
+      const desc = extractJSONField(tool.input, "description") || "";
+      if (desc) return `skill: ${desc.slice(0, 80)}`;
+      return "skill";
+    },
+    display: { type: "always-open", renderSummary: true },
+    truncateOutput: 0,
+    markerColor: "#38bdf8",
+    markerLabel: "Skill",
+    markerDisplayType: "skill",
+    markerPriority: 15,
+    cardClassName: "border border-sky-500/30 rounded-lg overflow-hidden bg-sky-500/[0.03] mb-2",
   },
   {
     kind: "task_complete",
