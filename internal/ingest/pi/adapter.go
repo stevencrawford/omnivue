@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
@@ -49,15 +47,15 @@ func detectPath(path string) *ingest.DiscoveredSource {
 // Adapter reads Pi agent session data from JSONL files.
 type Adapter struct {
 	basePath string
-	// Cache parsed session data to avoid re-reading files on every call
-	mu         sync.RWMutex
-	sessions   []ingest.Session
-	lastMod    int64 // unix millis of latest modified file
+	cache    *ingest.SessionCache
 }
 
 // New creates a new Pi adapter for the given base path.
 func New(basePath string) (*Adapter, error) {
-	return &Adapter{basePath: basePath}, nil
+	return &Adapter{
+		basePath: basePath,
+		cache:    ingest.NewSessionCache(basePath, ".jsonl"),
+	}, nil
 }
 
 func (a *Adapter) Type() ingest.AgentType {
@@ -83,28 +81,16 @@ func (a *Adapter) Detect(path string) bool {
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
-	a.mu.RLock()
-	cached := a.sessions
-	a.mu.RUnlock()
-	if len(cached) > 0 {
+	if cached := a.cache.List(); cached != nil {
 		return cached, nil
 	}
 	return a.loadSessions(ctx)
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	// Check cache first (fast path)
-	a.mu.RLock()
-	if len(a.sessions) > 0 {
-		for i := range a.sessions {
-			if a.sessions[i].ID == id {
-				s := a.sessions[i]
-				a.mu.RUnlock()
-				return &s, nil
-			}
-		}
+	if s, ok := a.cache.Get(id); ok {
+		return &s, nil
 	}
-	a.mu.RUnlock()
 
 	// Fallback: find and parse just the one session file
 	fpath := a.findSessionFile(id)
@@ -205,47 +191,20 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
-	a.mu.RLock()
-	lastMod := a.lastMod
-	a.mu.RUnlock()
-
-	// Re-scan to get fresh mod times
-	var maxMod int64
-	err := filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
+	maxMod, err := a.cache.ScanAndRebuild(func(path string) (*ingest.Session, int64, error) {
+		session, err := a.parseSessionFile(path)
 		if err != nil {
-			return err
+			return nil, 0, err
 		}
-		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
-			return nil
-		}
-		fi, err := d.Info()
+		fi, err := os.Stat(path)
 		if err != nil {
-			return nil
+			return nil, 0, err
 		}
-		mod := fi.ModTime().UnixMilli()
-		if mod > maxMod {
-			maxMod = mod
-		}
-		return nil
+		return session, fi.ModTime().UnixMilli(), nil
 	})
 	if err != nil {
-		if lastMod > 0 {
-			return lastMod, nil
-		}
-		return time.Now().UnixMilli(), nil
+		return a.cache.LastModified(), nil
 	}
-	if maxMod == 0 {
-		maxMod = time.Now().UnixMilli()
-	}
-
-	// Invalidate cache if files changed
-	if maxMod > lastMod {
-		a.mu.Lock()
-		a.sessions = nil
-		a.lastMod = maxMod
-		a.mu.Unlock()
-	}
-
 	return maxMod, nil
 }
 
@@ -254,8 +213,7 @@ func (a *Adapter) Close() error {
 }
 
 func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
-	var sessions []ingest.Session
-	var maxMod int64
+	entries := make(map[string]ingest.SessionEntry)
 
 	err := filepath.WalkDir(a.basePath, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -268,32 +226,26 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		if err != nil {
 			return nil
 		}
-		mod := fi.ModTime().UnixMilli()
-		if mod > maxMod {
-			maxMod = mod
-		}
+		modTime := fi.ModTime().UnixMilli()
 
 		session, err := a.parseSessionFile(p)
 		if err != nil {
 			return nil
 		}
-		sessions = append(sessions, *session)
+		id := session.ID
+		entries[id] = ingest.SessionEntry{
+			Session:  *session,
+			FilePath: p,
+			ModTime:  modTime,
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("pi adapter: walking directory: %w", err)
 	}
 
-	slices.SortFunc(sessions, func(a, b ingest.Session) int {
-		return b.UpdatedAt.Compare(a.UpdatedAt)
-	})
-
-	a.mu.Lock()
-	a.sessions = sessions
-	a.lastMod = maxMod
-	a.mu.Unlock()
-
-	return sessions, nil
+	a.cache.ReplaceAll(entries)
+	return a.cache.List(), nil
 }
 
 func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
