@@ -240,8 +240,8 @@ func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 	state := &State{
 		adapters: map[string]ingest.Adapter{
 			"src-1": &mockAdapter{sessions: []ingest.Session{
-				{ID: "ses-fresh", Status: "completed", UpdatedAt: now.Add(-30 * time.Second)},
-				{ID: "ses-stale", Status: "completed", UpdatedAt: now.Add(-10 * time.Minute)},
+				{ID: "ses-fresh", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-30 * time.Second)},
+				{ID: "ses-stale", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-10 * time.Minute)},
 			}},
 		},
 	}
@@ -252,14 +252,14 @@ func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 	}
 
 	got := state.Sessions()
-	statusByID := map[string]string{}
+	statusByID := map[string]ingest.SessionStatus{}
 	for _, s := range got {
 		statusByID[s.ID] = s.Status
 	}
-	if statusByID["ses-fresh"] != "active" {
+	if statusByID["ses-fresh"] != ingest.SessionStatusActive {
 		t.Errorf("expected ses-fresh to be active, got %q", statusByID["ses-fresh"])
 	}
-	if statusByID["ses-stale"] != "completed" {
+	if statusByID["ses-stale"] != ingest.SessionStatusCompleted {
 		t.Errorf("expected ses-stale to be completed, got %q", statusByID["ses-stale"])
 	}
 
@@ -274,11 +274,11 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 	state := &State{
 		adapters: map[string]ingest.Adapter{
 			"src-1": &mockAdapter{sessions: []ingest.Session{
-				{ID: "ses-1", Status: "active", UpdatedAt: fresh},
+				{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh},
 			}},
 		},
 		sessions: []ingest.Session{
-			{ID: "ses-1", Status: "active", UpdatedAt: fresh},
+			{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh},
 		},
 	}
 
@@ -291,7 +291,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 	if live != 0 {
 		t.Errorf("expected 0 live sessions after staleness, got %d", live)
 	}
-	if got := state.Sessions()[0].Status; got != "completed" {
+	if got := state.Sessions()[0].Status; got != ingest.SessionStatusCompleted {
 		t.Errorf("expected status reverted to completed, got %q", got)
 	}
 	// UpdatedAt moved backwards → still "changed" from the diff's perspective.
@@ -303,7 +303,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	now := time.Now()
 	adapter := &mockAdapter{sessions: []ingest.Session{
-		{ID: "ses-1", Status: "completed", UpdatedAt: now.Add(-time.Minute)},
+		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-time.Minute)},
 	}}
 	state := &State{
 		adapters: map[string]ingest.Adapter{"src-1": adapter},

@@ -98,6 +98,6 @@ type transcriptSession struct {
 	ID        string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Status    string
+	Status    ingest.SessionStatus
 	Messages  []ingest.Message
 }

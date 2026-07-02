@@ -69,7 +69,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 	toolCallsByID := make(map[string]*ingest.ToolCall)
 	var toolResults []ingest.Message
 	for _, msg := range parsed {
-		if msg.Role == "assistant" {
+		if msg.Role == ingest.MessageRoleAssistant {
 			for i := range msg.ToolCalls {
 				tc := &msg.ToolCalls[i]
 				toolCallsByID[tc.ID] = tc
@@ -114,7 +114,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 func parseMessage(env piMessageEnvelope, currentModel string) (ingest.Message, error) {
 	msg := ingest.Message{
 		ID:    env.ID,
-		Role:  env.Message.Role,
+		Role:  ingest.MessageRole(env.Message.Role),
 		Model: currentModel,
 	}
 
@@ -219,7 +219,7 @@ func parseAssistantContent(raw json.RawMessage) (text string, toolCalls []ingest
 				ID:     p.ToolCallID,
 				Name:   p.Name,
 				Input:  input,
-				Status: "completed",
+				Status: ingest.ToolCallCompleted,
 			}
 			normalizeToolCall(&tc)
 			toolCalls = append(toolCalls, tc)

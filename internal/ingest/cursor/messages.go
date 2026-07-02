@@ -190,9 +190,9 @@ func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]i
 			continue
 		}
 
-		role := "user"
+		role := ingest.MessageRoleUser
 		if bd.Type == 2 {
-			role = "assistant"
+			role = ingest.MessageRoleAssistant
 		}
 
 		content := bd.Text
@@ -276,7 +276,7 @@ func parseTranscriptJSONL(path string) []ingest.Message {
 					ID:     fmt.Sprintf("tool-%d", len(toolCalls)),
 					Name:   c.Name,
 					Input:  string(c.Input),
-					Status: "completed",
+					Status: ingest.ToolCallCompleted,
 				}
 				normalizeToolCall(&tc)
 				toolCalls = append(toolCalls, tc)
@@ -285,7 +285,7 @@ func parseTranscriptJSONL(path string) []ingest.Message {
 
 		messages = append(messages, ingest.Message{
 			ID:        fmt.Sprintf("msg-%d", len(messages)),
-			Role:      envelope.Role,
+			Role:      ingest.MessageRole(envelope.Role),
 			Content:   strings.Join(contentParts, "\n"),
 			ToolCalls: toolCalls,
 		})

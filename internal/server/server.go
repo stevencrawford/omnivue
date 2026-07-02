@@ -583,12 +583,12 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 			// within liveWindow. We override whatever the adapter hardcoded so
 			// the frontend gets a single source of truth.
 			if !sessions[i].UpdatedAt.IsZero() && time.Since(sessions[i].UpdatedAt) < liveWindow {
-				if sessions[i].Status != "active" {
-					sessions[i].Status = "active"
+				if sessions[i].Status != ingest.SessionStatusActive {
+					sessions[i].Status = ingest.SessionStatusActive
 				}
 				liveCount++
-			} else if sessions[i].Status == "active" {
-				sessions[i].Status = "completed"
+			} else if sessions[i].Status == ingest.SessionStatusActive {
+				sessions[i].Status = ingest.SessionStatusCompleted
 			}
 		}
 		allSessions = append(allSessions, sessions...)

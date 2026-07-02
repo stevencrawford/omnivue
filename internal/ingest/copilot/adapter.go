@@ -108,7 +108,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Directory = cwd.String
 		s.Repository = repository.String
 		s.Branch = branch.String
-		s.Status = "completed"
+		s.Status = ingest.SessionStatusCompleted
 		s.CreatedAt = ingestkit.ParseTime(createdAt)
 		s.UpdatedAt = ingestkit.ParseTime(updatedAt)
 
@@ -193,7 +193,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			ID:           id,
 			Agent:        ingest.AgentCopilot,
 			Title:        title,
-			Status:       "active",
+			Status:       ingest.SessionStatusActive,
 			CreatedAt:    info.ModTime(),
 			UpdatedAt:    info.ModTime(),
 			MessageCount: msgCount,
@@ -262,7 +262,7 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	s.Directory = cwd.String
 	s.Repository = repository.String
 	s.Branch = branch.String
-	s.Status = "completed"
+	s.Status = ingest.SessionStatusCompleted
 	s.CreatedAt = ingestkit.ParseTime(createdAt)
 	s.UpdatedAt = ingestkit.ParseTime(updatedAt)
 
@@ -432,13 +432,13 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 			continue
 		}
 
-		status := "modified"
+		status := ingest.DiffModified
 		if toolName.Valid {
 			switch toolName.String {
 			case "create":
-				status = "added"
+				status = ingest.DiffAdded
 			case "delete":
-				status = "deleted"
+				status = ingest.DiffDeleted
 			}
 		}
 
@@ -458,7 +458,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 	if err == nil && len(data) > 0 {
 		return &ingest.Plan{
 			Markdown: string(data),
-			Source:   "file",
+			Source:   ingest.PlanDataFile,
 		}, nil
 	}
 
@@ -501,7 +501,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 
 	return &ingest.Plan{
 		Markdown: md,
-		Source:   "synthesized",
+		Source:   ingest.PlanDataSynthesized,
 	}, nil
 }
 
@@ -596,7 +596,7 @@ func (a *Adapter) messagesFromTurns(ctx context.Context, sessionID string) ([]in
 		if userMsg.Valid && userMsg.String != "" {
 			messages = append(messages, ingest.Message{
 				ID:        fmt.Sprintf("%s-turn-%d-user", sessionID, turnIndex),
-				Role:      "user",
+				Role:      ingest.MessageRoleUser,
 				Content:   userMsg.String,
 				Timestamp: ts,
 			})
@@ -605,7 +605,7 @@ func (a *Adapter) messagesFromTurns(ctx context.Context, sessionID string) ([]in
 		if assistMsg.Valid && assistMsg.String != "" {
 			messages = append(messages, ingest.Message{
 				ID:        fmt.Sprintf("%s-turn-%d-assistant", sessionID, turnIndex),
-				Role:      "assistant",
+				Role:      ingest.MessageRoleAssistant,
 				Content:   assistMsg.String,
 				Timestamp: ts,
 			})

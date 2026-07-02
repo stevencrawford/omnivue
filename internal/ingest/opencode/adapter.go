@@ -112,7 +112,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.Branch = ""
 		s.CreatedAt = time.UnixMilli(timeCreated)
 		s.UpdatedAt = time.UnixMilli(timeUpdated)
-		s.Status = "completed"
+		s.Status = ingest.SessionStatusCompleted
 
 		if parentID.Valid {
 			s.ParentID = parentID.String
@@ -124,8 +124,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.SubAgent = extractSubAgentFromTitle(s.Title)
 		}
 
-		if agentCol.Valid {
-			s.Status = "completed"
+	if agentCol.Valid {
+			s.Status = ingest.SessionStatusCompleted
 		}
 
 		if summFiles.Valid {
@@ -225,7 +225,7 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	}
 
 	if agentCol.Valid {
-		s.Status = "completed"
+		s.Status = ingest.SessionStatusCompleted
 	}
 
 	if summFiles.Valid {
@@ -286,7 +286,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		// Parse the JSON data blob
 		var data messageData
 		if err := json.Unmarshal([]byte(dataJSON), &data); err == nil {
-			msg.Role = data.Role
+			msg.Role = ingest.MessageRole(data.Role)
 			msg.Model = extractModelID(ingestkit.MarshalJSON(data.Model))
 			msg.Agent = data.Agent
 		}
@@ -310,12 +310,12 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 			}
 		case "step-start":
 					msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
-						Step:     "start",
+						Step:     ingest.StepEventStart,
 						Snapshot: p.Snapshot,
 					})
 				case "step-finish":
 					se := ingest.StepEvent{
-						Step:     "finish",
+						Step:     ingest.StepEventFinish,
 						Snapshot: p.Snapshot,
 						Reason:   p.Reason,
 						Cost:     p.Cost,
@@ -338,7 +338,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 						Name:   p.Tool,
 						Input:  ingestkit.MarshalJSON(p.State.Input),
 						Output: p.State.Output,
-						Status: p.State.Status,
+						Status: ingest.ToolCallStatus(p.State.Status),
 					}
 					if p.State.Metadata != nil {
 						tc.Metadata = ingestkit.MarshalJSON(p.State.Metadata)
@@ -353,7 +353,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 
 		// Wrap large embedded code blocks in user messages with <file-context> tags
 		// so the frontend can render them as collapsible file references.
-		if msg.Role == "user" {
+		if msg.Role == ingest.MessageRoleUser {
 			msg.Content = wrapEmbeddedFileContent(msg.Content)
 		}
 
@@ -385,7 +385,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 		source := "task-output"
 		cleaned := stripTaskWrapper(output)
 		md := "# Sub-agent Response\n\n" + cleaned
-		return &ingest.Plan{Markdown: md, Source: source}, nil
+		return &ingest.Plan{Markdown: md, Source: ingest.PlanDataSource(source)}, nil
 	}
 
 	if agentCol.Valid && agentCol.String == "plan" {

@@ -27,6 +27,6 @@ func planFromMessages(msgs []ingest.Message) *ingest.Plan {
 	md := strings.Join(sections, "\n\n---\n\n")
 	return &ingest.Plan{
 		Markdown: md,
-		Source:   "synthesized",
+		Source:   ingest.PlanDataSynthesized,
 	}
 }

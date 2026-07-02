@@ -137,9 +137,9 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 		if e.OldStr != "" {
 			dels = strings.Count(e.OldStr, "\n") + 1
 		}
-		status := "modified"
+		status := ingest.DiffModified
 		if e.OldStr == "" && e.NewStr != "" {
-			status = "added"
+			status = ingest.DiffAdded
 		}
 		diffs = append(diffs, ingest.DiffFile{
 			Path:      e.FilePath,
@@ -283,7 +283,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 		Repository: repo,
 		Directory:  header.CWD,
 		Agent:      ingest.AgentPi,
-		Status:     "active",
+		Status:     ingest.SessionStatusActive,
 		CreatedAt:  parsedTime,
 		UpdatedAt:  parsedTime,
 	}

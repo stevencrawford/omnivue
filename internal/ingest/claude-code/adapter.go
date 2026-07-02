@@ -187,7 +187,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 		}
 		return &ingest.Plan{
 			Markdown: string(content),
-			Source:   "file",
+			Source:   ingest.PlanDataFile,
 		}, nil
 	}
 
@@ -504,9 +504,9 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 
 	repo := ingestkit.DeriveRepository(cwd, "")
 
-	status := "active"
+	status := ingest.SessionStatusActive
 	if hasRealUser && lastTS.Before(time.Now().Add(-5*time.Minute)) {
-		status = "completed"
+		status = ingest.SessionStatusCompleted
 	}
 
 	subAgentName := ""
@@ -618,7 +618,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 			msg := ingest.Message{
 				ID:        env.UUID,
-				Role:      env.Message.Role,
+				Role:      ingest.MessageRole(env.Message.Role),
 				Timestamp: ts,
 				Model:     currentModel,
 			}
@@ -649,7 +649,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					if toolResultsDir != "" {
 						if tr := readToolResultFile(toolResultsDir, toolCalls[i].ID); tr != "" {
 							toolCalls[i].Output = truncateToolOutput(tr, toolCalls[i].Name)
-							toolCalls[i].Status = "completed"
+							toolCalls[i].Status = ingest.ToolCallCompleted
 						}
 					}
 					toolCallsByID[toolCalls[i].ID] = &toolCalls[i]
@@ -675,9 +675,9 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			if tc, ok := toolCallsByID[tcID]; ok {
 				tc.Output = truncateToolOutput(content, tc.Name)
 				if env.IsError != nil && *env.IsError {
-					tc.Status = "failed"
+					tc.Status = ingest.ToolCallFailed
 				} else {
-					tc.Status = "completed"
+					tc.Status = ingest.ToolCallCompleted
 				}
 				if env.AgentID != "" {
 					setToolMetadataSessionID(tc, parentSID, env.AgentID)

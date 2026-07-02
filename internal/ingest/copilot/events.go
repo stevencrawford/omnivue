@@ -105,7 +105,7 @@ func handleUserMessage(event eventEnvelope) *ingest.Message {
 	}
 	return &ingest.Message{
 		ID:        event.ID,
-		Role:      "user",
+		Role:      ingest.MessageRoleUser,
 		Content:   data.Content,
 		Timestamp: ingestkit.ParseTime(event.Timestamp),
 	}
@@ -118,7 +118,7 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 	}
 	msg := ingest.Message{
 		ID:        data.MessageID,
-		Role:      "assistant",
+		Role:      ingest.MessageRoleAssistant,
 		Content:   data.Content,
 		Model:     currentModel,
 		Timestamp: ingestkit.ParseTime(event.Timestamp),
@@ -134,7 +134,7 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 			ID:     req.ToolCallID,
 			Name:   req.Name,
 			Input:  string(inputJSON),
-			Status: "running",
+			Status: ingest.ToolCallRunning,
 		}
 		if tc.Name == "ask_user" {
 			tc.Name = "question"
@@ -226,7 +226,7 @@ func (a *Adapter) handleSubAgentCompleted(sessionID string, subAgentStack *[]*su
 				Agent:     ingest.AgentCopilot,
 				SubAgent:  sa.agentName,
 				Title:     sa.agentDisplay,
-				Status:    "completed",
+				Status:    ingest.SessionStatusCompleted,
 				CreatedAt: createdAt,
 				UpdatedAt: updatedAt,
 			},
@@ -270,7 +270,7 @@ func handleSystemReminder(event eventEnvelope) *ingest.Message {
 	}
 	return &ingest.Message{
 		ID:        event.ID,
-		Role:      "system",
+		Role:      ingest.MessageRoleSystem,
 		Content:   data.Content,
 		Timestamp: ingestkit.ParseTime(event.Timestamp),
 		Metadata: map[string]string{
@@ -287,9 +287,9 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 		for j := range msg.ToolCalls {
 			if msg.ToolCalls[j].ID == data.ToolCallID {
 				if data.Success {
-					msg.ToolCalls[j].Status = "completed"
+					msg.ToolCalls[j].Status = ingest.ToolCallCompleted
 				} else {
-					msg.ToolCalls[j].Status = "failed"
+					msg.ToolCalls[j].Status = ingest.ToolCallFailed
 				}
 				if data.Result.Content != "" {
 					msg.ToolCalls[j].Output = data.Result.Content

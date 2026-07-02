@@ -118,7 +118,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 				ComposerID:    id,
 				CreatedAt:     json.Number(created),
 				LastUpdatedAt: json.Number(updated),
-				Status:        ts.Status,
+				Status:        string(ts.Status),
 				IsAgentic:     true,
 			}
 		}
@@ -287,7 +287,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 			seen[fp] = true
 			diffs = append(diffs, ingest.DiffFile{
 				Path:   fp,
-				Status: "modified",
+				Status: ingest.DiffModified,
 			})
 		}
 	}
@@ -315,7 +315,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 		}
 		diffs = append(diffs, ingest.DiffFile{
 			Path:   uuid,
-			Status: "modified",
+			Status: ingest.DiffModified,
 		})
 	}
 	return diffs, nil
@@ -455,25 +455,25 @@ func deriveRepository(dir string) string {
 	return filepath.Base(dir)
 }
 
-func mapStatus(cursorStatus string) string {
+func mapStatus(cursorStatus string) ingest.SessionStatus {
 	switch cursorStatus {
 	case "completed":
-		return "completed"
+		return ingest.SessionStatusCompleted
 	case "aborted":
-		return "archived"
+		return ingest.SessionStatusArchived
 	default:
-		return "active"
+		return ingest.SessionStatusActive
 	}
 }
 
-func mapToolStatus(s string) string {
+func mapToolStatus(s string) ingest.ToolCallStatus {
 	switch s {
 	case "error":
-		return "failed"
+		return ingest.ToolCallFailed
 	case "running":
-		return "running"
+		return ingest.ToolCallRunning
 	default:
-		return "completed"
+		return ingest.ToolCallCompleted
 	}
 }
 
@@ -546,8 +546,8 @@ func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSe
 			ID:        uuidDir,
 			CreatedAt: createdAt,
 			UpdatedAt: updatedAt,
-			Status:    "completed",
-			Messages:  msgs,
+		Status:    ingest.SessionStatusCompleted,
+		Messages:  msgs,
 		})
 		return nil
 	})

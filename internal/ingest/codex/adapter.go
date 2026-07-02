@@ -175,7 +175,7 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 
 	return &ingest.Plan{
 		Markdown: strings.Join(sections, "\n\n---\n\n"),
-		Source:   "codex",
+		Source:   ingest.PlanDataSynthesized,
 	}, nil
 }
 
@@ -236,7 +236,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 
 			diffs = append(diffs, ingest.DiffFile{
 				Path:   path,
-				Status: status,
+				Status: ingest.DiffFileStatus(status),
 				Patch:  patch,
 			})
 		}
@@ -477,7 +477,7 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 			ID:     id,
 			Agent:  ingest.AgentCodex,
 			Title:  id,
-			Status: "active",
+			Status: ingest.SessionStatusActive,
 		}
 		if fi != nil {
 			s.CreatedAt = fi.ModTime()
@@ -519,7 +519,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 		SourceID:  a.basePath,
 		Title:     entry.ThreadName,
 		Agent:     ingest.AgentCodex,
-		Status:    "active",
+		Status:    ingest.SessionStatusActive,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Directory: "",
@@ -688,14 +688,14 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 				switch pl.Role {
 				case "user":
-					msg.Role = "user"
+					msg.Role = ingest.MessageRoleUser
 					content := extractContentText(pl.Content)
 					content, msg.Metadata = normalizeUserContent(content)
 					msg.Content = content
 					messages = append(messages, msg)
 
 				case "assistant":
-					msg.Role = "assistant"
+					msg.Role = ingest.MessageRoleAssistant
 					msg.Content = extractContentText(pl.Content)
 
 					var reasoning string
@@ -713,7 +713,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					if !hasDeveloperContent {
 						hasDeveloperContent = true
 						msg := ingest.Message{
-							Role:      "system",
+							Role:      ingest.MessageRoleSystem,
 							Content:   extractContentText(pl.Content),
 							Timestamp: ingestkit.ParseTime(env.Timestamp),
 						}
@@ -726,7 +726,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					ID:     pl.CallID,
 					Name:   normalizeToolName(pl.Name),
 					Input:  pl.Arguments,
-					Status: "running",
+					Status: ingest.ToolCallRunning,
 				}
 				normalizeBashInput(tc)
 				toolCallsByID[pl.CallID] = tc
@@ -734,7 +734,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			case "function_call_output":
 				if tc, ok := toolCallsByID[pl.CallID]; ok {
 					tc.Output = pl.Output
-					tc.Status = "completed"
+					tc.Status = ingest.ToolCallCompleted
 					normalizeBashOutput(tc)
 				}
 
@@ -743,7 +743,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					ID:     pl.CallID,
 					Name:   normalizeToolName(pl.Name),
 					Input:  pl.Input,
-					Status: "running",
+					Status: ingest.ToolCallRunning,
 				}
 				normalizeEditInput(tc)
 				toolCallsByID[pl.CallID] = tc
@@ -751,7 +751,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			case "custom_tool_call_output":
 				if tc, ok := toolCallsByID[pl.CallID]; ok {
 					tc.Output = pl.Output
-					tc.Status = "completed"
+					tc.Status = ingest.ToolCallCompleted
 				}
 			}
 
@@ -766,7 +766,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				content := pl.Message
 				normalized, meta := normalizeUserContent(content)
 				msg := ingest.Message{
-					Role:      "user",
+					Role:      ingest.MessageRoleUser,
 					Content:   normalized,
 					Metadata:  meta,
 					Timestamp: ingestkit.ParseTime(env.Timestamp),
@@ -775,7 +775,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 			case "agent_message":
 				msg := ingest.Message{
-					Role:      "assistant",
+					Role:      ingest.MessageRoleAssistant,
 					Content:   pl.Message,
 					Timestamp: ingestkit.ParseTime(env.Timestamp),
 				}
@@ -796,7 +796,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				tc := &ingest.ToolCall{
 					ID:     pl.TurnID,
 					Name:   "task_complete",
-					Status: "completed",
+					Status: ingest.ToolCallCompleted,
 					Output: "completed",
 					Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d,"summary":%s,"success":%v}`, pl.TurnID, pl.CompletedAt, pl.DurationMs, string(summaryBytes), pl.Success),
 				}
@@ -811,7 +811,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			msgToolCalls = append(msgToolCalls, *tc)
 		}
 		messages = append(messages, ingest.Message{
-			Role:      "assistant",
+			Role:      ingest.MessageRoleAssistant,
 			ToolCalls: msgToolCalls,
 			Timestamp: time.Now(),
 		})
@@ -835,7 +835,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 		ID:        id,
 		Agent:     ingest.AgentCodex,
 		Title:     id,
-		Status:    "active",
+		Status:    ingest.SessionStatusActive,
 		CreatedAt: fi.ModTime(),
 		UpdatedAt: fi.ModTime(),
 	}
@@ -916,7 +916,7 @@ func dedupMessages(messages []ingest.Message) []ingest.Message {
 	var result []ingest.Message
 	seen := make(map[string]bool)
 	for _, m := range messages {
-		key := m.Role + "|" + m.Content
+		key := string(m.Role) + "|" + m.Content
 		if seen[key] {
 			continue
 		}

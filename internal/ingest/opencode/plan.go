@@ -57,7 +57,7 @@ func (a *Adapter) planFromLastMessage(ctx context.Context, sessionID string) (*i
 	}
 
 	md := strings.Join(sections, "\n\n---\n\n")
-	return &ingest.Plan{Markdown: md, Source: "synthesized"}, nil
+	return &ingest.Plan{Markdown: md, Source: ingest.PlanDataSynthesized}, nil
 }
 
 func (a *Adapter) findTaskOutput(ctx context.Context, parentID, childID string) (string, error) {

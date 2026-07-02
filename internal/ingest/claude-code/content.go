@@ -53,7 +53,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 						ID:     p.ID,
 						Name:   p.Name,
 						Input:  string(transformed),
-						Status: "running",
+						Status: ingest.ToolCallRunning,
 					}
 					toolCalls = append(toolCalls, tc)
 				} else {
@@ -61,7 +61,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 						ID:     p.ID,
 						Name:   p.Name,
 						Input:  string(p.Input),
-						Status: "running",
+						Status: ingest.ToolCallRunning,
 					}
 					toolCalls = append(toolCalls, tc)
 				}
@@ -70,7 +70,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 					ID:     p.ID,
 					Name:   p.Name,
 					Input:  truncateEditInput(p.Input),
-					Status: "running",
+					Status: ingest.ToolCallRunning,
 				}
 				toolCalls = append(toolCalls, tc)
 			} else {
@@ -82,7 +82,7 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 					ID:     p.ID,
 					Name:   p.Name,
 					Input:  ingestkit.TruncateContent(input, 2000),
-					Status: "running",
+					Status: ingest.ToolCallRunning,
 				}
 				toolCalls = append(toolCalls, tc)
 			}
@@ -189,9 +189,9 @@ func extractAndMergeToolResults(raw json.RawMessage, toolCallsByID map[string]*i
 				tc.Output = truncateToolOutput(content, tc.Name)
 			}
 			if isError != nil && *isError {
-				tc.Status = "failed"
+				tc.Status = ingest.ToolCallFailed
 			} else {
-				tc.Status = "completed"
+				tc.Status = ingest.ToolCallCompleted
 			}
 		}
 	}
@@ -221,7 +221,7 @@ func handleProgressEvent(line []byte, toolCallsByID map[string]*ingest.ToolCall,
 	}
 
 	// Mark the task tool as completed
-	tc.Status = "completed"
+	tc.Status = ingest.ToolCallCompleted
 
 	// Extract content from the embedded tool result in the progress event
 	if len(prog.Data.Message) == 0 {
