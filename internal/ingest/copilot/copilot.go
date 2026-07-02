@@ -652,6 +652,16 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 		case "assistant.message":
 			var data assistantMessageData
 			if json.Unmarshal(event.Data, &data) == nil {
+				// Thinking-phase messages: the content IS the thinking text.
+				// Don't create a separate message — feed into pendingReasoning
+				// so the next response-phase message carries the reasoning.
+				if data.Phase == "thinking" && data.Content != "" {
+					if pendingReasoning == "" {
+						pendingReasoning = data.Content
+					}
+					break
+				}
+
 				msg := ingest.Message{
 					ID:        data.MessageID,
 					Role:      "assistant",
@@ -662,14 +672,11 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 				// Populate reasoning from the richest available source:
 				//   1. explicit reasoningText on the event
-				//   2. assistant.reasoning event content (pendingReasoning)
-				//   3. content during thinking phase
+				//   2. content from a preceding assistant.reasoning event or
+				//      thinking-phase assistant.message
 				switch {
 				case data.ReasoningText != "":
 					msg.Reasoning = data.ReasoningText
-				case data.Phase == "thinking" && data.Content != "":
-					msg.Reasoning = data.Content
-					msg.Content = ""
 				case pendingReasoning != "":
 					msg.Reasoning = pendingReasoning
 				}
