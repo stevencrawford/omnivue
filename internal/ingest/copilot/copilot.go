@@ -692,7 +692,7 @@ func (ts *todoState) parseUpdate(query string) {
 			return r == ',' || r == ' ' || r == '\''
 		})
 		for _, id := range items {
-			id = strings.TrimSpace(id)
+			id = strings.ToLower(strings.TrimSpace(id))
 			if id != "" {
 				if t, ok := ts.items[id]; ok {
 					t.Status = newStatus
