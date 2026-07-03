@@ -86,15 +86,7 @@ func NewState(ctx context.Context) *State {
 
 	// Initial session load and indexing (background, non-blocking)
 	go func() {
-		ids, _ := s.refreshSessions(ctx)
-		go s.indexSessions(ctx)
-		s.sendEvent(sseEvent{Name: "update"})
-		if len(ids) > 0 {
-			data, err := json.Marshal(map[string]any{"ids": ids})
-			if err == nil {
-				s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
-			}
-		}
+		s.refreshAndIndex(ctx)
 	}()
 
 	// Start poller
@@ -265,6 +257,8 @@ func (s *State) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit,
 }
 
 // AddSource adds a new source, creates its adapter (if enabled), and triggers a refresh.
+// The session refresh and indexing run in the background so the HTTP handler returns
+// immediately; an SSE "update" event is sent once the new source's sessions are loaded.
 func (s *State) AddSource(ctx context.Context, src ingest.Source) error {
 	if s.store == nil {
 		return fmt.Errorf("store not available")
@@ -282,9 +276,7 @@ func (s *State) AddSource(ctx context.Context, src ingest.Source) error {
 			s.mu.Unlock()
 		}
 	}
-	s.refreshSessions(ctx)
-	go s.indexSessions(ctx)
-	s.sendEvent(sseEvent{Name: "update"})
+	go s.refreshAndIndex(ctx)
 	return nil
 }
 
@@ -308,6 +300,7 @@ func (s *State) RemoveSource(ctx context.Context, id string) error {
 }
 
 // UpdateSource updates a source and re-creates its adapter if needed.
+// Like AddSource, the refresh runs in the background so the handler returns immediately.
 func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label string, enabled bool) error {
 	if s.store == nil {
 		return fmt.Errorf("store not available")
@@ -339,9 +332,7 @@ func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label str
 			s.mu.Unlock()
 		}
 	}
-	s.refreshSessions(ctx)
-	go s.indexSessions(ctx)
-	s.sendEvent(sseEvent{Name: "update"})
+	go s.refreshAndIndex(ctx)
 	return nil
 }
 
@@ -636,6 +627,23 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 	s.sessions = allSessions
 	s.mu.Unlock()
 	return changedIDs, liveCount
+}
+
+// refreshAndIndex runs a session refresh followed by background indexing and
+// emits the SSE events the frontend expects. Used by AddSource/UpdateSource
+// so the HTTP handler is never blocked by adapter I/O.
+func (s *State) refreshAndIndex(ctx context.Context) {
+	ids, _ := s.refreshSessions(ctx)
+	go s.indexSessions(ctx)
+	s.sendEvent(sseEvent{Name: "update"})
+	if len(ids) > 0 {
+		data, err := json.Marshal(map[string]any{"ids": ids})
+		if err != nil {
+			slog.Warn("failed to marshal session change event", "error", err)
+			return
+		}
+		s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+	}
 }
 
 // indexSessions indexes session content into the FTS5 search index.

@@ -91,7 +91,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	}
 
 	rows, err := a.db.QueryContext(ctx, `
-		SELECT id, cwd, repository, branch, summary, created_at, updated_at
+		SELECT id, cwd, repository, branch, summary, created_at, updated_at,
+		       (SELECT COUNT(*) FROM session_files WHERE session_id = sessions.id) AS file_count
 		FROM sessions
 		ORDER BY updated_at DESC
 	`)
@@ -111,9 +112,10 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			summary    sql.NullString
 			createdAt  string
 			updatedAt  string
+			fileCount  int
 		)
 
-		err := rows.Scan(&s.ID, &cwd, &repository, &branch, &summary, &createdAt, &updatedAt)
+		err := rows.Scan(&s.ID, &cwd, &repository, &branch, &summary, &createdAt, &updatedAt, &fileCount)
 		if err != nil {
 			return nil, fmt.Errorf("scanning session row: %w", err)
 		}
@@ -140,13 +142,6 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.Title = filepath.Base(s.Directory)
 		}
 
-		// Count files changed from session_files table
-		var fileCount int
-		if err := a.db.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM session_files WHERE session_id = ?`, s.ID,
-		).Scan(&fileCount); err != nil {
-			fileCount = 0
-		}
 		s.DiffFiles = fileCount
 
 		// Enrich with metadata + message count from events.jsonl (single pass)
@@ -268,9 +263,10 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	)
 
 	err := a.db.QueryRowContext(ctx, `
-		SELECT id, cwd, repository, branch, summary, created_at, updated_at
+		SELECT id, cwd, repository, branch, summary, created_at, updated_at,
+		       (SELECT COUNT(*) FROM session_files WHERE session_id = sessions.id) AS file_count
 		FROM sessions WHERE id = ?
-	`, id).Scan(&s.ID, &cwd, &repository, &branch, &summary, &createdAt, &updatedAt)
+	`, id).Scan(&s.ID, &cwd, &repository, &branch, &summary, &createdAt, &updatedAt, &s.DiffFiles)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("session not found: %s", id)
@@ -290,15 +286,6 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	if s.Title == "" {
 		s.Title = filepath.Base(s.Directory)
 	}
-
-	// Count diff files (same as ListSessions)
-	var fileCount int
-	if err := a.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM session_files WHERE session_id = ?`, id,
-	).Scan(&fileCount); err != nil {
-		fileCount = 0
-	}
-	s.DiffFiles = fileCount
 
 	// Enrich with metadata from events.jsonl
 	if meta, _ := a.metadataFromEvents(id); meta != nil {

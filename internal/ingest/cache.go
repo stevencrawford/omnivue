@@ -24,14 +24,28 @@ type SessionCache struct {
 	lastMod  int64                   // global max mod time across all files
 	basePath string
 	ext      string // file extension to scan (e.g., ".jsonl")
+	keyFn    func(path string) string
 }
 
 // NewSessionCache creates a new cache that scans basePath for session files.
+// The session ID is derived from the file's base name (without extension).
 func NewSessionCache(basePath, ext string) *SessionCache {
+	return NewSessionCacheWithKey(basePath, ext, defaultSessionIDFromPath)
+}
+
+// NewSessionCacheWithKey creates a cache whose session ID is derived from a
+// caller-supplied function. This is needed by adapters whose session ID is
+// not the file stem (e.g. claude-code's composite "parentID-agent-id" keys
+// extracted from the file contents or a nested directory layout).
+func NewSessionCacheWithKey(basePath, ext string, keyFn func(path string) string) *SessionCache {
+	if keyFn == nil {
+		keyFn = defaultSessionIDFromPath
+	}
 	return &SessionCache{
 		entries:  make(map[string]SessionEntry),
 		basePath: basePath,
 		ext:      ext,
+		keyFn:    keyFn,
 	}
 }
 
@@ -154,7 +168,10 @@ func (c *SessionCache) ScanAndRebuild(parseFn func(path string) (*Session, int64
 
 	newEntries := make(map[string]SessionEntry, len(files))
 	for _, fi := range files {
-		id := sessionIDFromPath(fi.path)
+		id := c.keyFn(fi.path)
+		if id == "" {
+			continue
+		}
 		oldEntry, exists := oldEntries[id]
 		if exists && fi.modTime <= oldEntry.ModTime {
 			newEntries[id] = oldEntry
@@ -179,4 +196,9 @@ func (c *SessionCache) ScanAndRebuild(parseFn func(path string) (*Session, int64
 func sessionIDFromPath(path string) string {
 	base := filepath.Base(path)
 	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
+// defaultSessionIDFromPath is the default key function: the file stem.
+func defaultSessionIDFromPath(path string) string {
+	return sessionIDFromPath(path)
 }

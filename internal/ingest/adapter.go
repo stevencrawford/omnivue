@@ -62,11 +62,13 @@ func OpenReadOnlyDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("opening database %s: %w", path, err)
 	}
 
-	// Limit concurrent connections to prevent WAL conflicts on read-only DBs.
-	db.SetMaxOpenConns(1)
-
 	// Enforce read-only at the SQLite layer using a no-op pragma.
 	// This is a safety net in case the ?mode=ro driver enforcement is bypassed.
+	// NOTE: Do NOT set SetMaxOpenConns(1) here. Several adapters issue nested
+	// queries while a *sql.Rows cursor is open (e.g. copilot ListSessions),
+	// and a single-connection pool deadlocks the second query against the
+	// held cursor. The mode=ro + query_only pragmas already guarantee no
+	// writes; read concurrency is safe under WAL.
 	if _, err := db.Exec("PRAGMA query_only = ON"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to enforce read-only mode: %w", err)

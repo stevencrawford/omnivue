@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"fmt"
+	"sort"
 )
 
 // AdapterFactory creates an Adapter for a given source path.
@@ -51,20 +52,24 @@ type AgentPathInfo struct {
 	DefaultPath string    `json:"defaultPath"`
 }
 
-// KnownAgentTypes returns all registered agent types with their labels.
+// KnownAgentTypes returns all registered agent types with their labels,
+// sorted by agent type for deterministic ordering across builds.
 func KnownAgentTypes() []AgentInfo {
 	infos := make([]AgentInfo, len(registry))
 	for i, r := range registry {
 		infos[i] = AgentInfo{Type: r.agentType, Label: r.label}
 	}
+	sort.Slice(infos, func(i, j int) bool { return infos[i].Type < infos[j].Type })
 	return infos
 }
 
-// DefaultPaths returns all registered agent types with their default discovery paths.
+// DefaultPaths returns all registered agent types with their default discovery paths,
+// sorted by agent type for deterministic ordering across builds.
 func DefaultPaths() []AgentPathInfo {
 	infos := make([]AgentPathInfo, len(registry))
 	for i, r := range registry {
 		infos[i] = AgentPathInfo{Type: r.agentType, Label: r.label, DefaultPath: r.defaultPath}
 	}
+	sort.Slice(infos, func(i, j int) bool { return infos[i].Type < infos[j].Type })
 	return infos
 }
