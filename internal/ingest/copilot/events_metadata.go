@@ -2,31 +2,43 @@ package copilot
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 )
 
-// scanEventsMetadata reads a session's events.jsonl and extracts model, cost, token, and diff
-// information from session.model_change and session.shutdown events.
-func (a *Adapter) scanEventsMetadata(sessionID string) *eventsMetadata {
+// metadataFromEvents reads a session's events.jsonl and extracts model, cost,
+// token, diff information, and message count in a single pass.
+func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
 	f, err := os.Open(eventsPath)
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	defer f.Close()
 
 	meta := &eventsMetadata{}
+	var msgCount int
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
 	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		// Count messages using byte search (fast path, no JSON parse)
+		if len(line) >= 20 {
+			if bytes.Contains(line, userMsgPrefix) || bytes.Contains(line, assistantMsgPrefix) {
+				msgCount++
+			}
+		}
+
+		// Parse metadata events
 		var env struct {
 			Type string          `json:"type"`
 			Data json.RawMessage `json:"data"`
 		}
-		if err := json.Unmarshal(scanner.Bytes(), &env); err != nil {
+		if err := json.Unmarshal(line, &env); err != nil {
 			continue
 		}
 
@@ -90,52 +102,10 @@ func (a *Adapter) scanEventsMetadata(sessionID string) *eventsMetadata {
 		}
 	}
 
-	return meta
+	return meta, msgCount
 }
 
-// countMessagesFromEvents counts user.message and assistant.message events
-// in a session's events.jsonl file. Returns 0 if the file doesn't exist.
-func (a *Adapter) countMessagesFromEvents(sessionID string) int {
-	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
-	f, err := os.Open(eventsPath)
-	if err != nil {
-		return 0
-	}
-	defer f.Close()
-
-	var count int
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) < 20 {
-			continue
-		}
-		if contains(line, `"user.message"`) || contains(line, `"assistant.message"`) {
-			count++
-		}
-	}
-	return count
-}
-
-// contains reports whether sub is a substring of b.
-func contains(b []byte, sub string) bool {
-	return len(b) >= len(sub) && searchBytes(b, sub) >= 0
-}
-
-// searchBytes finds the first occurrence of sub in b, or -1.
-func searchBytes(b []byte, sub string) int {
-	for i := 0; i <= len(b)-len(sub); i++ {
-		match := true
-		for j := 0; j < len(sub); j++ {
-			if b[i+j] != sub[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
-	}
-	return -1
-}
+var (
+	userMsgPrefix      = []byte(`"user.message"`)
+	assistantMsgPrefix = []byte(`"assistant.message"`)
+)

@@ -49,6 +49,9 @@ type Adapter struct {
 	basePath          string
 	syntheticSessions map[string]*syntheticSession
 	mu                sync.Mutex
+	sessionsMu        sync.RWMutex
+	cachedSessions    []ingest.Session
+	cachedLastMod     int64
 }
 
 // New creates a new Copilot adapter for the given base path.
@@ -59,7 +62,7 @@ func New(basePath string) (*Adapter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("copilot adapter: %w", err)
 	}
-	return &Adapter{db: db, basePath: basePath, syntheticSessions: make(map[string]*syntheticSession)}, nil
+	return &Adapter{db: db, basePath: basePath, syntheticSessions: make(map[string]*syntheticSession), cachedSessions: nil}, nil
 }
 
 func (a *Adapter) Type() ingest.AgentType {
@@ -75,6 +78,13 @@ func (a *Adapter) Detect(path string) bool {
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
+	a.sessionsMu.RLock()
+	cached := a.cachedSessions
+	a.sessionsMu.RUnlock()
+	if len(cached) > 0 {
+		return cached, nil
+	}
+
 	var tblCount int
 	if err := a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&tblCount); err != nil || tblCount == 0 {
 		return nil, nil
@@ -139,8 +149,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		}
 		s.DiffFiles = fileCount
 
-		// Enrich with metadata from events.jsonl (model, cost, tokens, diffs)
-		if meta := a.scanEventsMetadata(s.ID); meta != nil {
+		// Enrich with metadata + message count from events.jsonl (single pass)
+		if meta, msgCount := a.metadataFromEvents(s.ID); meta != nil {
 			s.Model = meta.Model
 			s.Cost = meta.Cost
 			s.TokensInput = meta.TokensInput
@@ -153,10 +163,8 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			if meta.DiffFiles > 0 {
 				s.DiffFiles = meta.DiffFiles
 			}
+			s.MessageCount = msgCount
 		}
-
-		// Count messages from events.jsonl when available (aligns with Messages)
-		s.MessageCount = a.countMessagesFromEvents(s.ID)
 
 		dbIDs[s.ID] = true
 		sessions = append(sessions, s)
@@ -189,21 +197,19 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		if err != nil {
 			continue
 		}
-		msgCount := a.countMessagesFromEvents(id)
 		title := id
 		if len(id) > 8 {
 			title = id[:8] + "..."
 		}
 		s := ingest.Session{
-			ID:           id,
-			Agent:        ingest.AgentCopilot,
-			Title:        title,
-			Status:       ingest.SessionStatusActive,
-			CreatedAt:    info.ModTime(),
-			UpdatedAt:    info.ModTime(),
-			MessageCount: msgCount,
+			ID:        id,
+			Agent:     ingest.AgentCopilot,
+			Title:     title,
+			Status:    ingest.SessionStatusActive,
+			CreatedAt: info.ModTime(),
+			UpdatedAt: info.ModTime(),
 		}
-		if meta := a.scanEventsMetadata(id); meta != nil {
+		if meta, msgCount := a.metadataFromEvents(id); meta != nil {
 			s.Model = meta.Model
 			s.Cost = meta.Cost
 			s.TokensInput = meta.TokensInput
@@ -216,6 +222,7 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			if meta.DiffFiles > 0 {
 				s.DiffFiles = meta.DiffFiles
 			}
+			s.MessageCount = msgCount
 		}
 		sessions = append(sessions, s)
 	}
@@ -227,6 +234,10 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	slices.SortFunc(sessions, func(a, b ingest.Session) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
+
+	a.sessionsMu.Lock()
+	a.cachedSessions = sessions
+	a.sessionsMu.Unlock()
 
 	return sessions, nil
 }
@@ -290,7 +301,7 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	s.DiffFiles = fileCount
 
 	// Enrich with metadata from events.jsonl
-	if meta := a.scanEventsMetadata(id); meta != nil {
+	if meta, _ := a.metadataFromEvents(id); meta != nil {
 		s.Model = meta.Model
 		s.Cost = meta.Cost
 		s.TokensInput = meta.TokensInput
@@ -520,6 +531,10 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
+	a.sessionsMu.RLock()
+	lastMod := a.cachedLastMod
+	a.sessionsMu.RUnlock()
+
 	var maxTS int64
 
 	// Check SQLite sessions table
@@ -555,6 +570,14 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 
 	if maxTS == 0 {
 		return 0, fmt.Errorf("no sessions found")
+	}
+
+	// Invalidate cache when filesystem is newer than the last cached timestamp
+	if maxTS > lastMod {
+		a.sessionsMu.Lock()
+		a.cachedSessions = nil
+		a.cachedLastMod = maxTS
+		a.sessionsMu.Unlock()
 	}
 
 	return maxTS, nil

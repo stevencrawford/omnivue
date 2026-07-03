@@ -84,11 +84,18 @@ func NewState(ctx context.Context) *State {
 		}
 	}
 
-	// Initial session load
-	s.refreshSessions(ctx)
-
-	// Initial indexing (background)
-	go s.indexSessions(ctx)
+	// Initial session load and indexing (background, non-blocking)
+	go func() {
+		ids, _ := s.refreshSessions(ctx)
+		go s.indexSessions(ctx)
+		s.sendEvent(sseEvent{Name: "update"})
+		if len(ids) > 0 {
+			data, err := json.Marshal(map[string]any{"ids": ids})
+			if err == nil {
+				s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+			}
+		}
+	}()
 
 	// Start poller
 	pollCtx, pollCancel := context.WithCancel(ctx)
