@@ -475,7 +475,13 @@ func (s *State) ListScratchFiles(sessionID string) ([]store.ScratchFile, error) 
 	if s.store == nil {
 		return nil, fmt.Errorf("store not available")
 	}
-	return s.store.ListScratchFiles(sessionID)
+	var files []store.ScratchFile
+	err := retryOnBusy(func() error {
+		var innerErr error
+		files, innerErr = s.store.ListScratchFiles(sessionID)
+		return innerErr
+	})
+	return files, err
 }
 
 // ListAllScratchFiles returns all scratch files across all sessions.

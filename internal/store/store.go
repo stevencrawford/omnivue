@@ -35,10 +35,13 @@ func New() (*Store, error) {
 	}
 
 	dbPath := filepath.Join(stateDir, "omnivue.db")
-	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=wal&_busy_timeout=10000", dbPath))
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=journal_mode(wal)&_pragma=busy_timeout(10000)", dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("opening omnivue.db: %w", err)
 	}
+
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	s := &Store{db: db, path: dbPath}
 	if err := s.migrate(); err != nil {
