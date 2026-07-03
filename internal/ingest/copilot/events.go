@@ -25,6 +25,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var messages []ingest.Message
 	var currentModel string
 	var subAgentStack []*subAgentState
+	var todoState = newTodoState()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
@@ -52,6 +53,26 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "assistant.message":
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
+				// Normalize sql to todowrite when query targets the todos table
+				for i, tc := range msg.ToolCalls {
+					if tc.Name == "sql" {
+						var args struct {
+							Query string `json:"query"`
+						}
+						if err := json.Unmarshal([]byte(tc.Input), &args); err == nil && args.Query != "" {
+							if isTodoQuery(args.Query) {
+								msg.ToolCalls[i].Name = "todowrite"
+								for stmt := range strings.SplitSeq(args.Query, ";") {
+									stmt = strings.TrimSpace(stmt)
+									if stmt != "" {
+										todoState.applySQL(stmt)
+									}
+								}
+								msg.ToolCalls[i].Input = todoState.synthesizeInput()
+							}
+						}
+					}
+				}
 				if len(subAgentStack) > 0 {
 					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
 				} else {

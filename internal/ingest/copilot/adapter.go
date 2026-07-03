@@ -315,6 +315,11 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	}
 	s.MessageCount = msgCount
 
+	// Load TODOs from session.db
+	if todos := a.loadSessionTodos(id); len(todos) > 0 {
+		s.TODOs = todos
+	}
+
 	return &s, nil
 }
 
