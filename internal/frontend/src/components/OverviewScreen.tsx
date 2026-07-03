@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Bot, Coins, Folder, GitBranch, Sparkles, Zap } from "lucide-react";
+import { ResumeButton } from "./ResumeButton";
 import { SessionsIcon } from "./IconChannel";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { ActivityCharts } from "./ActivityCharts";
@@ -211,6 +212,7 @@ function MiniSessionRow({
           {relativeTime(session.updatedAt)}
         </span>
       )}
+      <ResumeButton sessionId={session.id} />
     </button>
   );
 }
