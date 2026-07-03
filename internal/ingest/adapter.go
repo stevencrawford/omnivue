@@ -51,7 +51,7 @@ func OpenReadOnlyDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("database not found: %s: %w", path, err)
 	}
 
-	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=wal&_busy_timeout=5000", path)
+	dsn := fmt.Sprintf("file:%s?mode=ro&_pragma=journal_mode(wal)&_pragma=busy_timeout(5000)", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database %s: %w", path, err)

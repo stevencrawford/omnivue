@@ -16,7 +16,7 @@ func TestOpenReadOnlyDB_RejectsWrites(t *testing.T) {
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Create a writable database with a table
-	wdb, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=wal", dbPath))
+	wdb, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=journal_mode(wal)", dbPath))
 	if err != nil {
 		t.Fatal(err)
 	}
