@@ -291,6 +291,11 @@
     .feature-section img {
       cursor: zoom-in;
     }
+
+    #mobile-menu.open {
+      max-height: 28rem;
+      opacity: 1;
+    }
   </style>
 <script type="application/ld+json">
 {
@@ -314,9 +319,9 @@
     <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
       <a href="#" class="flex items-center gap-2 no-underline">
         <img src="website_icon.svg" width="24" height="24" alt="" class="block">
-        <span class="text-lg font-bold text-white">Omnivue</span>
+        <span class="hidden md:inline text-lg font-bold text-white">Omnivue</span>
       </a>
-      <nav class="flex items-center gap-6 text-sm font-medium text-gray-500">
+      <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-500">
         <a href="#sessions" class="hover:text-gray-900 transition-colors">Sessions</a>
         <a href="#conversation" class="hover:text-gray-900 transition-colors">Conversations</a>
         <a href="#diffs" class="hover:text-gray-900 transition-colors">Diffs</a>
@@ -328,6 +333,28 @@
           GitHub
         </a>
       </nav>
+
+      <!-- Hamburger button (mobile) -->
+      <button id="menu-btn" class="block md:hidden p-2 text-gray-400 hover:text-gray-100 transition-colors" aria-label="Toggle navigation menu">
+        <svg id="menu-icon-open" class="size-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+        <svg id="menu-icon-close" class="size-6 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Mobile nav dropdown -->
+    <div id="mobile-menu" class="md:hidden overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-in-out border-t border-gray-200/60 bg-white/90 backdrop-blur-xl">
+      <nav class="flex flex-col gap-1 px-4 py-4 text-sm font-medium text-gray-500">
+        <a href="#sessions" class="mobile-nav-link rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">Sessions</a>
+        <a href="#conversation" class="mobile-nav-link rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">Conversations</a>
+        <a href="#diffs" class="mobile-nav-link rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">Diffs</a>
+        <a href="#search" class="mobile-nav-link rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">Search</a>
+        <a href="#folders" class="mobile-nav-link rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">Folders</a>
+        <a href="#quickstart" class="mobile-nav-link rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">Quick Start</a>
+        <a href="https://github.com/stevencrawford/omnivue" class="mobile-nav-link flex items-center gap-2 rounded-lg px-3 py-2.5 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+          <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </nav>
     </div>
   </header>
 
@@ -335,7 +362,7 @@
   <section class="max-w-6xl mx-auto px-4 pt-24 pb-12 text-center relative">
     <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.08)_0%,_transparent_60%)] pointer-events-none"></div>
       <div class="relative">
-      <div class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-50/80 text-indigo-600 rounded-full text-sm font-medium mb-6 border border-indigo-200/60 fade-up" style="animation-delay: 0s">
+      <div class="inline-flex flex-wrap justify-center items-center gap-1.5 px-4 py-2 bg-indigo-50/80 text-indigo-600 rounded-2xl text-sm font-medium mb-6 border border-indigo-200/60 fade-up" style="animation-delay: 0s">
         <span class="size-2 rounded-full bg-indigo-500 animate-pulse"></span>
         <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></svg>
         OpenCode
@@ -852,6 +879,38 @@
       start();
     }
   });
+
+  /* Mobile hamburger menu */
+  var menuBtn = document.getElementById('menu-btn');
+  var mobileMenu = document.getElementById('mobile-menu');
+  var menuOpen = document.getElementById('menu-icon-open');
+  var menuClose = document.getElementById('menu-icon-close');
+
+  if (menuBtn && mobileMenu) {
+    menuBtn.addEventListener('click', function() {
+      mobileMenu.classList.toggle('open');
+      menuOpen.classList.toggle('hidden');
+      menuClose.classList.toggle('hidden');
+    });
+
+    /* Close on link click */
+    mobileMenu.querySelectorAll('.mobile-nav-link').forEach(function(link) {
+      link.addEventListener('click', function() {
+        mobileMenu.classList.remove('open');
+        menuOpen.classList.remove('hidden');
+        menuClose.classList.add('hidden');
+      });
+    });
+
+    /* Close on Escape */
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+        mobileMenu.classList.remove('open');
+        menuOpen.classList.remove('hidden');
+        menuClose.classList.add('hidden');
+      }
+    });
+  }
 
   /* Click-to-zoom on screenshots */
   var overlay = document.getElementById('zoom-overlay');
