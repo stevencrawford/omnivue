@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronRight, User, Check, Copy } from "lucide-react";
+import { ChevronRight, User, Check, ListRestart } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
@@ -167,7 +167,7 @@ export function PinnedPromptBar({
               </>
             ) : (
               <>
-                <Copy size={10} />
+                <ListRestart size={10} />
                 Resume
               </>
             )}
