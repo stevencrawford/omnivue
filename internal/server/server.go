@@ -84,7 +84,8 @@ func NewState(ctx context.Context) *State {
 		}
 	}
 
-	// Initial session load and indexing (background, non-blocking)
+	// Initial session load and indexing (background, non-blocking).
+	// Uses the server lifecycle context so it is canceled on shutdown.
 	go func() {
 		s.refreshAndIndex(ctx)
 	}()
@@ -276,7 +277,7 @@ func (s *State) AddSource(ctx context.Context, src ingest.Source) error {
 			s.mu.Unlock()
 		}
 	}
-	go s.refreshAndIndex(ctx)
+	go s.refreshAndIndex(context.WithoutCancel(ctx))
 	return nil
 }
 
@@ -332,7 +333,7 @@ func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label str
 			s.mu.Unlock()
 		}
 	}
-	go s.refreshAndIndex(ctx)
+	go s.refreshAndIndex(context.WithoutCancel(ctx))
 	return nil
 }
 
@@ -744,13 +745,17 @@ func (s *State) indexSessions(ctx context.Context) {
 		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
 
 		// Index name chunk
-		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0) }); err != nil {
+		if err := retryOnBusy(func() error {
+			return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0)
+		}); err != nil {
 			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
 		}
 
 		// Index plan chunk
 		if planContent != "" {
-			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0) }); err != nil {
+			if err := retryOnBusy(func() error {
+				return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0)
+			}); err != nil {
 				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
 			}
 		}
@@ -771,7 +776,9 @@ func (s *State) indexSessions(ctx context.Context) {
 				msgBuilder.WriteString("\n")
 			}
 			msgContent := msgBuilder.String()
-			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi) }); err != nil {
+			if err := retryOnBusy(func() error {
+				return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi)
+			}); err != nil {
 				slog.Warn("failed to index session message", "session", sess.ID, "idx", mi, "error", err)
 			}
 		}
@@ -786,7 +793,9 @@ func (s *State) indexSessions(ctx context.Context) {
 					continue
 				}
 				fileContent := sf.Title + "\n" + sf.Content
-				if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
+				if err := retryOnBusy(func() error {
+					return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
+				}); err != nil {
 					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
 				}
 			}
@@ -911,7 +920,9 @@ func (s *State) reindexSessionScratch(sessionID string) {
 			continue
 		}
 		content := sf.Title + "\n" + sf.Content
-		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
+		if err := retryOnBusy(func() error {
+			return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
+		}); err != nil {
 			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
 		}
 	}
@@ -974,9 +985,9 @@ func NewHandler(state *State) http.Handler {
 func handleStatus(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]any{
-			"version": version.Version,
-			"pid":     os.Getpid(),
-			"sources": len(state.Sources()),
+			"version":  version.Version,
+			"pid":      os.Getpid(),
+			"sources":  len(state.Sources()),
 			"sessions": len(state.Sessions()),
 		}
 		w.Header().Set("Content-Type", "application/json")
