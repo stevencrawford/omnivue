@@ -381,15 +381,18 @@ function MiniMetricCard({
   icon: Icon,
   label,
   value,
+  tooltip,
 }: {
   icon: React.ComponentType<{ size?: number }>;
   label: string;
   value: string;
+  tooltip?: string;
 }) {
   return (
     <div
       className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-ov-border"
       style={{ backgroundColor: "var(--color-surface-elevated)" }}
+      title={tooltip}
     >
       <span className="text-ov-text-secondary shrink-0">
         <Icon size={12} />
@@ -407,21 +410,28 @@ function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics }) {
     icon: React.ComponentType<{ size?: number }>;
     label: string;
     value: string;
+    tooltip: string;
   }[] = [
     {
       icon: Zap,
       label: "Cache Hit Rate",
       value: formatSmallPct(metrics.cacheHitRate),
+      tooltip:
+        "Percentage of input tokens served from cache. Higher means fewer API calls and lower latency.",
     },
     {
       icon: TrendingUp,
       label: "Efficiency",
       value: metrics.efficiencyRatio !== null ? metrics.efficiencyRatio.toFixed(2) : "\u2014",
+      tooltip:
+        "Ratio of output tokens to input tokens. Lower numbers mean more context processed per response token.",
     },
     {
       icon: CheckCircle,
       label: "Tool Success",
       value: formatSmallPct(metrics.toolSuccessRate),
+      tooltip:
+        "Percentage of tool calls (file edits, shell commands, searches) that completed without error.",
     },
   ];
 
@@ -433,7 +443,13 @@ function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics }) {
       </div>
       <div className="grid grid-cols-3 gap-1.5">
         {cards.map((card) => (
-          <MiniMetricCard key={card.label} icon={card.icon} label={card.label} value={card.value} />
+          <MiniMetricCard
+            key={card.label}
+            icon={card.icon}
+            label={card.label}
+            value={card.value}
+            tooltip={card.tooltip}
+          />
         ))}
       </div>
     </>
