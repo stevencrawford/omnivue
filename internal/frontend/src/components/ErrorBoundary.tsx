@@ -28,19 +28,23 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         return this.props.fallback;
       }
       return (
-        <div className="flex flex-col items-center justify-center p-8 text-center">
-          <CircleAlert className="text-red-400 mb-3" size={32} />
-          <p className="text-sm font-medium text-ov-text">Something went wrong</p>
-          <p className="text-xs text-ov-text-secondary mt-1 mb-3 max-w-sm">
-            {this.state.error?.message || "An unexpected error occurred"}
-          </p>
-          <button
-            type="button"
-            className="text-xs text-accent hover:underline cursor-pointer"
-            onClick={() => this.setState({ hasError: false })}
-          >
-            Try again
-          </button>
+        <div className="sess-empty-state flex-1 h-full">
+          <div className="flex flex-col items-center gap-3 max-w-xs">
+            <div className="sess-empty-icon">
+              <CircleAlert size={20} />
+            </div>
+            <p className="text-sm font-medium text-ov-text">Something went wrong</p>
+            <p className="text-xs text-ov-text-secondary text-center leading-relaxed max-w-xs">
+              {this.state.error?.message || "An unexpected error occurred"}
+            </p>
+            <button
+              type="button"
+              className="text-xs px-3 py-1.5 rounded-md border border-accent-border bg-accent-muted text-accent hover:bg-accent/20 cursor-pointer transition-colors"
+              onClick={() => this.setState({ hasError: false })}
+            >
+              Try again
+            </button>
+          </div>
         </div>
       );
     }

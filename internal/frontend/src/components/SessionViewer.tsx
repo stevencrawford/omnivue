@@ -32,6 +32,7 @@ interface SessionViewerProps {
   liveChangedIds: Set<string>;
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
+  onNameChanged?: () => void;
   openScratchTabs: string[];
   scratchFileMap: Record<string, { title: string; mode: string; sessionId: string }>;
   onCloseScratchTab: (fileId: string) => void;
@@ -67,6 +68,7 @@ export function SessionViewer({
   liveChangedIds,
   activeTab: activeTabProp,
   onTabChange,
+  onNameChanged,
   openScratchTabs,
   scratchFileMap,
   onCloseScratchTab,
@@ -159,7 +161,7 @@ export function SessionViewer({
 
   return (
     <div className="flex flex-col h-full">
-      <SessionHeader session={session} hasPrivacy={hasPrivacy} />
+      <SessionHeader session={session} hasPrivacy={hasPrivacy} onNameChanged={onNameChanged} />
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-ov-border shrink-0 overflow-x-auto">

@@ -69,7 +69,7 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 p-8 text-sm text-ov-text-secondary">
+      <div className="h-full flex items-center justify-center gap-2 text-sm text-ov-text-secondary">
         <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
         Loading plan...
       </div>

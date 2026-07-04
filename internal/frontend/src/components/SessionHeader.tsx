@@ -4,7 +4,15 @@ import type { Session } from "../hooks/useApi";
 import { setSessionName, clearSessionName } from "../hooks/useApi";
 import { agentLabel } from "../utils/sessionUtils";
 
-export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPrivacy?: boolean }) {
+export function SessionHeader({
+  session,
+  hasPrivacy,
+  onNameChanged,
+}: {
+  session: Session;
+  hasPrivacy?: boolean;
+  onNameChanged?: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [displayTitle, setDisplayTitle] = useState(session.title);
@@ -29,6 +37,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
       try {
         await setSessionName(session.id, trimmed);
         setDisplayTitle(trimmed);
+        onNameChanged?.();
       } catch {
         /* ignore */
       }
@@ -40,6 +49,7 @@ export function SessionHeader({ session, hasPrivacy }: { session: Session; hasPr
     try {
       await clearSessionName(session.id);
       setDisplayTitle(session.title);
+      onNameChanged?.();
     } catch {
       /* ignore */
     }
