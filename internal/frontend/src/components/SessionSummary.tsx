@@ -17,6 +17,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  BarChart,
+  Bar,
   LineChart,
   Line,
   PieChart,
@@ -53,14 +55,14 @@ function formatDuration(ms: number): string {
 }
 
 function formatPct(value: number): string {
-  if (value === 0) return "—";
+  if (value === 0) return "\u2014";
   if (value >= 99.95) return "100%";
   if (value < 0.1) return "<0.1%";
   return `${value.toFixed(1)}%`;
 }
 
 function formatSmallPct(value: number | null): string {
-  if (value === null || value === 0) return "—";
+  if (value === null || value === 0) return "\u2014";
   if (value >= 99.95) return "100%";
   if (value < 0.1) return "<0.1%";
   return `${value.toFixed(1)}%`;
@@ -159,6 +161,7 @@ function TokenBreakdownPie({
             outerRadius={72}
             dataKey="value"
             strokeWidth={0}
+            isAnimationActive={false}
           >
             {data.map((entry, i) => (
               <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -184,58 +187,141 @@ function TokenBreakdownPie({
 }
 
 // ---------------------------------------------------------------------------
-// Token Timeline — line chart
+// Token Timeline — time-bucketed stacked bar chart
 // ---------------------------------------------------------------------------
 
-function TimelineTooltip({
+interface TimeBucket {
+  label: string;
+  offsetLabel: string;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensCached: number;
+  tokensReasoning: number;
+}
+
+function niceInterval(ms: number): number {
+  const scales = [
+    1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000,
+    7200000, 14400000,
+  ];
+  for (const s of scales) {
+    if (ms <= s) return s;
+  }
+  return Math.ceil(ms / 3600000) * 3600000;
+}
+
+function formatTimeOffset(ms: number): string {
+  if (ms < 1000) return "0s";
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
+}
+
+function computeTimeBuckets(points: TokenTimelinePoint[], targetBuckets = 8): TimeBucket[] {
+  if (points.length === 0) return [];
+
+  const startMs = new Date(points[0].timestamp).getTime();
+  const endMs = new Date(points[points.length - 1].timestamp).getTime();
+  const spanMs = endMs - startMs;
+
+  if (spanMs < 1000 || points.length <= targetBuckets) {
+    return points.map((p, i) => ({
+      label: String(i + 1),
+      offsetLabel: `Step ${i + 1}`,
+      tokensInput: p.tokensInput,
+      tokensOutput: p.tokensOutput,
+      tokensCached: p.tokensCached,
+      tokensReasoning: p.tokensReasoning,
+    }));
+  }
+
+  const interval = niceInterval(spanMs / targetBuckets);
+  const bucketStart = Math.floor(startMs / interval) * interval;
+  const bucketCount = Math.ceil((endMs - bucketStart) / interval);
+
+  const buckets: {
+    start: number;
+    input: number;
+    output: number;
+    cached: number;
+    reasoning: number;
+  }[] = [];
+
+  for (let i = 0; i < bucketCount; i++) {
+    const bStart = bucketStart + i * interval;
+    buckets.push({
+      start: bStart,
+      input: 0,
+      output: 0,
+      cached: 0,
+      reasoning: 0,
+    });
+  }
+
+  for (const p of points) {
+    const t = new Date(p.timestamp).getTime();
+    const idx = Math.min(Math.floor((t - bucketStart) / interval), buckets.length - 1);
+    const b = buckets[idx];
+    if (b) {
+      b.input += p.tokensInput;
+      b.output += p.tokensOutput;
+      b.cached += p.tokensCached;
+      b.reasoning += p.tokensReasoning;
+    }
+  }
+
+  return buckets
+    .filter((b) => b.input + b.output + b.cached + b.reasoning > 0)
+    .map((b) => ({
+      label: formatTimeOffset(b.start - startMs),
+      offsetLabel: `+${formatTimeOffset(b.start - startMs)}`,
+      tokensInput: b.input,
+      tokensOutput: b.output,
+      tokensCached: b.cached,
+      tokensReasoning: b.reasoning,
+    }));
+}
+
+function TokenBucketTooltip({
   active,
   payload,
 }: {
   active?: boolean;
-  payload?: { name: string; value: number; color: string; payload: TokenTimelinePoint }[];
+  payload?: { payload: TimeBucket }[];
 }) {
   if (!active || !payload?.length) return null;
-  const p = payload[0]?.payload;
-  if (!p) return null;
-  const stepTotal = p.tokensInput + p.tokensOutput + p.tokensCached + p.tokensReasoning;
+  const b = payload[0].payload;
+  const total = b.tokensInput + b.tokensOutput + b.tokensCached + b.tokensReasoning;
   return (
     <div className="ov-chart-tooltip">
-      <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
+      <p className="ov-chart-tooltip-date">{b.offsetLabel}</p>
       {[
         { key: "tokensInput", label: "Input", color: TOKENS_COLOR_INPUT },
-        {
-          key: "tokensOutput",
-          label: "Output",
-          color: TOKENS_COLOR_OUTPUT,
-        },
-        {
-          key: "tokensCached",
-          label: "Cache",
-          color: TOKENS_COLOR_CACHE,
-        },
-        {
-          key: "tokensReasoning",
-          label: "Reasoning",
-          color: TOKENS_COLOR_REASONING,
-        },
+        { key: "tokensOutput", label: "Output", color: TOKENS_COLOR_OUTPUT },
+        { key: "tokensCached", label: "Cache", color: TOKENS_COLOR_CACHE },
+        { key: "tokensReasoning", label: "Reasoning", color: TOKENS_COLOR_REASONING },
       ].map(({ key, label, color }) => (
         <div key={key} className="ov-chart-tooltip-row">
           <span className="ov-chart-tooltip-swatch" style={{ background: color }} />
           <span>{label}</span>
-          <span className="ml-auto tabular-nums">{formatTokens((p as any)[key] || 0)}</span>
+          <span className="ml-auto tabular-nums">{formatTokens((b as any)[key] || 0)}</span>
         </div>
       ))}
       <div className="ov-chart-tooltip-divider" />
       <div className="ov-chart-tooltip-row font-medium">
-        <span>Step total</span>
-        <span className="ml-auto tabular-nums">{formatTokens(stepTotal)}</span>
+        <span>Bucket total</span>
+        <span className="ml-auto tabular-nums">{formatTokens(total)}</span>
       </div>
     </div>
   );
 }
 
 function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
-  if (timeline.length === 0) return null;
+  const buckets = useMemo(() => computeTimeBuckets(timeline), [timeline]);
+
+  if (buckets.length === 0) return null;
 
   return (
     <div className="space-y-1.5">
@@ -244,14 +330,13 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
         <span>Token Timeline</span>
       </div>
       <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
+        <BarChart data={buckets} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ov-border)" vertical={false} />
           <XAxis
-            dataKey="stepIndex"
+            dataKey="label"
             tick={{ fontSize: 10, fill: "var(--color-ov-text-secondary)" }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(v: number) => `${v + 1}`}
             interval="preserveStartEnd"
           />
           <YAxis
@@ -261,36 +346,36 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
             width={48}
             tickFormatter={(v: number) => formatTokens(v)}
           />
-          <Tooltip content={<TimelineTooltip />} cursor={{ fill: "var(--color-ov-bg-hover)" }} />
-          <Line
-            type="monotone"
+          <Tooltip content={<TokenBucketTooltip />} cursor={{ fill: "var(--color-ov-bg-hover)" }} />
+          <Bar
             dataKey="tokensInput"
-            stroke={TOKENS_COLOR_INPUT}
-            strokeWidth={1.5}
-            dot={false}
+            stackId="tokens"
+            fill={TOKENS_COLOR_INPUT}
+            radius={[1, 1, 0, 0]}
+            isAnimationActive={false}
           />
-          <Line
-            type="monotone"
+          <Bar
             dataKey="tokensOutput"
-            stroke={TOKENS_COLOR_OUTPUT}
-            strokeWidth={1.5}
-            dot={false}
+            stackId="tokens"
+            fill={TOKENS_COLOR_OUTPUT}
+            radius={[1, 1, 0, 0]}
+            isAnimationActive={false}
           />
-          <Line
-            type="monotone"
+          <Bar
             dataKey="tokensCached"
-            stroke={TOKENS_COLOR_CACHE}
-            strokeWidth={1.5}
-            dot={false}
+            stackId="tokens"
+            fill={TOKENS_COLOR_CACHE}
+            radius={[1, 1, 0, 0]}
+            isAnimationActive={false}
           />
-          <Line
-            type="monotone"
+          <Bar
             dataKey="tokensReasoning"
-            stroke={TOKENS_COLOR_REASONING}
-            strokeWidth={1.5}
-            dot={false}
+            stackId="tokens"
+            fill={TOKENS_COLOR_REASONING}
+            radius={[1, 1, 0, 0]}
+            isAnimationActive={false}
           />
-        </LineChart>
+        </BarChart>
       </ResponsiveContainer>
       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {[
@@ -382,6 +467,7 @@ function CostTimelineChart({
             stroke="var(--color-accent-secondary)"
             strokeWidth={2}
             dot={false}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -435,7 +521,7 @@ function EffectivenessCards({
     {
       icon: TrendingUp,
       label: "Efficiency",
-      value: metrics.efficiencyRatio !== null ? metrics.efficiencyRatio.toFixed(2) : "—",
+      value: metrics.efficiencyRatio !== null ? metrics.efficiencyRatio.toFixed(2) : "\u2014",
     },
     {
       icon: Target,
@@ -443,7 +529,7 @@ function EffectivenessCards({
       value:
         metrics.tokensPerToolCall !== null
           ? `${formatTokens(Math.round(metrics.tokensPerToolCall))}`
-          : "—",
+          : "\u2014",
     },
     {
       icon: CheckCircle,
@@ -453,7 +539,8 @@ function EffectivenessCards({
     {
       icon: Edit3,
       label: "Edits / Request",
-      value: metrics.editsPerUserRequest !== null ? metrics.editsPerUserRequest.toFixed(1) : "—",
+      value:
+        metrics.editsPerUserRequest !== null ? metrics.editsPerUserRequest.toFixed(1) : "\u2014",
     },
     {
       icon: DollarSign,
@@ -463,7 +550,7 @@ function EffectivenessCards({
           ? formatCost(metrics.costPerFile)
           : hideCosts && metrics.costPerFile !== null
             ? "***"
-            : "—",
+            : "\u2014",
     },
   ];
 
@@ -545,7 +632,7 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
                       <div className="font-medium">{seg.label}</div>
                       <div className="text-ov-text-secondary">
                         {seg.count} ({formatPct(seg.percentage)})
-                        {hasTiming && seg.duration > 0 && ` · ${formatDuration(seg.duration)}`}
+                        {hasTiming && seg.duration > 0 && ` \u00b7 ${formatDuration(seg.duration)}`}
                       </div>
                     </div>
                   </div>

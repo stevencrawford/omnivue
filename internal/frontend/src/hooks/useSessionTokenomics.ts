@@ -4,6 +4,7 @@ import { effectiveToolKind } from "../utils/toolDisplay";
 
 export interface TokenTimelinePoint {
   stepIndex: number;
+  timestamp: string;
   tokensInput: number;
   tokensOutput: number;
   tokensCached: number;
@@ -87,6 +88,7 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         cumCost += ev.cost ?? 0;
         timeline.push({
           stepIndex: stepCounter,
+          timestamp: msg.timestamp,
           tokensInput: t.input,
           tokensOutput: t.output,
           tokensCached: t.cacheRead,
