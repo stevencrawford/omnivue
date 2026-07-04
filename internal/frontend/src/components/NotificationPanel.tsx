@@ -55,35 +55,35 @@ export function NotificationPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
+          Notifications
+        </span>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
-            Notifications
-          </span>
           {unreadCount > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-white">
               {unreadCount}
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onMarkAllRead}
-            disabled={unreadCount === 0}
-            title="Mark all read"
-            className="text-ov-text-secondary hover:text-ov-text disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
-          >
-            <CheckCheck className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onClearAll}
-            disabled={notifications.length === 0}
-            title="Clear all"
-            className="text-ov-text-secondary hover:text-red-400 disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              disabled={unreadCount === 0}
+              title="Mark all read"
+              className="text-ov-text-secondary hover:text-ov-text disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
+            >
+              <CheckCheck className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onClearAll}
+              disabled={notifications.length === 0}
+              title="Clear all"
+              className="text-ov-text-secondary hover:text-red-400 disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
