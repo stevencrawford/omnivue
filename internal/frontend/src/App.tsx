@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
@@ -24,7 +24,10 @@ import { useBookmarks } from "./hooks/useBookmarks";
 import { useSessions } from "./hooks/useSessions";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
-import { useState } from "react";
+import { useNotifications, useActiveView } from "./hooks/useNotifications";
+import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
+import type { AppNotification, NotificationSettings } from "./hooks/types";
+import { useToast } from "./hooks/useToast";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -43,6 +46,21 @@ export function App() {
   } = useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
+
+  const {
+    notifications,
+    unreadCount: notificationUnreadCount,
+    settings: notificationSettings,
+    sessionUnread: notificationSessionUnread,
+    markRead: markNotificationRead,
+    markAllRead: markAllNotificationsRead,
+    clearAll: clearAllNotifications,
+    saveSettings: saveNotificationSettings,
+  } = useNotifications();
+
+  // Report the currently-viewed session to the server so the
+  // ExcludeActiveView notification setting can suppress alerts for it.
+  useActiveView(activeSessionId);
 
   // ---- UI state ----
   const [showOverview, setShowOverview] = useState(true);
@@ -189,6 +207,20 @@ export function App() {
     [],
   );
 
+  const handleNotificationClick = useCallback(
+    (n: AppNotification) => {
+      setShowOverview(false);
+      setActiveSessionId(n.sessionId);
+      setActiveTab("session");
+      setFocusStepIndex(undefined);
+      setFocusMessageIndex(undefined);
+      setSearchHighlightQuery(null);
+      markNotificationRead([n.id]);
+      setActiveSection("sessions");
+    },
+    [markNotificationRead],
+  );
+
   // ---- Render ----
   return (
     <ThemeProvider>
@@ -257,6 +289,12 @@ export function App() {
                   bookmarks={bookmarks}
                   onBookmarkSelect={handleBookmarkSelect}
                   onBookmarkDelete={handleBookmarkDelete}
+                  notifications={notifications}
+                  notificationUnreadCount={notificationUnreadCount}
+                  sessionUnread={notificationSessionUnread}
+                  onNotificationClick={handleNotificationClick}
+                  onMarkAllNotificationsRead={markAllNotificationsRead}
+                  onClearNotifications={clearAllNotifications}
                 />
               </ErrorBoundary>
 
@@ -308,7 +346,12 @@ export function App() {
             </div>
           </SessionNavContext.Provider>
 
-          <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+          <SettingsModal
+            isOpen={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            notificationSettings={notificationSettings}
+            onSaveNotificationSettings={saveNotificationSettings}
+          />
           <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
           <PinMessageModal
@@ -318,8 +361,54 @@ export function App() {
             onCancel={handleCancelPin}
             onConfirm={() => handleConfirmPin(handlePinAsScratch)}
           />
+
+          <NotificationToaster
+            notifications={notifications}
+            settings={notificationSettings}
+            onNavigate={(sessionId) => handleSessionSelect(sessionId)}
+          />
         </div>
       </ToastProvider>
     </ThemeProvider>
   );
+}
+
+/**
+ * NotificationToaster subscribes to the notification list and fires in-app
+ * toasts and browser OS notifications for newly-arrived unread notifications,
+ * respecting the user's settings and quiet hours. Lives inside ToastProvider
+ * so it can access the toast context.
+ */
+function NotificationToaster({
+  notifications,
+  settings,
+  onNavigate,
+}: {
+  notifications: AppNotification[];
+  settings: NotificationSettings | null;
+  onNavigate: (sessionId: string) => void;
+}) {
+  const { showToast } = useToast();
+  const seenIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    for (const n of notifications) {
+      if (seenIds.current.has(n.id)) continue;
+      seenIds.current.add(n.id);
+      // Only fire for unread notifications that arrived after the hook mounted.
+      if (n.readAt) continue;
+      const { toast, browser } = resolveChannels(n, settings);
+      if (toast) {
+        showToast(`${n.title}${n.preview ? " — " + n.preview : ""}`, {
+          label: "View",
+          onClick: () => onNavigate(n.sessionId),
+        });
+      }
+      if (browser) {
+        fireBrowserNotification(n);
+      }
+    }
+  }, [notifications, settings, showToast, onNavigate]);
+
+  return null;
 }

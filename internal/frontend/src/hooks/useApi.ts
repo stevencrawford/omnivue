@@ -17,6 +17,12 @@ export type {
   SearchResult,
   Folder,
   Bookmark,
+  AppNotification,
+  NotificationKind,
+  NotificationSeverity,
+  NotificationPayload,
+  NotificationSettings,
+  NotificationScope,
 } from "./types";
 
 export {
@@ -57,4 +63,10 @@ export {
   fetchBookmarks,
   createBookmark,
   deleteBookmark,
+  fetchNotifications,
+  markNotificationsRead,
+  clearNotifications,
+  setNotificationActiveView,
+  fetchNotificationSettings,
+  setNotificationSettings,
 } from "./apiClient";

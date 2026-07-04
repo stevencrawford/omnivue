@@ -1,7 +1,7 @@
 import React from "react";
-import { Folder, Bookmark, Settings, type LucideProps } from "lucide-react";
+import { Folder, Bookmark, Bell, Settings, type LucideProps } from "lucide-react";
 
-export type Section = "sessions" | "projects" | "bookmarks";
+export type Section = "sessions" | "projects" | "bookmarks" | "notifications";
 
 interface IconChannelProps {
   activeSection: Section;
@@ -9,6 +9,7 @@ interface IconChannelProps {
   onSettingsOpen: () => void;
   sidebarOpen: boolean;
   onSidebarToggle: () => void;
+  notificationUnreadCount?: number;
 }
 
 export function SessionsIcon({ size = 24, ...props }: LucideProps) {
@@ -38,6 +39,7 @@ const sections: {
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
   { id: "projects", label: "Projects", Icon: Folder },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
+  { id: "notifications", label: "Notifications", Icon: Bell },
 ];
 
 export function IconChannel({
@@ -46,6 +48,7 @@ export function IconChannel({
   onSettingsOpen,
   sidebarOpen,
   onSidebarToggle,
+  notificationUnreadCount = 0,
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
@@ -72,6 +75,11 @@ export function IconChannel({
             <div className="absolute left-0 w-0.5 h-5 rounded-r-full bg-accent" />
           )}
           <Icon className="size-5" strokeWidth={1.5} />
+          {id === "notifications" && notificationUnreadCount > 0 && (
+            <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white">
+              {notificationUnreadCount > 99 ? "99+" : notificationUnreadCount}
+            </span>
+          )}
         </button>
       ))}
 

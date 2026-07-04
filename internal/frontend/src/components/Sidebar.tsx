@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { Session, Bookmark } from "../hooks/useApi";
+import type { Session, Bookmark, AppNotification } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
 import { ProjectPanel } from "./ProjectPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
+import { NotificationPanel } from "./NotificationPanel";
 import { useToast } from "../hooks/useToast";
 
 interface SidebarProps {
@@ -19,6 +20,12 @@ interface SidebarProps {
   bookmarks: Bookmark[];
   onBookmarkSelect: (sessionId: string, messageIndex: number, toolCallId?: string) => void;
   onBookmarkDelete: (id: string) => void;
+  notifications: AppNotification[];
+  notificationUnreadCount: number;
+  sessionUnread: Record<string, number>;
+  onNotificationClick: (n: AppNotification) => void;
+  onMarkAllNotificationsRead: () => void;
+  onClearNotifications: () => void;
 }
 
 const SIDEBAR_WIDTH_KEY = "omnivue-sidebar-width";
@@ -45,6 +52,12 @@ export function Sidebar({
   bookmarks,
   onBookmarkSelect,
   onBookmarkDelete,
+  notifications,
+  notificationUnreadCount,
+  sessionUnread,
+  onNotificationClick,
+  onMarkAllNotificationsRead,
+  onClearNotifications,
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -107,6 +120,7 @@ export function Sidebar({
         onSettingsOpen={onSettingsOpen}
         sidebarOpen={sidebarOpen}
         onSidebarToggle={onSidebarToggle}
+        notificationUnreadCount={notificationUnreadCount}
       />
       <div
         className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
@@ -120,6 +134,7 @@ export function Sidebar({
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
             showToast={showToast}
+            sessionUnread={sessionUnread}
           />
         </div>
         <div
@@ -140,6 +155,17 @@ export function Sidebar({
             sessions={sessions}
             onBookmarkSelect={onBookmarkSelect}
             onBookmarkDelete={onBookmarkDelete}
+          />
+        </div>
+        <div
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "notifications" ? "hidden" : ""}`}
+        >
+          <NotificationPanel
+            notifications={notifications}
+            sessions={sessions}
+            onNotificationClick={onNotificationClick}
+            onMarkAllRead={onMarkAllNotificationsRead}
+            onClearAll={onClearNotifications}
           />
         </div>
       </div>

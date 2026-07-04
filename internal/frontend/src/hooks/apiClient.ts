@@ -14,6 +14,8 @@ import type {
   SearchResult,
   Folder,
   Bookmark,
+  AppNotification,
+  NotificationSettings,
 } from "./types";
 import {
   SessionsSchema,
@@ -35,6 +37,8 @@ import {
   ConfigSchema,
   ResumeCommandSchema,
   SessionSchema,
+  NotificationsSchema,
+  NotificationSettingsSchema,
 } from "./schemas";
 
 // ---------------------------------------------------------------------------
@@ -368,4 +372,52 @@ export async function createBookmark(data: {
 
 export async function deleteBookmark(id: string): Promise<void> {
   await fetchVoid(`/_/api/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export async function fetchNotifications(
+  opts: { limit?: number; unreadOnly?: boolean } = {},
+): Promise<AppNotification[]> {
+  const params = new URLSearchParams();
+  if (opts.limit) params.set("limit", String(opts.limit));
+  if (opts.unreadOnly) params.set("unreadOnly", "true");
+  const qs = params.toString();
+  return fetchJson(`/_/api/notifications${qs ? `?${qs}` : ""}`, NotificationsSchema);
+}
+
+export async function markNotificationsRead(ids: string[] | null): Promise<void> {
+  await fetchVoid("/_/api/notifications/read", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: ids ?? [] }),
+  });
+}
+
+export async function clearNotifications(): Promise<void> {
+  await fetchVoid("/_/api/notifications", { method: "DELETE" });
+}
+
+export async function setNotificationActiveView(sessionId: string): Promise<void> {
+  await fetchVoid("/_/api/notifications/active-view", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
+export async function fetchNotificationSettings(): Promise<NotificationSettings> {
+  return fetchJson("/_/api/notifications/settings", NotificationSettingsSchema);
+}
+
+export async function setNotificationSettings(
+  settings: NotificationSettings,
+): Promise<NotificationSettings> {
+  return fetchJson("/_/api/notifications/settings", NotificationSettingsSchema, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
 }

@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { Toast } from "../components/Toast";
+import { Toast, type ToastAction } from "../components/Toast";
 
 interface ToastContextValue {
-  showToast: (message: string) => void;
+  showToast: (message: string, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
@@ -13,11 +13,13 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toastMsg, setToastMsg] = useState("");
+  const [toastAction, setToastAction] = useState<ToastAction | undefined>(undefined);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastKey, setToastKey] = useState(0);
 
-  const showToast = useCallback((message: string) => {
+  const showToast = useCallback((message: string, action?: ToastAction) => {
     setToastMsg(message);
+    setToastAction(action);
     setToastVisible(true);
     setToastKey((k) => k + 1);
   }, []);
@@ -29,7 +31,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <Toast key={toastKey} message={toastMsg} visible={toastVisible} onHide={hideToast} />
+      <Toast
+        key={toastKey}
+        message={toastMsg}
+        action={toastAction}
+        visible={toastVisible}
+        onHide={hideToast}
+      />
     </ToastContext.Provider>
   );
 }
