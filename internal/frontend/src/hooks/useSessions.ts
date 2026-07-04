@@ -5,6 +5,7 @@ import { useSSE } from "./useSSE";
 
 export interface SessionsState {
   sessions: Session[];
+  sessionsLoading: boolean;
   activeSessionId: string | null;
   liveChangedIds: Set<string>;
   activeSession: Session | null;
@@ -14,15 +15,19 @@ export interface SessionsState {
 
 export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
 
   const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
     try {
       const data = await fetchSessions();
       setSessions(data || []);
     } catch (err) {
       console.error("Failed to load sessions:", err);
+    } finally {
+      setSessionsLoading(false);
     }
   }, []);
 
@@ -52,6 +57,7 @@ export function useSessions(): SessionsState {
 
   return {
     sessions,
+    sessionsLoading,
     activeSessionId,
     liveChangedIds,
     activeSession,
