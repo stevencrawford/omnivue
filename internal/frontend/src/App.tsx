@@ -32,7 +32,7 @@ import { useState } from "react";
 
 export function App() {
   // ---- Data hooks ----
-  const { sessions, sessionsLoading, activeSessionId, liveChangedIds, activeSession, setActiveSessionId } =
+  const { sessions, sessionsLoading, activeSessionId, liveChangedIds, activeSession, setActiveSessionId, loadSessions } =
     useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
@@ -263,6 +263,7 @@ export function App() {
                         liveChangedIds={liveChangedIds}
                         activeTab={activeTab}
                         onTabChange={setActiveTab}
+                        onNameChanged={loadSessions}
                         openScratchTabs={openScratchTabs}
                         scratchFileMap={scratchFileMap}
                         onCloseScratchTab={handleCloseScratchTab}
