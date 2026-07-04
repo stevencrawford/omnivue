@@ -718,16 +718,16 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 
 // SearchResult represents a search hit.
 type SearchResult struct {
-	SessionID     string `json:"sessionId"`
-	SessionName   string `json:"sessionName"`
-	SourceID      string `json:"sourceId"`
-	ChunkType     string `json:"chunkType"`
-	Repository    string `json:"repository"`
-	Snippet       string `json:"snippet"`
-	UpdatedAt     string `json:"updatedAt"`
-	FileTitle     string `json:"fileTitle,omitempty"`
-	FileID        string `json:"fileId,omitempty"`
-	MessageIndex  int    `json:"messageIndex,omitempty"`
+	SessionID    string `json:"sessionId"`
+	SessionName  string `json:"sessionName"`
+	SourceID     string `json:"sourceId"`
+	ChunkType    string `json:"chunkType"`
+	Repository   string `json:"repository"`
+	Snippet      string `json:"snippet"`
+	UpdatedAt    string `json:"updatedAt"`
+	FileTitle    string `json:"fileTitle,omitempty"`
+	FileID       string `json:"fileId,omitempty"`
+	MessageIndex int    `json:"messageIndex,omitempty"`
 }
 
 // Reset removes all user data from the store (sources, folders, search index,
@@ -752,126 +752,4 @@ func (s *Store) Reset() error {
 	return nil
 }
 
-// migrate runs database migrations.
-func (s *Store) migrate() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS sources (
-			id TEXT PRIMARY KEY,
-			path TEXT NOT NULL UNIQUE,
-			agent_type TEXT NOT NULL,
-			label TEXT,
-			enabled INTEGER DEFAULT 1,
-			last_scanned_at TEXT,
-			created_at TEXT NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS folders (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			parent_id TEXT REFERENCES folders(id),
-			sort_order INTEGER DEFAULT 0,
-			color TEXT,
-			icon TEXT,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS folder_sessions (
-			folder_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-			session_id TEXT NOT NULL,
-			sort_order INTEGER DEFAULT 0,
-			added_at TEXT NOT NULL,
-			PRIMARY KEY (folder_id, session_id)
-		);
-
-		CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-			content,
-			session_id UNINDEXED,
-			source_id UNINDEXED,
-			chunk_type UNINDEXED,
-			repository UNINDEXED,
-			updated_at UNINDEXED,
-			file_title UNINDEXED,
-			file_id UNINDEXED
-		);
-
-		CREATE TABLE IF NOT EXISTS index_state (
-			session_id TEXT PRIMARY KEY,
-			source_id TEXT NOT NULL,
-			last_indexed_at TEXT NOT NULL,
-			content_hash TEXT
-		);
-
-		CREATE TABLE IF NOT EXISTS session_names (
-			session_id TEXT PRIMARY KEY,
-			display_name TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS scratch_files (
-			id TEXT PRIMARY KEY,
-			session_id TEXT NOT NULL,
-			title TEXT NOT NULL DEFAULT 'Untitled',
-			content TEXT NOT NULL DEFAULT '',
-			mode TEXT NOT NULL DEFAULT 'writable',
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS config (
-			key TEXT PRIMARY KEY,
-			value TEXT NOT NULL
-		);
-
-		CREATE TABLE IF NOT EXISTS bookmarks (
-			id TEXT PRIMARY KEY,
-			session_id TEXT NOT NULL,
-			message_index INTEGER NOT NULL,
-			tool_call_id TEXT,
-			label TEXT NOT NULL,
-			created_at TEXT NOT NULL
-		);
-	`)
-
-	// Migration: ensure bookmarks unique index
-	if _, err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_ref ON bookmarks(session_id, message_index, tool_call_id)`); err != nil {
-		return err
-	}
-
-	// Migration: add mode column to scratch_files for existing databases.
-	if _, err := s.db.Exec(`ALTER TABLE scratch_files ADD COLUMN mode TEXT NOT NULL DEFAULT 'writable'`); err != nil {
-		_ = err // ignore — column may already exist
-	}
-
-	// Migration: ensure message_index, updated_at, file_title, file_id columns exist on search_index.
-	// FTS5 ALTER TABLE ADD COLUMN may fail on some platforms, so we
-	// test the column and drop/recreate the table if needed.
-	_, probeErr := s.db.Exec(`SELECT updated_at, file_title, file_id, message_index FROM search_index LIMIT 0`)
-	if probeErr != nil {
-		//nolint:errcheck
-		s.db.Exec(`DROP TABLE IF EXISTS search_index`)
-		//nolint:errcheck
-		s.db.Exec(`DROP TABLE IF EXISTS index_state`)
-		//nolint:errcheck
-		s.db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-			content,
-			session_id UNINDEXED,
-			source_id UNINDEXED,
-			chunk_type UNINDEXED,
-			repository UNINDEXED,
-			updated_at UNINDEXED,
-			file_title UNINDEXED,
-			file_id UNINDEXED,
-			message_index UNINDEXED
-		)`)
-		//nolint:errcheck
-		s.db.Exec(`CREATE TABLE IF NOT EXISTS index_state (
-			session_id TEXT PRIMARY KEY,
-			source_id TEXT NOT NULL,
-			last_indexed_at TEXT NOT NULL,
-			content_hash TEXT
-		)`)
-	}
-
-	return err
-}
+// migrate is implemented in migrate.go.

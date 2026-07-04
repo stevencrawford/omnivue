@@ -136,11 +136,44 @@ Key gostyle rules that commonly trigger:
 - **Scratch notes**: Per-session markdown notes stored in `omnivue.db`, rendered with rich text (TipTap) or code editor (Monaco).
 - **Session renaming**: Display name overrides stored in `omnivue.db`, persisted across restarts.
 
+## Database Schema Migrations
+
+The application's own persistent state lives in `$XDG_STATE_HOME/omnivue/omnivue.db` (sources, folders, FTS5 search index, scratch files, config, bookmarks, session name overrides). This is the **only** surface where a new binary version can break against state from an older binary — the frontend ships inside the binary and agent data is always read-only, so neither is a breaking-change surface.
+
+Schema changes are managed by **forward-only, version-tracked migrations** powered by [goose](https://github.com/pressly/goose) (embedded, no runtime filesystem access needed). Migration files live in `internal/store/migrations/` as numbered `.sql` files (`0001_baseline.sql`, `0002_*.sql`, …) embedded into the binary via `//go:embed`. goose records the applied version in its `goose_db_version` table; `store.New()` runs migrations automatically on every startup, so **no special command is needed** — a user who downloads a newer binary gets migrated on the next launch. There is intentionally **no auto-downgrade**; downgrading the binary is unsupported (restore a backup if required).
+
+### What requires a new migration file
+
+Append a new `000N_description.sql` file in `internal/store/migrations/` with the next integer version and a `-- +goose Up` section (a `-- +goose Down` section is optional and normally left empty, since migrations are forward-only) for **any** change to the `omnivue.db` schema or the semantics of its data:
+
+- Adding a new table, column, index, or constraint.
+- Renaming, retyping, or dropping a column/table (use a create-copy-drop-rename rebuild).
+- Adding a `NOT NULL` column without a usable default for existing rows (must backfill).
+- Changing the meaning of a `config` key or any stored value (rewrite in the migration).
+- Changing the FTS5 `search_index`/`index_state` schema. **These two tables are rebuildable** from agent data — drop and recreate them, then bump the version; the next poll cycle reindexes transparently. This is not user-data loss.
+
+A change that only adds a new Go struct field, a new API endpoint, or new read logic that works against the *existing* schema does **not** need a migration.
+
+### Rules
+
+- **Never modify, reorder, or delete** an existing migration file. Once a version is in a release, databases in the wild are stamped at that version. Edit an old migration and you corrupt them. Append only.
+- Each SQL migration runs in its **own transaction** by default (goose wraps the `-- +goose Up` section in a transaction); a partial failure rolls back so the database is left untouched and the next startup retries cleanly. Use `-- +goose NO TRANSACTION` only for statements that cannot run in a transaction (e.g. some `PRAGMA`s).
+- The baseline `0001_baseline.sql` captures the pre-versioning schema in full using idempotent `CREATE ... IF NOT EXISTS`, so it is safe to run against a pre-versioning legacy database (a no-op on tables already present).
+- The first real schema change after the baseline is **0002**. 0001 is the baseline.
+- Avoid `ALTER TABLE ... ADD COLUMN` in migrations unless you are certain the column does not already exist: goose migrations run once, so a failing `ADD COLUMN` would stop the migration. For a column that may pre-exist on legacy databases, prefer a create-copy-drop-rename rebuild, or handle it in the baseline idempotently.
+- Surface the new version: bump `schemaVersion` (visible in `GET /_/api/status`) in the CHANGELOG when the migration ships, and note whether user data is preserved (it always should be unless intentionally dropping a deprecated table).
+- Add or update a test in `internal/store/store_test.go` (or `internal/store/migrate_internal_test.go`) for any non-trivial migration, especially one that backfills or rebuilds data.
+- **Do not** put schema DDL (`CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`) anywhere in `internal/store/` other than a numbered `.sql` file in `internal/store/migrations/`.
+
+### Backups
+
+Before applying any migration to a database that already holds application data (i.e. not a fresh install), `store.New()` creates a pre-migration backup copy of `omnivue.db` (+ WAL checkpoint) in the state directory as `omnivue.db.premigrate-v{from}-<timestamp>.bak`. Fresh installs are not backed up (nothing to lose). On migration failure, `New()` returns a descriptive error and the backup remains on disk for manual recovery; `omnivue reset` remains as the last-resort escape hatch.
+
 ## API Endpoints
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/_/api/status` | Server status (version, pid, source/session counts) |
+| GET | `/_/api/status` | Server status (version, pid, source/session counts, schemaVersion) |
 | GET | `/_/api/sources` | List configured sources |
 | POST | `/_/api/sources` | Add a session source |
 | DELETE | `/_/api/sources/{id}` | Remove a session source |

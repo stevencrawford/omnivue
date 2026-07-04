@@ -984,11 +984,21 @@ func NewHandler(state *State) http.Handler {
 
 func handleStatus(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var schemaVersion int
+		if state.store != nil {
+			v, err := state.store.SchemaVersion()
+			if err != nil {
+				slog.Warn("failed to read schema version", "error", err)
+			} else {
+				schemaVersion = v
+			}
+		}
 		resp := map[string]any{
-			"version":  version.Version,
-			"pid":      os.Getpid(),
-			"sources":  len(state.Sources()),
-			"sessions": len(state.Sessions()),
+			"version":       version.Version,
+			"pid":           os.Getpid(),
+			"sources":       len(state.Sources()),
+			"sessions":      len(state.Sessions()),
+			"schemaVersion": schemaVersion,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
