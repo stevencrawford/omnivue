@@ -144,10 +144,6 @@ function TokenBreakdownPie({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
-        <Zap size={14} />
-        <span>Token Breakdown</span>
-      </div>
       <ResponsiveContainer width="100%" height={160}>
         <PieChart>
           <Pie
@@ -167,18 +163,6 @@ function TokenBreakdownPie({
           <Tooltip content={<PieTooltip />} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-        {data.map((entry) => (
-          <div
-            key={entry.name}
-            className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary"
-          >
-            <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
-            <span>{entry.name}</span>
-            <span className="tabular-nums">{formatTokens(entry.value)}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -227,10 +211,6 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
-        <TrendingUp size={14} />
-        <span>Token Timeline</span>
-      </div>
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ov-border)" vertical={false} />
@@ -284,19 +264,6 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
           />
         </LineChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-        {[
-          { key: "Input", color: TOKENS_COLOR_INPUT },
-          { key: "Output", color: TOKENS_COLOR_OUTPUT },
-          { key: "Cache", color: TOKENS_COLOR_CACHE },
-          { key: "Reasoning", color: TOKENS_COLOR_REASONING },
-        ].map(({ key, color }) => (
-          <div key={key} className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary">
-            <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-            <span>{key}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -584,6 +551,10 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
 
         {/* Token Breakdown + Token Timeline — side by side */}
         <section>
+          <div className="sess-overview-section-header">
+            <Zap size={14} />
+            <h3>Token Breakdown</h3>
+          </div>
           <div className="grid grid-cols-4 gap-4">
             <div className="col-span-1">
               <TokenBreakdownPie
@@ -596,6 +567,22 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
             <div className="col-span-3">
               <TokenTimelineChart timeline={tokenTimeline} />
             </div>
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
+            {[
+              { key: "Input", color: TOKENS_COLOR_INPUT },
+              { key: "Output", color: TOKENS_COLOR_OUTPUT },
+              { key: "Cache", color: TOKENS_COLOR_CACHE },
+              { key: "Reasoning", color: TOKENS_COLOR_REASONING },
+            ].map(({ key, color }) => (
+              <div
+                key={key}
+                className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary"
+              >
+                <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                <span>{key}</span>
+              </div>
+            ))}
           </div>
         </section>
 
