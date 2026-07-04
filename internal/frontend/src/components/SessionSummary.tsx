@@ -9,7 +9,6 @@ import {
   TrendingUp,
   CheckCircle,
   Edit3,
-  Target,
 } from "lucide-react";
 import {
   XAxis,
@@ -17,8 +16,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  BarChart,
-  Bar,
   LineChart,
   Line,
   PieChart,
@@ -190,113 +187,18 @@ function TokenBreakdownPie({
 // Token Timeline — time-bucketed stacked bar chart
 // ---------------------------------------------------------------------------
 
-interface TimeBucket {
-  label: string;
-  offsetLabel: string;
-  tokensInput: number;
-  tokensOutput: number;
-  tokensCached: number;
-  tokensReasoning: number;
-}
-
-function niceInterval(ms: number): number {
-  const scales = [
-    1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000,
-    7200000, 14400000,
-  ];
-  for (const s of scales) {
-    if (ms <= s) return s;
-  }
-  return Math.ceil(ms / 3600000) * 3600000;
-}
-
-function formatTimeOffset(ms: number): string {
-  if (ms < 1000) return "0s";
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  return `${Math.floor(minutes / 60)}h`;
-}
-
-function computeTimeBuckets(points: TokenTimelinePoint[], targetBuckets = 8): TimeBucket[] {
-  if (points.length === 0) return [];
-
-  const startMs = new Date(points[0].timestamp).getTime();
-  const endMs = new Date(points[points.length - 1].timestamp).getTime();
-  const spanMs = endMs - startMs;
-
-  if (spanMs < 1000 || points.length <= targetBuckets) {
-    return points.map((p, i) => ({
-      label: String(i + 1),
-      offsetLabel: `Step ${i + 1}`,
-      tokensInput: p.tokensInput,
-      tokensOutput: p.tokensOutput,
-      tokensCached: p.tokensCached,
-      tokensReasoning: p.tokensReasoning,
-    }));
-  }
-
-  const interval = niceInterval(spanMs / targetBuckets);
-  const bucketStart = Math.floor(startMs / interval) * interval;
-  const bucketCount = Math.ceil((endMs - bucketStart) / interval);
-
-  const buckets: {
-    start: number;
-    input: number;
-    output: number;
-    cached: number;
-    reasoning: number;
-  }[] = [];
-
-  for (let i = 0; i < bucketCount; i++) {
-    const bStart = bucketStart + i * interval;
-    buckets.push({
-      start: bStart,
-      input: 0,
-      output: 0,
-      cached: 0,
-      reasoning: 0,
-    });
-  }
-
-  for (const p of points) {
-    const t = new Date(p.timestamp).getTime();
-    const idx = Math.min(Math.floor((t - bucketStart) / interval), buckets.length - 1);
-    const b = buckets[idx];
-    if (b) {
-      b.input += p.tokensInput;
-      b.output += p.tokensOutput;
-      b.cached += p.tokensCached;
-      b.reasoning += p.tokensReasoning;
-    }
-  }
-
-  return buckets
-    .filter((b) => b.input + b.output + b.cached + b.reasoning > 0)
-    .map((b) => ({
-      label: formatTimeOffset(b.start - startMs),
-      offsetLabel: `+${formatTimeOffset(b.start - startMs)}`,
-      tokensInput: b.input,
-      tokensOutput: b.output,
-      tokensCached: b.cached,
-      tokensReasoning: b.reasoning,
-    }));
-}
-
-function TokenBucketTooltip({
+function TokenStepTooltip({
   active,
   payload,
 }: {
   active?: boolean;
-  payload?: { payload: TimeBucket }[];
+  payload?: { payload: TokenTimelinePoint }[];
 }) {
   if (!active || !payload?.length) return null;
-  const b = payload[0].payload;
-  const total = b.tokensInput + b.tokensOutput + b.tokensCached + b.tokensReasoning;
+  const p = payload[0].payload;
   return (
     <div className="ov-chart-tooltip">
-      <p className="ov-chart-tooltip-date">{b.offsetLabel}</p>
+      <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
       {[
         { key: "tokensInput", label: "Input", color: TOKENS_COLOR_INPUT },
         { key: "tokensOutput", label: "Output", color: TOKENS_COLOR_OUTPUT },
@@ -306,22 +208,22 @@ function TokenBucketTooltip({
         <div key={key} className="ov-chart-tooltip-row">
           <span className="ov-chart-tooltip-swatch" style={{ background: color }} />
           <span>{label}</span>
-          <span className="ml-auto tabular-nums">{formatTokens((b as any)[key] || 0)}</span>
+          <span className="ml-auto tabular-nums">{formatTokens((p as any)[key] || 0)}</span>
         </div>
       ))}
       <div className="ov-chart-tooltip-divider" />
       <div className="ov-chart-tooltip-row font-medium">
-        <span>Bucket total</span>
-        <span className="ml-auto tabular-nums">{formatTokens(total)}</span>
+        <span>Total</span>
+        <span className="ml-auto tabular-nums">
+          {formatTokens(p.tokensInput + p.tokensOutput + p.tokensCached + p.tokensReasoning)}
+        </span>
       </div>
     </div>
   );
 }
 
 function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
-  const buckets = useMemo(() => computeTimeBuckets(timeline), [timeline]);
-
-  if (buckets.length === 0) return null;
+  if (timeline.length === 0) return null;
 
   return (
     <div className="space-y-1.5">
@@ -330,52 +232,59 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
         <span>Token Timeline</span>
       </div>
       <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={buckets} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
+        <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ov-border)" vertical={false} />
           <XAxis
-            dataKey="label"
+            dataKey="stepIndex"
             tick={{ fontSize: 10, fill: "var(--color-ov-text-secondary)" }}
             tickLine={false}
             axisLine={false}
+            tickFormatter={(v: number) => `${v + 1}`}
             interval="preserveStartEnd"
           />
           <YAxis
+            scale="log"
+            domain={[1, "auto"]}
             tick={{ fontSize: 10, fill: "var(--color-ov-text-secondary)" }}
             tickLine={false}
             axisLine={false}
             width={48}
             tickFormatter={(v: number) => formatTokens(v)}
           />
-          <Tooltip content={<TokenBucketTooltip />} cursor={{ fill: "var(--color-ov-bg-hover)" }} />
-          <Bar
+          <Tooltip content={<TokenStepTooltip />} cursor={{ fill: "var(--color-ov-bg-hover)" }} />
+          <Line
+            type="monotone"
             dataKey="tokensInput"
-            stackId="tokens"
-            fill={TOKENS_COLOR_INPUT}
-            radius={[1, 1, 0, 0]}
+            stroke={TOKENS_COLOR_INPUT}
+            strokeWidth={1.5}
+            dot={false}
             isAnimationActive={false}
           />
-          <Bar
+          <Line
+            type="monotone"
             dataKey="tokensOutput"
-            stackId="tokens"
-            fill={TOKENS_COLOR_OUTPUT}
-            radius={[1, 1, 0, 0]}
+            stroke={TOKENS_COLOR_OUTPUT}
+            strokeWidth={1.5}
+            dot={false}
             isAnimationActive={false}
           />
-          <Bar
+          <Line
+            type="monotone"
             dataKey="tokensCached"
-            stackId="tokens"
-            fill={TOKENS_COLOR_CACHE}
-            radius={[1, 1, 0, 0]}
+            stroke={TOKENS_COLOR_CACHE}
+            strokeWidth={1.5}
+            dot={false}
             isAnimationActive={false}
           />
-          <Bar
+          <Line
+            type="monotone"
             dataKey="tokensReasoning"
-            stackId="tokens"
-            fill={TOKENS_COLOR_REASONING}
-            radius={[1, 1, 0, 0]}
+            stroke={TOKENS_COLOR_REASONING}
+            strokeWidth={1.5}
+            dot={false}
             isAnimationActive={false}
           />
-        </BarChart>
+        </LineChart>
       </ResponsiveContainer>
       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {[
@@ -501,13 +410,7 @@ function MiniMetricCard({
   );
 }
 
-function EffectivenessCards({
-  metrics,
-  hideCosts,
-}: {
-  metrics: EffectivenessMetrics;
-  hideCosts: boolean;
-}) {
+function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics }) {
   const cards: {
     icon: React.ComponentType<{ size?: number }>;
     label: string;
@@ -524,14 +427,6 @@ function EffectivenessCards({
       value: metrics.efficiencyRatio !== null ? metrics.efficiencyRatio.toFixed(2) : "\u2014",
     },
     {
-      icon: Target,
-      label: "Tokens / Tool",
-      value:
-        metrics.tokensPerToolCall !== null
-          ? `${formatTokens(Math.round(metrics.tokensPerToolCall))}`
-          : "\u2014",
-    },
-    {
       icon: CheckCircle,
       label: "Tool Success",
       value: formatSmallPct(metrics.toolSuccessRate),
@@ -542,30 +437,20 @@ function EffectivenessCards({
       value:
         metrics.editsPerUserRequest !== null ? metrics.editsPerUserRequest.toFixed(1) : "\u2014",
     },
-    {
-      icon: DollarSign,
-      label: "Cost / File",
-      value:
-        !hideCosts && metrics.costPerFile !== null
-          ? formatCost(metrics.costPerFile)
-          : hideCosts && metrics.costPerFile !== null
-            ? "***"
-            : "\u2014",
-    },
   ];
 
   return (
-    <div className="sess-overview-card">
+    <>
       <div className="sess-overview-section-header">
         <Activity size={14} />
         <h3>Effectiveness</h3>
       </div>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         {cards.map((card) => (
           <MiniMetricCard key={card.label} icon={card.icon} label={card.label} value={card.value} />
         ))}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -595,7 +480,9 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-5 pb-2 space-y-5">
         {/* Effectiveness — top */}
-        <EffectivenessCards metrics={effectiveness} hideCosts={hideCosts} />
+        <section>
+          <EffectivenessCards metrics={effectiveness} />
+        </section>
 
         {/* Activity Breakdown */}
         <div className="sess-overview-card">
