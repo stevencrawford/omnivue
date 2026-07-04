@@ -143,7 +143,7 @@ function TokenBreakdownPie({
   };
 
   return (
-    <div className="px-2 py-1.5 rounded-md bg-ov-bg-hover/40">
+    <div className="sess-overview-card">
       <ResponsiveContainer width="100%" height={160}>
         <PieChart>
           <Pie
@@ -163,6 +163,18 @@ function TokenBreakdownPie({
           <Tooltip content={<PieTooltip />} />
         </PieChart>
       </ResponsiveContainer>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
+        {data.map((entry) => (
+          <div
+            key={entry.name}
+            className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary"
+          >
+            <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+            <span>{entry.name}</span>
+            <span className="tabular-nums">{formatTokens(entry.value)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -210,7 +222,7 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
   if (timeline.length === 0) return null;
 
   return (
-    <div className="px-2 py-1.5 rounded-md bg-ov-bg-hover/40">
+    <div className="sess-overview-card">
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ov-border)" vertical={false} />
@@ -264,6 +276,19 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
           />
         </LineChart>
       </ResponsiveContainer>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
+        {[
+          { key: "Input", color: TOKENS_COLOR_INPUT },
+          { key: "Output", color: TOKENS_COLOR_OUTPUT },
+          { key: "Cache", color: TOKENS_COLOR_CACHE },
+          { key: "Reasoning", color: TOKENS_COLOR_REASONING },
+        ].map(({ key, color }) => (
+          <div key={key} className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary">
+            <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+            <span>{key}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
