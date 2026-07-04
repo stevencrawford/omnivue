@@ -32,7 +32,7 @@ import { useState } from "react";
 
 export function App() {
   // ---- Data hooks ----
-  const { sessions, activeSessionId, liveChangedIds, activeSession, setActiveSessionId } =
+  const { sessions, sessionsLoading, activeSessionId, liveChangedIds, activeSession, setActiveSessionId } =
     useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
@@ -277,6 +277,13 @@ export function App() {
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>
+                ) : sessionsLoading && sessions.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
+                      <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                      Loading sessions...
+                    </div>
+                  </div>
                 ) : sessions.length > 0 && showOverview ? (
                   <OverviewScreen
                     sessions={sessions}
