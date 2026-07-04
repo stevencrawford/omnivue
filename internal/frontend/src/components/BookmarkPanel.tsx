@@ -43,13 +43,15 @@ export function BookmarkPanel({
         <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
           Bookmarks
         </span>
-        <span
-          className="text-[11px] tabular-nums text-ov-text-secondary/70"
-          aria-label={`${bookmarks.length} bookmarks`}
-          title={`${bookmarks.length} bookmarks`}
-        >
-          {bookmarks.length}
-        </span>
+        <div className="flex items-center gap-0.5">
+          <span
+            className="text-[11px] tabular-nums text-ov-text-secondary/70"
+            aria-label={`${bookmarks.length} bookmarks`}
+            title={`${bookmarks.length} bookmarks`}
+          >
+            {bookmarks.length}
+          </span>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {bookmarks.length === 0 ? (
