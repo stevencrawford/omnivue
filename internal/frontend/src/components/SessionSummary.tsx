@@ -387,7 +387,10 @@ function MiniMetricCard({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-ov-bg-hover/40 border border-ov-border">
+    <div
+      className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-ov-border"
+      style={{ backgroundColor: "var(--color-surface-elevated)" }}
+    >
       <span className="text-ov-text-secondary shrink-0">
         <Icon size={12} />
       </span>
