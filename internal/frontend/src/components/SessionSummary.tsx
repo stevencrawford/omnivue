@@ -143,7 +143,7 @@ function TokenBreakdownPie({
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="px-2 py-1.5 rounded-md bg-ov-bg-hover/40">
       <ResponsiveContainer width="100%" height={160}>
         <PieChart>
           <Pie
@@ -210,7 +210,7 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
   if (timeline.length === 0) return null;
 
   return (
-    <div className="space-y-1.5">
+    <div className="px-2 py-1.5 rounded-md bg-ov-bg-hover/40">
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ov-border)" vertical={false} />
