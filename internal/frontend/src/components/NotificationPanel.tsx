@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Trash2 } from "lucide-react";
+import { Bell, CheckCheck, Trash2 } from "lucide-react";
 import type { AppNotification, Session } from "../hooks/types";
 import { NotificationRow } from "./NotificationRow";
 
@@ -96,8 +96,9 @@ export function NotificationPanel({
 
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-            <p className="text-xs text-ov-text-secondary">
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <Bell size={24} className="text-ov-text-secondary/40 mb-3" />
+            <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
               No notifications. You&apos;ll see agent questions and new session activity here.
             </p>
           </div>
