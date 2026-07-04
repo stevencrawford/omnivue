@@ -853,16 +853,13 @@ func (s *State) pollLoop(ctx context.Context) {
 			timer.Stop()
 			return
 		case <-timer.C:
-			slog.Debug("poll tick", "liveCount", liveCount, "interval", interval)
 			changed := false
 			for sourceID, adapter := range s.adapters {
 				ts, err := adapter.LastModified(ctx)
 				if err != nil {
-					slog.Debug("poll lastModified error", "source", sourceID, "error", err)
 					continue
 				}
 				if prev, ok := lastMod[sourceID]; !ok || ts > prev {
-					slog.Debug("poll source change", "source", sourceID, "ts", ts, "prev", prev, "ok", ok)
 					lastMod[sourceID] = ts
 					if ok { // skip first iteration
 						changed = true
@@ -1006,12 +1003,10 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 			slog.Error("panic in classifyChanges", "recover", r)
 		}
 	}()
-	slog.Debug("classifyChanges called", "changedIDs", len(changedIDs), "transitions", len(transitions))
 	if s.store == nil || len(changedIDs) == 0 {
 		return
 	}
 	settings := s.loadNotifySettings()
-	slog.Debug("classifyChanges settings", "enabled", settings.Enabled, "scope", settings.Scope, "excludeActiveView", settings.ExcludeActiveView, "enabledAt", settings.EnabledAt, "kinds", settings.Kinds)
 	if !settings.Enabled {
 		// Even when disabled, advance the seen-message cursor so we don't
 		// flood the user with a backlog of pre-existing messages the moment
@@ -1036,28 +1031,22 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 	for _, sid := range changedIDs {
 		sess, err := s.Session(ctx, sid)
 		if err != nil || sess == nil {
-			slog.Debug("classifyChanges session not found", "sid", sid, "err", err)
 			continue
 		}
-
-		inScope := s.sessionInScope(ctx, sess.ID, settings.Scope)
-		isActive := settings.ExcludeActiveView && s.isActiveView(sess.ID)
-		slog.Debug("classifyChanges session check", "sid", sid, "inScope", inScope, "isActiveView", isActive, "status", sess.Status)
 		// Scope filter: only sessions the user has opened / pinned.
-		if !inScope {
+		if !s.sessionInScope(ctx, sess.ID, settings.Scope) {
 			// Still advance the cursor so future messages are detected.
 			s.advanceSeenCursor(ctx, sess)
 			continue
 		}
 		// ExcludeActiveView: skip emitting for the session currently open in a tab.
-		if isActive {
+		if settings.ExcludeActiveView && s.isActiveView(sess.ID) {
 			s.advanceSeenCursor(ctx, sess)
 			continue
 		}
 
 		msgs, err := s.Messages(ctx, sess.ID)
 		if err != nil {
-			slog.Debug("classifyChanges messages error", "sid", sid, "err", err)
 			continue
 		}
 
@@ -1066,7 +1055,6 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 			slog.Warn("failed to load notification state", "session", sess.ID, "error", err)
 			continue
 		}
-		slog.Debug("classifyChanges session state", "sid", sid, "lastSeenCount", st.LastSeenMessageCount, "msgCount", len(msgs), "firstViewedAt", st.FirstViewedAt, "lastSeenAt", st.LastSeenAt)
 
 		prevStatus := ""
 		if t, ok := transBySession[sess.ID]; ok {
@@ -1142,7 +1130,6 @@ func (s *State) advanceSeenCursor(ctx context.Context, sess *ingest.Session) {
 	if err != nil {
 		return
 	}
-	slog.Debug("advanceSeenCursor", "session", sess.ID, "msgs", len(msgs), "currentLastSeen", st.LastSeenMessageCount)
 	if len(msgs) > st.LastSeenMessageCount {
 		if err := s.store.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
 			slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
@@ -2270,7 +2257,6 @@ func handleSetNotifySettings(state *State) http.HandlerFunc {
 		} else {
 			settings.EnabledAt = prev.EnabledAt
 		}
-		slog.Debug("notify settings saved", "enabled", settings.Enabled, "enabledAt", settings.EnabledAt, "prevWasEnabled", prev.Enabled)
 		if err := state.saveNotifySettings(settings); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

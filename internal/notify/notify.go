@@ -13,7 +13,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -137,7 +136,6 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		// notifications were enabled. (Status transitions below are not
 		// suppressed, since they reflect current state.)
 		if !m.Timestamp.IsZero() && settings.EnabledAt > 0 && m.Timestamp.Before(enabledAt) {
-			slog.Debug("notify flood suppress", "msgID", m.ID, "timestamp", m.Timestamp.UnixMilli(), "enabledAt", settings.EnabledAt, "toolCalls", len(m.ToolCalls))
 			continue
 		}
 		newMessageCount++

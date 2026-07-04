@@ -772,7 +772,6 @@ func (s *Store) SetNotificationState(sessionID string, lastSeenCount int, at tim
 // MarkSessionViewed records that the user has opened a session (sets
 // first_viewed_at the first time, used by the "opened" scope filter).
 func (s *Store) MarkSessionViewed(sessionID string) error {
-	slog.Debug("MarkSessionViewed", "sessionID", sessionID)
 	_, err := s.db.Exec(`
 		INSERT INTO notification_state (session_id, last_seen_message_count, last_seen_at, first_viewed_at)
 		VALUES (?, 0, NULL, ?)
