@@ -43,6 +43,14 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+interface PendingSource {
+  id: string;
+  path: string;
+  agentType: string;
+  status: "loading" | "error";
+  error?: string;
+}
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [sources, setSources] = useState<Source[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
@@ -50,7 +58,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [addingPath, setAddingPath] = useState("");
   const [addingType, setAddingType] = useState("opencode");
-  const [adding, setAdding] = useState(false);
+  const [pendingSources, setPendingSources] = useState<PendingSource[]>([]);
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -104,6 +112,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setAgentFilter(null);
       setResetStep(0);
       setResetConfirmText("");
+      setPendingSources((prev) => prev.filter((p) => p.status === "loading"));
     }
   }, [isOpen, loadSources]);
 
@@ -120,17 +129,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleAdd = async () => {
     const path = addingPath.trim();
     if (!path) return;
-    setAdding(true);
+    const agentType = addingType;
+    const pendingId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // Optimistically render a loading row; keep the Add button enabled.
+    setPendingSources((prev) => [...prev, { id: pendingId, path, agentType, status: "loading" }]);
+    setAddingPath("");
     try {
-      await addSource(path, addingType);
-      setAddingPath("");
+      await addSource(path, agentType);
       await loadSources();
+      setPendingSources((prev) => prev.filter((p) => p.id !== pendingId));
     } catch (err) {
-      console.error("Failed to add source:", err);
-    } finally {
-      setAdding(false);
+      const msg = err instanceof Error ? err.message : String(err);
+      setPendingSources((prev) =>
+        prev.map((p) => (p.id === pendingId ? { ...p, status: "error", error: msg } : p)),
+      );
     }
   };
+
+  const dismissPending = (id: string) =>
+    setPendingSources((prev) => prev.filter((p) => p.id !== id));
 
   const handleRemove = async (id: string) => {
     setRemovingId(id);
@@ -241,6 +261,37 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   )}
 
                   <div className="space-y-1">
+                    {/* Pending (optimistic) source rows: loading or error */}
+                    {pendingSources.map((p) => (
+                      <div
+                        key={`pending-${p.id}`}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-ov-bg-secondary border border-ov-border text-xs"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-ov-text">
+                            {p.agentType}
+                            {p.status === "loading" && (
+                              <span className="text-ov-text-secondary"> · adding…</span>
+                            )}
+                          </p>
+                          <p className="truncate text-[11px] text-ov-text-secondary font-mono">
+                            {p.path}
+                          </p>
+                        </div>
+                        {p.status === "loading" ? (
+                          <Loader2 className="size-3 animate-spin text-ov-text-secondary" />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => dismissPending(p.id)}
+                            className="shrink-0 p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                            title={p.error ?? "Error adding source"}
+                          >
+                            <TriangleAlert className="size-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                     {filteredSources.map((source) =>
                       confirmingDeleteId === source.id ? (
                         <div
@@ -343,15 +394,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </select>
                 <button
                   type="button"
-                  disabled={!addingPath.trim() || adding}
+                  disabled={!addingPath.trim()}
                   onClick={handleAdd}
                   className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-accent-border bg-accent-muted text-accent hover:bg-accent/20"
                 >
-                  {adding ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Plus className="size-3" />
-                  )}
+                  <Plus className="size-3" />
                   Add
                 </button>
               </div>

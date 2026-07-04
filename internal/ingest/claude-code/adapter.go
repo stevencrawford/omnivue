@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,8 +13,53 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/internal/ingestutil"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
+
+func init() {
+	ingest.Register(ingest.AgentClaudeCode, "Claude Code", "~/.claude",
+		func(path string) (ingest.Adapter, error) { return New(path) },
+		detectPath)
+}
+
+// detectPath checks whether the given path contains Claude Code session data.
+func detectPath(path string) *ingest.DiscoveredSource {
+	projectsDir := filepath.Join(path, "projects")
+	if !ingestkit.PathExists(projectsDir) {
+		return nil
+	}
+	ents, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return nil
+	}
+	var found bool
+	for _, ent := range ents {
+		if !ent.IsDir() {
+			continue
+		}
+		sessionEnts, err := os.ReadDir(filepath.Join(projectsDir, ent.Name()))
+		if err != nil {
+			continue
+		}
+		for _, se := range sessionEnts {
+			if !se.IsDir() && filepath.Ext(se.Name()) == ".jsonl" {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		return nil
+	}
+	return &ingest.DiscoveredSource{
+		Path:      path,
+		AgentType: ingest.AgentClaudeCode,
+		Label:     "Claude Code",
+	}
+}
 
 // projectDir is the subdirectory within ~/.claude that holds session data.
 const projectDir = "projects"
@@ -25,12 +69,12 @@ const planDir = "plans"
 
 // Adapter reads Claude Code session data from JSONL files in ~/.claude/projects/.
 type Adapter struct {
-	basePath string
+	basePath  string
 	claudeDir string
 
-	mu         sync.RWMutex
-	sessions   []ingest.Session
-	lastMod    int64
+	mu       sync.RWMutex
+	sessions []ingest.Session
+	lastMod  int64
 }
 
 // New creates a new Claude Code adapter for the given base path.
@@ -136,14 +180,14 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 
 	// Look for plan file in ~/.claude/plans/{slug}.md
 	planPath := filepath.Join(a.claudeDir, planDir, slug+".md")
-	if ingestutil.PathExists(planPath) {
+	if ingestkit.PathExists(planPath) {
 		content, err := os.ReadFile(planPath)
 		if err != nil {
 			return nil, nil
 		}
 		return &ingest.Plan{
 			Markdown: string(content),
-			Source:   "file",
+			Source:   ingest.PlanDataFile,
 		}, nil
 	}
 
@@ -342,7 +386,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	var (
 		parentSID   string
@@ -394,7 +438,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 			agentID = env.AgentID
 		}
 
-		ts := ingestutil.ParseTime(env.Timestamp)
+		ts := ingestkit.ParseTime(env.Timestamp)
 		if firstTS.IsZero() {
 			firstTS = ts
 		}
@@ -458,11 +502,11 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 		}
 	}
 
-	repo := ingestutil.DeriveRepository(cwd, "")
+	repo := ingestkit.DeriveRepository(cwd, "")
 
-	status := "active"
+	status := ingest.SessionStatusActive
 	if hasRealUser && lastTS.Before(time.Now().Add(-5*time.Minute)) {
-		status = "completed"
+		status = ingest.SessionStatusCompleted
 	}
 
 	subAgentName := ""
@@ -523,7 +567,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	var messages []ingest.Message
 	toolCallsByID := make(map[string]*ingest.ToolCall)
@@ -557,7 +601,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			}
 		}
 
-		ts := ingestutil.ParseTime(env.Timestamp)
+		ts := ingestkit.ParseTime(env.Timestamp)
 
 		switch env.Type {
 		case "user", "assistant":
@@ -574,7 +618,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 			msg := ingest.Message{
 				ID:        env.UUID,
-				Role:      env.Message.Role,
+				Role:      ingest.MessageRole(env.Message.Role),
 				Timestamp: ts,
 				Model:     currentModel,
 			}
@@ -605,7 +649,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					if toolResultsDir != "" {
 						if tr := readToolResultFile(toolResultsDir, toolCalls[i].ID); tr != "" {
 							toolCalls[i].Output = truncateToolOutput(tr, toolCalls[i].Name)
-							toolCalls[i].Status = "completed"
+							toolCalls[i].Status = ingest.ToolCallCompleted
 						}
 					}
 					toolCallsByID[toolCalls[i].ID] = &toolCalls[i]
@@ -631,9 +675,9 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			if tc, ok := toolCallsByID[tcID]; ok {
 				tc.Output = truncateToolOutput(content, tc.Name)
 				if env.IsError != nil && *env.IsError {
-					tc.Status = "failed"
+					tc.Status = ingest.ToolCallFailed
 				} else {
-					tc.Status = "completed"
+					tc.Status = ingest.ToolCallCompleted
 				}
 				if env.AgentID != "" {
 					setToolMetadataSessionID(tc, parentSID, env.AgentID)
@@ -659,7 +703,7 @@ func (a *Adapter) findSlugFromSession(fpath string) string {
 	}
 	defer f.Close()
 
-	scanner := ingestutil.NewJSONLScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		var env claudeMessageEnvelope
 		if json.Unmarshal(scanner.Bytes(), &env) != nil {
@@ -716,336 +760,6 @@ func isMetaMsg(env *claudeMessageEnvelope) bool {
 	return false
 }
 
-// embeddedToolResult represents a tool result embedded in a user message content array.
-type embeddedToolResult struct {
-	ToolUseID string          `json:"tool_use_id"`
-	Type      string          `json:"type"`
-	Content   json.RawMessage `json:"content"`
-	IsError   *bool           `json:"is_error,omitempty"`
-}
-
-// extractAndMergeToolResults checks if a user message content is actually an array of
-// tool_result objects embedded inline (as Claude Code sometimes does). If so, it
-// merges the outputs into toolCallsByID and returns true (skip the user message).
-func extractAndMergeToolResults(raw json.RawMessage, toolCallsByID map[string]*ingest.ToolCall, parentIsError *bool) bool {
-	if len(raw) == 0 {
-		return false
-	}
-
-	// Try parsing as array of embedded tool results
-	var results []embeddedToolResult
-	if json.Unmarshal(raw, &results) != nil {
-		return false
-	}
-
-	// Check if at least one entry is a tool_result
-	hasToolResult := false
-	for _, r := range results {
-		if r.Type == "tool_result" || r.ToolUseID != "" {
-			hasToolResult = true
-			break
-		}
-	}
-	if !hasToolResult {
-		return false
-	}
-
-	for _, r := range results {
-		if r.ToolUseID == "" {
-			continue
-		}
-		content := ""
-		if r.Content != nil {
-			content = extractToolResultContent(r.Content)
-		}
-		isError := parentIsError
-		if r.IsError != nil {
-			isError = r.IsError
-		}
-		if tc, ok := toolCallsByID[r.ToolUseID]; ok {
-			if content != "" {
-				tc.Output = truncateToolOutput(content, tc.Name)
-			}
-			if isError != nil && *isError {
-				tc.Status = "failed"
-			} else {
-				tc.Status = "completed"
-			}
-		}
-	}
-
-	return true
-}
-
-func extractUserContent(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-
-	// Try plain string first
-	var s string
-	if json.Unmarshal(raw, &s) == nil {
-		return s
-	}
-
-	// Try content array (Claude Code sometimes embeds tool_results in user messages)
-	var parts []claudeContentPart
-	if json.Unmarshal(raw, &parts) == nil {
-		var texts []string
-		for _, p := range parts {
-			if p.Type == "text" {
-				texts = append(texts, p.Text)
-			}
-		}
-		return strings.Join(texts, "\n")
-	}
-
-	return ""
-}
-
-func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning string, toolCalls []ingest.ToolCall) {
-	if len(raw) == 0 {
-		return "", "", nil
-	}
-
-	// Try as array of content parts first
-	var parts []claudeContentPart
-	if json.Unmarshal(raw, &parts) != nil {
-		var s string
-		if json.Unmarshal(raw, &s) == nil {
-			return s, "", nil
-		}
-		return "", "", nil
-	}
-
-	var texts []string
-	var thinkTexts []string
-
-	for _, p := range parts {
-		switch p.Type {
-		case "text":
-			texts = append(texts, p.Text)
-		case "thinking":
-			thinkTexts = append(thinkTexts, p.Thinking)
-		case "tool_use":
-			if p.Name == "ExitPlanMode" {
-				// Transform exit_plan_mode input for the frontend renderer.
-				// The frontend ExitPlanModeToolDiff expects: {"summary":"<plan markdown>"}
-				// Claude Code stores the plan under either "plan", "content", or "summary" key.
-				planText := extractPlanContent(p.Input)
-				if planText != "" {
-				transformed, err := json.Marshal(map[string]string{
-					"summary": planText,
-				})
-				if err != nil {
-					slog.Warn("failed to marshal plan text", "error", err)
-					transformed = []byte("{}")
-				}
-					tc := ingest.ToolCall{
-						ID:     p.ID,
-						Name:   p.Name,
-						Input:  string(transformed),
-						Status: "running",
-					}
-					toolCalls = append(toolCalls, tc)
-				} else {
-					tc := ingest.ToolCall{
-						ID:     p.ID,
-						Name:   p.Name,
-						Input:  string(p.Input),
-						Status: "running",
-					}
-					toolCalls = append(toolCalls, tc)
-				}
-			} else if (p.Name == "Write" || p.Name == "Edit") && p.Input != nil {
-				tc := ingest.ToolCall{
-					ID:     p.ID,
-					Name:   p.Name,
-					Input:  truncateEditInput(p.Input),
-					Status: "running",
-				}
-				toolCalls = append(toolCalls, tc)
-			} else {
-				input := ""
-				if p.Input != nil {
-					input = string(p.Input)
-				}
-				tc := ingest.ToolCall{
-					ID:     p.ID,
-					Name:   p.Name,
-					Input:  ingestutil.TruncateContent(input, 2000),
-					Status: "running",
-				}
-				toolCalls = append(toolCalls, tc)
-			}
-		}
-	}
-
-	text = strings.Join(texts, "\n")
-	reasoning = strings.Join(thinkTexts, "\n")
-	return text, reasoning, toolCalls
-}
-
-func extractToolResultContent(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-
-	// Try as string first
-	var s string
-	if json.Unmarshal(raw, &s) == nil {
-		return s
-	}
-
-	// Try as content array with text parts
-	var parts []claudeContentPart
-	if json.Unmarshal(raw, &parts) == nil {
-		var texts []string
-		for _, p := range parts {
-			if p.Type == "text" {
-				texts = append(texts, p.Text)
-			}
-		}
-		return strings.Join(texts, "\n")
-	}
-
-	return ""
-}
-
-// truncateToolOutput truncates content to maxContentBytes unless the tool is a task.
-func truncateToolOutput(content string, toolName string) string {
-	if toolName == "task" || toolName == "Task" {
-		return content
-	}
-	return ingestutil.TruncateContent(content, maxContentBytes)
-}
-
-const maxContentBytes = 2000
-
-// truncateEditInput truncates only the content payload fields inside a Write/Edit
-// tool call's JSON input, keeping the JSON valid so the frontend can still parse
-// structural fields like file_path, old_str, new_str.
-func truncateEditInput(raw json.RawMessage) string {
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return ingestutil.TruncateContent(string(raw), maxContentBytes)
-	}
-	changed := false
-	for _, key := range []string{"content", "new_str", "newStr", "old_str", "oldStr"} {
-		if v, ok := m[key]; ok {
-			if s, ok := v.(string); ok && len(s) > maxContentBytes {
-				m[key] = s[:maxContentBytes] + "\n… (truncated)"
-				changed = true
-			}
-		}
-	}
-	if !changed {
-		return string(raw)
-	}
-	result, err := json.Marshal(m)
-	if err != nil {
-		slog.Warn("failed to marshal truncated content", "error", err)
-		return "{}"
-	}
-	return string(result)
-}
-
-// extractPlanContent extracts plan markdown from an ExitPlanMode tool_use input.
-// Claude Code stores the plan under "plan", "content", or "summary" keys.
-func extractPlanContent(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var m map[string]any
-	if json.Unmarshal(raw, &m) != nil {
-		return ""
-	}
-	for _, key := range []string{"plan", "content", "summary"} {
-		if v, ok := m[key]; ok {
-			if s, ok := v.(string); ok && s != "" {
-				return s
-			}
-		}
-	}
-	return ""
-}
-
-func readToolResultFile(toolResultsDir, toolUseID string) string {
-	// Tool results are stored as {tool_use_id}.txt
-	fpath := filepath.Join(toolResultsDir, toolUseID+".txt")
-	content, err := os.ReadFile(fpath)
-	if err != nil {
-		return ""
-	}
-	return string(content)
-}
-
-// setToolMetadataSessionID sets the sessionId field in a tool call's metadata JSON.
-func setToolMetadataSessionID(tc *ingest.ToolCall, parentSID, agentID string) {
-	if agentID == "" {
-		return
-	}
-	childID := parentSID + "-agent-" + agentID
-	var md map[string]any
-	if tc.Metadata != "" {
-		if err := json.Unmarshal([]byte(tc.Metadata), &md); err != nil {
-			slog.Warn("failed to unmarshal metadata", "error", err)
-		}
-	}
-	if md == nil {
-		md = make(map[string]any)
-	}
-	md["sessionId"] = childID
-	mdBytes, err := json.Marshal(md)
-	if err != nil {
-		slog.Warn("failed to marshal metadata", "error", err)
-		mdBytes = []byte("{}")
-	}
-	tc.Metadata = string(mdBytes)
-}
-
-// handleProgressEvent processes agent_progress events that carry Task tool results.
-// These events contain the sub-agent's tool results and metadata linking back to
-// the parent Task tool call via parentToolUseID.
-func handleProgressEvent(line []byte, toolCallsByID map[string]*ingest.ToolCall, parentSID string) {
-	var prog claudeProgressEnvelope
-	if err := json.Unmarshal(line, &prog); err != nil {
-		return
-	}
-	if prog.ParentToolUseID == "" || prog.Data == nil {
-		return
-	}
-	tc, ok := toolCallsByID[prog.ParentToolUseID]
-	if !ok {
-		return
-	}
-
-	// Set sessionId metadata from the sub-agent ID
-	if prog.Data.AgentID != "" {
-		setToolMetadataSessionID(tc, parentSID, prog.Data.AgentID)
-	}
-
-	// Mark the task tool as completed
-	tc.Status = "completed"
-
-	// Extract content from the embedded tool result in the progress event
-	if len(prog.Data.Message) == 0 {
-		return
-	}
-	var wrapper progressMessageWrapper
-	if json.Unmarshal(prog.Data.Message, &wrapper) != nil {
-		return
-	}
-	if wrapper.Message == nil || len(wrapper.Message.Content) == 0 {
-		return
-	}
-	content := extractToolResultContent(wrapper.Message.Content)
-	if content == "" {
-		return
-	}
-	tc.Output = truncateToolOutput(content, tc.Name)
-}
-
 func normalizeToolCall(tc *ingest.ToolCall) {
 	switch tc.Name {
 	case "Read":
@@ -1081,56 +795,4 @@ func resolveParentSessionID(sessionID string) string {
 		return sessionID[:idx]
 	}
 	return sessionID
-}
-
-// resolveToolResultsDir resolves the tool-results directory path from a session file path.
-func resolveToolResultsDir(fpath, parentSID string) string {
-	// Walk up to find the project directory (parent of the session directory)
-	dir := filepath.Dir(fpath)
-	for {
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		if filepath.Base(parent) == projectDir {
-			// Found projects/ — tool-results dir is projects/<enc>/<parentSID>/tool-results/
-			return filepath.Join(dir, parentSID, "tool-results")
-		}
-		dir = parent
-	}
-}
-
-// simplifyModelName strips the "anthropic/" prefix from model names for display.
-func simplifyModelName(model string) string {
-	return strings.TrimPrefix(model, "anthropic/")
-}
-
-// anthropicPricing maps model names to per-million-token costs.
-// Prices are for Claude 4.5 family and older Claude models.
-var anthropicPricing = map[string]struct {
-	Input, Output, CacheRead, CacheWrite float64
-}{
-	"claude-4-5-sonnet-20250929":       {3.00, 15.00, 0.30, 3.75},
-	"claude-sonnet-4-5-20250929":       {3.00, 15.00, 0.30, 3.75},
-	"claude-4-5-opus-20251101":         {15.00, 75.00, 1.50, 18.75},
-	"claude-opus-4-5-20251101":         {15.00, 75.00, 1.50, 18.75},
-	"claude-4-5-haiku-20251001":        {0.25, 1.25, 0.025, 0.3125},
-	"claude-haiku-4-5-20251001":        {0.25, 1.25, 0.025, 0.3125},
-	"claude-3-5-sonnet-20241022":       {3.00, 15.00, 0.30, 3.75},
-	"claude-3-5-haiku-20241022":        {0.80, 4.00, 0.08, 1.00},
-	"claude-3-opus-20240229":           {15.00, 75.00, 1.50, 18.75},
-	"claude-3-sonnet-20240229":         {3.00, 15.00, 0.30, 3.75},
-	"claude-3-haiku-20240307":          {0.25, 1.25, 0.025, 0.3125},
-}
-
-func calculateCost(model string, tokensIn, tokensOut, cacheWrite, cacheRead int) float64 {
-	pricing, ok := anthropicPricing[model]
-	if !ok {
-		return 0
-	}
-	inputCost := float64(tokensIn) / 1_000_000.0 * pricing.Input
-	outputCost := float64(tokensOut) / 1_000_000.0 * pricing.Output
-	cacheReadCost := float64(cacheRead) / 1_000_000.0 * pricing.CacheRead
-	cacheWriteCost := float64(cacheWrite) / 1_000_000.0 * pricing.CacheWrite
-	return inputCost + outputCost + cacheReadCost + cacheWriteCost
 }

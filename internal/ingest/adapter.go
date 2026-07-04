@@ -7,41 +7,46 @@ import (
 	"os"
 )
 
-// Adapter is the interface that session source adapters must implement.
-type Adapter interface {
-	// Type returns the agent type this adapter handles.
+// SessionSource is the core interface that every session source adapter
+// must implement. It provides session listing, message retrieval, and lifecycle.
+type SessionSource interface {
 	Type() AgentType
-
-	// Detect returns true if the given path contains session data this adapter can read.
 	Detect(path string) bool
-
-	// ListSessions returns all sessions from this source.
 	ListSessions(ctx context.Context) ([]Session, error)
-
-	// Session returns detailed session info including metadata.
 	Session(ctx context.Context, id string) (*Session, error)
-
-	// Messages returns the conversation messages for a session.
 	Messages(ctx context.Context, sessionID string) ([]Message, error)
-
-	// Plan returns the session plan as markdown.
-	Plan(ctx context.Context, sessionID string) (*Plan, error)
-
-	// Diffs returns the file diffs for a session.
-	Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
-
-	// Edits returns the raw edit/write tool call data for a session.
-	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
-
-	// ResumeCommand returns the command string to resume a session.
 	ResumeCommand(session *Session) string
-
-	// LastModified returns the latest modification time across all sessions (unix ms).
-	// Used by the poller to detect changes.
 	LastModified(ctx context.Context) (int64, error)
-
-	// Close releases any resources held by the adapter.
 	Close() error
+}
+
+// Planner is optionally implemented by adapters that can provide
+// structured plan data (checklists, task lists) for their sessions.
+type Planner interface {
+	Plan(ctx context.Context, sessionID string) (*Plan, error)
+}
+
+// Differ is optionally implemented by adapters that can provide
+// file-level diff summaries (additions, deletions, patches).
+type Differ interface {
+	Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
+}
+
+// Editor is optionally implemented by adapters that can provide
+// raw edit/write tool call data for granular file change tracking.
+type Editor interface {
+	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
+}
+
+// Adapter is the combined interface that all session source adapters must
+// implement. It includes the core SessionSource plus Planner, Differ,
+// and Editor. Adapters that don't support optional features should
+// return (nil, nil) from the corresponding methods.
+type Adapter interface {
+	SessionSource
+	Planner
+	Differ
+	Editor
 }
 
 // OpenReadOnlyDB opens a SQLite database in read-only mode with WAL journal.
@@ -57,11 +62,16 @@ func OpenReadOnlyDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("opening database %s: %w", path, err)
 	}
 
-	// Verify read-only mode by attempting a write
-	_, err = db.Exec("CREATE TABLE _omnivue_write_test (id INTEGER)")
-	if err == nil {
+	// Enforce read-only at the SQLite layer using a no-op pragma.
+	// This is a safety net in case the ?mode=ro driver enforcement is bypassed.
+	// NOTE: Do NOT set SetMaxOpenConns(1) here. Several adapters issue nested
+	// queries while a *sql.Rows cursor is open (e.g. copilot ListSessions),
+	// and a single-connection pool deadlocks the second query against the
+	// held cursor. The mode=ro + query_only pragmas already guarantee no
+	// writes; read concurrency is safe under WAL.
+	if _, err := db.Exec("PRAGMA query_only = ON"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("safety violation: database %s opened in writable mode", path)
+		return nil, fmt.Errorf("failed to enforce read-only mode: %w", err)
 	}
 
 	return db, nil

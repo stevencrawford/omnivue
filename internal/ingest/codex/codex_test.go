@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/codex"
 )
 
@@ -202,8 +203,8 @@ func TestAdapter_ToolCallOutputMerging(t *testing.T) {
 			if tc.Output == "" {
 				t.Errorf("tool call %s (%s) should have merged output", tc.ID, tc.Name)
 			}
-			if tc.Status != "completed" {
-				t.Errorf("tool call %s should have status 'completed', got %q", tc.ID, tc.Status)
+			if tc.Status != ingest.ToolCallCompleted {
+				t.Errorf("tool call %s should have status completed, got %v", tc.ID, tc.Status)
 			}
 		}
 	}
@@ -228,8 +229,8 @@ func TestAdapter_GetPlan(t *testing.T) {
 	if !strings.Contains(plan.Markdown, "Implementation Plan") {
 		t.Errorf("plan should contain 'Implementation Plan', got: %s", plan.Markdown)
 	}
-	if plan.Source != "codex" {
-		t.Errorf("expected source 'codex', got %q", plan.Source)
+	if plan.Source != ingest.PlanDataSynthesized {
+		t.Errorf("expected source %q, got %q", ingest.PlanDataSynthesized, plan.Source)
 	}
 
 	plan2, err := adapter.Plan(ctx, "019ee1dc-d721-7933-adff-18b07b510043")

@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	claudecode "github.com/stevencrawford/omnivue/internal/ingest/claude-code"
-	"github.com/stevencrawford/omnivue/internal/ingest/codex"
-	"github.com/stevencrawford/omnivue/internal/ingest/copilot"
-	"github.com/stevencrawford/omnivue/internal/ingest/cursor"
-	"github.com/stevencrawford/omnivue/internal/ingest/opencode"
-	"github.com/stevencrawford/omnivue/internal/ingest/pi"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/claude-code"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/codex"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/copilot"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/cursor"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/opencode"
+	_ "github.com/stevencrawford/omnivue/internal/ingest/pi"
 	"github.com/stevencrawford/omnivue/internal/static"
 	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/stevencrawford/omnivue/version"
@@ -84,11 +84,11 @@ func NewState(ctx context.Context) *State {
 		}
 	}
 
-	// Initial session load
-	s.refreshSessions(ctx)
-
-	// Initial indexing (background)
-	go s.indexSessions(ctx)
+	// Initial session load and indexing (background, non-blocking).
+	// Uses the server lifecycle context so it is canceled on shutdown.
+	go func() {
+		s.refreshAndIndex(ctx)
+	}()
 
 	// Start poller
 	pollCtx, pollCancel := context.WithCancel(ctx)
@@ -99,22 +99,7 @@ func NewState(ctx context.Context) *State {
 }
 
 func createAdapter(src ingest.Source) (ingest.Adapter, error) {
-	switch src.AgentType {
-	case ingest.AgentOpenCode:
-		return opencode.New(src.Path)
-	case ingest.AgentCopilot:
-		return copilot.New(src.Path)
-	case ingest.AgentCursor:
-		return cursor.New(src.Path)
-	case ingest.AgentPi:
-		return pi.New(src.Path)
-	case ingest.AgentCodex:
-		return codex.New(src.Path)
-	case ingest.AgentClaudeCode:
-		return claudecode.New(src.Path)
-	default:
-		return nil, fmt.Errorf("unsupported agent type: %s", src.AgentType)
-	}
+	return ingest.CreateAdapter(src)
 }
 
 // liveWindow defines how recently a session must have been updated to be
@@ -222,7 +207,10 @@ func (s *State) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.Plan(ctx, sessionID)
+	if ps, ok := adapter.(ingest.Planner); ok {
+		return ps.Plan(ctx, sessionID)
+	}
+	return nil, nil
 }
 
 // Diffs returns file diffs for a session.
@@ -241,7 +229,10 @@ func (s *State) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile,
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.Diffs(ctx, sessionID)
+	if ds, ok := adapter.(ingest.Differ); ok {
+		return ds.Diffs(ctx, sessionID)
+	}
+	return []ingest.DiffFile{}, nil
 }
 
 // Edits returns raw edit tool call data for a session.
@@ -260,10 +251,15 @@ func (s *State) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit,
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	return adapter.Edits(ctx, sessionID)
+	if es, ok := adapter.(ingest.Editor); ok {
+		return es.Edits(ctx, sessionID)
+	}
+	return []ingest.FileEdit{}, nil
 }
 
 // AddSource adds a new source, creates its adapter (if enabled), and triggers a refresh.
+// The session refresh and indexing run in the background so the HTTP handler returns
+// immediately; an SSE "update" event is sent once the new source's sessions are loaded.
 func (s *State) AddSource(ctx context.Context, src ingest.Source) error {
 	if s.store == nil {
 		return fmt.Errorf("store not available")
@@ -281,9 +277,7 @@ func (s *State) AddSource(ctx context.Context, src ingest.Source) error {
 			s.mu.Unlock()
 		}
 	}
-	s.refreshSessions(ctx)
-	go s.indexSessions(ctx)
-	s.sendEvent(sseEvent{Name: "update"})
+	go s.refreshAndIndex(context.WithoutCancel(ctx))
 	return nil
 }
 
@@ -307,6 +301,7 @@ func (s *State) RemoveSource(ctx context.Context, id string) error {
 }
 
 // UpdateSource updates a source and re-creates its adapter if needed.
+// Like AddSource, the refresh runs in the background so the handler returns immediately.
 func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label string, enabled bool) error {
 	if s.store == nil {
 		return fmt.Errorf("store not available")
@@ -338,9 +333,7 @@ func (s *State) UpdateSource(ctx context.Context, id, path, agentType, label str
 			s.mu.Unlock()
 		}
 	}
-	s.refreshSessions(ctx)
-	go s.indexSessions(ctx)
-	s.sendEvent(sseEvent{Name: "update"})
+	go s.refreshAndIndex(context.WithoutCancel(ctx))
 	return nil
 }
 
@@ -589,12 +582,12 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 			// within liveWindow. We override whatever the adapter hardcoded so
 			// the frontend gets a single source of truth.
 			if !sessions[i].UpdatedAt.IsZero() && time.Since(sessions[i].UpdatedAt) < liveWindow {
-				if sessions[i].Status != "active" {
-					sessions[i].Status = "active"
+				if sessions[i].Status != ingest.SessionStatusActive {
+					sessions[i].Status = ingest.SessionStatusActive
 				}
 				liveCount++
-			} else if sessions[i].Status == "active" {
-				sessions[i].Status = "completed"
+			} else if sessions[i].Status == ingest.SessionStatusActive {
+				sessions[i].Status = ingest.SessionStatusCompleted
 			}
 		}
 		allSessions = append(allSessions, sessions...)
@@ -635,6 +628,23 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 	s.sessions = allSessions
 	s.mu.Unlock()
 	return changedIDs, liveCount
+}
+
+// refreshAndIndex runs a session refresh followed by background indexing and
+// emits the SSE events the frontend expects. Used by AddSource/UpdateSource
+// so the HTTP handler is never blocked by adapter I/O.
+func (s *State) refreshAndIndex(ctx context.Context) {
+	ids, _ := s.refreshSessions(ctx)
+	go s.indexSessions(ctx)
+	s.sendEvent(sseEvent{Name: "update"})
+	if len(ids) > 0 {
+		data, err := json.Marshal(map[string]any{"ids": ids})
+		if err != nil {
+			slog.Warn("failed to marshal session change event", "error", err)
+			return
+		}
+		s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+	}
 }
 
 // indexSessions indexes session content into the FTS5 search index.
@@ -735,13 +745,17 @@ func (s *State) indexSessions(ctx context.Context) {
 		updatedAt := sess.UpdatedAt.Format(time.RFC3339)
 
 		// Index name chunk
-		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0) }); err != nil {
+		if err := retryOnBusy(func() error {
+			return s.store.IndexSessionAt(sess.ID, sess.SourceID, "name", sess.Repository, nameContent, updatedAt, "", "", 0)
+		}); err != nil {
 			slog.Warn("failed to index session name", "session", sess.ID, "error", err)
 		}
 
 		// Index plan chunk
 		if planContent != "" {
-			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0) }); err != nil {
+			if err := retryOnBusy(func() error {
+				return s.store.IndexSessionAt(sess.ID, sess.SourceID, "plan", sess.Repository, planContent, updatedAt, "", "", 0)
+			}); err != nil {
 				slog.Warn("failed to index session plan", "session", sess.ID, "error", err)
 			}
 		}
@@ -762,7 +776,9 @@ func (s *State) indexSessions(ctx context.Context) {
 				msgBuilder.WriteString("\n")
 			}
 			msgContent := msgBuilder.String()
-			if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi) }); err != nil {
+			if err := retryOnBusy(func() error {
+				return s.store.IndexSessionAt(sess.ID, sess.SourceID, "message", sess.Repository, msgContent, updatedAt, "", "", mi)
+			}); err != nil {
 				slog.Warn("failed to index session message", "session", sess.ID, "idx", mi, "error", err)
 			}
 		}
@@ -777,7 +793,9 @@ func (s *State) indexSessions(ctx context.Context) {
 					continue
 				}
 				fileContent := sf.Title + "\n" + sf.Content
-				if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
+				if err := retryOnBusy(func() error {
+					return s.store.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
+				}); err != nil {
 					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
 				}
 			}
@@ -902,7 +920,9 @@ func (s *State) reindexSessionScratch(sessionID string) {
 			continue
 		}
 		content := sf.Title + "\n" + sf.Content
-		if err := retryOnBusy(func() error { return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0) }); err != nil {
+		if err := retryOnBusy(func() error {
+			return s.store.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
+		}); err != nil {
 			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
 		}
 	}
@@ -965,9 +985,9 @@ func NewHandler(state *State) http.Handler {
 func handleStatus(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]any{
-			"version": version.Version,
-			"pid":     os.Getpid(),
-			"sources": len(state.Sources()),
+			"version":  version.Version,
+			"pid":      os.Getpid(),
+			"sources":  len(state.Sources()),
 			"sessions": len(state.Sessions()),
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1018,19 +1038,11 @@ func handleAddSource(state *State) http.HandlerFunc {
 		}
 		// Auto-set a label if not provided
 		if body.Label == "" {
-			switch ingest.AgentType(body.AgentType) {
-			case ingest.AgentOpenCode:
-				body.Label = "OpenCode"
-			case ingest.AgentCopilot:
-				body.Label = "GitHub Copilot"
-			case ingest.AgentCursor:
-				body.Label = "Cursor"
-			case ingest.AgentPi:
-				body.Label = "Pi"
-			case ingest.AgentCodex:
-				body.Label = "Codex"
-			case ingest.AgentClaudeCode:
-				body.Label = "Claude Code"
+			for _, ai := range ingest.KnownAgentTypes() {
+				if ai.Type == ingest.AgentType(body.AgentType) {
+					body.Label = ai.Label
+					break
+				}
 			}
 		}
 		// Generate source ID from path (same scheme as CLI)

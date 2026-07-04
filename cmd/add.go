@@ -30,7 +30,7 @@ By default, Omnivue will auto-detect the agent type. Use --type to force.`,
 }
 
 func init() {
-	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type (opencode, copilot, cursor, codex, pi, claude-code)")
+	addCmd.Flags().StringVar(&addSourceType, "type", "", "Force agent type")
 	rootCmd.AddCommand(addCmd)
 }
 
@@ -57,21 +57,20 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 	if addSourceType != "" {
 		agentType = ingest.AgentType(addSourceType)
-		switch agentType {
-		case ingest.AgentOpenCode:
-			label = "OpenCode"
-		case ingest.AgentCopilot:
-			label = "GitHub Copilot"
-		case ingest.AgentCursor:
-			label = "Cursor"
-		case ingest.AgentPi:
-			label = "Pi"
-		case ingest.AgentCodex:
-			label = "Codex"
-		case ingest.AgentClaudeCode:
-			label = "Claude Code"
-		default:
-			return fmt.Errorf("unknown agent type: %s (valid: opencode, copilot, cursor, codex, pi, claude-code)", addSourceType)
+		var found bool
+		for _, ai := range ingest.KnownAgentTypes() {
+			if ai.Type == agentType {
+				label = ai.Label
+				found = true
+				break
+			}
+		}
+		if !found {
+			valid := make([]string, 0)
+			for _, ai := range ingest.KnownAgentTypes() {
+				valid = append(valid, string(ai.Type))
+			}
+			return fmt.Errorf("unknown agent type: %s (valid: %s)", addSourceType, strings.Join(valid, ", "))
 		}
 	} else {
 		// Auto-detect
@@ -86,7 +85,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (opencode, copilot, cursor, codex, pi, claude-code)", path)
+			valid := make([]string, 0)
+			for _, ai := range ingest.KnownAgentTypes() {
+				valid = append(valid, string(ai.Type))
+			}
+			return fmt.Errorf("could not auto-detect agent type for %s\n  Use --type to specify (%s)", path, strings.Join(valid, ", "))
 		}
 	}
 

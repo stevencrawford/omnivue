@@ -19,20 +19,28 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Discover and configure AI agent session sources",
-	Long: `Scans known paths for AI coding agent session data and prompts
+	Long: fmt.Sprintf(`Scans known paths for AI coding agent session data and prompts
 which sources to add for monitoring.
 
 Known locations:
-  ~/.local/share/opencode   (OpenCode)
-  ~/.copilot                (GitHub Copilot)
-  ~/.cursor                 (Cursor)
-  ~/.pi/agent/sessions      (Pi)
-  ~/.codex                  (Codex)
-  ~/.claude                 (Claude Code)
-
+%s
 Sources are saved to the Omnivue database and will be loaded automatically
-on subsequent launches.`,
+on subsequent launches.`, knownLocationsHelp()),
 	RunE: runInit,
+}
+
+func knownLocationsHelp() string {
+	var b strings.Builder
+	for _, ai := range ingest.KnownAgentTypes() {
+		// Find the default path for this agent type from the registry
+		for _, r := range ingest.DefaultPaths() {
+			if r.Type == ai.Type {
+				fmt.Fprintf(&b, "  %-25s (%s)\n", r.DefaultPath, ai.Label)
+				break
+			}
+		}
+	}
+	return b.String()
 }
 
 func init() {

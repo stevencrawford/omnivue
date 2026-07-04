@@ -6,12 +6,94 @@ import "time"
 type AgentType string
 
 const (
-	AgentOpenCode AgentType = "opencode"
-	AgentCopilot  AgentType = "copilot"
-	AgentCursor   AgentType = "cursor"
-	AgentPi       AgentType = "pi"
-	AgentCodex    AgentType = "codex"
+	AgentOpenCode   AgentType = "opencode"
+	AgentCopilot    AgentType = "copilot"
+	AgentCursor     AgentType = "cursor"
+	AgentPi         AgentType = "pi"
+	AgentCodex      AgentType = "codex"
 	AgentClaudeCode AgentType = "claude-code"
+)
+
+// SessionStatus represents the lifecycle state of a session.
+type SessionStatus string
+
+const (
+	SessionStatusActive    SessionStatus = "active"
+	SessionStatusCompleted SessionStatus = "completed"
+	SessionStatusArchived  SessionStatus = "archived"
+)
+
+// MessageRole represents the role of a message participant.
+type MessageRole string
+
+const (
+	MessageRoleUser      MessageRole = "user"
+	MessageRoleAssistant MessageRole = "assistant"
+	MessageRoleSystem    MessageRole = "system"
+)
+
+// ToolCallStatus represents the execution state of a tool call.
+type ToolCallStatus string
+
+const (
+	ToolCallCompleted ToolCallStatus = "completed"
+	ToolCallFailed    ToolCallStatus = "failed"
+	ToolCallRunning   ToolCallStatus = "running"
+)
+
+// DiffFileStatus represents the type of file change.
+type DiffFileStatus string
+
+const (
+	DiffAdded   DiffFileStatus = "added"
+	DiffModified DiffFileStatus = "modified"
+	DiffDeleted  DiffFileStatus = "deleted"
+	DiffRenamed  DiffFileStatus = "renamed"
+)
+
+// TodoStatus represents the progression state of a tracked todo item.
+type TodoStatus string
+
+const (
+	TodoPending     TodoStatus = "pending"
+	TodoInProgress  TodoStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from PlanItemStatus
+	TodoCompleted   TodoStatus = "completed"
+	TodoBlocked     TodoStatus = "blocked"
+)
+
+// PlanDataSource indicates how a Plan's markdown content was obtained.
+type PlanDataSource string
+
+const (
+	PlanDataFile        PlanDataSource = "file"
+	PlanDataSynthesized PlanDataSource = "synthesized"
+)
+
+// StepEventType indicates whether a step event is starting or finishing.
+type StepEventType string
+
+const (
+	StepEventStart  StepEventType = "start"
+	StepEventFinish StepEventType = "finish"
+)
+
+// PlanItemStatus represents the completion state of a plan item.
+type PlanItemStatus string
+
+const (
+	PlanItemPending     PlanItemStatus = "pending"
+	PlanItemInProgress  PlanItemStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from TodoStatus
+	PlanItemCompleted   PlanItemStatus = "completed"
+	PlanItemCanceled    PlanItemStatus = "canceled"
+)
+
+// PlanItemPriority represents the urgency of a plan item.
+type PlanItemPriority string
+
+const (
+	PlanPriorityHigh   PlanItemPriority = "high"
+	PlanPriorityMedium PlanItemPriority = "medium"
+	PlanPriorityLow    PlanItemPriority = "low"
 )
 
 // Source represents a configured session data source.
@@ -37,7 +119,7 @@ type Session struct {
 	Model      string    `json:"model"`
 	Cost       float64   `json:"cost"`
 	Directory  string    `json:"directory"`
-	Status     string    `json:"status"` // "active", "completed", "archived"
+	Status     SessionStatus `json:"status"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 
@@ -71,7 +153,7 @@ type Todo struct {
 
 // StepEvent represents a step-start or step-finish event in a message.
 type StepEvent struct {
-	Step     string     `json:"step"`     // "start" or "finish"
+	Step     StepEventType `json:"step"`
 	Snapshot string     `json:"snapshot,omitempty"`
 	Reason   string     `json:"reason,omitempty"`
 	Cost     float64    `json:"cost,omitempty"`
@@ -90,7 +172,7 @@ type StepTokens struct {
 // Message represents a conversation message within a session.
 type Message struct {
 	ID        string     `json:"id"`
-	Role      string     `json:"role"` // "user", "assistant", "system"
+	Role      MessageRole `json:"role"`
 	Content   string     `json:"content"`
 	ToolCalls []ToolCall `json:"toolCalls,omitempty"`
 	Timestamp time.Time  `json:"timestamp"`
@@ -117,7 +199,7 @@ type ToolCall struct {
 	Name     string `json:"name"`
 	Input    string `json:"input"`
 	Output   string `json:"output"`
-	Status   string `json:"status"`   // "completed", "failed", "running"
+	Status   ToolCallStatus `json:"status"`
 	Duration int64  `json:"duration,omitempty"` // milliseconds
 	Metadata string `json:"metadata,omitempty"` // tool-specific metadata (JSON)
 }
@@ -125,14 +207,14 @@ type ToolCall struct {
 // PlanItem represents a task/todo within a session plan.
 type PlanItem struct {
 	Content  string `json:"content"`
-	Status   string `json:"status"`   // "pending", "in_progress", "completed", "canceled"
-	Priority string `json:"priority"` // "high", "medium", "low"
+	Status   PlanItemStatus   `json:"status"`
+	Priority PlanItemPriority `json:"priority"`
 }
 
 // Plan represents a session plan rendered as markdown.
 type Plan struct {
 	Markdown string `json:"markdown"`
-	Source   string `json:"source"` // "file" (read from disk), "synthesized" (generated from structured data)
+	Source   PlanDataSource `json:"source"`
 }
 
 // FileEdit represents a single edit/write tool call within a session.
@@ -149,7 +231,7 @@ type FileEdit struct {
 // DiffFile represents a changed file in a session.
 type DiffFile struct {
 	Path      string `json:"path"`
-	Status    string `json:"status"` // "added", "modified", "deleted", "renamed"
+	Status   DiffFileStatus `json:"status"`
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	Patch     string `json:"patch,omitempty"` // unified diff content

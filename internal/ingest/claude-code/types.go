@@ -80,3 +80,10 @@ type progressMessageWrapper struct {
 	Message *claudeMessageData `json:"message"`
 }
 
+// embeddedToolResult represents a tool result embedded in a user message content array.
+type embeddedToolResult struct {
+	ToolUseID string          `json:"tool_use_id"`
+	Type      string          `json:"type"`
+	Content   json.RawMessage `json:"content"`
+	IsError   *bool           `json:"is_error,omitempty"`
+}

@@ -305,13 +305,13 @@ func TestMessageParsing_Basic(t *testing.T) {
 		t.Fatalf("expected 3 messages, got %d", len(msgs))
 	}
 
-	if msgs[0].Role != "user" || msgs[0].Content != "Hello" {
+	if msgs[0].Role != ingest.MessageRoleUser || msgs[0].Content != "Hello" {
 		t.Errorf("msg[0] role=%q content=%q", msgs[0].Role, msgs[0].Content)
 	}
-	if msgs[1].Role != "assistant" || msgs[1].Content != "Hi there" {
+	if msgs[1].Role != ingest.MessageRoleAssistant || msgs[1].Content != "Hi there" {
 		t.Errorf("msg[1] role=%q content=%q", msgs[1].Role, msgs[1].Content)
 	}
-	if msgs[2].Role != "user" || msgs[2].Content != "Fix this bug" {
+	if msgs[2].Role != ingest.MessageRoleUser || msgs[2].Content != "Fix this bug" {
 		t.Errorf("msg[2] role=%q content=%q", msgs[2].Role, msgs[2].Content)
 	}
 }
@@ -373,8 +373,8 @@ func TestMessageParsing_ToolCalls(t *testing.T) {
 	if tc.Input != inputJSON {
 		t.Errorf("ToolCall Input = %q, want %q", tc.Input, inputJSON)
 	}
-	if tc.Status != "running" {
-		t.Errorf("ToolCall Status = %q, want %q", tc.Status, "running")
+	if tc.Status != ingest.ToolCallRunning {
+		t.Errorf("ToolCall Status = %q, want %v", tc.Status, ingest.ToolCallRunning)
 	}
 }
 
@@ -404,8 +404,8 @@ func TestToolResultMatching(t *testing.T) {
 	if tc.Output != "file contents here" {
 		t.Errorf("ToolCall Output = %q, want %q", tc.Output, "file contents here")
 	}
-	if tc.Status != "completed" {
-		t.Errorf("ToolCall Status = %q, want %q", tc.Status, "completed")
+	if tc.Status != ingest.ToolCallCompleted {
+		t.Errorf("ToolCall Status = %q, want %v", tc.Status, ingest.ToolCallCompleted)
 	}
 }
 
@@ -428,8 +428,8 @@ func TestToolResultWithError(t *testing.T) {
 	}
 
 	tc := msgs[0].ToolCalls[0]
-	if tc.Status != "failed" {
-		t.Errorf("ToolCall Status = %q, want %q", tc.Status, "failed")
+	if tc.Status != ingest.ToolCallFailed {
+		t.Errorf("ToolCall Status = %q, want %v", tc.Status, ingest.ToolCallFailed)
 	}
 }
 
@@ -855,8 +855,8 @@ func TestToolResultInUserMessage(t *testing.T) {
 	if msgs[0].ToolCalls[0].Output != "bash output" {
 		t.Errorf("ToolCall output = %q, want %q", msgs[0].ToolCalls[0].Output, "bash output")
 	}
-	if msgs[0].ToolCalls[0].Status != "completed" {
-		t.Errorf("ToolCall status = %q, want %q", msgs[0].ToolCalls[0].Status, "completed")
+	if msgs[0].ToolCalls[0].Status != ingest.ToolCallCompleted {
+		t.Errorf("ToolCall status = %v, want %v", msgs[0].ToolCalls[0].Status, ingest.ToolCallCompleted)
 	}
 }
 
