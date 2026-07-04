@@ -63,12 +63,13 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.cost, s.tokens_input, s.tokens_output, s.tokens_reasoning,
 			s.tokens_cache_read, s.tokens_cache_write,
 			s.summary_files, s.summary_additions, s.summary_deletions,
-			s.time_created, s.time_updated,
+			s.time_created,
+			MAX(s.time_updated, COALESCE((SELECT MAX(time_created) FROM message WHERE session_id = s.id), 0)) AS time_updated,
 			COALESCE(p.name, ''),
 			(SELECT COUNT(*) FROM message WHERE session_id = s.id)
 		FROM session s
 		LEFT JOIN project p ON s.project_id = p.id
-		ORDER BY s.time_updated DESC
+		ORDER BY time_updated DESC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("listing sessions: %w", err)
@@ -185,7 +186,8 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 			s.cost, s.tokens_input, s.tokens_output, s.tokens_reasoning,
 			s.tokens_cache_read, s.tokens_cache_write,
 			s.summary_files, s.summary_additions, s.summary_deletions,
-			s.time_created, s.time_updated,
+			s.time_created,
+			MAX(s.time_updated, COALESCE((SELECT MAX(time_created) FROM message WHERE session_id = s.id), 0)) AS time_updated,
 			COALESCE(p.name, ''),
 			(SELECT COUNT(*) FROM message WHERE session_id = s.id)
 		FROM session s
@@ -519,7 +521,13 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	var maxTime int64
-	err := a.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(time_updated), 0) FROM session`).Scan(&maxTime)
+	err := a.db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(m), 0) FROM (
+			SELECT MAX(time_updated) AS m FROM session
+			UNION ALL
+			SELECT MAX(time_created) FROM message
+		)
+	`).Scan(&maxTime)
 	return maxTime, err
 }
 
