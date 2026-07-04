@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Bell, CheckCheck, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCheck, Trash2 } from "lucide-react";
 import type { AppNotification, Session } from "../hooks/types";
 import { NotificationRow } from "./NotificationRow";
 
@@ -22,6 +22,12 @@ const ACTIVITY_KINDS = new Set([
   "status_error",
   "task_complete",
 ]);
+
+const FILTER_OPTIONS: { value: Filter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "questions", label: "Questions" },
+  { value: "activity", label: "Activity" },
+];
 
 export function NotificationPanel({
   notifications,
@@ -48,21 +54,24 @@ export function NotificationPanel({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-ov-border shrink-0">
-        <Bell className="size-4 text-accent" />
-        <span className="text-xs font-semibold text-ov-text">Notifications</span>
-        {unreadCount > 0 && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-white">
-            {unreadCount}
+      <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
+            Notifications
           </span>
-        )}
-        <div className="ml-auto flex items-center gap-1">
+          {unreadCount > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-white">
+              {unreadCount}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={onMarkAllRead}
             disabled={unreadCount === 0}
             title="Mark all read"
-            className="p-1 text-ov-text-secondary hover:text-ov-text disabled:opacity-30 cursor-pointer transition-colors"
+            className="text-ov-text-secondary hover:text-ov-text disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
           >
             <CheckCheck className="size-3.5" />
           </button>
@@ -71,34 +80,25 @@ export function NotificationPanel({
             onClick={onClearAll}
             disabled={notifications.length === 0}
             title="Clear all"
-            className="p-1 text-ov-text-secondary hover:text-red-400 disabled:opacity-30 cursor-pointer transition-colors"
+            className="text-ov-text-secondary hover:text-red-400 disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
           >
             <Trash2 className="size-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-ov-border shrink-0">
-        {(["all", "questions", "activity"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`text-[11px] px-2 py-0.5 rounded-md cursor-pointer transition-colors capitalize ${
-              filter === f
-                ? "bg-accent-muted text-accent"
-                : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-            }`}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="px-1.5 pb-1 shrink-0">
+        <FilterChip
+          label="Filter"
+          value={filter}
+          options={FILTER_OPTIONS}
+          onChange={(v) => v && setFilter(v)}
+        />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-            <Bell className="size-8 text-ov-text-secondary/40 mb-2" />
             <p className="text-xs text-ov-text-secondary">
               No notifications. You&apos;ll see agent questions and new session activity here.
             </p>
@@ -114,6 +114,71 @@ export function NotificationPanel({
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── FilterChip ──────────────────────────────────────────────────
+
+function FilterChip({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: Filter;
+  options: { value: Filter; label: string }[];
+  onChange: (value: Filter | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const currentLabel = options.find((o) => o.value === value)?.label ?? `All ${label}s`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`text-[11px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
+          value !== "all"
+            ? "border-accent-border bg-accent-muted text-accent"
+            : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:text-ov-text"
+        }`}
+      >
+        {label}: {currentLabel}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
+                value === o.value
+                  ? "text-ov-text bg-ov-bg-active"
+                  : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
+              }`}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
