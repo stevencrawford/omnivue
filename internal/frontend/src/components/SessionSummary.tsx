@@ -17,19 +17,16 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  AreaChart,
-  Area,
   LineChart,
   Line,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import type { Session, Message } from "../hooks/useApi";
 import { useSessionSummary } from "../hooks/useSessionSummary";
 import { useSessionTokenomics } from "../hooks/useSessionTokenomics";
-import type {
-  TokenTimelinePoint,
-  ToolTokenStat,
-  EffectivenessMetrics,
-} from "../hooks/useSessionTokenomics";
+import type { TokenTimelinePoint, EffectivenessMetrics } from "../hooks/useSessionTokenomics";
 import {
   TOKENS_COLOR_INPUT,
   TOKENS_COLOR_OUTPUT,
@@ -90,10 +87,17 @@ function useHideCosts(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Token Breakdown — stacked horizontal bar
+// Token Breakdown — pie chart
 // ---------------------------------------------------------------------------
 
-function TokenBreakdownBar({
+const PIE_COLORS = [
+  TOKENS_COLOR_INPUT,
+  TOKENS_COLOR_OUTPUT,
+  TOKENS_COLOR_CACHE,
+  TOKENS_COLOR_REASONING,
+];
+
+function TokenBreakdownPie({
   tokensInput,
   tokensOutput,
   tokensCached,
@@ -104,14 +108,14 @@ function TokenBreakdownBar({
   tokensCached: number;
   tokensReasoning: number;
 }) {
-  const segments = useMemo(
+  const data = useMemo(
     () =>
       [
-        { key: "Input", value: tokensInput, color: TOKENS_COLOR_INPUT },
-        { key: "Output", value: tokensOutput, color: TOKENS_COLOR_OUTPUT },
-        { key: "Cache", value: tokensCached, color: TOKENS_COLOR_CACHE },
+        { name: "Input", value: tokensInput, color: TOKENS_COLOR_INPUT },
+        { name: "Output", value: tokensOutput, color: TOKENS_COLOR_OUTPUT },
+        { name: "Cache", value: tokensCached, color: TOKENS_COLOR_CACHE },
         {
-          key: "Reasoning",
+          name: "Reasoning",
           value: tokensReasoning,
           color: TOKENS_COLOR_REASONING,
         },
@@ -119,9 +123,25 @@ function TokenBreakdownBar({
     [tokensInput, tokensOutput, tokensCached, tokensReasoning],
   );
 
-  const total = segments.reduce((a, s) => a + s.value, 0);
+  const total = data.reduce((a, s) => a + s.value, 0);
 
   if (total === 0) return null;
+
+  const PieTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const entry = payload[0];
+    return (
+      <div className="ov-chart-tooltip">
+        <div className="ov-chart-tooltip-row">
+          <span className="ov-chart-tooltip-swatch" style={{ background: entry.payload.color }} />
+          <span>{entry.name}</span>
+          <span className="ml-auto tabular-nums">
+            {formatTokens(entry.value)} ({formatPct((entry.value / total) * 100)})
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-1.5">
@@ -129,42 +149,33 @@ function TokenBreakdownBar({
         <Zap size={14} />
         <span>Token Breakdown</span>
       </div>
-      <div
-        className="flex h-8 w-full rounded-lg overflow-hidden border border-ov-border/50"
-        role="img"
-        aria-label={`Token breakdown: ${segments.map((s) => `${s.key} ${formatTokens(s.value)}`).join(", ")}`}
-      >
-        {segments.map((seg) => (
-          <div
-            key={seg.key}
-            className="h-full transition-all first:rounded-l-lg last:rounded-r-lg relative group"
-            style={{
-              backgroundColor: seg.color,
-              width: `${(seg.value / total) * 100}%`,
-              minWidth: seg.value > 0 ? "3px" : "0",
-            }}
-            title={`${seg.key}: ${formatTokens(seg.value)} (${formatPct((seg.value / total) * 100)})`}
+      <ResponsiveContainer width="100%" height={160}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={50}
+            outerRadius={72}
+            dataKey="value"
+            strokeWidth={0}
           >
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10">
-              <div className="bg-ov-bg-active text-ov-text text-[11px] px-2 py-1 rounded-md whitespace-nowrap border border-ov-border shadow-md">
-                <div className="font-medium">{seg.key}</div>
-                <div className="text-ov-text-secondary">
-                  {formatTokens(seg.value)} ({formatPct((seg.value / total) * 100)})
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
-        {segments.map((seg) => (
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip content={<PieTooltip />} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {data.map((entry) => (
           <div
-            key={seg.key}
+            key={entry.name}
             className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary"
           >
-            <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
-            <span>{seg.key}</span>
-            <span className="tabular-nums">{formatTokens(seg.value)}</span>
+            <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+            <span>{entry.name}</span>
+            <span className="tabular-nums">{formatTokens(entry.value)}</span>
           </div>
         ))}
       </div>
@@ -173,7 +184,7 @@ function TokenBreakdownBar({
 }
 
 // ---------------------------------------------------------------------------
-// Token Timeline — area chart
+// Token Timeline — line chart
 // ---------------------------------------------------------------------------
 
 function TimelineTooltip({
@@ -181,27 +192,29 @@ function TimelineTooltip({
   payload,
 }: {
   active?: boolean;
-  payload?: { payload: TokenTimelinePoint }[];
+  payload?: { name: string; value: number; color: string; payload: TokenTimelinePoint }[];
 }) {
   if (!active || !payload?.length) return null;
-  const p = payload[0].payload;
+  const p = payload[0]?.payload;
+  if (!p) return null;
+  const stepTotal = p.tokensInput + p.tokensOutput + p.tokensCached + p.tokensReasoning;
   return (
     <div className="ov-chart-tooltip">
       <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
       {[
-        { key: "cumulativeInput", label: "Input", color: TOKENS_COLOR_INPUT },
+        { key: "tokensInput", label: "Input", color: TOKENS_COLOR_INPUT },
         {
-          key: "cumulativeOutput",
+          key: "tokensOutput",
           label: "Output",
           color: TOKENS_COLOR_OUTPUT,
         },
         {
-          key: "cumulativeCached",
+          key: "tokensCached",
           label: "Cache",
           color: TOKENS_COLOR_CACHE,
         },
         {
-          key: "cumulativeReasoning",
+          key: "tokensReasoning",
           label: "Reasoning",
           color: TOKENS_COLOR_REASONING,
         },
@@ -214,8 +227,8 @@ function TimelineTooltip({
       ))}
       <div className="ov-chart-tooltip-divider" />
       <div className="ov-chart-tooltip-row font-medium">
-        <span>Total</span>
-        <span className="ml-auto tabular-nums">{formatTokens(p.cumulativeTotal)}</span>
+        <span>Step total</span>
+        <span className="ml-auto tabular-nums">{formatTokens(stepTotal)}</span>
       </div>
     </div>
   );
@@ -231,7 +244,7 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
         <span>Token Timeline</span>
       </div>
       <ResponsiveContainer width="100%" height={160}>
-        <AreaChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
+        <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-ov-border)" vertical={false} />
           <XAxis
             dataKey="stepIndex"
@@ -249,41 +262,37 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
             tickFormatter={(v: number) => formatTokens(v)}
           />
           <Tooltip content={<TimelineTooltip />} cursor={{ fill: "var(--color-ov-bg-hover)" }} />
-          <Area
-            dataKey="cumulativeInput"
-            stackId="1"
-            fill={TOKENS_COLOR_INPUT}
+          <Line
+            type="monotone"
+            dataKey="tokensInput"
             stroke={TOKENS_COLOR_INPUT}
-            strokeWidth={0}
-            fillOpacity={0.85}
+            strokeWidth={1.5}
+            dot={false}
           />
-          <Area
-            dataKey="cumulativeOutput"
-            stackId="1"
-            fill={TOKENS_COLOR_OUTPUT}
+          <Line
+            type="monotone"
+            dataKey="tokensOutput"
             stroke={TOKENS_COLOR_OUTPUT}
-            strokeWidth={0}
-            fillOpacity={0.85}
+            strokeWidth={1.5}
+            dot={false}
           />
-          <Area
-            dataKey="cumulativeCached"
-            stackId="1"
-            fill={TOKENS_COLOR_CACHE}
+          <Line
+            type="monotone"
+            dataKey="tokensCached"
             stroke={TOKENS_COLOR_CACHE}
-            strokeWidth={0}
-            fillOpacity={0.85}
+            strokeWidth={1.5}
+            dot={false}
           />
-          <Area
-            dataKey="cumulativeReasoning"
-            stackId="1"
-            fill={TOKENS_COLOR_REASONING}
+          <Line
+            type="monotone"
+            dataKey="tokensReasoning"
             stroke={TOKENS_COLOR_REASONING}
-            strokeWidth={0}
-            fillOpacity={0.85}
+            strokeWidth={1.5}
+            dot={false}
           />
-        </AreaChart>
+        </LineChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {[
           { key: "Input", color: TOKENS_COLOR_INPUT },
           { key: "Output", color: TOKENS_COLOR_OUTPUT },
@@ -373,7 +382,6 @@ function CostTimelineChart({
             stroke="var(--color-accent-secondary)"
             strokeWidth={2}
             dot={false}
-            fillOpacity={0}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -382,51 +390,7 @@ function CostTimelineChart({
 }
 
 // ---------------------------------------------------------------------------
-// Tool Token Stats — horizontal bars
-// ---------------------------------------------------------------------------
-
-function ToolTokenBarChart({ stats }: { stats: ToolTokenStat[] }) {
-  if (stats.length === 0) return null;
-  const maxTokens = stats[0]?.tokens ?? 1;
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
-        <BarChart3 size={14} />
-        <span>Token Per Tool Type</span>
-      </div>
-      <div className="space-y-1">
-        {stats.map((s) => {
-          const pct = (s.tokens / maxTokens) * 100;
-          return (
-            <div key={s.kind} className="flex items-center gap-2 text-xs">
-              <span className="size-2.5 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />
-              <span className="w-12 text-ov-text-secondary shrink-0">{s.label}</span>
-              <div className="flex-1 h-4 rounded-full bg-ov-bg-hover overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${Math.max(pct, 1)}%`,
-                    backgroundColor: s.color,
-                  }}
-                />
-              </div>
-              <span className="tabular-nums font-medium w-16 text-right">
-                {formatTokens(s.tokens)}
-              </span>
-              <span className="text-[11px] text-ov-text-secondary tabular-nums w-8 text-right">
-                {s.count}x
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Effectiveness Metrics — 3×2 grid
+// Effectiveness Metrics
 // ---------------------------------------------------------------------------
 
 function MiniMetricCard({
@@ -525,7 +489,7 @@ function EffectivenessCards({
 export function SessionSummary({ session, messages }: SessionSummaryProps) {
   const hideCosts = useHideCosts();
   const { categories, totalCount, totalDuration, hasTiming } = useSessionSummary(messages);
-  const { tokenTimeline, toolTokenStats, effectiveness } = useSessionTokenomics(messages, session);
+  const { tokenTimeline, effectiveness } = useSessionTokenomics(messages, session);
 
   const barSegments = useMemo(() => categories.filter((c) => c.count > 0), [categories]);
 
@@ -541,6 +505,9 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-5 pb-2 space-y-5">
+        {/* Effectiveness — top */}
+        <EffectivenessCards metrics={effectiveness} hideCosts={hideCosts} />
+
         {/* Activity Breakdown */}
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
@@ -633,25 +600,23 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
           </div>
         </div>
 
-        {/* Token Breakdown */}
-        <TokenBreakdownBar
-          tokensInput={session.tokensInput}
-          tokensOutput={session.tokensOutput}
-          tokensCached={session.tokensCacheRead}
-          tokensReasoning={session.tokensReasoning}
-        />
-
-        {/* Token Timeline */}
-        <TokenTimelineChart timeline={tokenTimeline} />
+        {/* Token Breakdown + Token Timeline — side by side */}
+        <div className="grid grid-cols-4 gap-4">
+          <div className="col-span-1">
+            <TokenBreakdownPie
+              tokensInput={session.tokensInput}
+              tokensOutput={session.tokensOutput}
+              tokensCached={session.tokensCacheRead}
+              tokensReasoning={session.tokensReasoning}
+            />
+          </div>
+          <div className="col-span-3">
+            <TokenTimelineChart timeline={tokenTimeline} />
+          </div>
+        </div>
 
         {/* Cost Timeline */}
         <CostTimelineChart timeline={tokenTimeline} hideCosts={hideCosts} />
-
-        {/* Token Per Tool Type */}
-        <ToolTokenBarChart stats={toolTokenStats} />
-
-        {/* Effectiveness */}
-        <EffectivenessCards metrics={effectiveness} hideCosts={hideCosts} />
       </div>
 
       {/* Stats footer */}
