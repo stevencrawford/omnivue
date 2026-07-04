@@ -31,7 +31,7 @@ export interface EffectivenessMetrics {
   efficiencyRatio: number | null;
   tokensPerToolCall: number | null;
   toolSuccessRate: number | null;
-  editsPerUserRequest: number | null;
+
   costPerFile: number | null;
   totalTokens: number;
   totalToolCalls: number;
@@ -105,6 +105,34 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
       }
     }
 
+    // Fallback: build timeline from message-level tokens when no step events exist
+    if (timeline.length === 0) {
+      for (const msg of messages) {
+        if (msg.role !== "assistant") continue;
+        const input = msg.tokensInput ?? 0;
+        const output = msg.tokensOutput ?? 0;
+        if (input === 0 && output === 0) continue;
+        cumInput += input;
+        cumOutput += output;
+        timeline.push({
+          stepIndex: stepCounter,
+          timestamp: msg.timestamp,
+          tokensInput: input,
+          tokensOutput: output,
+          tokensCached: 0,
+          tokensReasoning: 0,
+          cost: 0,
+          cumulativeTotal: cumInput + cumOutput + cumCached + cumReasoning,
+          cumulativeInput: cumInput,
+          cumulativeOutput: cumOutput,
+          cumulativeCached: cumCached,
+          cumulativeReasoning: cumReasoning,
+          cumulativeCost: cumCost,
+        });
+        stepCounter++;
+      }
+    }
+
     const toolCalls: { kind: string; status: string }[] = [];
     for (const msg of messages) {
       if (!msg.toolCalls) continue;
@@ -165,10 +193,6 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
     ).length;
     const toolSuccessRate = totalToolCalls > 0 ? (successfulTools / totalToolCalls) * 100 : null;
 
-    const userMessages = messages.filter((m) => m.role === "user").length;
-    const editToolCalls = toolCalls.filter((tc) => tc.kind === "edit").length;
-    const editsPerUserRequest = userMessages > 0 ? editToolCalls / userMessages : null;
-
     const costPerFile = session.diffFiles > 0 ? session.cost / session.diffFiles : null;
 
     return {
@@ -179,7 +203,6 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         efficiencyRatio,
         tokensPerToolCall,
         toolSuccessRate,
-        editsPerUserRequest,
         costPerFile,
         totalTokens,
         totalToolCalls,
