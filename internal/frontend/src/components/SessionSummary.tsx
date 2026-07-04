@@ -434,10 +434,10 @@ function CostTimelineChart({
   if (!hasCost) return null;
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
+    <div className="sess-overview-card">
+      <div className="sess-overview-section-header">
         <DollarSign size={14} />
-        <span>Cost Timeline</span>
+        <h3>Cost Timeline</h3>
       </div>
       <ResponsiveContainer width="100%" height={100}>
         <LineChart data={timeline} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
@@ -555,10 +555,10 @@ function EffectivenessCards({
   ];
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
+    <div className="sess-overview-card">
+      <div className="sess-overview-section-header">
         <Activity size={14} />
-        <span>Effectiveness</span>
+        <h3>Effectiveness</h3>
       </div>
       <div className="grid grid-cols-3 gap-1.5">
         {cards.map((card) => (
@@ -582,9 +582,11 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
 
   if (totalCount === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-ov-text-secondary p-8">
-        <Activity size={32} className="mb-3 opacity-40" />
-        <p className="text-sm">No session data to summarize</p>
+      <div className="sess-empty-state p-8 h-full">
+        <div className="sess-empty-icon">
+          <Activity size={20} />
+        </div>
+        <p className="text-sm text-ov-text-secondary">No session data to summarize</p>
       </div>
     );
   }
@@ -596,10 +598,10 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
         <EffectivenessCards metrics={effectiveness} hideCosts={hideCosts} />
 
         {/* Activity Breakdown */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary">
+        <div className="sess-overview-card">
+          <div className="sess-overview-section-header">
             <BarChart3 size={14} />
-            <span>Activity Breakdown</span>
+            <h3>Activity Breakdown</h3>
           </div>
           <div
             className="flex h-7 w-full rounded-full overflow-hidden border border-ov-border/50"
@@ -654,51 +656,53 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Details */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-medium text-ov-text-secondary mb-1">
-            <Hash size={14} />
-            <span>Details</span>
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-            {barSegments.map((seg) => (
-              <div
-                key={seg.kind}
-                className="flex items-center justify-between text-[13px] tabular-nums px-1"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-2.5 rounded-sm shrink-0"
-                    style={{ backgroundColor: seg.color }}
-                  />
-                  <span className="text-ov-text">{seg.label}</span>
+          {/* Details */}
+          <div className="space-y-1 mt-4">
+            <div className="sess-overview-section-header">
+              <Hash size={14} />
+              <h3>Details</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+              {barSegments.map((seg) => (
+                <div
+                  key={seg.kind}
+                  className="flex items-center justify-between text-[13px] tabular-nums px-1"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="size-2.5 rounded-sm shrink-0"
+                      style={{ backgroundColor: seg.color }}
+                    />
+                    <span className="text-ov-text">{seg.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-ov-text-secondary">
+                    <span className="font-medium text-ov-text">{seg.count}</span>
+                    <span className="text-[11px] w-10 text-right">{formatPct(seg.percentage)}</span>
+                    {hasTiming && seg.duration > 0 && (
+                      <span className="text-[11px] font-mono">{formatDuration(seg.duration)}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-ov-text-secondary">
-                  <span className="font-medium text-ov-text">{seg.count}</span>
-                  <span className="text-[11px] w-10 text-right">{formatPct(seg.percentage)}</span>
-                  {hasTiming && seg.duration > 0 && (
-                    <span className="text-[11px] font-mono">{formatDuration(seg.duration)}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Token Breakdown + Token Timeline — side by side */}
-        <div className="grid grid-cols-4 gap-4">
-          <div className="col-span-1">
-            <TokenBreakdownPie
-              tokensInput={session.tokensInput}
-              tokensOutput={session.tokensOutput}
-              tokensCached={session.tokensCacheRead}
-              tokensReasoning={session.tokensReasoning}
-            />
-          </div>
-          <div className="col-span-3">
-            <TokenTimelineChart timeline={tokenTimeline} />
+        <div className="sess-overview-card">
+          <div className="grid grid-cols-4 gap-4">
+            <div className="col-span-1">
+              <TokenBreakdownPie
+                tokensInput={session.tokensInput}
+                tokensOutput={session.tokensOutput}
+                tokensCached={session.tokensCacheRead}
+                tokensReasoning={session.tokensReasoning}
+              />
+            </div>
+            <div className="col-span-3">
+              <TokenTimelineChart timeline={tokenTimeline} />
+            </div>
           </div>
         </div>
 
