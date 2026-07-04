@@ -8,7 +8,6 @@ import {
   Zap,
   TrendingUp,
   CheckCircle,
-  Edit3,
 } from "lucide-react";
 import {
   XAxis,
@@ -421,12 +420,6 @@ function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics }) {
       label: "Tool Success",
       value: formatSmallPct(metrics.toolSuccessRate),
     },
-    {
-      icon: Edit3,
-      label: "Edits / Request",
-      value:
-        metrics.editsPerUserRequest !== null ? metrics.editsPerUserRequest.toFixed(1) : "\u2014",
-    },
   ];
 
   return (
@@ -435,7 +428,7 @@ function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics }) {
         <Activity size={14} />
         <h3>Effectiveness</h3>
       </div>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {cards.map((card) => (
           <MiniMetricCard key={card.label} icon={card.icon} label={card.label} value={card.value} />
         ))}
@@ -592,22 +585,6 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
             <div className="col-span-3">
               <TokenTimelineChart timeline={tokenTimeline} />
             </div>
-          </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
-            {[
-              { key: "Input", color: TOKENS_COLOR_INPUT },
-              { key: "Output", color: TOKENS_COLOR_OUTPUT },
-              { key: "Cache", color: TOKENS_COLOR_CACHE },
-              { key: "Reasoning", color: TOKENS_COLOR_REASONING },
-            ].map(({ key, color }) => (
-              <div
-                key={key}
-                className="flex items-center gap-1.5 text-[11px] text-ov-text-secondary"
-              >
-                <span className="size-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
-                <span>{key}</span>
-              </div>
-            ))}
           </div>
         </section>
 
