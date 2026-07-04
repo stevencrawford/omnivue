@@ -243,8 +243,6 @@ function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
             interval="preserveStartEnd"
           />
           <YAxis
-            scale="log"
-            domain={[1, "auto"]}
             tick={{ fontSize: 10, fill: "var(--color-ov-text-secondary)" }}
             tickLine={false}
             axisLine={false}
