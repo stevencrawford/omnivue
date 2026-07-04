@@ -58,32 +58,30 @@ export function NotificationPanel({
         <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
           Notifications
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
           {unreadCount > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-white">
               {unreadCount}
             </span>
           )}
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={onMarkAllRead}
-              disabled={unreadCount === 0}
-              title="Mark all read"
-              className="text-ov-text-secondary hover:text-ov-text disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
-            >
-              <CheckCheck className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={onClearAll}
-              disabled={notifications.length === 0}
-              title="Clear all"
-              className="text-ov-text-secondary hover:text-red-400 disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onMarkAllRead}
+            disabled={unreadCount === 0}
+            title="Mark all read"
+            className="text-ov-text-secondary hover:text-ov-text disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
+          >
+            <CheckCheck className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onClearAll}
+            disabled={notifications.length === 0}
+            title="Clear all"
+            className="text-ov-text-secondary hover:text-red-400 disabled:opacity-30 cursor-pointer p-0.5 rounded transition-colors"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
         </div>
       </div>
 
