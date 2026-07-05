@@ -16,6 +16,7 @@ test:
 
 build: generate
 	go build -ldflags=$(BUILD_LDFLAGS) -trimpath -o omnivue .
+	codesign -s - --force --timestamp omnivue 2>/dev/null || true
 
 dev: build
 	./omnivue -p 16275 --foreground $(ARGS)

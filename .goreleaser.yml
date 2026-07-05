@@ -46,7 +46,7 @@ builds:
 archives:
   -
     id: omnivue-archive
-    name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     format_overrides:
       - goos: darwin
         formats:
@@ -77,7 +77,6 @@ nfpms:
     formats:
       - deb
       - rpm
-      - apk
     bindir: /usr/bin
     epoch: 1
 release:
