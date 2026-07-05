@@ -470,7 +470,6 @@ func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
 	// Enable notifications with the question kind.
 	settings := notify.DefaultSettings()
 	settings.Enabled = true
-	settings.EnabledAt = time.Now().UnixMilli()
 	settings.Kinds = []notify.Kind{notify.KindQuestion}
 	settings.Scope = "all"
 	settings.ExcludeActiveView = false
