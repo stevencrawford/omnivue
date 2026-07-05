@@ -321,6 +321,8 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	}
 
 	messages := make([]ingest.Message, 0, len(msgRows))
+	var pendingCompaction *ingest.ToolCall
+
 	for _, m := range msgRows {
 		msg := ingest.Message{
 			ID:        m.id,
@@ -387,11 +389,44 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					tc.Duration = p.State.Time.End - p.State.Time.Start
 				}
 				msg.ToolCalls = append(msg.ToolCalls, tc)
+			case "compaction":
+				// Synthesize a compaction tool call from the compaction part data.
+				// The part's message is a user message that only exists to carry
+				// the compaction marker — we skip it and inject the synthesized
+				// tool call into the subsequent assistant message instead.
+				inputJSON := marshalCompactionInput(p)
+				pendingCompaction = &ingest.ToolCall{
+					ID:     p.CallID,
+					Name:   "compaction",
+					Input:  inputJSON,
+					Status: ingest.ToolCallCompleted,
+				}
+				// Clear the current message — it exists only to carry the
+				// compaction marker and has no meaningful content.
+				msg.Content = ""
+				msg.Reasoning = ""
+				msg.StepEvents = nil
+				msg.ToolCalls = nil
 			}
+		}
+
+		// Inject a pending compaction tool call at the front of the next
+		// assistant message's tool call list so it renders as a visual marker.
+		if pendingCompaction != nil && msg.Role == ingest.MessageRoleAssistant {
+			if msg.Content != "" {
+				pendingCompaction.Output = msg.Content
+				msg.Content = ""
+			}
+			msg.ToolCalls = append([]ingest.ToolCall{*pendingCompaction}, msg.ToolCalls...)
+			pendingCompaction = nil
 		}
 
 		if msg.Role == ingest.MessageRoleUser {
 			msg.Content = wrapEmbeddedFileContent(msg.Content)
+		}
+
+		if msg.Content == "" && len(msg.ToolCalls) == 0 {
+			continue
 		}
 
 		messages = append(messages, msg)
@@ -589,4 +624,29 @@ func extractSubAgentFromTitle(title string) string {
 		return ""
 	}
 	return title[idx+2 : idx+2+endIdx]
+}
+
+type compactionInput struct {
+	Kind      string `json:"kind"`
+	Label     string `json:"label"`
+	Auto      bool   `json:"auto"`
+	Overflow  bool   `json:"overflow"`
+}
+
+func marshalCompactionInput(p partData) string {
+	auto := false
+	if p.Auto != nil {
+		auto = *p.Auto
+	}
+	overflow := false
+	if p.Overflow != nil {
+		overflow = *p.Overflow
+	}
+	input := compactionInput{
+		Kind:     "context_compaction",
+		Label:    "Compaction",
+		Auto:     auto,
+		Overflow: overflow,
+	}
+	return ingestkit.MarshalJSON(input)
 }

@@ -200,11 +200,7 @@ func (s *State) Messages(ctx context.Context, sessionID string) ([]ingest.Messag
 	if adapter == nil {
 		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
 	}
-	messages, err := adapter.Messages(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	return ingest.InsertCompactionMarkers(messages), nil
+	return adapter.Messages(ctx, sessionID)
 }
 
 // Plan returns the plan for a session.
