@@ -149,10 +149,13 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 		mc := modelChanges[i]
 		for j := range messages {
 			if messages[j].Role == ingest.MessageRoleAssistant && messages[j].Timestamp.After(mc.timestamp) {
-				input, _ := json.Marshal(map[string]string{
+				input, err := json.Marshal(map[string]string{
 					"model":    mc.model,
 					"provider": mc.provider,
 				})
+				if err != nil {
+					break
+				}
 				tc := ingest.ToolCall{
 					ID:     fmt.Sprintf("model-switch-%d", i),
 					Name:   "model_switch",
