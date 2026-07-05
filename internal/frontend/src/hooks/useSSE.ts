@@ -5,6 +5,7 @@ interface SSECallbacks {
   onSessionChanged?: (sessionIds: string[]) => void;
   onNotification?: () => void;
   onNotificationsRead?: (ids: string[] | null) => void;
+  onStarted?: () => void;
 }
 
 export function useSSE(callbacks: SSECallbacks) {
@@ -37,6 +38,7 @@ export function useSSE(callbacks: SSECallbacks) {
         } catch {
           // ignore
         }
+        callbacksRef.current.onStarted?.();
       });
 
       es.addEventListener("update", () => {

@@ -57,9 +57,17 @@ export function useNotifications(): NotificationsState {
     reloadSettings();
   }, [reload, reloadSettings]);
 
+  // Periodic polling fallback: refresh every 60s so the frontend recovers
+  // from dropped SSE events (e.g. tab backgrounded during delivery).
+  useEffect(() => {
+    const id = setInterval(() => reload(), 60000);
+    return () => clearInterval(id);
+  }, [reload]);
+
   useSSE({
-    onUpdate: () => {},
+    onUpdate: () => scheduleReload(),
     onNotification: () => scheduleReload(),
+    onStarted: () => scheduleReload(),
     onNotificationsRead: (ids) => {
       if (ids === null) {
         setNotifications((prev) => prev.map((n) => ({ ...n, readAt: Date.now() })));
