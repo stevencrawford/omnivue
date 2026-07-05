@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
-		t.Fatalf("expected legacy db stamped to version 1, got %d", v)
+	if v != 2 {
+		t.Fatalf("expected legacy db stamped to version 2, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
-		t.Fatalf("expected version 1 on fresh install, got %d", v)
+	if v != 2 {
+		t.Fatalf("expected version 2 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))

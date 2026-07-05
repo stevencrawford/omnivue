@@ -52,10 +52,12 @@ export function useSearchHighlight(
   searchHighlightQuery: string | undefined,
   focusStepIndex: number | undefined,
   focusMessageIndex: number | undefined,
+  focusMessageKey: number | undefined,
+  focusMessageId: string | undefined,
   messagesWithoutReminders: Message[],
+  onClearFocus?: () => void,
 ) {
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
-  const consumedFocusIdx = useRef<number | undefined>(undefined);
 
   const scrollToMessageEl = useCallback(
     (el: Element) => {
@@ -89,18 +91,28 @@ export function useSearchHighlight(
   }, [focusStepIndex, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
 
   useEffect(() => {
-    if (focusMessageIndex === undefined) return;
-    if (consumedFocusIdx.current === focusMessageIndex) return;
+    if (focusMessageIndex === undefined && focusMessageId === undefined) return;
     if (!scrollRef.current || messagesWithoutReminders.length === 0) return;
-    const el = scrollRef.current.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    const el = focusMessageId
+      ? scrollRef.current.querySelector(`[data-message-id="${focusMessageId}"]`)
+      : scrollRef.current.querySelector(`[data-message-index="${focusMessageIndex}"]`);
     if (el) {
       scrollToMessageEl(el);
       el.classList.add("sess-message-highlight");
-      consumedFocusIdx.current = focusMessageIndex;
-      const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+      const timer = setTimeout(() => {
+        el.classList.remove("sess-message-highlight");
+        onClearFocus?.();
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [focusMessageIndex, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
+  }, [
+    focusMessageKey,
+    focusMessageIndex,
+    focusMessageId,
+    messagesWithoutReminders.length,
+    scrollToMessageEl,
+    scrollRef,
+  ]);
 
   useEffect(() => {
     const container = scrollRef.current;

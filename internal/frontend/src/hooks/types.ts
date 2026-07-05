@@ -158,3 +158,54 @@ export interface Bookmark {
   label: string;
   createdAt: string;
 }
+
+export type NotificationKind =
+  | "question"
+  | "task_complete"
+  | "new_messages"
+  | "new_tool_call"
+  | "status_active"
+  | "status_completed"
+  | "status_error";
+
+export type NotificationSeverity = "info" | "attention";
+
+export interface NotificationPayload {
+  toolCallId?: string;
+  messageId?: string;
+  messageIndex?: number;
+  toolName?: string;
+  count?: number;
+  tabHint?: string;
+  [key: string]: unknown;
+}
+
+export interface AppNotification {
+  id: string;
+  sessionId: string;
+  sourceId: string;
+  kind: NotificationKind;
+  title: string;
+  preview: string;
+  severity: NotificationSeverity;
+  payload?: string; // JSON string of NotificationPayload
+  createdAt: number; // unix ms
+  readAt?: number | null; // unix ms, undefined/null = unread
+}
+
+export type NotificationScope = "all" | "opened" | "pinned";
+
+export interface NotificationSettings {
+  enabled: boolean;
+  kinds: NotificationKind[];
+  scope: NotificationScope;
+  inAppToast: boolean;
+  sidebarBadge: boolean;
+  browserNotify: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  autoDismissSec: number;
+  excludeActiveView: boolean;
+  enabledAt?: number;
+}

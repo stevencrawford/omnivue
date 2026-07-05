@@ -121,6 +121,7 @@ Key gostyle rules that commonly trigger:
 - `internal/frontend/` — Vite + React 19 + TypeScript + Tailwind CSS v4 SPA
 - `internal/backup/` — State persistence (kept from mo, will be repurposed)
 - `internal/logfile/` — Rotating JSON logging to `$XDG_STATE_HOME/omnivue/log/`
+- `internal/notify/` — Notification classification (pure `Classify` over session/message data + `Settings`/`Kind` types, no I/O)
 - `internal/xdg/` — XDG Base Directory helper
 - `version/version.go` — Version info
 
@@ -206,6 +207,13 @@ Before applying any migration to a database that already holds application data 
 | DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
+| GET | `/_/api/notifications?limit=&unreadOnly=` | List notifications (newest first) |
+| DELETE | `/_/api/notifications` | Clear all notifications |
+| POST | `/_/api/notifications/read` | Mark notifications read `{ids:[]\|null}` |
+| POST | `/_/api/notifications/active-view` | Report currently-viewed session `{sessionId}` |
+| GET | `/_/api/notifications/settings` | Get notification settings JSON |
+| PUT | `/_/api/notifications/settings` | Save notification settings JSON |
+| POST | `/_/api/restart` | Restart server |
 | GET | `/_/events` | SSE event stream (update, session-changed) |
 
 ## Frontend
@@ -215,7 +223,7 @@ Before applying any migration to a database that already holds application data 
 - Key dependencies: `react-markdown`, `remark-gfm`, `remark-breaks`, `rehype-highlight`, `@monaco-editor/react`, `@tiptap/*`, `diff`, `marked`, `lucide-react`, `turndown`
 - Key components:
   - `App.tsx` — Root state, session selection, keyboard shortcuts, URL hash deep-linking
-  - `Sidebar.tsx` — Session tree grouped by repo, resizable, section nav (sessions/projects)
+  - `Sidebar.tsx` — Session tree grouped by repo, resizable, section nav (sessions/projects/notifications)
   - `SessionViewer.tsx` — Tabbed detail view (session/diff/plan/scratch)
   - `ConversationView.tsx` — Message rendering with step events, reasoning, tool calls
   - `MarkdownContent.tsx` — Markdown renderer with syntax highlighting
@@ -234,8 +242,12 @@ Before applying any migration to a database that already holds application data 
   - `SessionPanel.tsx` — Session list by repo
   - `ProjectPanel.tsx` — Project-based browsing
   - `ContextMenu.tsx` — Right-click menus
-  - `Toast.tsx` — Notification toasts
-- Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context)
+  - `Toast.tsx` — Notification toasts (supports optional click action)
+  - `NotificationPanel.tsx` — Notifications list (bell section) with read/unread + filters
+  - `NotificationRow.tsx` — Single notification row
+  - `NotificationsSettingsTab.tsx` — Notification settings (kinds, scope, delivery, quiet hours)
+- Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission)
+- Utilities: `lib/browserNotify.ts` (OS notification helper + quiet-hours resolution), `buildTree.ts` (groups sessions by repository)
 - Utilities: `buildTree.ts` (groups sessions by repository)
 - Theme: GitHub-style light/dark via `data-theme` attribute
 - localStorage keys use `omnivue-` prefix.
@@ -271,3 +283,4 @@ Before applying any migration to a database that already holds application data 
 - [x] Phase 9: Settings UI + keyboard shortcuts + deep linking (COMPLETE)
 - [x] Phase 10: Pi adapter (COMPLETE)
 - [x] Phase 11: Claude Code adapter (COMPLETE)
+- [ ] Phase 12: Notification system (in progress)

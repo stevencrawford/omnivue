@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
@@ -24,7 +24,10 @@ import { useBookmarks } from "./hooks/useBookmarks";
 import { useSessions } from "./hooks/useSessions";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
-import { useState } from "react";
+import { useNotifications, useActiveView } from "./hooks/useNotifications";
+import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
+import type { AppNotification, NotificationSettings } from "./hooks/types";
+import { useToast } from "./hooks/useToast";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -44,10 +47,27 @@ export function App() {
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
 
+  const {
+    notifications,
+    unreadCount: notificationUnreadCount,
+    settings: notificationSettings,
+    sessionUnread: notificationSessionUnread,
+    markRead: markNotificationRead,
+    markAllRead: markAllNotificationsRead,
+    clearAll: clearAllNotifications,
+    saveSettings: saveNotificationSettings,
+  } = useNotifications();
+
+  // Report the currently-viewed session to the server so the
+  // ExcludeActiveView notification setting can suppress alerts for it.
+  useActiveView(activeSessionId);
+
   // ---- UI state ----
   const [showOverview, setShowOverview] = useState(true);
   const [focusStepIndex, setFocusStepIndex] = useState<number | undefined>(undefined);
   const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
+  const [focusMessageKey, setFocusMessageKey] = useState(0);
+  const [focusMessageId, setFocusMessageId] = useState<string | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,13 +179,31 @@ export function App() {
   }, []);
 
   // ---- Navigation handlers ----
-  const handleSessionSelect = useCallback((sessionId: string) => {
-    setShowOverview(false);
-    setActiveSessionId(sessionId);
-    setFocusStepIndex(undefined);
+  const handleSessionSelect = useCallback(
+    (sessionId: string) => {
+      setShowOverview(false);
+      setActiveSessionId(sessionId);
+      setFocusStepIndex(undefined);
+      setFocusMessageIndex(undefined);
+      setFocusMessageId(undefined);
+      setFocusMessageKey(0);
+      setActiveTab("session");
+      setSearchHighlightQuery(null);
+      // Mark all unread notifications for this session as read
+      const unreadForSession = notifications
+        .filter((n) => n.sessionId === sessionId && !n.readAt)
+        .map((n) => n.id);
+      if (unreadForSession.length > 0) {
+        markNotificationRead(unreadForSession);
+      }
+    },
+    [notifications, markNotificationRead],
+  );
+
+  const handleClearFocus = useCallback(() => {
     setFocusMessageIndex(undefined);
-    setActiveTab("session");
-    setSearchHighlightQuery(null);
+    setFocusMessageId(undefined);
+    setFocusMessageKey(0);
   }, []);
 
   const handleGoHome = useCallback(() => {
@@ -182,11 +220,48 @@ export function App() {
       setShowOverview(false);
       setActiveSessionId(sessionId);
       setFocusMessageIndex(messageIndex);
+      setFocusMessageId(undefined);
+      setFocusMessageKey((k) => k + 1);
       setFocusStepIndex(undefined);
       setActiveTab("session");
       setSearchHighlightQuery(null);
+      setActiveSection("sessions");
     },
     [],
+  );
+
+  const handleNotificationClick = useCallback(
+    (n: AppNotification) => {
+      setShowOverview(false);
+      setActiveSessionId(n.sessionId);
+      setActiveTab("session");
+      setFocusStepIndex(undefined);
+      setSearchHighlightQuery(null);
+      markNotificationRead([n.id]);
+      setActiveSection("sessions");
+
+      // Parse the payload for a message index to jump directly to
+      // the message that triggered the notification.
+      let msgIdx: number | undefined;
+      let msgId: string | undefined;
+      try {
+        if (n.payload) {
+          const payload = JSON.parse(n.payload);
+          if (typeof payload.messageIndex === "number") {
+            msgIdx = payload.messageIndex;
+          }
+          if (typeof payload.messageId === "string") {
+            msgId = payload.messageId;
+          }
+        }
+      } catch {
+        // ignore malformed payload
+      }
+      setFocusMessageKey((k) => k + 1);
+      setFocusMessageIndex(msgIdx);
+      setFocusMessageId(msgId);
+    },
+    [markNotificationRead],
   );
 
   // ---- Render ----
@@ -257,6 +332,12 @@ export function App() {
                   bookmarks={bookmarks}
                   onBookmarkSelect={handleBookmarkSelect}
                   onBookmarkDelete={handleBookmarkDelete}
+                  notifications={notifications}
+                  notificationUnreadCount={notificationUnreadCount}
+                  sessionUnread={notificationSessionUnread}
+                  onNotificationClick={handleNotificationClick}
+                  onMarkAllNotificationsRead={markAllNotificationsRead}
+                  onClearNotifications={clearAllNotifications}
                 />
               </ErrorBoundary>
 
@@ -281,6 +362,9 @@ export function App() {
                         bookmarkIdByRef={bookmarkIdByRef}
                         focusStepIndex={focusStepIndex}
                         focusMessageIndex={focusMessageIndex}
+                        focusMessageKey={focusMessageKey}
+                        focusMessageId={focusMessageId}
+                        onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
                       />
                     </SearchHighlightContext.Provider>
@@ -308,7 +392,12 @@ export function App() {
             </div>
           </SessionNavContext.Provider>
 
-          <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+          <SettingsModal
+            isOpen={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            notificationSettings={notificationSettings}
+            onSaveNotificationSettings={saveNotificationSettings}
+          />
           <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
           <PinMessageModal
@@ -318,8 +407,64 @@ export function App() {
             onCancel={handleCancelPin}
             onConfirm={() => handleConfirmPin(handlePinAsScratch)}
           />
+
+          <NotificationToaster
+            notifications={notifications}
+            settings={notificationSettings}
+            activeSessionId={activeSessionId}
+            onNavigate={(sessionId) => handleSessionSelect(sessionId)}
+          />
         </div>
       </ToastProvider>
     </ThemeProvider>
   );
+}
+
+/**
+ * NotificationToaster subscribes to the notification list and fires in-app
+ * toasts and browser OS notifications for newly-arrived unread notifications,
+ * respecting the user's settings and quiet hours. Lives inside ToastProvider
+ * so it can access the toast context.
+ */
+function NotificationToaster({
+  notifications,
+  settings,
+  activeSessionId,
+  onNavigate,
+}: {
+  notifications: AppNotification[];
+  settings: NotificationSettings | null;
+  activeSessionId: string | null;
+  onNavigate: (sessionId: string) => void;
+}) {
+  const { showToast } = useToast();
+  const seenIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    for (const n of notifications) {
+      if (seenIds.current.has(n.id)) continue;
+      seenIds.current.add(n.id);
+      if (n.readAt) continue;
+      // Skip toast if excludeActiveView is on and user is already viewing this session.
+      if (settings?.excludeActiveView && n.sessionId === activeSessionId) continue;
+      const { toast, browser } = resolveChannels(n, settings);
+      if (toast) {
+        const toastMsg =
+          n.kind === "question" ? "Question" : `${n.title}${n.preview ? " — " + n.preview : ""}`;
+        showToast(
+          toastMsg,
+          {
+            label: "View",
+            onClick: () => onNavigate(n.sessionId),
+          },
+          settings?.autoDismissSec ? settings.autoDismissSec * 1000 : undefined,
+        );
+      }
+      if (browser) {
+        fireBrowserNotification(n);
+      }
+    }
+  }, [notifications, settings, activeSessionId, showToast, onNavigate]);
+
+  return null;
 }

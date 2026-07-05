@@ -238,3 +238,47 @@ export const ConfigSchema = z.record(z.string(), z.string());
 export const ResumeCommandSchema = z.object({
   command: z.string(),
 });
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export const NotificationKindSchema = z.enum([
+  "question",
+  "task_complete",
+  "new_messages",
+  "new_tool_call",
+  "status_active",
+  "status_completed",
+  "status_error",
+]);
+
+export const NotificationSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  sourceId: z.string(),
+  kind: NotificationKindSchema,
+  title: z.string(),
+  preview: z.string(),
+  severity: z.enum(["info", "attention"]),
+  payload: z.string().optional(),
+  createdAt: coerceNumber,
+  readAt: coerceNumber.nullable().optional(),
+});
+
+export const NotificationsSchema = z.array(NotificationSchema);
+
+export const NotificationSettingsSchema = z.object({
+  enabled: z.boolean(),
+  kinds: z.array(NotificationKindSchema),
+  scope: z.enum(["all", "opened", "pinned"]),
+  inAppToast: z.boolean(),
+  sidebarBadge: z.boolean(),
+  browserNotify: z.boolean(),
+  quietHoursEnabled: z.boolean(),
+  quietHoursStart: z.string(),
+  quietHoursEnd: z.string(),
+  autoDismissSec: coerceNumber,
+  excludeActiveView: z.boolean(),
+  enabledAt: coerceNumber.optional(),
+});

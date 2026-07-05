@@ -3,6 +3,9 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 interface SSECallbacks {
   onUpdate: () => void;
   onSessionChanged?: (sessionIds: string[]) => void;
+  onNotification?: () => void;
+  onNotificationsRead?: (ids: string[] | null) => void;
+  onStarted?: () => void;
 }
 
 export function useSSE(callbacks: SSECallbacks) {
@@ -35,6 +38,7 @@ export function useSSE(callbacks: SSECallbacks) {
         } catch {
           // ignore
         }
+        callbacksRef.current.onStarted?.();
       });
 
       es.addEventListener("update", () => {
@@ -53,6 +57,25 @@ export function useSSE(callbacks: SSECallbacks) {
           }
         } catch {
           // ignore
+        }
+      });
+
+      es.addEventListener("notification", () => {
+        callbacksRef.current.onNotification?.();
+      });
+
+      es.addEventListener("notifications-read", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data && data.all) {
+            callbacksRef.current.onNotificationsRead?.(null);
+          } else if (Array.isArray(data.ids)) {
+            callbacksRef.current.onNotificationsRead?.(data.ids);
+          } else {
+            callbacksRef.current.onNotificationsRead?.(null);
+          }
+        } catch {
+          callbacksRef.current.onNotificationsRead?.(null);
         }
       });
 

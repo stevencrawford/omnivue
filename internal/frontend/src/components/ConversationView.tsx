@@ -46,6 +46,9 @@ export function ConversationView({
   focusStepIndex,
   searchHighlightQuery,
   focusMessageIndex,
+  focusMessageKey,
+  focusMessageId,
+  onClearFocus,
 }: {
   messages: Message[];
   session: Session;
@@ -62,6 +65,9 @@ export function ConversationView({
   focusStepIndex?: number;
   searchHighlightQuery?: string;
   focusMessageIndex?: number;
+  focusMessageKey?: number;
+  focusMessageId?: string;
+  onClearFocus?: () => void;
 }) {
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
@@ -91,7 +97,10 @@ export function ConversationView({
     searchHighlightQuery,
     focusStepIndex,
     focusMessageIndex,
+    focusMessageKey,
+    focusMessageId,
     messagesWithoutReminders,
+    onClearFocus,
   );
 
   useEffect(() => {
@@ -159,7 +168,12 @@ export function ConversationView({
             </p>
           ) : (
             messagesWithoutReminders.map((msg, idx) => (
-              <div key={msg.id} data-marker-id={`msg-${idx}`} data-message-index={idx}>
+              <div
+                key={msg.id}
+                data-marker-id={`msg-${idx}`}
+                data-message-index={idx}
+                data-message-id={msg.id}
+              >
                 <MessageBlock
                   message={msg}
                   messageIndex={idx}

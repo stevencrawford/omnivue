@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/notify"
 	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/stevencrawford/omnivue/version"
 )
@@ -246,7 +248,7 @@ func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 		},
 	}
 
-	changed, live := state.refreshSessions(context.Background())
+	changed, live, _ := state.refreshSessions(context.Background())
 	if live != 1 {
 		t.Errorf("expected 1 live session, got %d", live)
 	}
@@ -287,7 +289,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 		ma.sessions[0].UpdatedAt = fresh.Add(-5 * time.Minute)
 	}
 
-	changed, live := state.refreshSessions(context.Background())
+	changed, live, _ := state.refreshSessions(context.Background())
 	if live != 0 {
 		t.Errorf("expected 0 live sessions after staleness, got %d", live)
 	}
@@ -309,10 +311,10 @@ func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
 
-	if _, live := state.refreshSessions(context.Background()); live != 1 {
+	if _, live, _ := state.refreshSessions(context.Background()); live != 1 {
 		t.Fatalf("first refresh: expected 1 live, got %d", live)
 	}
-	changed, live := state.refreshSessions(context.Background())
+	changed, live, _ := state.refreshSessions(context.Background())
 	if live != 1 {
 		t.Errorf("second refresh: expected 1 live, got %d", live)
 	}
@@ -397,7 +399,7 @@ func TestPollLoop_EmitsSessionChangedOnFirstDetectedChange(t *testing.T) {
 	if prev, ok := lastMod["src-1"]; !ok || ts > prev {
 		lastMod["src-1"] = ts
 		if ok {
-			ids, _ := state.refreshSessions(context.Background())
+			ids, _, _ := state.refreshSessions(context.Background())
 			state.sendEvent(sseEvent{Name: "update"})
 			if len(ids) > 0 {
 				data, err := json.Marshal(map[string]any{"ids": ids})
@@ -443,4 +445,145 @@ type tickingAdapter struct {
 
 func (a *tickingAdapter) LastModified(context.Context) (int64, error) {
 	return a.lastModFn()
+}
+
+// --- Notification integration tests ---
+
+func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	state := &State{
+		store:      st,
+		adapters:   map[string]ingest.Adapter{"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}, messages: []ingest.Message{{ID: "m1", Content: "q?", Timestamp: time.Now(), ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}}}}}},
+		sessions:   []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}},
+		prevStatus: map[string]string{"ses-1": "completed"},
+		activeViews: make(map[string]time.Time),
+	}
+
+	// Enable notifications with the question kind.
+	settings := notify.DefaultSettings()
+	settings.Enabled = true
+	settings.EnabledAt = time.Now().UnixMilli()
+	settings.Kinds = []notify.Kind{notify.KindQuestion}
+	settings.Scope = "all"
+	settings.ExcludeActiveView = false
+	if err := state.saveNotifySettings(settings); err != nil {
+		t.Fatal(err)
+	}
+
+	state.classifyChanges(context.Background(), []string{"ses-1"}, []statusTransition{{sessionID: "ses-1", from: "completed", to: "active"}})
+
+	notifs, err := st.ListNotifications(50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notifs) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(notifs))
+	}
+	if notifs[0].Kind != "question" {
+		t.Errorf("expected kind question, got %s", notifs[0].Kind)
+	}
+}
+
+func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
+	state := &State{store: nil}
+	mux := NewHandler(state)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/_/api/notifications")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var notifs []store.Notification
+	if err := json.NewDecoder(resp.Body).Decode(&notifs); err != nil {
+		t.Fatal(err)
+	}
+	if len(notifs) != 0 {
+		t.Errorf("expected empty list, got %d", len(notifs))
+	}
+}
+
+func TestHandleNotifySettings_RoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	state := &State{store: st, activeViews: make(map[string]time.Time)}
+	mux := NewHandler(state)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// GET defaults
+	resp, err := http.Get(ts.URL + "/_/api/notifications/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var defaults notify.Settings
+	if err := json.NewDecoder(resp.Body).Decode(&defaults); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if defaults.Enabled {
+		t.Error("expected disabled by default")
+	}
+
+	// PUT enabled
+	body, err := json.Marshal(notify.Settings{
+		Enabled: true, Kinds: []notify.Kind{notify.KindQuestion}, Scope: "all",
+		InAppToast: true, SidebarBadge: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPut, ts.URL+"/_/api/notifications/settings", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	putResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved notify.Settings
+	if err := json.NewDecoder(putResp.Body).Decode(&saved); err != nil {
+		t.Fatal(err)
+	}
+	putResp.Body.Close()
+	if !saved.Enabled {
+		t.Error("expected saved settings to be enabled")
+	}
+	if saved.EnabledAt == 0 {
+		t.Error("expected EnabledAt to be stamped on first enable")
+	}
+
+	// GET again
+	resp2, err := http.Get(ts.URL + "/_/api/notifications/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got notify.Settings
+	if err := json.NewDecoder(resp2.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if !got.Enabled || got.EnabledAt == 0 {
+		t.Errorf("expected enabled+stamped settings to round-trip, got %+v", got)
+	}
 }

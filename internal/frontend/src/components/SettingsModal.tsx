@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, Plus, Loader2, TriangleAlert } from "lucide-react";
 import { Modal } from "./Modal";
 import { fetchSources, addSource, removeSource, setConfig, resetApp } from "../hooks/useApi";
-import type { Source } from "../hooks/useApi";
+import type { Source, NotificationSettings } from "../hooks/useApi";
 import { useTheme, THEMES } from "../hooks/useTheme";
 import type { ThemeName, ThemeMode } from "../hooks/useTheme";
+import { NotificationsSettingsTab } from "./NotificationsSettingsTab";
 
 const AGENT_TYPES = [
   { value: "opencode", label: "OpenCode", disabled: false, defaultPath: "~/.local/share/opencode" },
@@ -41,6 +42,8 @@ const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  notificationSettings?: NotificationSettings | null;
+  onSaveNotificationSettings?: (s: NotificationSettings) => void;
 }
 
 interface PendingSource {
@@ -51,7 +54,12 @@ interface PendingSource {
   error?: string;
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  notificationSettings,
+  onSaveNotificationSettings,
+}: SettingsModalProps) {
   const [sources, setSources] = useState<Source[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(false);
   const [sourcesError, setSourcesError] = useState<string | null>(null);
@@ -67,7 +75,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { themeName, setThemeName, theme, setTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState<
-    "agent" | "appearance" | "privacy" | "developer" | "about"
+    "agent" | "notifications" | "appearance" | "privacy" | "developer" | "about"
   >("agent");
 
   const [hideCostsSetting, setHideCostsSetting] = useState(() => {
@@ -205,7 +213,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         {/* Sidebar tabs */}
         <div className="w-40 shrink-0 border-r border-ov-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
           <nav className="flex flex-col gap-0.5 pr-4">
-            {(["agent", "appearance", "privacy", "developer", "about"] as const).map((tab) => (
+            {(
+              ["agent", "notifications", "appearance", "privacy", "developer", "about"] as const
+            ).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -218,13 +228,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               >
                 {tab === "agent"
                   ? "Agent"
-                  : tab === "appearance"
-                    ? "Appearance"
-                    : tab === "privacy"
-                      ? "Privacy"
-                      : tab === "developer"
-                        ? "Developer"
-                        : "About"}
+                  : tab === "notifications"
+                    ? "Notifications"
+                    : tab === "appearance"
+                      ? "Appearance"
+                      : tab === "privacy"
+                        ? "Privacy"
+                        : tab === "developer"
+                          ? "Developer"
+                          : "About"}
               </button>
             ))}
           </nav>
@@ -403,6 +415,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </button>
               </div>
             </div>
+          )}
+
+          {activeTab === "notifications" && (
+            <NotificationsSettingsTab
+              settings={notificationSettings ?? null}
+              onSave={(s) => onSaveNotificationSettings?.(s)}
+            />
           )}
 
           {activeTab === "appearance" && (

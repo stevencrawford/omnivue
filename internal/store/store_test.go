@@ -175,6 +175,194 @@ func TestStore_Folders(t *testing.T) {
 	}
 }
 
+func TestStore_NotificationCRUD(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	s, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	now := time.Now().UnixMilli()
+	n := store.Notification{
+		ID:        "n-1",
+		SessionID: "ses-1",
+		SourceID:  "src-1",
+		Kind:      "question",
+		Title:     "Asked a question",
+		Preview:   "should I refactor?",
+		Severity:  "attention",
+		Payload:   `{"toolCallId":"tc-1"}`,
+		CreatedAt: now,
+	}
+
+	// Insert first time -> true
+	inserted, err := s.InsertNotification(n, "tc-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !inserted {
+		t.Fatal("expected first insert to report true")
+	}
+
+	// Insert duplicate (same dedup key) -> false, no new row
+	inserted2, err := s.InsertNotification(n, "tc-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inserted2 {
+		t.Fatal("expected duplicate insert to report false")
+	}
+
+	// List (all)
+	all, err := s.ListNotifications(50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(all))
+	}
+	if all[0].ReadAt != nil {
+		t.Error("expected unread notification")
+	}
+
+	// List unread
+	unread, err := s.ListNotifications(50, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unread) != 1 {
+		t.Fatalf("expected 1 unread, got %d", len(unread))
+	}
+
+	// Mark read
+	if err := s.MarkNotificationRead("n-1"); err != nil {
+		t.Fatal(err)
+	}
+	unread, err = s.ListNotifications(50, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unread) != 0 {
+		t.Fatalf("expected 0 unread after markRead, got %d", len(unread))
+	}
+
+	// Clear all
+	if err := s.ClearNotifications(time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	all, err = s.ListNotifications(50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 0 {
+		t.Fatalf("expected 0 after clear, got %d", len(all))
+	}
+}
+
+func TestStore_NotificationState(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	s, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Default for unseen session
+	st, err := s.NotificationState("ses-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastSeenMessageCount != 0 {
+		t.Errorf("expected 0 seen count for unseen session, got %d", st.LastSeenMessageCount)
+	}
+
+	// Set state
+	if err := s.SetNotificationState("ses-x", 5, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	st, err = s.NotificationState("ses-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.LastSeenMessageCount != 5 {
+		t.Errorf("expected 5 seen count, got %d", st.LastSeenMessageCount)
+	}
+
+	// Mark viewed sets first_viewed_at once
+	if err := s.MarkSessionViewed("ses-x"); err != nil {
+		t.Fatal(err)
+	}
+	st, err = s.NotificationState("ses-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.FirstViewedAt == nil {
+		t.Fatal("expected first_viewed_at to be set")
+	}
+	first := *st.FirstViewedAt
+	// Second view should not overwrite.
+	if err := s.MarkSessionViewed("ses-x"); err != nil {
+		t.Fatal(err)
+	}
+	st, err = s.NotificationState("ses-x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *st.FirstViewedAt != first {
+		t.Error("expected first_viewed_at to remain the first value")
+	}
+}
+
+func TestStore_MarkAllNotificationsRead(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	s, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	for i, id := range []string{"n-a", "n-b", "n-c"} {
+		_, err := s.InsertNotification(store.Notification{
+			ID: id, SessionID: "ses-1", SourceID: "src-1", Kind: "question",
+			Title: "q", Preview: "p", Severity: "info", CreatedAt: time.Now().UnixMilli() + int64(i),
+		}, "tc-"+id)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Mark subset
+	if err := s.MarkAllNotificationsRead([]string{"n-a", "n-b"}); err != nil {
+		t.Fatal(err)
+	}
+	unread, err := s.ListNotifications(50, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unread) != 1 || unread[0].ID != "n-c" {
+		t.Fatalf("expected only n-c unread, got %v", unread)
+	}
+
+	// Mark all
+	if err := s.MarkAllNotificationsRead(nil); err != nil {
+		t.Fatal(err)
+	}
+	unread, err = s.ListNotifications(50, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unread) != 0 {
+		t.Fatalf("expected 0 unread after mark-all, got %d", len(unread))
+	}
+}
+
 func TestMigrate_FreshInstall(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
@@ -189,8 +377,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
-		t.Fatalf("expected schema version 1 on fresh install, got %d", v)
+	if v != 2 {
+		t.Fatalf("expected schema version 2 on fresh install, got %d", v)
 	}
 }
 
@@ -198,15 +386,12 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
 
-	// Build the state dir + db path exactly as store.New would.
 	stateDir := filepath.Join(tmpDir, "omnivue")
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	dbPath := filepath.Join(stateDir, "omnivue.db")
 
-	// Create a pre-versioning database: application tables present, no
-	// schema_migrations table, plus a user-owned row we expect to survive.
 	db, err := sql.Open("sqlite", "file:"+dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -229,8 +414,6 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	}
 	db.Close()
 
-	// Open via store.New(): should run the baseline, stamp version 1, and
-	// preserve the existing row.
 	s, err := store.New()
 	if err != nil {
 		t.Fatal(err)
@@ -241,8 +424,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
-		t.Fatalf("expected legacy db stamped to version 1, got %d", v)
+	if v != 2 {
+		t.Fatalf("expected legacy db stamped to version 2, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -266,12 +449,11 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 1 {
-		t.Fatalf("expected version 1 after first open, got %d", v1)
+	if v1 != 2 {
+		t.Fatalf("expected version 2 after first open, got %d", v1)
 	}
 	s1.Close()
 
-	// Second open must not re-run migrations and must report the same version.
 	s2, err := store.New()
 	if err != nil {
 		t.Fatal(err)
@@ -281,7 +463,7 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 1 {
-		t.Fatalf("expected version 1 after second open, got %d", v2)
+	if v2 != 2 {
+		t.Fatalf("expected version 2 after second open, got %d", v2)
 	}
 }

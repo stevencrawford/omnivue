@@ -596,6 +596,190 @@ func (s *Store) DeleteScratchFile(id string) error {
 	return err
 }
 
+// --- Notification CRUD ---
+
+// Notification represents a single in-app notification tied to a session.
+type Notification struct {
+	ID        string  `json:"id"`
+	SessionID string  `json:"sessionId"`
+	SourceID  string  `json:"sourceId"`
+	Kind      string  `json:"kind"`
+	Title     string  `json:"title"`
+	Preview   string  `json:"preview"`
+	Severity  string  `json:"severity"`
+	Payload   string  `json:"payload,omitempty"` // JSON string
+	CreatedAt int64   `json:"createdAt"` // unix ms
+	ReadAt    *int64  `json:"readAt,omitempty"`  // unix ms, nil = unread
+}
+
+// NotificationState tracks per-session notification bookkeeping: how many
+// messages the classifier has already seen, when the user last interacted
+// with the session, and when they first opened it (for scope filtering).
+type NotificationState struct {
+	SessionID             string
+	LastSeenMessageCount  int
+	LastSeenAt            *int64  // unix ms
+	FirstViewedAt         *int64  // unix ms
+}
+
+// InsertNotification inserts a notification row, deduplicating by
+// (session_id, kind, dedup_key). It returns true if a new row was inserted.
+func (s *Store) InsertNotification(n Notification, dedupKey string) (bool, error) {
+	res, err := s.db.Exec(`
+		INSERT INTO notifications (id, session_id, source_id, kind, dedup_key, title, preview, severity, payload, created_at, read_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+		ON CONFLICT(session_id, kind, dedup_key) DO NOTHING
+	`, n.ID, n.SessionID, n.SourceID, n.Kind, dedupKey, n.Title, n.Preview, n.Severity, n.Payload, n.CreatedAt)
+	if err != nil {
+		return false, err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
+}
+
+// ListNotifications returns notifications newest-first. If unreadOnly is true,
+// only unread rows are returned. limit is clamped to [1, 200].
+func (s *Store) ListNotifications(limit int, unreadOnly bool) ([]Notification, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	q := `SELECT id, session_id, source_id, kind, title, preview, severity, payload, created_at, read_at
+		  FROM notifications`
+	if unreadOnly {
+		q += ` WHERE read_at IS NULL`
+	}
+	q += ` ORDER BY created_at DESC LIMIT ?`
+	rows, err := s.db.Query(q, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Notification
+	for rows.Next() {
+		var n Notification
+		var payload sql.NullString
+		var readAt sql.NullInt64
+		if err := rows.Scan(&n.ID, &n.SessionID, &n.SourceID, &n.Kind, &n.Title, &n.Preview, &n.Severity, &payload, &n.CreatedAt, &readAt); err != nil {
+			return nil, err
+		}
+		if payload.Valid {
+			n.Payload = payload.String
+		}
+		if readAt.Valid {
+			v := readAt.Int64
+			n.ReadAt = &v
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// MarkNotificationRead marks a single notification as read.
+func (s *Store) MarkNotificationRead(id string) error {
+	_, err := s.db.Exec(`UPDATE notifications SET read_at = ? WHERE id = ? AND read_at IS NULL`, time.Now().UnixMilli(), id)
+	return err
+}
+
+// MarkAllNotificationsRead marks all (or the given subset of) notifications as
+// read. If ids is empty, all unread notifications are marked read.
+func (s *Store) MarkAllNotificationsRead(ids []string) error {
+	if len(ids) == 0 {
+		_, err := s.db.Exec(`UPDATE notifications SET read_at = ? WHERE read_at IS NULL`, time.Now().UnixMilli())
+		return err
+	}
+	// Build the query with the correct number of placeholders, then bind args.
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = strings.TrimSuffix(placeholders, ",")
+	query := "UPDATE notifications SET read_at = ? WHERE read_at IS NULL AND id IN (" + placeholders + ")" //nolint:gosec // placeholders are "?", not user input
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, time.Now().UnixMilli())
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	_, err := s.db.Exec(query, args...)
+	return err
+}
+
+// ClearNotifications removes notifications older than the given time. If
+// olderThan is the zero time, all notifications are removed.
+func (s *Store) ClearNotifications(olderThan time.Time) error {
+	if olderThan.IsZero() {
+		_, err := s.db.Exec(`DELETE FROM notifications`)
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM notifications WHERE created_at < ?`, olderThan.UnixMilli())
+	return err
+}
+
+// PruneNotifications keeps only the newest `keep` notifications.
+func (s *Store) PruneNotifications(keep int) error {
+	_, err := s.db.Exec(`
+		DELETE FROM notifications
+		WHERE id NOT IN (
+			SELECT id FROM notifications ORDER BY created_at DESC LIMIT ?
+		)
+	`, keep)
+	return err
+}
+
+// NotificationState returns the per-session notification bookkeeping row, or a
+// zero value if none exists yet.
+func (s *Store) NotificationState(sessionID string) (NotificationState, error) {
+	var st NotificationState
+	var lastSeenAt, firstViewedAt sql.NullInt64
+	err := s.db.QueryRow(`
+		SELECT session_id, last_seen_message_count, last_seen_at, first_viewed_at
+		FROM notification_state WHERE session_id = ?
+	`, sessionID).Scan(&st.SessionID, &st.LastSeenMessageCount, &lastSeenAt, &firstViewedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return NotificationState{SessionID: sessionID}, nil
+	}
+	if err != nil {
+		return st, err
+	}
+	if lastSeenAt.Valid {
+		v := lastSeenAt.Int64
+		st.LastSeenAt = &v
+	}
+	if firstViewedAt.Valid {
+		v := firstViewedAt.Int64
+		st.FirstViewedAt = &v
+	}
+	return st, nil
+}
+
+// SetNotificationState upserts the per-session notification state. It records
+// the count of messages the classifier has seen and the timestamp of this
+// update.
+func (s *Store) SetNotificationState(sessionID string, lastSeenCount int, at time.Time) error {
+	_, err := s.db.Exec(`
+		INSERT INTO notification_state (session_id, last_seen_message_count, last_seen_at, first_viewed_at)
+		VALUES (?, ?, ?, NULL)
+		ON CONFLICT(session_id) DO UPDATE SET
+			last_seen_message_count = excluded.last_seen_message_count,
+			last_seen_at = excluded.last_seen_at
+	`, sessionID, lastSeenCount, at.UnixMilli())
+	return err
+}
+
+// MarkSessionViewed records that the user has opened a session (sets
+// first_viewed_at the first time, used by the "opened" scope filter).
+func (s *Store) MarkSessionViewed(sessionID string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO notification_state (session_id, last_seen_message_count, last_seen_at, first_viewed_at)
+		VALUES (?, 0, NULL, ?)
+		ON CONFLICT(session_id) DO UPDATE SET first_viewed_at = COALESCE(first_viewed_at, excluded.first_viewed_at)
+	`, sessionID, time.Now().UnixMilli())
+	return err
+}
+
 // --- Search Index ---
 
 // ClearSessionIndex removes all FTS entries for a session (before re-indexing).
@@ -735,6 +919,8 @@ type SearchResult struct {
 func (s *Store) Reset() error {
 	tables := []string{
 		"bookmarks",
+		"notifications",
+		"notification_state",
 		"scratch_files",
 		"session_names",
 		"index_state",

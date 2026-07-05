@@ -23,6 +23,7 @@ import (
 	_ "github.com/stevencrawford/omnivue/internal/ingest/cursor"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/opencode"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/pi"
+	"github.com/stevencrawford/omnivue/internal/notify"
 	"github.com/stevencrawford/omnivue/internal/static"
 	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/stevencrawford/omnivue/version"
@@ -38,6 +39,15 @@ type State struct {
 	shutdownCh  chan struct{}
 	restartCh   chan string
 	pollStop    context.CancelFunc
+
+	// prevStatus tracks the previous Status of each session so the poll loop
+	// can detect status transitions and emit status notifications.
+	prevStatus map[string]string
+
+	// activeViews tracks the most recent time each session was reported as the
+	// user's currently-viewed session. Used by the ExcludeActiveView setting.
+	activeViewsMu sync.Mutex
+	activeViews   map[string]time.Time
 }
 
 type sseEvent struct {
@@ -49,10 +59,12 @@ type sseEvent struct {
 // and starts background polling.
 func NewState(ctx context.Context) *State {
 	s := &State{
-		adapters:    make(map[string]ingest.Adapter),
-		subscribers: make(map[chan sseEvent]struct{}),
-		shutdownCh:  make(chan struct{}, 1),
-		restartCh:   make(chan string, 1),
+		adapters:     make(map[string]ingest.Adapter),
+		subscribers:  make(map[chan sseEvent]struct{}),
+		shutdownCh:   make(chan struct{}, 1),
+		restartCh:    make(chan string, 1),
+		prevStatus:   make(map[string]string),
+		activeViews:  make(map[string]time.Time),
 	}
 
 	// Open Omnivue store
@@ -559,13 +571,15 @@ func isPlanTool(name string) bool {
 // liveness heuristic (sets Status="active" when UpdatedAt is within liveWindow),
 // and returns the set of session IDs whose UpdatedAt changed since the last
 // refresh plus the total live count.
-func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveCount int) {
+func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveCount int, transitions []statusTransition) {
 	s.mu.RLock()
 	adapters := make(map[string]ingest.Adapter, len(s.adapters))
 	maps.Copy(adapters, s.adapters)
 	prev := make(map[string]time.Time, len(s.sessions))
+	prevStatus := make(map[string]string, len(s.sessions))
 	for _, sess := range s.sessions {
 		prev[sess.ID] = sess.UpdatedAt
+		prevStatus[sess.ID] = string(sess.Status)
 	}
 	s.mu.RUnlock()
 
@@ -622,19 +636,35 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		if prevTime, ok := prev[sess.ID]; !ok || !sess.UpdatedAt.Equal(prevTime) {
 			changedIDs = append(changedIDs, sess.ID)
 		}
+		if old, ok := prevStatus[sess.ID]; ok && old != string(sess.Status) {
+			transitions = append(transitions, statusTransition{sessionID: sess.ID, from: old, to: string(sess.Status)})
+		}
 	}
 
 	s.mu.Lock()
 	s.sessions = allSessions
+	// Rebuild prevStatus snapshot for the next poll.
+	s.prevStatus = make(map[string]string, len(allSessions))
+	for _, sess := range allSessions {
+		s.prevStatus[sess.ID] = string(sess.Status)
+	}
 	s.mu.Unlock()
-	return changedIDs, liveCount
+	return changedIDs, liveCount, transitions
+}
+
+// statusTransition records a single session status change detected during a
+// refresh, used by notification classification.
+type statusTransition struct {
+	sessionID string
+	from      string
+	to        string
 }
 
 // refreshAndIndex runs a session refresh followed by background indexing and
 // emits the SSE events the frontend expects. Used by AddSource/UpdateSource
 // so the HTTP handler is never blocked by adapter I/O.
 func (s *State) refreshAndIndex(ctx context.Context) {
-	ids, _ := s.refreshSessions(ctx)
+	ids, _, transitions := s.refreshSessions(ctx)
 	go s.indexSessions(ctx)
 	s.sendEvent(sseEvent{Name: "update"})
 	if len(ids) > 0 {
@@ -644,6 +674,7 @@ func (s *State) refreshAndIndex(ctx context.Context) {
 			return
 		}
 		s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+		go s.classifyChanges(ctx, ids, transitions)
 	}
 }
 
@@ -836,8 +867,9 @@ func (s *State) pollLoop(ctx context.Context) {
 				}
 			}
 			if changed {
-				ids, lc := s.refreshSessions(ctx)
+				ids, lc, transitions := s.refreshSessions(ctx)
 				liveCount = lc
+	
 				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
 				if len(ids) > 0 {
@@ -847,16 +879,25 @@ func (s *State) pollLoop(ctx context.Context) {
 					} else {
 						s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
 					}
+
+					go s.classifyChanges(ctx, ids, transitions)
 				}
 			} else if liveCount > 0 {
 				// No source-level change, but liveness windows may have expired
 				// since the last refresh (e.g. a session went idle 3 min ago).
 				// Re-run the heuristic to keep Status fresh without the heavier
 				// full reload cost — but only if the snapshot might be stale.
-				_, lc := s.refreshSessions(ctx)
+				_, lc, transitions := s.refreshSessions(ctx)
 				if lc != liveCount {
 					// Status transitions are visible to clients; push an update.
 					s.sendEvent(sseEvent{Name: "update"})
+					if len(transitions) > 0 {
+						var tids []string
+						for _, t := range transitions {
+							tids = append(tids, t.sessionID)
+						}
+						go s.classifyChanges(ctx, tids, transitions)
+					}
 				}
 				liveCount = lc
 			}
@@ -867,7 +908,7 @@ func (s *State) pollLoop(ctx context.Context) {
 func (s *State) subscribe() chan sseEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ch := make(chan sseEvent, 16)
+	ch := make(chan sseEvent, 64)
 	s.subscribers[ch] = struct{}{}
 	return ch
 }
@@ -885,9 +926,250 @@ func (s *State) sendEvent(event sseEvent) {
 		select {
 		case ch <- event:
 		default:
-			// Drop event if subscriber is slow
+
 		}
 	}
+}
+
+// --- Notification classification ---
+
+const notifySettingsKey = "notifications.settings"
+
+// loadNotifySettings loads notification settings from the config table,
+// falling back to defaults on any error or missing row.
+func (s *State) loadNotifySettings() notify.Settings {
+	if s.store == nil {
+		return notify.DefaultSettings()
+	}
+	raw, err := s.store.Config(notifySettingsKey)
+	if err != nil || raw == "" {
+		return notify.DefaultSettings()
+	}
+	var settings notify.Settings
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return notify.DefaultSettings()
+	}
+	return settings
+}
+
+// saveNotifySettings persists notification settings.
+func (s *State) saveNotifySettings(settings notify.Settings) error {
+	if s.store == nil {
+		return fmt.Errorf("store not available")
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal settings: %w", err)
+	}
+	if err := s.store.SetConfig(notifySettingsKey, string(data)); err != nil {
+		return fmt.Errorf("save settings: %w", err)
+	}
+	return nil
+}
+
+// reportActiveView records that the given session is currently being viewed by
+// the user. Used by the ExcludeActiveView notification setting.
+func (s *State) reportActiveView(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	s.activeViewsMu.Lock()
+	s.activeViews[sessionID] = time.Now()
+	s.activeViewsMu.Unlock()
+}
+
+
+// classifyChanges inspects the changed sessions, runs the pure classifier, and
+// persists+emits any resulting notifications. It must not block the poll loop,
+// so callers always invoke it in a goroutine.
+func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transitions []statusTransition) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in classifyChanges", "recover", r)
+		}
+	}()
+	if s.store == nil || len(changedIDs) == 0 {
+		return
+	}
+	settings := s.loadNotifySettings()
+	if !settings.Enabled {
+		// Even when disabled, advance the seen-message cursor so we don't
+		// flood the user with a backlog of pre-existing messages the moment
+		// they re-enable notifications.
+		s.advanceSeenCursors(ctx, changedIDs)
+		return
+	}
+
+	// Cap per-tick work to protect against a first-load burst.
+	if len(changedIDs) > 50 {
+		slog.Warn("classifyChanges: capping changed sessions", "count", len(changedIDs))
+		changedIDs = changedIDs[:50]
+	}
+
+	// Index transitions by session id for quick lookup.
+	transBySession := make(map[string]statusTransition, len(transitions))
+	for _, t := range transitions {
+		transBySession[t.sessionID] = t
+	}
+
+	var emittedAny bool
+	for _, sid := range changedIDs {
+		sess, err := s.Session(ctx, sid)
+		if err != nil || sess == nil {
+			continue
+		}
+		// Scope filter: only sessions the user has opened / pinned.
+		if !s.sessionInScope(ctx, sess.ID, settings.Scope) {
+			// Still advance the cursor so future messages are detected.
+			s.advanceSeenCursor(ctx, sess)
+			continue
+		}
+		msgs, err := s.Messages(ctx, sess.ID)
+		if err != nil {
+			continue
+		}
+
+		st, err := s.store.NotificationState(sess.ID)
+		if err != nil {
+			slog.Warn("failed to load notification state", "session", sess.ID, "error", err)
+			continue
+		}
+
+		prevStatus := ""
+		if t, ok := transBySession[sess.ID]; ok {
+			prevStatus = t.from
+		}
+
+		candidates := notify.Classify(prevStatus, string(sess.Status), msgs, st.LastSeenMessageCount, settings)
+
+		for _, c := range candidates {
+			n := store.Notification{
+				ID:        fmt.Sprintf("notif_%d_%s", time.Now().UnixNano(), shortID(c.DedupKey)),
+				SessionID: sess.ID,
+				SourceID:  sess.SourceID,
+				Kind:      string(c.Kind),
+				Title:     c.Title,
+				Preview:   c.Preview,
+				Severity:  string(c.Severity),
+				CreatedAt: time.Now().UnixMilli(),
+			}
+			if c.Payload != nil {
+				if data, err := json.Marshal(c.Payload); err == nil {
+					n.Payload = string(data)
+				}
+			}
+			inserted, err := s.store.InsertNotification(n, c.DedupKey)
+			if err != nil {
+				slog.Warn("failed to insert notification", "session", sess.ID, "error", err)
+				continue
+			}
+			if inserted {
+				emittedAny = true
+				s.emitNotification(n, c.Payload)
+			}
+		}
+
+		// Advance the seen-message cursor regardless of whether we emitted.
+		if len(msgs) > st.LastSeenMessageCount {
+			if err := s.store.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
+				slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
+			}
+		}
+	}
+
+	if emittedAny {
+		// Opportunistically prune old notifications so the table stays bounded.
+		if err := s.store.PruneNotifications(500); err != nil {
+			slog.Warn("failed to prune notifications", "error", err)
+		}
+	}
+}
+
+// advanceSeenCursors advances the seen-message cursor for every changed
+// session without classifying. Used when notifications are disabled.
+func (s *State) advanceSeenCursors(ctx context.Context, changedIDs []string) {
+	for _, sid := range changedIDs {
+		sess, err := s.Session(ctx, sid)
+		if err != nil || sess == nil {
+			continue
+		}
+		s.advanceSeenCursor(ctx, sess)
+	}
+}
+
+func (s *State) advanceSeenCursor(ctx context.Context, sess *ingest.Session) {
+	if s.store == nil || sess == nil {
+		return
+	}
+	msgs, err := s.Messages(ctx, sess.ID)
+	if err != nil {
+		return
+	}
+	st, err := s.store.NotificationState(sess.ID)
+	if err != nil {
+		return
+	}
+	if len(msgs) > st.LastSeenMessageCount {
+		if err := s.store.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
+			slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
+		}
+	}
+}
+
+// sessionInScope reports whether the session passes the configured scope
+// filter. "all" passes everything; "opened" requires the user to have opened
+// the session at least once; "pinned" requires the session to be assigned to a
+// folder.
+func (s *State) sessionInScope(ctx context.Context, sessionID, scope string) bool {
+	switch scope {
+	case "opened":
+		st, err := s.store.NotificationState(sessionID)
+		if err != nil || st.FirstViewedAt == nil {
+			return false
+		}
+		return true
+	case "pinned":
+		folders, err := s.store.SessionFolders(sessionID)
+		if err != nil {
+			return false
+		}
+		return len(folders) > 0
+	default: // "all"
+		return true
+	}
+}
+
+// emitNotification broadcasts a single notification via SSE and also fires a
+// generic "notifications-read"-style update is not needed here; the frontend
+// listens for "notification" events to refetch the list.
+func (s *State) emitNotification(n store.Notification, payload map[string]any) {
+	// Build the SSE payload from the stored notification plus the structured
+	// payload (so the frontend gets typed fields for navigation).
+	evt := map[string]any{
+		"id":        n.ID,
+		"sessionId": n.SessionID,
+		"sourceId":  n.SourceID,
+		"kind":      n.Kind,
+		"title":     n.Title,
+		"preview":   n.Preview,
+		"severity":  n.Severity,
+		"createdAt": n.CreatedAt,
+		"payload":   payload,
+	}
+	data, err := json.Marshal(evt)
+	if err != nil {
+		slog.Warn("failed to marshal notification event", "error", err)
+		return
+	}
+	s.sendEvent(sseEvent{Name: "notification", Data: string(data)})
+}
+
+// shortID returns a short suffix of a dedup key for use in notification IDs.
+func shortID(key string) string {
+	if len(key) <= 12 {
+		return key
+	}
+	return key[len(key)-12:]
 }
 
 // reindexSessionScratch re-indexes all scratch files for a session.
@@ -971,6 +1253,12 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/bookmarks", handleListBookmarks(state))
 	mux.HandleFunc("POST /_/api/bookmarks", handleCreateBookmark(state))
 	mux.HandleFunc("DELETE /_/api/bookmarks/{id}", handleDeleteBookmark(state))
+	mux.HandleFunc("GET /_/api/notifications", handleListNotifications(state))
+	mux.HandleFunc("DELETE /_/api/notifications", handleClearNotifications(state))
+	mux.HandleFunc("POST /_/api/notifications/read", handleMarkNotificationsRead(state))
+	mux.HandleFunc("POST /_/api/notifications/active-view", handleActiveView(state))
+	mux.HandleFunc("GET /_/api/notifications/settings", handleGetNotifySettings(state))
+	mux.HandleFunc("PUT /_/api/notifications/settings", handleSetNotifySettings(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("POST /_/api/reset", handleReset(state))
@@ -1809,6 +2097,153 @@ func handleDeleteBookmark(state *State) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// --- Notification handlers ---
+
+func handleListNotifications(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode([]store.Notification{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
+			return
+		}
+		limit := 50
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+		unreadOnly := r.URL.Query().Get("unreadOnly") == "true" || r.URL.Query().Get("unreadOnly") == "1"
+		notifs, err := state.store.ListNotifications(limit, unreadOnly)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(notifs) == 0 {
+			notifs = []store.Notification{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(notifs); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleMarkNotificationsRead(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		var body struct {
+			IDs []string `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := state.store.MarkAllNotificationsRead(body.IDs); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Broadcast read-state sync so other tabs update without refetching.
+		data, err := json.Marshal(map[string]any{"ids": body.IDs})
+		if err != nil {
+			slog.Warn("failed to marshal notifications-read event", "error", err)
+		} else {
+			state.sendEvent(sseEvent{Name: "notifications-read", Data: string(data)})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleClearNotifications(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		if err := state.store.ClearNotifications(time.Time{}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.sendEvent(sseEvent{Name: "notifications-read", Data: "{\"all\":true}"})
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleActiveView(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			SessionID string `json:"sessionId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.SessionID == "" {
+			http.Error(w, "sessionId is required", http.StatusBadRequest)
+			return
+		}
+		state.reportActiveView(body.SessionID)
+		if state.store != nil {
+			if err := state.store.MarkSessionViewed(body.SessionID); err != nil {
+				slog.Warn("failed to mark session viewed", "session", body.SessionID, "error", err)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleGetNotifySettings(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		settings := state.loadNotifySettings()
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(settings); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleSetNotifySettings(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var settings notify.Settings
+		if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		// If the user is enabling notifications for the first time (or after
+		// having disabled them), stamp EnabledAt so the classifier can suppress
+		// the flood of pre-existing messages.
+		prev := state.loadNotifySettings()
+		if settings.Enabled && (!prev.Enabled || prev.EnabledAt == 0) {
+			settings.EnabledAt = time.Now().UnixMilli()
+		} else if !settings.Enabled {
+			settings.EnabledAt = 0
+		} else {
+			settings.EnabledAt = prev.EnabledAt
+		}
+		if err := state.saveNotifySettings(settings); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(settings); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 

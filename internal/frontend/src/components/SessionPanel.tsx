@@ -22,6 +22,7 @@ interface SessionPanelProps {
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
   showToast: (msg: string) => void;
+  sessionUnread?: Record<string, number>;
 }
 
 const COLLAPSED_KEY = "omnivue-sidebar-collapsed";
@@ -73,6 +74,7 @@ export function SessionPanel({
   activeSessionId,
   onSessionSelect,
   showToast,
+  sessionUnread = {},
 }: SessionPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
   const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
@@ -93,7 +95,9 @@ export function SessionPanel({
   const [expandedParentId, setExpandedParentId] = useState<string | null>(() => {
     if (!activeSessionId) return null;
     const session = sessions.find((s) => s.id === activeSessionId);
-    return session?.parentId || null;
+    if (session?.parentId) return session.parentId;
+    if (sessions.some((s) => s.parentId === activeSessionId)) return activeSessionId;
+    return null;
   });
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
@@ -119,7 +123,11 @@ export function SessionPanel({
     if (!activeSessionId) return;
     const session = sessions.find((s) => s.id === activeSessionId);
     const parentId = session?.parentId || null;
-    if (parentId) setExpandedParentId(parentId);
+    if (parentId) {
+      setExpandedParentId(parentId);
+    } else if (sessions.some((s) => s.parentId === activeSessionId)) {
+      setExpandedParentId(activeSessionId);
+    }
   }, [activeSessionId, sessions]);
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
@@ -326,6 +334,7 @@ export function SessionPanel({
                 onExpandParent={setExpandedParentId}
                 onContextMenu={handleContextMenu}
                 displayMode={displayMode}
+                sessionUnread={sessionUnread}
               />
             ))}
           </div>
@@ -454,6 +463,7 @@ function RepoNode({
   onExpandParent,
   onContextMenu,
   displayMode,
+  sessionUnread,
 }: {
   node: TreeNode;
   collapsed: Set<string>;
@@ -464,6 +474,7 @@ function RepoNode({
   onExpandParent: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
+  sessionUnread: Record<string, number>;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
   const [showAll, setShowAll] = useState(false);
@@ -503,6 +514,7 @@ function RepoNode({
                 onExpandParent={onExpandParent}
                 onContextMenu={onContextMenu}
                 displayMode={displayMode}
+                unreadCount={sessionUnread[session.id] || 0}
               />
             );
           })}
@@ -533,6 +545,7 @@ function SessionRow({
   onExpandParent,
   onContextMenu,
   displayMode,
+  unreadCount = 0,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -543,6 +556,7 @@ function SessionRow({
   onExpandParent: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
+  unreadCount?: number;
 }) {
   const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
@@ -580,6 +594,14 @@ function SessionRow({
           {subCount > 0 && !subsVisible && (
             <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
               {subCount}
+            </span>
+          )}
+          {unreadCount > 0 && (
+            <span
+              title={`${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`}
+              className="shrink-0 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white"
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
           <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
