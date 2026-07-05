@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.1.1](https://github.com/stevencrawford/omnivue/compare/v0.1.0...v0.1.1) - 2026-07-05
+
+### Dependency Updates ⬆️
+- chore(deps): Bump the dependencies group in /internal/frontend with 23 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/22
+- chore(deps): Bump the dependencies group with 5 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/21
+### Other Changes
+- fix: various fixes for copilot agent by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/17
+- fix: mobile-responsive header and agent hero pill by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/23
+- feat: add replay/resume button to OverviewScreen by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/24
+- fix: cancel in-progress pages deploys to avoid duplicate artifact conflict by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/25
+- Resize carousel images, fix favicon, restore README image by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/26
+- Fix SQLITE_BUSY errors from incorrect modernc.org/sqlite DSN syntax by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/27
+- Session tokenomics charts & card styling consistency by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/28
+- fix: cleanup loading/error UX and session rename refresh by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/29
+- refactor(ingest): adapter registry, interface segregation, typed enums, and performance fixes by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/20
+- feat(store): version-tracked schema migrations via goose by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/19
+- feat(notify): in-app notification system by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/30
+- fix: flaky TestClassifyChanges_EmitsQuestionNotification due to flood suppression by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/31
+- feat(build): ad-hoc codesign binary on macOS to satisfy Gatekeeper by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/32
+
 ## [v0.1.0](https://github.com/stevencrawford/omnivue/commits/v0.1.0) - 2026-07-02
 ### Other Changes
 - Add GitHub Pages deployment workflow by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/11
