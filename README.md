@@ -69,7 +69,11 @@ make build
 ### Binary
 
 ```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.tar.gz | tar xz
+# macOS (arm64)
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
+
+# Linux (amd64)
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
 ```
 
 ## Keyboard shortcuts
