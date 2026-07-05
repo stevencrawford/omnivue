@@ -41,6 +41,7 @@ function kindIcon(kind: AppNotification["kind"]) {
 
 export function NotificationRow({ notification, sessionTitle, onClick }: NotificationRowProps) {
   const unread = !notification.readAt;
+  const isQuestion = notification.kind === "question";
   return (
     <button
       type="button"
@@ -62,19 +63,34 @@ export function NotificationRow({ notification, sessionTitle, onClick }: Notific
           <span
             className={`truncate text-xs ${unread ? "font-semibold text-ov-text" : "text-ov-text-secondary"}`}
           >
-            {notification.title}
+            {isQuestion ? "Question" : notification.title}
           </span>
           <span className="ml-auto shrink-0 text-[10px] text-ov-text-secondary">
             {timeAgo(notification.createdAt)}
           </span>
         </div>
-        {sessionTitle && (
-          <p className="truncate text-[11px] text-ov-text-secondary mt-0.5">{sessionTitle}</p>
-        )}
-        {notification.preview && (
-          <p className="truncate text-[11px] text-ov-text-secondary mt-0.5">
-            {notification.preview}
-          </p>
+        {isQuestion ? (
+          <>
+            {notification.preview && (
+              <p className="truncate text-[11px] text-ov-text-secondary mt-0.5">
+                {notification.preview}
+              </p>
+            )}
+            {sessionTitle && (
+              <p className="truncate text-[11px] text-ov-text-secondary mt-0.5">{sessionTitle}</p>
+            )}
+          </>
+        ) : (
+          <>
+            {sessionTitle && (
+              <p className="truncate text-[11px] text-ov-text-secondary mt-0.5">{sessionTitle}</p>
+            )}
+            {notification.preview && (
+              <p className="truncate text-[11px] text-ov-text-secondary mt-0.5">
+                {notification.preview}
+              </p>
+            )}
+          </>
         )}
       </div>
     </button>
