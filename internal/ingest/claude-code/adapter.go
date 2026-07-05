@@ -1,14 +1,12 @@
 package claudecode
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -199,28 +197,34 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
 	edits, err := a.Edits(ctx, sessionID)
 	if err != nil {
-		return nil, nil
-	}
-	if len(edits) == 0 {
-		return nil, nil
+		return nil, err
 	}
 
+	seen := make(map[string]bool)
 	var diffs []ingest.DiffFile
 	for _, e := range edits {
-		if e.OldStr == "" || e.NewStr == "" {
+		if seen[e.FilePath] {
 			continue
 		}
-		patch, err := computeUnifiedDiff(e.FilePath, e.OldStr, e.NewStr)
-		if err != nil {
-			continue
+		seen[e.FilePath] = true
+		adds := 0
+		dels := 0
+		if e.NewStr != "" {
+			adds = strings.Count(e.NewStr, "\n") + 1
+		}
+		if e.OldStr != "" {
+			dels = strings.Count(e.OldStr, "\n") + 1
+		}
+		status := ingest.DiffModified
+		if e.OldStr == "" && e.NewStr != "" {
+			status = ingest.DiffAdded
 		}
 		diffs = append(diffs, ingest.DiffFile{
-			Path:  e.FilePath,
-			Patch: patch,
+			Path:      e.FilePath,
+			Status:    status,
+			Additions: adds,
+			Deletions: dels,
 		})
-	}
-	if len(diffs) == 0 {
-		return nil, nil
 	}
 	return diffs, nil
 }
@@ -237,7 +241,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			if tc.Name != "write" && tc.Name != "edit" {
 				continue
 			}
-			var fp, content, oldStr string
+			var fp, content, old string
 			if tc.Name == "write" {
 				var input struct {
 					FilePath string `json:"file_path"`
@@ -261,9 +265,9 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 					continue
 				}
 				fp = input.FilePath
-				oldStr = input.OldStr
-				if oldStr == "" {
-					oldStr = input.OldString
+				old = input.OldStr
+				if old == "" {
+					old = input.OldString
 				}
 				content = input.NewStr
 				if content == "" {
@@ -279,7 +283,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			edits = append(edits, ingest.FileEdit{
 				FilePath:  fp,
 				ToolName:  tc.Name,
-				OldStr:    oldStr,
+				OldStr:    old,
 				NewStr:    content,
 				Timestamp: m.Timestamp,
 			})
@@ -597,143 +601,6 @@ func (a *Adapter) discoverSubagents(sessionID, projectPath string) []ingest.Sess
 	return sessions
 }
 
-func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, error) {
-	f, err := os.Open(fpath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	scanner := ingestkit.NewJSONLScanner(f)
-
-	var messages []ingest.Message
-	toolCallsByID := make(map[string]*ingest.ToolCall)
-	var currentModel string
-
-	// Resolve tool-results directory once
-	parentSID := resolveParentSessionID(sessionID)
-	toolResultsDir := resolveToolResultsDir(fpath, parentSID)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var env claudeMessageEnvelope
-		if err := json.Unmarshal(line, &env); err != nil {
-			continue
-		}
-
-		// Skip non-message types
-		switch env.Type {
-		case "file-history-snapshot", "queue-operation", "system":
-			continue
-		case "progress":
-			handleProgressEvent(line, toolCallsByID, parentSID)
-			continue
-		case "user":
-			if isMetaMsg(&env) {
-				continue
-			}
-		}
-
-		ts := ingestkit.ParseTime(env.Timestamp)
-
-		switch env.Type {
-		case "user", "assistant":
-			if env.Message == nil {
-				continue
-			}
-
-			// Check if this is a user message containing embedded tool results
-			if env.Type == "user" && env.Message.Role == "user" && env.Message.Content != nil {
-				if extractAndMergeToolResults(env.Message.Content, toolCallsByID, env.IsError) {
-					continue // tool_result user message, skip adding as a user message
-				}
-			}
-
-			msg := ingest.Message{
-				ID:        env.UUID,
-				Role:      ingest.MessageRole(env.Message.Role),
-				Timestamp: ts,
-				Model:     currentModel,
-			}
-
-			if env.Message.Model != "" {
-				currentModel = env.Message.Model
-				msg.Model = currentModel
-			}
-
-			if env.Message.Usage != nil {
-				msg.TokensInput = env.Message.Usage.InputTokens
-				msg.TokensOutput = env.Message.Usage.OutputTokens
-			}
-
-			if env.Slug != "" {
-				if msg.Metadata == nil {
-					msg.Metadata = make(map[string]string)
-				}
-				msg.Metadata["slug"] = env.Slug
-			}
-
-			switch env.Message.Role {
-			case "assistant":
-				text, reasoning, toolCalls := parseAssistantContent(env.Message.Content, msg.ID)
-				msg.Content = text
-				msg.Reasoning = reasoning
-				for i := range toolCalls {
-					if toolResultsDir != "" {
-						if tr := readToolResultFile(toolResultsDir, toolCalls[i].ID); tr != "" {
-							toolCalls[i].Output = truncateToolOutput(tr, toolCalls[i].Name)
-							toolCalls[i].Status = ingest.ToolCallCompleted
-						}
-					}
-					toolCallsByID[toolCalls[i].ID] = &toolCalls[i]
-				}
-				msg.ToolCalls = toolCalls
-
-			case "user":
-				msg.Content = extractUserContent(env.Message.Content)
-				msg = processUserMessage(msg)
-			}
-
-			messages = append(messages, msg)
-
-		case "tool_result":
-			tcID := env.ToolUseID
-			if tcID == "" {
-				continue
-			}
-			content := extractToolResultContent(env.Content)
-			if content == "" && toolResultsDir != "" {
-				content = readToolResultFile(toolResultsDir, tcID)
-			}
-
-			if tc, ok := toolCallsByID[tcID]; ok {
-				tc.Output = truncateToolOutput(content, tc.Name)
-				if env.IsError != nil && *env.IsError {
-					tc.Status = ingest.ToolCallFailed
-				} else {
-					tc.Status = ingest.ToolCallCompleted
-				}
-				if env.AgentID != "" {
-					setToolMetadataSessionID(tc, parentSID, env.AgentID)
-				}
-			}
-		}
-	}
-
-	// Normalize tool names
-	for i := range messages {
-		for j := range messages[i].ToolCalls {
-			normalizeToolCall(&messages[i].ToolCalls[j])
-		}
-	}
-
-	return messages, scanner.Err()
-}
-
 func (a *Adapter) findSlugFromSession(fpath string) string {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -791,233 +658,11 @@ func (a *Adapter) findSessionFile(sessionID string) string {
 	return found
 }
 
-func isMetaMsg(env *claudeMessageEnvelope) bool {
-	if env.IsMeta != nil && *env.IsMeta {
-		return true
-	}
-	return false
-}
 
-func normalizeToolCall(tc *ingest.ToolCall) {
-	switch tc.Name {
-	case "Read":
-		tc.Name = "read"
-	case "Write":
-		tc.Name = "write"
-	case "Edit":
-		tc.Name = "edit"
-	case "Bash":
-		tc.Name = "bash"
-	case "Glob":
-		tc.Name = "glob"
-	case "Grep":
-		tc.Name = "grep"
-	case "Task":
-		tc.Name = "task"
-	case "ExitPlanMode":
-		tc.Name = "exit_plan_mode"
-	case "Delete":
-		tc.Name = "delete"
-	case "WebFetch":
-		tc.Name = "webfetch"
-	case "WebSearch":
-		tc.Name = "websearch"
-	default:
-		normalizeClaudeInternalTool(tc)
-	}
-}
 
-// normalizeClaudeInternalTool handles Claude Code internal tool names that
-// originate from harness tool definitions rather than standard tool calls.
-func normalizeClaudeInternalTool(tc *ingest.ToolCall) {
-	switch tc.Name {
-	case "TaskCreate:TaskCreate":
-		tc.Name = "todowrite"
-		normalizeTaskCreateInput(tc)
-	case "TaskUpdate:TaskUpdate":
-		tc.Name = "todowrite"
-		normalizeTaskUpdateInput(tc)
-	case "Agent:Agent":
-		tc.Name = "task"
-	case "TaskOutput:TaskOutput":
-		tc.Name = "task_complete"
-	default:
-		// Strip harness prefix (e.g., "ToolName:ToolName" → "ToolName")
-		if idx := strings.Index(tc.Name, ":"); idx > 0 && idx+1 < len(tc.Name) && tc.Name[:idx] == tc.Name[idx+1:] {
-			tc.Name = tc.Name[:idx]
-		}
-	}
-}
 
-// normalizeTaskCreateInput transforms TaskCreate input to todowrite format.
-// Input:  {"subject":"...", "description":"...", "activeForm":"..."}
-// Output: {"todos":[{"content":"<subject>","status":"pending","priority":"medium","id":""}]}.
-func normalizeTaskCreateInput(tc *ingest.ToolCall) {
-	var input struct {
-		Subject string `json:"subject"`
-	}
-	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
-		return
-	}
-	if input.Subject == "" {
-		return
-	}
-	todos := []map[string]string{{
-		"content":  input.Subject,
-		"status":   "pending",
-		"priority": "medium",
-		"id":       "",
-	}}
-	transformed, err := json.Marshal(map[string]any{"todos": todos})
-	if err != nil {
-		return
-	}
-	tc.Input = string(transformed)
-}
 
-// normalizeTaskUpdateInput transforms TaskUpdate input to todowrite format.
-// Input:  {"taskId":"1","status":"in_progress"}
-// Output: {"todos":[{"content":"Task #1","status":"in_progress","priority":"medium","id":"1"}]}.
-func normalizeTaskUpdateInput(tc *ingest.ToolCall) {
-	var input struct {
-		TaskID string `json:"taskId"`
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
-		return
-	}
-	if input.TaskID == "" {
-		return
-	}
-	status := input.Status
-	if status == "" {
-		status = "in_progress"
-	}
-	todos := []map[string]string{{
-		"content":  fmt.Sprintf("Task #%s", input.TaskID),
-		"status":   status,
-		"priority": "medium",
-		"id":       input.TaskID,
-	}}
-	transformed, err := json.Marshal(map[string]any{"todos": todos})
-	if err != nil {
-		return
-	}
-	tc.Input = string(transformed)
-}
 
-// interruptedContentRx matches user interrupt messages from Claude Code.
-var interruptedContentRx = regexp.MustCompile(`(?i)\[Request interrupted by user`)
-
-// commandTagRx matches command tags embedded in user messages.
-var commandTagRx = regexp.MustCompile(`(?s)<command-name>(.*?)</command-name>\s*<command-message>(.*?)</command-message>\s*<command-args>(.*?)</command-args>`)
-
-// processUserMessage handles interrupt detection and command tag processing.
-func processUserMessage(msg ingest.Message) ingest.Message {
-	content := msg.Content
-
-	if interruptedContentRx.MatchString(content) {
-		if msg.Metadata == nil {
-			msg.Metadata = make(map[string]string)
-		}
-		msg.Metadata["type"] = "turn_aborted"
-		return msg
-	}
-
-	matches := commandTagRx.FindStringSubmatch(content)
-	if len(matches) == 4 {
-		cmdName := strings.TrimSpace(matches[1])
-		cmdMessage := strings.TrimSpace(matches[2])
-		cmdArgs := strings.TrimSpace(matches[3])
-
-		msg.Content = commandTagRx.ReplaceAllString(content, "")
-
-		if msg.Metadata == nil {
-			msg.Metadata = make(map[string]string)
-		}
-		msg.Metadata["command_name"] = cmdName
-		msg.Metadata["command_message"] = cmdMessage
-		msg.Metadata["command_args"] = cmdArgs
-
-		if cmdName == "/model" {
-			tc := ingest.ToolCall{
-				ID:     "cmd-" + cmdName,
-				Name:   "model_switch",
-				Input:  fmt.Sprintf(`{"model":"%s"}`, cmdMessage),
-				Status: ingest.ToolCallCompleted,
-			}
-			msg.ToolCalls = append(msg.ToolCalls, tc)
-		}
-	}
-
-	return msg
-}
-
-// computeUnifiedDiff generates a unified diff patch string for a file change.
-func computeUnifiedDiff(filePath, oldStr, newStr string) (string, error) {
-	oldLines := splitLines(oldStr)
-	newLines := splitLines(newStr)
-
-	var hunks []string
-	var oldLine, newLine int
-
-	for oldLine < len(oldLines) || newLine < len(newLines) {
-		if oldLine < len(oldLines) && newLine < len(newLines) && oldLines[oldLine] == newLines[newLine] {
-			oldLine++
-			newLine++
-			continue
-		}
-
-		oldStart := oldLine
-		newStart := newLine
-		for oldLine < len(oldLines) || newLine < len(newLines) {
-			if oldLine < len(oldLines) && newLine < len(newLines) && oldLines[oldLine] == newLines[newLine] {
-				break
-			}
-			if oldLine < len(oldLines) {
-				oldLine++
-			}
-			if newLine < len(newLines) {
-				newLine++
-			}
-		}
-		oldEnd := oldLine
-		newEnd := newLine
-
-		hunk := fmt.Sprintf("@@ -%d,%d +%d,%d @@", oldStart+1, oldEnd-oldStart, newStart+1, newEnd-newStart)
-		var lines []string
-		for i := oldStart; i < oldEnd; i++ {
-			lines = append(lines, "-"+oldLines[i])
-		}
-		for i := newStart; i < newEnd; i++ {
-			lines = append(lines, "+"+newLines[i])
-		}
-		hunk += "\n" + strings.Join(lines, "\n")
-		hunks = append(hunks, hunk)
-	}
-
-	if len(hunks) == 0 {
-		return "", nil
-	}
-
-	header := fmt.Sprintf("--- a/%s\n+++ b/%s\n", filePath, filePath)
-	return header + strings.Join(hunks, "\n") + "\n", nil
-}
-
-func splitLines(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var lines []string
-	scanner := bufio.NewScanner(strings.NewReader(s))
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if len(lines) == 0 {
-		lines = []string{""}
-	}
-	return lines
-}
 
 // resolveParentSessionID extracts the parent session ID from a subagent composite ID.
 func resolveParentSessionID(sessionID string) string {

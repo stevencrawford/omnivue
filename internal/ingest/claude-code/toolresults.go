@@ -37,9 +37,10 @@ func readToolResultFile(toolResultsDir, toolUseID string) string {
 	return string(content)
 }
 
-// truncateToolOutput truncates content to maxContentBytes unless the tool is a task.
+// truncateToolOutput truncates content to maxContentBytes unless the tool is a task or sub-agent.
 func truncateToolOutput(content string, toolName string) string {
-	if toolName == "task" || toolName == "Task" {
+	switch toolName {
+	case "task", "Task", "Agent", "TaskOutput", "task_complete":
 		return content
 	}
 	return ingestkit.TruncateContent(content, maxContentBytes)
