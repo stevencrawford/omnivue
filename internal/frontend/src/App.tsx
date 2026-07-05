@@ -200,6 +200,12 @@ export function App() {
     [notifications, markNotificationRead],
   );
 
+  const handleClearFocus = useCallback(() => {
+    setFocusMessageIndex(undefined);
+    setFocusMessageId(undefined);
+    setFocusMessageKey(0);
+  }, []);
+
   const handleGoHome = useCallback(() => {
     setShowOverview(true);
     setActiveSessionId(null);
@@ -358,6 +364,7 @@ export function App() {
                         focusMessageIndex={focusMessageIndex}
                         focusMessageKey={focusMessageKey}
                         focusMessageId={focusMessageId}
+                        onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
                       />
                     </SearchHighlightContext.Provider>

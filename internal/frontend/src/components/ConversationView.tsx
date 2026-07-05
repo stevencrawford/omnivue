@@ -48,6 +48,7 @@ export function ConversationView({
   focusMessageIndex,
   focusMessageKey,
   focusMessageId,
+  onClearFocus,
 }: {
   messages: Message[];
   session: Session;
@@ -66,6 +67,7 @@ export function ConversationView({
   focusMessageIndex?: number;
   focusMessageKey?: number;
   focusMessageId?: string;
+  onClearFocus?: () => void;
 }) {
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
@@ -98,6 +100,7 @@ export function ConversationView({
     focusMessageKey,
     focusMessageId,
     messagesWithoutReminders,
+    onClearFocus,
   );
 
   useEffect(() => {

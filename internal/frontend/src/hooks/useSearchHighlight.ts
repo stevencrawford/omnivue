@@ -55,6 +55,7 @@ export function useSearchHighlight(
   focusMessageKey: number | undefined,
   focusMessageId: string | undefined,
   messagesWithoutReminders: Message[],
+  onClearFocus?: () => void,
 ) {
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
 
@@ -98,7 +99,10 @@ export function useSearchHighlight(
     if (el) {
       scrollToMessageEl(el);
       el.classList.add("sess-message-highlight");
-      const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
+      const timer = setTimeout(() => {
+        el.classList.remove("sess-message-highlight");
+        onClearFocus?.();
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [
