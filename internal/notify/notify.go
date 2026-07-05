@@ -12,6 +12,7 @@ package notify
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -148,7 +149,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Kind:     KindQuestion,
 						DedupKey: toolDedupKey(tc.ID, m.ID, name),
 						Title:    "Asked a question",
-						Preview:  previewText(m.Content, tc.Input),
+						Preview:  previewForQuestion(m.Content, tc.Input),
 						Severity: SeverityAttention,
 						Payload: map[string]any{
 							"toolCallId":   tc.ID,
@@ -166,7 +167,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Kind:     KindTaskComplete,
 						DedupKey: toolDedupKey(tc.ID, m.ID, name),
 						Title:    "Task complete",
-						Preview:  previewText(m.Content, tc.Output),
+						Preview:  previewForTaskComplete(m.Content, tc.Output),
 						Severity: SeverityInfo,
 						Payload: map[string]any{
 							"toolCallId":   tc.ID,
@@ -272,6 +273,38 @@ func previewText(content, fallback string) string {
 		s = s[:200] + "…"
 	}
 	return s
+}
+
+// previewForQuestion builds a preview for question tool call notifications.
+// It prefers the message content, then tries to extract text from the tool
+// input JSON (which may contain a "question", "text", "prompt", or "message"
+// field), and falls back to a descriptive default.
+func previewForQuestion(content, input string) string {
+	if s := strings.TrimSpace(content); s != "" && s != "{}" {
+		return previewText(s, "")
+	}
+	var data map[string]any
+	if json.Unmarshal([]byte(input), &data) == nil {
+		for _, key := range []string{"question", "text", "prompt", "message"} {
+			if s, ok := data[key].(string); ok && s != "" {
+				return previewText(s, "")
+			}
+		}
+	}
+	return "Agent asked you a question"
+}
+
+// previewForTaskComplete builds a preview for task-complete notifications.
+// It prefers the message content, then tries to extract text from the tool
+// output, and falls back to a descriptive default.
+func previewForTaskComplete(content, output string) string {
+	if s := strings.TrimSpace(content); s != "" {
+		return previewText(s, "")
+	}
+	if s := strings.TrimSpace(output); s != "" {
+		return previewText("", s)
+	}
+	return "Task completed successfully"
 }
 
 // InQuietHours reports whether the given time falls within the configured quiet
