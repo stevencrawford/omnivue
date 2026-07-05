@@ -906,7 +906,7 @@ func (s *State) pollLoop(ctx context.Context) {
 func (s *State) subscribe() chan sseEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ch := make(chan sseEvent, 16)
+	ch := make(chan sseEvent, 64)
 	s.subscribers[ch] = struct{}{}
 	return ch
 }
@@ -924,7 +924,7 @@ func (s *State) sendEvent(event sseEvent) {
 		select {
 		case ch <- event:
 		default:
-			// Drop event if subscriber is slow
+			slog.Debug("dropped SSE event", "name", event.Name)
 		}
 	}
 }
@@ -976,23 +976,6 @@ func (s *State) reportActiveView(sessionID string) {
 	s.activeViewsMu.Unlock()
 }
 
-// isActiveView reports whether the given session was reported as the current
-// view within the activeViewTTL window.
-const activeViewTTL = 10 * time.Second
-
-func (s *State) isActiveView(sessionID string) bool {
-	s.activeViewsMu.Lock()
-	defer s.activeViewsMu.Unlock()
-	t, ok := s.activeViews[sessionID]
-	if !ok {
-		return false
-	}
-	if time.Since(t) > activeViewTTL {
-		delete(s.activeViews, sessionID)
-		return false
-	}
-	return true
-}
 
 // classifyChanges inspects the changed sessions, runs the pure classifier, and
 // persists+emits any resulting notifications. It must not block the poll loop,
@@ -1039,12 +1022,6 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 			s.advanceSeenCursor(ctx, sess)
 			continue
 		}
-		// ExcludeActiveView: skip emitting for the session currently open in a tab.
-		if settings.ExcludeActiveView && s.isActiveView(sess.ID) {
-			s.advanceSeenCursor(ctx, sess)
-			continue
-		}
-
 		msgs, err := s.Messages(ctx, sess.ID)
 		if err != nil {
 			continue
