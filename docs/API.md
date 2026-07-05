@@ -8,14 +8,15 @@ All internal API endpoints are under `/_/api/` and SSE under `/_/events`. The `/
 GET /_/api/status
 ```
 
-Returns server status.
+Returns server status with schema version.
 
 ```json
 {
   "version": "0.1.0",
   "pid": 12345,
   "sources": 3,
-  "sessions": 42
+  "sessions": 42,
+  "schemaVersion": 2
 }
 ```
 
@@ -127,7 +128,19 @@ Get session conversation messages, including tool calls, step events, and reason
 GET /_/api/sessions/{id}/plan
 ```
 
-Get the session's implementation plan as markdown. Returns `null` if no plan exists.
+Get the session's implementation plan items. Returns an array of `PlanItem` objects, or `null` if no plan exists.
+
+```json
+[
+  {
+    "id": "plan_123",
+    "title": "Add login endpoint",
+    "description": "Create POST /api/login route",
+    "status": "completed",
+    "assignedTo": ""
+  }
+]
+```
 
 ```http
 GET /_/api/sessions/{id}/diffs
@@ -169,7 +182,7 @@ Override the display name for a session.
 DELETE /_/api/sessions/{id}/name
 ```
 
-Clear the display name override, reverting to the original title.
+Clear the display name override, reverting to the original title. Returns `204`.
 
 ## Scratch Files
 
@@ -215,10 +228,22 @@ Update a scratch file's title and content.
 ```
 
 ```http
+PATCH /_/api/sessions/{id}/scratch/{fileId}
+```
+
+Rename a scratch file (title only). Returns `204`.
+
+```json
+{
+  "title": "Renamed Notes"
+}
+```
+
+```http
 DELETE /_/api/sessions/{id}/scratch/{fileId}
 ```
 
-Delete a scratch file.
+Delete a scratch file. Returns `204`.
 
 ```http
 GET /_/api/scratch
@@ -257,6 +282,20 @@ Parameters:
 ```
 
 Results are ordered by chunk type (name → plan → messages → scratch) then by FTS rank.
+
+## Recent Searches
+
+```http
+GET /_/api/recent-searches
+```
+
+Returns the list of recent search queries as `[]string`.
+
+```http
+POST /_/api/recent-searches
+```
+
+Save recent search queries. Accepts `[]string` body.
 
 ## Folders
 
@@ -327,34 +366,6 @@ DELETE /_/api/folders/{id}/sessions/{sessionId}
 
 Remove a session from a folder. Returns `204`.
 
-## Server Lifecycle
-
-```http
-POST /_/api/shutdown
-```
-
-Gracefully shut down the server. Returns `202` with no body.
-
-```http
-POST /_/api/restart
-```
-
-Restart the server. The server spawns a new process before shutting down. Returns `202` with no body.
-
-## Recent Searches
-
-```http
-GET /_/api/recent-searches
-```
-
-Returns the list of recent search queries as `[]string`.
-
-```http
-POST /_/api/recent-searches
-```
-
-Save recent search queries. Accepts `[]string` body.
-
 ## Bookmarks
 
 ```http
@@ -380,7 +391,7 @@ List all bookmarks.
 POST /_/api/bookmarks
 ```
 
-Create or toggle a bookmark. If a bookmark for the same session+message+toolCall already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, and optional `label`.
+Create or toggle a bookmark. If a bookmark for the same `sessionId`+`messageIndex`+`toolCallId` already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, and optional `label`.
 
 ```json
 {
@@ -407,13 +418,118 @@ DELETE /_/api/bookmarks/{id}
 
 Delete a bookmark by ID. Returns `204`.
 
+## Notifications
+
+```http
+GET /_/api/notifications?limit=<n>&unreadOnly=<bool>
+```
+
+List notifications (newest first).
+
+Parameters:
+- `limit` (optional, default 50) — Max results
+- `unreadOnly` (optional, default false) — Filter to unread only
+
+```json
+[
+  {
+    "id": "notif_abc123",
+    "sessionId": "sess_123",
+    "sourceId": "src_1",
+    "kind": "question",
+    "title": "Question from agent",
+    "preview": "Should we use React or Vue?",
+    "severity": "attention",
+    "payload": "{\"messageIndex\":3}",
+    "createdAt": 1769876543000,
+    "readAt": null
+  }
+]
+```
+
+Notification kinds: `question`, `task_complete`, `new_messages`, `new_tool_call`, `status_active`, `status_completed`, `status_error`.
+
+```http
+DELETE /_/api/notifications
+```
+
+Clear all notifications. Returns `204`.
+
+```http
+POST /_/api/notifications/read
+```
+
+Mark notifications as read.
+
+```json
+{"ids": ["notif_abc", "notif_def"]}
+```
+
+Omit `ids` or set to `null` to mark all as read.
+
+```http
+POST /_/api/notifications/active-view
+```
+
+Report the currently-viewed session ID to the server (used by the `excludeActiveView` setting to suppress notifications for the active session).
+
+```json
+{"sessionId": "sess_123"}
+```
+
+Returns `204`.
+
+### Notification Settings
+
+```http
+GET /_/api/notifications/settings
+```
+
+Returns the current notification settings as JSON.
+
+```json
+{
+  "enabled": true,
+  "kinds": ["question", "task_complete", "new_messages", "new_tool_call", "status_active", "status_completed", "status_error"],
+  "scope": "all",
+  "inAppToast": true,
+  "sidebarBadge": true,
+  "browserNotify": false,
+  "quietHoursEnabled": false,
+  "quietHoursStart": "22:00",
+  "quietHoursEnd": "08:00",
+  "autoDismissSec": 5,
+  "excludeActiveView": true
+}
+```
+
+```http
+PUT /_/api/notifications/settings
+```
+
+Save notification settings. Accepts the same JSON shape as above.
+
+## Server Lifecycle
+
+```http
+POST /_/api/shutdown
+```
+
+Gracefully shut down the server. Returns `202` with no body.
+
+```http
+POST /_/api/restart
+```
+
+Restart the server. The server spawns a new process before shutting down. Returns `202` with no body.
+
 ## Reset
 
 ```http
 POST /_/api/reset
 ```
 
-Reset all user data: sources, folders, search index, session names, scratch files, config, and bookmarks. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
+Reset all user data: sources, folders, search index, session names, scratch files, config, bookmarks, and notifications. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
 
 ```json
 {"status": "ok"}
@@ -436,9 +552,21 @@ data: {}
 
 event: session-changed
 data: {"ids":["sess1","sess2"]}
+
+event: notification
+data: {"id":"notif_abc","sessionId":"sess_1",...}
+
+event: notifications-read
+data: {"ids":["notif_abc","notif_def"]}
+
+event: reset
+data: {}
 ```
 
 Events:
 - `started` — Initial connection confirmation (includes PID)
 - `update` — Session list may have changed (refresh)
 - `session-changed` — Specific sessions changed, with IDs
+- `notification` — A new notification was created
+- `notifications-read` — Notifications were marked as read
+- `reset` — All user data was reset
