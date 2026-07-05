@@ -95,7 +95,9 @@ export function SessionPanel({
   const [expandedParentId, setExpandedParentId] = useState<string | null>(() => {
     if (!activeSessionId) return null;
     const session = sessions.find((s) => s.id === activeSessionId);
-    return session?.parentId || null;
+    if (session?.parentId) return session.parentId;
+    if (sessions.some((s) => s.parentId === activeSessionId)) return activeSessionId;
+    return null;
   });
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
@@ -121,7 +123,11 @@ export function SessionPanel({
     if (!activeSessionId) return;
     const session = sessions.find((s) => s.id === activeSessionId);
     const parentId = session?.parentId || null;
-    if (parentId) setExpandedParentId(parentId);
+    if (parentId) {
+      setExpandedParentId(parentId);
+    } else if (sessions.some((s) => s.parentId === activeSessionId)) {
+      setExpandedParentId(activeSessionId);
+    }
   }, [activeSessionId, sessions]);
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
