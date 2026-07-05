@@ -48,6 +48,8 @@ interface SessionViewerProps {
   bookmarkIdByRef?: Record<string, string>;
   focusStepIndex?: number;
   focusMessageIndex?: number;
+  focusMessageKey?: number;
+  focusMessageId?: string;
   searchHighlightQuery?: string | null;
 }
 
@@ -79,6 +81,8 @@ export function SessionViewer({
   bookmarkIdByRef,
   focusStepIndex,
   focusMessageIndex,
+  focusMessageKey,
+  focusMessageId,
   searchHighlightQuery,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
@@ -290,6 +294,8 @@ export function SessionViewer({
             bookmarkIdByRef={bookmarkIdByRef}
             focusStepIndex={focusStepIndex}
             focusMessageIndex={focusMessageIndex}
+            focusMessageKey={focusMessageKey}
+            focusMessageId={focusMessageId}
             searchHighlightQuery={searchHighlightQuery ?? undefined}
           />
         </div>

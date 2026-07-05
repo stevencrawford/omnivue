@@ -66,6 +66,8 @@ export function App() {
   const [showOverview, setShowOverview] = useState(true);
   const [focusStepIndex, setFocusStepIndex] = useState<number | undefined>(undefined);
   const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
+  const [focusMessageKey, setFocusMessageKey] = useState(0);
+  const [focusMessageId, setFocusMessageId] = useState<string | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -183,6 +185,8 @@ export function App() {
       setActiveSessionId(sessionId);
       setFocusStepIndex(undefined);
       setFocusMessageIndex(undefined);
+      setFocusMessageId(undefined);
+      setFocusMessageKey(0);
       setActiveTab("session");
       setSearchHighlightQuery(null);
       // Mark all unread notifications for this session as read
@@ -210,9 +214,12 @@ export function App() {
       setShowOverview(false);
       setActiveSessionId(sessionId);
       setFocusMessageIndex(messageIndex);
+      setFocusMessageId(undefined);
+      setFocusMessageKey((k) => k + 1);
       setFocusStepIndex(undefined);
       setActiveTab("session");
       setSearchHighlightQuery(null);
+      setActiveSection("sessions");
     },
     [],
   );
@@ -223,10 +230,30 @@ export function App() {
       setActiveSessionId(n.sessionId);
       setActiveTab("session");
       setFocusStepIndex(undefined);
-      setFocusMessageIndex(undefined);
       setSearchHighlightQuery(null);
       markNotificationRead([n.id]);
       setActiveSection("sessions");
+
+      // Parse the payload for a message index to jump directly to
+      // the message that triggered the notification.
+      let msgIdx: number | undefined;
+      let msgId: string | undefined;
+      try {
+        if (n.payload) {
+          const payload = JSON.parse(n.payload);
+          if (typeof payload.messageIndex === "number") {
+            msgIdx = payload.messageIndex;
+          }
+          if (typeof payload.messageId === "string") {
+            msgId = payload.messageId;
+          }
+        }
+      } catch {
+        // ignore malformed payload
+      }
+      setFocusMessageKey((k) => k + 1);
+      setFocusMessageIndex(msgIdx);
+      setFocusMessageId(msgId);
     },
     [markNotificationRead],
   );
@@ -329,6 +356,8 @@ export function App() {
                         bookmarkIdByRef={bookmarkIdByRef}
                         focusStepIndex={focusStepIndex}
                         focusMessageIndex={focusMessageIndex}
+                        focusMessageKey={focusMessageKey}
+                        focusMessageId={focusMessageId}
                         searchHighlightQuery={searchHighlightQuery}
                       />
                     </SearchHighlightContext.Provider>
@@ -413,8 +442,10 @@ function NotificationToaster({
       if (settings?.excludeActiveView && n.sessionId === activeSessionId) continue;
       const { toast, browser } = resolveChannels(n, settings);
       if (toast) {
+        const toastMsg =
+          n.kind === "question" ? "Question" : `${n.title}${n.preview ? " — " + n.preview : ""}`;
         showToast(
-          `${n.title}${n.preview ? " — " + n.preview : ""}`,
+          toastMsg,
           {
             label: "View",
             onClick: () => onNavigate(n.sessionId),
