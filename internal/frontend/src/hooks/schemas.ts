@@ -54,6 +54,7 @@ export const MessageSchema = z.object({
   tokensInput: coerceNumber.optional(),
   tokensOutput: coerceNumber.optional(),
   metadata: z.record(z.string(), z.string()).optional(),
+  error: z.string().optional(),
 });
 
 export const SessionSchema = z.object({

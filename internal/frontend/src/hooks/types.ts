@@ -74,6 +74,7 @@ export interface Message {
   tokensInput?: number;
   tokensOutput?: number;
   metadata?: Record<string, string>;
+  error?: string;
 }
 
 export interface ToolCall {

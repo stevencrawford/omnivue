@@ -6,11 +6,38 @@ import (
 	"log"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
+
+type modelChangeEvent struct {
+	timestamp time.Time
+	model     string
+	provider  string
+}
+
+// extractErrorMessage normalizes Pi's error format.
+// Pi returns errors as either:
+//
+//	"Upstream error from Nvidia: ResourceExhausted: ..."           (plain text)
+//	"400: {\"message\":\"...\", \"code\":400, \"metadata\":{...}}" (HTTP + JSON body)
+func extractErrorMessage(raw string) string {
+	if parts := strings.SplitN(raw, ": ", 2); len(parts) == 2 {
+		if _, err := strconv.Atoi(parts[0]); err == nil {
+			var payload struct {
+				Message string `json:"message"`
+			}
+			if json.Unmarshal([]byte(parts[1]), &payload) == nil && payload.Message != "" {
+				return payload.Message
+			}
+		}
+	}
+	return raw
+}
 
 func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message, error) {
 	f, err := os.Open(filePath)
@@ -21,6 +48,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 
 	var parsed []ingest.Message
 	currentModel := ""
+	var modelChanges []modelChangeEvent
 
 	scanner := ingestkit.NewJSONLScanner(f)
 	// Skip session header
@@ -43,6 +71,13 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 		case "model_change":
 			if env.ModelID != "" {
 				currentModel = env.ModelID
+				if t, err := time.Parse(time.RFC3339, env.Timestamp); err == nil {
+					modelChanges = append(modelChanges, modelChangeEvent{
+						timestamp: t,
+						model:     env.ModelID,
+						provider:  env.Provider,
+					})
+				}
 			}
 
 		case "thinking_level_change":
@@ -108,6 +143,29 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 		messages = append(messages, msg)
 	}
 
+	// Inject synthesized model_switch tool calls for mid-session model changes.
+	// modelChanges[0] is the initial model (set at session start), skip it.
+	for i := 1; i < len(modelChanges); i++ {
+		mc := modelChanges[i]
+		for j := range messages {
+			if messages[j].Role == ingest.MessageRoleAssistant && messages[j].Timestamp.After(mc.timestamp) {
+				input, _ := json.Marshal(map[string]string{
+					"model":    mc.model,
+					"provider": mc.provider,
+				})
+				tc := ingest.ToolCall{
+					ID:     fmt.Sprintf("model-switch-%d", i),
+					Name:   "model_switch",
+					Input:  string(input),
+					Output: string(input),
+					Status: ingest.ToolCallCompleted,
+				}
+				messages[j].ToolCalls = append(messages[j].ToolCalls, tc)
+				break
+			}
+		}
+	}
+
 	return messages, nil
 }
 
@@ -138,6 +196,11 @@ func parseMessage(env piMessageEnvelope, currentModel string) (ingest.Message, e
 		msg.Content = parts
 		msg.ToolCalls = tc
 		msg.Reasoning = reasoning
+
+			// Capture API errors (rate limits, context length, etc.)
+			if env.Message.StopReason == "error" && env.Message.ErrorMsg != "" {
+				msg.Error = extractErrorMessage(env.Message.ErrorMsg)
+			}
 
 		if env.Message.Usage != nil {
 			msg.TokensInput = env.Message.Usage.Input

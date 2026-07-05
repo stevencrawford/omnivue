@@ -11,6 +11,7 @@ import { DeleteToolDiff } from "./DeleteToolDiff";
 import { TodoWriteToolDiff } from "./TodoWriteToolDiff";
 import { SqlToolDiff } from "./SqlToolDiff";
 import { CompactionToolDiff } from "./CompactionToolDiff";
+import { ModelSwitchToolDiff } from "./ModelSwitchToolDiff";
 import { TaskToolDiff } from "./TaskToolDiff";
 import { SkillToolDiff } from "./SkillToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
@@ -294,6 +295,22 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Plans",
     markerDisplayType: "plan",
     markerPriority: 30,
+    truncateOutput: 0,
+  },
+  {
+    kind: "model_switch",
+    names: ["model_switch"],
+    Component: ModelSwitchToolDiff,
+    summary: (tool) => {
+      const m = extractJSONField(tool.input, "model") || "";
+      const parts = m.split("/");
+      return parts.pop() || parts[0] || m || "model";
+    },
+    display: { type: "always-open" },
+    markerColor: "#3b82f6",
+    markerLabel: "Model switch",
+    markerDisplayType: "model",
+    markerPriority: 65,
     truncateOutput: 0,
   },
   {
