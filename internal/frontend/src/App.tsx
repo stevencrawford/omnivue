@@ -177,14 +177,24 @@ export function App() {
   }, []);
 
   // ---- Navigation handlers ----
-  const handleSessionSelect = useCallback((sessionId: string) => {
-    setShowOverview(false);
-    setActiveSessionId(sessionId);
-    setFocusStepIndex(undefined);
-    setFocusMessageIndex(undefined);
-    setActiveTab("session");
-    setSearchHighlightQuery(null);
-  }, []);
+  const handleSessionSelect = useCallback(
+    (sessionId: string) => {
+      setShowOverview(false);
+      setActiveSessionId(sessionId);
+      setFocusStepIndex(undefined);
+      setFocusMessageIndex(undefined);
+      setActiveTab("session");
+      setSearchHighlightQuery(null);
+      // Mark all unread notifications for this session as read
+      const unreadForSession = notifications
+        .filter((n) => n.sessionId === sessionId && !n.readAt)
+        .map((n) => n.id);
+      if (unreadForSession.length > 0) {
+        markNotificationRead(unreadForSession);
+      }
+    },
+    [notifications, markNotificationRead],
+  );
 
   const handleGoHome = useCallback(() => {
     setShowOverview(true);
@@ -365,6 +375,7 @@ export function App() {
           <NotificationToaster
             notifications={notifications}
             settings={notificationSettings}
+            activeSessionId={activeSessionId}
             onNavigate={(sessionId) => handleSessionSelect(sessionId)}
           />
         </div>
@@ -382,10 +393,12 @@ export function App() {
 function NotificationToaster({
   notifications,
   settings,
+  activeSessionId,
   onNavigate,
 }: {
   notifications: AppNotification[];
   settings: NotificationSettings | null;
+  activeSessionId: string | null;
   onNavigate: (sessionId: string) => void;
 }) {
   const { showToast } = useToast();
@@ -395,20 +408,25 @@ function NotificationToaster({
     for (const n of notifications) {
       if (seenIds.current.has(n.id)) continue;
       seenIds.current.add(n.id);
-      // Only fire for unread notifications that arrived after the hook mounted.
       if (n.readAt) continue;
+      // Skip toast if excludeActiveView is on and user is already viewing this session.
+      if (settings?.excludeActiveView && n.sessionId === activeSessionId) continue;
       const { toast, browser } = resolveChannels(n, settings);
       if (toast) {
-        showToast(`${n.title}${n.preview ? " — " + n.preview : ""}`, {
-          label: "View",
-          onClick: () => onNavigate(n.sessionId),
-        });
+        showToast(
+          `${n.title}${n.preview ? " — " + n.preview : ""}`,
+          {
+            label: "View",
+            onClick: () => onNavigate(n.sessionId),
+          },
+          settings?.autoDismissSec ? settings.autoDismissSec * 1000 : undefined,
+        );
       }
       if (browser) {
         fireBrowserNotification(n);
       }
     }
-  }, [notifications, settings, showToast, onNavigate]);
+  }, [notifications, settings, activeSessionId, showToast, onNavigate]);
 
   return null;
 }
