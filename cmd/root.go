@@ -38,6 +38,7 @@ var (
 	foreground     bool
 	statusServer   bool
 	jsonOutput     bool
+	debug          bool
 )
 
 var rootCmd = &cobra.Command{
@@ -81,9 +82,17 @@ func init() {
 	rootCmd.Flags().BoolVar(&foreground, "foreground", false, "Run server in foreground")
 	rootCmd.Flags().BoolVar(&statusServer, "status", false, "Show status of running servers")
 	rootCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output structured data as JSON")
+	rootCmd.Flags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	lvl := new(slog.LevelVar)
+	lvl.Set(slog.LevelInfo)
+	if debug {
+		lvl.Set(slog.LevelDebug)
+	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})))
+
 	if !foreground {
 		logCleanup, err := logfile.Setup(port)
 		if err != nil {

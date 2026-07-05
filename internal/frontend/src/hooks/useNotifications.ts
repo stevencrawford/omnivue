@@ -32,8 +32,11 @@ export function useNotifications(): NotificationsState {
 
   const reload = useCallback(() => {
     fetchNotifications({ limit: 100 })
-      .then((data) => setNotifications(data || []))
-      .catch((err) => console.error("Failed to load notifications:", err))
+      .then((data) => {
+        console.debug("[notifications] reloaded", data?.length ?? 0, "items");
+        setNotifications(data || []);
+      })
+      .catch((err) => console.error("[notifications] reload failed:", err))
       .finally(() => setLoading(false));
   }, []);
 

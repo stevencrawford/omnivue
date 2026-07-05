@@ -869,6 +869,7 @@ func (s *State) pollLoop(ctx context.Context) {
 			if changed {
 				ids, lc, transitions := s.refreshSessions(ctx)
 				liveCount = lc
+				slog.Debug("poll: refresh done", "changedIDs", ids, "liveCount", lc, "transitions", len(transitions))
 				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
 				if len(ids) > 0 {
@@ -878,22 +879,20 @@ func (s *State) pollLoop(ctx context.Context) {
 					} else {
 						s.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
 					}
+					slog.Debug("poll: calling classifyChanges", "sessions", ids, "transitions", len(transitions))
 					go s.classifyChanges(ctx, ids, transitions)
 				}
 			} else if liveCount > 0 {
-				// No source-level change, but liveness windows may have expired
-				// since the last refresh (e.g. a session went idle 3 min ago).
-				// Re-run the heuristic to keep Status fresh without the heavier
-				// full reload cost — but only if the snapshot might be stale.
 				_, lc, transitions := s.refreshSessions(ctx)
 				if lc != liveCount {
-					// Status transitions are visible to clients; push an update.
+					slog.Debug("poll: live count changed", "from", liveCount, "to", lc, "transitions", len(transitions))
 					s.sendEvent(sseEvent{Name: "update"})
 					if len(transitions) > 0 {
 						var tids []string
 						for _, t := range transitions {
 							tids = append(tids, t.sessionID)
 						}
+						slog.Debug("poll: calling classifyChanges for transitions", "sessions", tids)
 						go s.classifyChanges(ctx, tids, transitions)
 					}
 				}
@@ -990,10 +989,12 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 		return
 	}
 	settings := s.loadNotifySettings()
+	slog.Debug("classifyChanges: settings", "enabled", settings.Enabled, "kinds", settings.Kinds, "scope", settings.Scope)
 	if !settings.Enabled {
 		// Even when disabled, advance the seen-message cursor so we don't
 		// flood the user with a backlog of pre-existing messages the moment
 		// they re-enable notifications.
+		slog.Debug("classifyChanges: notifications disabled, advancing cursors")
 		s.advanceSeenCursors(ctx, changedIDs)
 		return
 	}
@@ -1010,20 +1011,24 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 		transBySession[t.sessionID] = t
 	}
 
+	slog.Debug("classifyChanges: starting", "sessionCount", len(changedIDs), "transitionCount", len(transitions))
 	var emittedAny bool
 	for _, sid := range changedIDs {
 		sess, err := s.Session(ctx, sid)
 		if err != nil || sess == nil {
+			slog.Debug("classifyChanges: session not found", "session", sid, "error", err)
 			continue
 		}
 		// Scope filter: only sessions the user has opened / pinned.
 		if !s.sessionInScope(ctx, sess.ID, settings.Scope) {
+			slog.Debug("classifyChanges: session out of scope", "session", sess.ID, "scope", settings.Scope)
 			// Still advance the cursor so future messages are detected.
 			s.advanceSeenCursor(ctx, sess)
 			continue
 		}
 		msgs, err := s.Messages(ctx, sess.ID)
 		if err != nil {
+			slog.Debug("classifyChanges: failed to load messages", "session", sess.ID, "error", err)
 			continue
 		}
 
@@ -1038,7 +1043,16 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 			prevStatus = t.from
 		}
 
+		slog.Debug("classifyChanges: classifying session",
+			"session", sess.ID,
+			"msgCount", len(msgs),
+			"lastSeenCount", st.LastSeenMessageCount,
+			"newCount", len(msgs)-st.LastSeenMessageCount,
+			"status", string(sess.Status),
+			"prevStatus", prevStatus,
+		)
 		candidates := notify.Classify(prevStatus, string(sess.Status), msgs, st.LastSeenMessageCount, settings)
+		slog.Debug("classifyChanges: classify result", "session", sess.ID, "candidates", len(candidates))
 
 		for _, c := range candidates {
 			n := store.Notification{
@@ -1061,6 +1075,12 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 				slog.Warn("failed to insert notification", "session", sess.ID, "error", err)
 				continue
 			}
+			slog.Debug("classifyChanges: notification result",
+				"session", sess.ID,
+				"kind", c.Kind,
+				"dedupKey", c.DedupKey,
+				"inserted", inserted,
+			)
 			if inserted {
 				emittedAny = true
 				s.emitNotification(n, c.Payload)

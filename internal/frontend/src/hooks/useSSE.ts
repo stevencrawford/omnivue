@@ -31,6 +31,7 @@ export function useSSE(callbacks: SSECallbacks) {
           const data = JSON.parse(e.data);
           if (typeof data.pid !== "number") return;
           if (serverPid !== null && data.pid !== serverPid) {
+            console.debug("[SSE] server pid changed, reloading", data.pid);
             window.location.reload();
             return;
           }
@@ -38,14 +39,17 @@ export function useSSE(callbacks: SSECallbacks) {
         } catch {
           // ignore
         }
+        console.debug("[SSE] started event, pid=", serverPid);
         callbacksRef.current.onStarted?.();
       });
 
       es.addEventListener("update", () => {
+        console.debug("[SSE] update event");
         callbacksRef.current.onUpdate();
       });
 
       es.addEventListener("reset", () => {
+        console.debug("[SSE] reset event, reloading");
         window.location.reload();
       });
 
@@ -53,6 +57,7 @@ export function useSSE(callbacks: SSECallbacks) {
         try {
           const data = JSON.parse(e.data);
           if (Array.isArray(data.ids)) {
+            console.debug("[SSE] session-changed event", data.ids);
             callbacksRef.current.onSessionChanged?.(data.ids);
           }
         } catch {
@@ -61,6 +66,7 @@ export function useSSE(callbacks: SSECallbacks) {
       });
 
       es.addEventListener("notification", () => {
+        console.debug("[SSE] notification event");
         callbacksRef.current.onNotification?.();
       });
 
