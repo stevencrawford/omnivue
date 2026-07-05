@@ -1,12 +1,14 @@
 package claudecode
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -194,8 +196,33 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 	return nil, nil
 }
 
-func (a *Adapter) Diffs(_ context.Context, _ string) ([]ingest.DiffFile, error) {
-	return nil, nil
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	edits, err := a.Edits(ctx, sessionID)
+	if err != nil {
+		return nil, nil
+	}
+	if len(edits) == 0 {
+		return nil, nil
+	}
+
+	var diffs []ingest.DiffFile
+	for _, e := range edits {
+		if e.OldStr == "" || e.NewStr == "" {
+			continue
+		}
+		patch, err := computeUnifiedDiff(e.FilePath, e.OldStr, e.NewStr)
+		if err != nil {
+			continue
+		}
+		diffs = append(diffs, ingest.DiffFile{
+			Path:  e.FilePath,
+			Patch: patch,
+		})
+	}
+	if len(diffs) == 0 {
+		return nil, nil
+	}
+	return diffs, nil
 }
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
@@ -210,7 +237,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			if tc.Name != "write" && tc.Name != "edit" {
 				continue
 			}
-			var fp, content string
+			var fp, content, oldStr string
 			if tc.Name == "write" {
 				var input struct {
 					FilePath string `json:"file_path"`
@@ -223,16 +250,25 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 				content = input.Content
 			} else {
 				var input struct {
-					FilePath string `json:"file_path"`
-					OldStr   string `json:"old_str"`
-					NewStr   string `json:"new_str"`
-					Content  string `json:"content"`
+					FilePath  string `json:"file_path"`
+					OldStr    string `json:"old_str"`
+					OldString string `json:"old_string"`
+					NewStr    string `json:"new_str"`
+					NewString string `json:"new_string"`
+					Content   string `json:"content"`
 				}
 				if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 					continue
 				}
 				fp = input.FilePath
+				oldStr = input.OldStr
+				if oldStr == "" {
+					oldStr = input.OldString
+				}
 				content = input.NewStr
+				if content == "" {
+					content = input.NewString
+				}
 				if content == "" {
 					content = input.Content
 				}
@@ -243,6 +279,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			edits = append(edits, ingest.FileEdit{
 				FilePath:  fp,
 				ToolName:  tc.Name,
+				OldStr:    oldStr,
 				NewStr:    content,
 				Timestamp: m.Timestamp,
 			})
@@ -658,6 +695,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 			case "user":
 				msg.Content = extractUserContent(env.Message.Content)
+				msg = processUserMessage(msg)
 			}
 
 			messages = append(messages, msg)
@@ -775,7 +813,6 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	case "Grep":
 		tc.Name = "grep"
 	case "Task":
-		// Task tool spawns subagents — map to our internal task name
 		tc.Name = "task"
 	case "ExitPlanMode":
 		tc.Name = "exit_plan_mode"
@@ -786,7 +823,200 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 	case "WebSearch":
 		tc.Name = "websearch"
 	default:
+		normalizeClaudeInternalTool(tc)
 	}
+}
+
+// normalizeClaudeInternalTool handles Claude Code internal tool names that
+// originate from harness tool definitions rather than standard tool calls.
+func normalizeClaudeInternalTool(tc *ingest.ToolCall) {
+	switch tc.Name {
+	case "TaskCreate:TaskCreate":
+		tc.Name = "todowrite"
+		normalizeTaskCreateInput(tc)
+	case "TaskUpdate:TaskUpdate":
+		tc.Name = "todowrite"
+		normalizeTaskUpdateInput(tc)
+	case "Agent:Agent":
+		tc.Name = "task"
+	case "TaskOutput:TaskOutput":
+		tc.Name = "task_complete"
+	default:
+		// Strip harness prefix (e.g., "ToolName:ToolName" → "ToolName")
+		if idx := strings.Index(tc.Name, ":"); idx > 0 && idx+1 < len(tc.Name) && tc.Name[:idx] == tc.Name[idx+1:] {
+			tc.Name = tc.Name[:idx]
+		}
+	}
+}
+
+// normalizeTaskCreateInput transforms TaskCreate input to todowrite format.
+// Input:  {"subject":"...", "description":"...", "activeForm":"..."}
+// Output: {"todos":[{"content":"<subject>","status":"pending","priority":"medium","id":""}]}.
+func normalizeTaskCreateInput(tc *ingest.ToolCall) {
+	var input struct {
+		Subject string `json:"subject"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return
+	}
+	if input.Subject == "" {
+		return
+	}
+	todos := []map[string]string{{
+		"content":  input.Subject,
+		"status":   "pending",
+		"priority": "medium",
+		"id":       "",
+	}}
+	transformed, err := json.Marshal(map[string]any{"todos": todos})
+	if err != nil {
+		return
+	}
+	tc.Input = string(transformed)
+}
+
+// normalizeTaskUpdateInput transforms TaskUpdate input to todowrite format.
+// Input:  {"taskId":"1","status":"in_progress"}
+// Output: {"todos":[{"content":"Task #1","status":"in_progress","priority":"medium","id":"1"}]}.
+func normalizeTaskUpdateInput(tc *ingest.ToolCall) {
+	var input struct {
+		TaskID string `json:"taskId"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return
+	}
+	if input.TaskID == "" {
+		return
+	}
+	status := input.Status
+	if status == "" {
+		status = "in_progress"
+	}
+	todos := []map[string]string{{
+		"content":  fmt.Sprintf("Task #%s", input.TaskID),
+		"status":   status,
+		"priority": "medium",
+		"id":       input.TaskID,
+	}}
+	transformed, err := json.Marshal(map[string]any{"todos": todos})
+	if err != nil {
+		return
+	}
+	tc.Input = string(transformed)
+}
+
+// interruptedContentRx matches user interrupt messages from Claude Code.
+var interruptedContentRx = regexp.MustCompile(`(?i)\[Request interrupted by user`)
+
+// commandTagRx matches command tags embedded in user messages.
+var commandTagRx = regexp.MustCompile(`(?s)<command-name>(.*?)</command-name>\s*<command-message>(.*?)</command-message>\s*<command-args>(.*?)</command-args>`)
+
+// processUserMessage handles interrupt detection and command tag processing.
+func processUserMessage(msg ingest.Message) ingest.Message {
+	content := msg.Content
+
+	if interruptedContentRx.MatchString(content) {
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]string)
+		}
+		msg.Metadata["type"] = "turn_aborted"
+		return msg
+	}
+
+	matches := commandTagRx.FindStringSubmatch(content)
+	if len(matches) == 4 {
+		cmdName := strings.TrimSpace(matches[1])
+		cmdMessage := strings.TrimSpace(matches[2])
+		cmdArgs := strings.TrimSpace(matches[3])
+
+		msg.Content = commandTagRx.ReplaceAllString(content, "")
+
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]string)
+		}
+		msg.Metadata["command_name"] = cmdName
+		msg.Metadata["command_message"] = cmdMessage
+		msg.Metadata["command_args"] = cmdArgs
+
+		if cmdName == "/model" {
+			tc := ingest.ToolCall{
+				ID:     "cmd-" + cmdName,
+				Name:   "model_switch",
+				Input:  fmt.Sprintf(`{"model":"%s"}`, cmdMessage),
+				Status: ingest.ToolCallCompleted,
+			}
+			msg.ToolCalls = append(msg.ToolCalls, tc)
+		}
+	}
+
+	return msg
+}
+
+// computeUnifiedDiff generates a unified diff patch string for a file change.
+func computeUnifiedDiff(filePath, oldStr, newStr string) (string, error) {
+	oldLines := splitLines(oldStr)
+	newLines := splitLines(newStr)
+
+	var hunks []string
+	var oldLine, newLine int
+
+	for oldLine < len(oldLines) || newLine < len(newLines) {
+		if oldLine < len(oldLines) && newLine < len(newLines) && oldLines[oldLine] == newLines[newLine] {
+			oldLine++
+			newLine++
+			continue
+		}
+
+		oldStart := oldLine
+		newStart := newLine
+		for oldLine < len(oldLines) || newLine < len(newLines) {
+			if oldLine < len(oldLines) && newLine < len(newLines) && oldLines[oldLine] == newLines[newLine] {
+				break
+			}
+			if oldLine < len(oldLines) {
+				oldLine++
+			}
+			if newLine < len(newLines) {
+				newLine++
+			}
+		}
+		oldEnd := oldLine
+		newEnd := newLine
+
+		hunk := fmt.Sprintf("@@ -%d,%d +%d,%d @@", oldStart+1, oldEnd-oldStart, newStart+1, newEnd-newStart)
+		var lines []string
+		for i := oldStart; i < oldEnd; i++ {
+			lines = append(lines, "-"+oldLines[i])
+		}
+		for i := newStart; i < newEnd; i++ {
+			lines = append(lines, "+"+newLines[i])
+		}
+		hunk += "\n" + strings.Join(lines, "\n")
+		hunks = append(hunks, hunk)
+	}
+
+	if len(hunks) == 0 {
+		return "", nil
+	}
+
+	header := fmt.Sprintf("--- a/%s\n+++ b/%s\n", filePath, filePath)
+	return header + strings.Join(hunks, "\n") + "\n", nil
+}
+
+func splitLines(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var lines []string
+	scanner := bufio.NewScanner(strings.NewReader(s))
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	return lines
 }
 
 // resolveParentSessionID extracts the parent session ID from a subagent composite ID.
