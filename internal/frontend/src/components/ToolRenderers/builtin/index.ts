@@ -301,16 +301,16 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["compaction"],
     Component: CompactionToolDiff,
     summary: (tool) => {
-      const c = extractJSONField(tool.input, "count") || "";
-      const l =
-        extractJSONField(tool.input, "label") || extractJSONField(tool.input, "kind") || "items";
-      return `${c} ${l}`;
+      const auto = extractJSONField(tool.input, "auto");
+      const kind = extractJSONField(tool.input, "kind") || "";
+      const label = kind === "context_compaction" ? "Context compressed" : kind;
+      return auto === "true" ? `${label} (auto)` : label;
     },
     display: { type: "always-open" },
-    markerColor: "#6b7280",
+    markerColor: "#14b8a6",
     markerLabel: "Compaction",
     markerDisplayType: "compaction",
-    markerPriority: 110,
+    markerPriority: 5,
     truncateOutput: 0,
   },
   {
