@@ -96,6 +96,11 @@ export function TaskCompleteToolDiff({
             )}
           </div>
         )}
+        {outputLabel && !summary && (
+          <div className="mt-2 text-[13px]">
+            <MarkdownContent content={outputLabel} className="markdown-body--wide" />
+          </div>
+        )}
       </div>
     </div>
   );
