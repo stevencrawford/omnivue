@@ -157,7 +157,6 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 					ID:     fmt.Sprintf("model-switch-%d", i),
 					Name:   "model_switch",
 					Input:  string(input),
-					Output: string(input),
 					Status: ingest.ToolCallCompleted,
 				}
 				messages[j].ToolCalls = append(messages[j].ToolCalls, tc)
@@ -197,10 +196,10 @@ func parseMessage(env piMessageEnvelope, currentModel string) (ingest.Message, e
 		msg.ToolCalls = tc
 		msg.Reasoning = reasoning
 
-			// Capture API errors (rate limits, context length, etc.)
-			if env.Message.StopReason == "error" && env.Message.ErrorMsg != "" {
-				msg.Error = extractErrorMessage(env.Message.ErrorMsg)
-			}
+		// Capture API errors (rate limits, context length, etc.)
+		if env.Message.StopReason == "error" && env.Message.ErrorMsg != "" {
+			msg.Error = extractErrorMessage(env.Message.ErrorMsg)
+		}
 
 		if env.Message.Usage != nil {
 			msg.TokensInput = env.Message.Usage.Input
