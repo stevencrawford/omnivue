@@ -22,9 +22,10 @@ type editInput struct {
 }
 
 type messageData struct {
-	Role  string `json:"role"`
-	Agent string `json:"agent"`
-	Model any    `json:"model"`
+	Role    string `json:"role"`
+	Agent   string `json:"agent"`
+	Model   any    `json:"model"`
+	ModelID string `json:"modelID"`
 }
 
 type partData struct {

@@ -343,6 +343,9 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					curModel = mi.ID
 					curProvider = mi.Provider
 				}
+			} else if data.ModelID != "" {
+				msg.Model = data.ModelID
+				curModel = data.ModelID
 			}
 		}
 
