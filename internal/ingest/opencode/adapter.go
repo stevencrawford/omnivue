@@ -322,6 +322,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 
 	messages := make([]ingest.Message, 0, len(msgRows))
 	var pendingCompaction *ingest.ToolCall
+	var prevModel string
 
 	for _, m := range msgRows {
 		msg := ingest.Message{
@@ -330,10 +331,19 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		}
 
 		var data messageData
+		var curModel string
+		var curProvider string
 		if err := json.Unmarshal([]byte(m.dataJSON), &data); err == nil {
 			msg.Role = ingest.MessageRole(data.Role)
-			msg.Model = extractModelID(ingestkit.MarshalJSON(data.Model))
 			msg.Agent = data.Agent
+			if data.Model != nil {
+				modelJSON := ingestkit.MarshalJSON(data.Model)
+				msg.Model = extractModelID(modelJSON)
+				if mi, ok := extractModelInfo(modelJSON); ok {
+					curModel = mi.ID
+					curProvider = mi.Provider
+				}
+			}
 		}
 
 		for _, p := range partsByMsg[m.id] {
@@ -408,6 +418,25 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 				msg.StepEvents = nil
 				msg.ToolCalls = nil
 			}
+		}
+
+		// Inject model_switch tool call when model changes between assistant messages,
+		// so the UI shows a visual indicator (via ModelSwitchToolDiff) of the new model.
+		if curModel != "" && prevModel != "" && curModel != prevModel && msg.Role == ingest.MessageRoleAssistant {
+			modelInput := map[string]string{"model": curModel}
+			if curProvider != "" {
+				modelInput["provider"] = curProvider
+			}
+			tc := ingest.ToolCall{
+				ID:     fmt.Sprintf("model-switch-%s", msg.ID),
+				Name:   "model_switch",
+				Input:  ingestkit.MarshalJSON(modelInput),
+				Status: ingest.ToolCallCompleted,
+			}
+			msg.ToolCalls = append([]ingest.ToolCall{tc}, msg.ToolCalls...)
+		}
+		if curModel != "" && msg.Role == ingest.MessageRoleAssistant {
+			prevModel = curModel
 		}
 
 		// Inject a pending compaction tool call at the front of the next
@@ -595,6 +624,13 @@ func (e *editInput) NewStrResolved() string {
 	return e.NewString
 }
 
+// modelInfo holds the parsed fields from an OpenCode model descriptor.
+type modelInfo struct {
+	ID       string `json:"id"`
+	Provider string `json:"providerID"`
+	Variant  string `json:"variant"`
+}
+
 // extractModelID extracts the model ID from a JSON model object or plain string.
 func extractModelID(modelJSON string) string {
 	if modelJSON == "" {
@@ -612,6 +648,24 @@ func extractModelID(modelJSON string) string {
 		return s
 	}
 	return modelJSON
+}
+
+// extractModelInfo extracts the full model details (ID, provider, variant)
+// from a JSON model object or plain string.
+func extractModelInfo(modelJSON string) (modelInfo, bool) {
+	if modelJSON == "" || modelJSON == "null" {
+		return modelInfo{}, false
+	}
+	var m modelInfo
+	if err := json.Unmarshal([]byte(modelJSON), &m); err == nil && m.ID != "" {
+		return m, true
+	}
+	// Try as plain string
+	var s string
+	if err := json.Unmarshal([]byte(modelJSON), &s); err == nil && s != "" {
+		return modelInfo{ID: s}, true
+	}
+	return modelInfo{}, false
 }
 
 func extractSubAgentFromTitle(title string) string {
