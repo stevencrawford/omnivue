@@ -466,6 +466,12 @@ export function DiffView({
     return { additions, deletions, added, modified, deleted };
   }, [mergedDiffs]);
 
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    rightPanelRef.current?.scrollTo(0, 0);
+  }, [selectedPath]);
+
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     for (const [type, handler] of resizeListeners.current) {
@@ -565,7 +571,7 @@ export function DiffView({
         </div>
 
         {/* Right: Diff view */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div ref={rightPanelRef} className="flex-1 overflow-y-auto min-w-0">
           {selectedDiff && selectedDiff.patch ? (
             <div className="p-4 space-y-3">
               <div className="group flex items-center gap-2 pb-2 border-b border-ov-border">
