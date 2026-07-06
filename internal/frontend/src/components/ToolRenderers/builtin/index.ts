@@ -17,6 +17,7 @@ import { SkillToolDiff } from "./SkillToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
+import { WebFetchToolDiff } from "./WebFetchToolDiff";
 import { DefaultToolDiff } from "./DefaultToolDiff";
 
 function fp(tool: ToolCall): string {
@@ -333,7 +334,7 @@ export const definitions: ToolRendererDefinition[] = [
   {
     kind: "webfetch",
     names: ["webfetch", "web_fetch"],
-    Component: DefaultToolDiff,
+    Component: WebFetchToolDiff,
     summary: (tool) => {
       const url = extractJSONField(tool.input, "url") || "";
       if (url) return url.length > 80 ? url.slice(0, 80) + "…" : url;

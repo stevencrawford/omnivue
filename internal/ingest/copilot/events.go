@@ -53,14 +53,17 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "assistant.message":
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
-				// Normalize sql to todowrite when the query changes the todos table.
-				// We detect this by querying session.db directly and using
-				// snapshot-based change detection — no SQL parsing needed.
 				for i, tc := range msg.ToolCalls {
 					if tc.Name == "sql" {
 						if synthesized := todoState.synthesizeInput(); synthesized != "" {
 							msg.ToolCalls[i].Name = "todowrite"
 							msg.ToolCalls[i].Input = synthesized
+						} else if d := detectTodoSQL(tc.Input); d {
+							// DB unavailable or no change, but SQL mentions todos table
+							msg.ToolCalls[i].Name = "todowrite"
+							if fallback := fallbackTodoInput(tc.Input); fallback != "" {
+								msg.ToolCalls[i].Input = fallback
+							}
 						}
 					}
 				}
@@ -361,6 +364,63 @@ func extractCopilotPatchPath(patch string) string {
 		}
 	}
 	return ""
+}
+
+// detectTodoSQL checks if a sql tool call's query references the todos table.
+func detectTodoSQL(input string) bool {
+	query := extractSQLQuery(input)
+	return query != "" && todoTableRe.MatchString(query)
+}
+
+// extractSQLQuery extracts the SQL query text from a tool call's JSON input.
+// Tries common field names used by Copilot for the sql tool.
+func extractSQLQuery(input string) string {
+	var data struct {
+		Query       string `json:"query"`
+		Description string `json:"description"`
+		SQL         string `json:"sql"`
+	}
+	if err := json.Unmarshal([]byte(input), &data); err != nil {
+		return ""
+	}
+	if data.Query != "" {
+		return data.Query
+	}
+	if data.SQL != "" {
+		return data.SQL
+	}
+	return data.Description
+}
+
+// fallbackTodoInput creates a minimal todowrite-compatible input from a SQL query
+// when session.db enriched data is unavailable.
+func fallbackTodoInput(input string) string {
+	query := extractSQLQuery(input)
+	op := "SQL"
+	for _, p := range []struct {
+		prefix string
+		label  string
+	}{
+		{"INSERT", "Create"},
+		{"UPDATE", "Update"},
+		{"DELETE", "Delete"},
+		{"SELECT", "Read"},
+	} {
+		if len(query) >= len(p.prefix) && strings.EqualFold(query[:len(p.prefix)], p.prefix) {
+			op = p.label
+			break
+		}
+	}
+	out, err := json.Marshal(map[string]any{
+		"todos": []map[string]string{{
+			"content": op + " todos",
+			"status":  "completed",
+		}},
+	})
+	if err != nil {
+		return ""
+	}
+	return string(out)
 }
 
 // normalizeAskUserInput transforms Copilot's ask_user input format
