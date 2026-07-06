@@ -36,6 +36,7 @@ type assistantMessageData struct {
 	MessageID    string        `json:"messageId"`
 	Content      string        `json:"content"`
 	ToolRequests []toolRequest `json:"toolRequests"`
+	OutputTokens int           `json:"outputTokens"`
 }
 
 type toolRequest struct {

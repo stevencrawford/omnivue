@@ -129,11 +129,12 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 		return nil
 	}
 	msg := ingest.Message{
-		ID:        data.MessageID,
-		Role:      ingest.MessageRoleAssistant,
-		Content:   data.Content,
-		Model:     currentModel,
-		Timestamp: ingestkit.ParseTime(event.Timestamp),
+		ID:           data.MessageID,
+		Role:         ingest.MessageRoleAssistant,
+		Content:      data.Content,
+		Model:        currentModel,
+		Timestamp:    ingestkit.ParseTime(event.Timestamp),
+		TokensOutput: data.OutputTokens,
 	}
 
 	for _, req := range data.ToolRequests {
