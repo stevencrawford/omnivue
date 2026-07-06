@@ -64,7 +64,7 @@ function firstQuestion(tool: ToolCall): string {
 export const definitions: ToolRendererDefinition[] = [
   {
     kind: "bash",
-    names: ["bash", "run_terminal_command_v2", "run_terminal_command"],
+    names: ["bash", "run_terminal_command_v2", "run_terminal_command", "read_bash", "stop_bash"],
     Component: BashToolDiff,
     summary: (tool) => cmd(tool),
     display: { type: "expandable" },
@@ -214,7 +214,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "task",
-    names: ["task", "task_v2", "explore:task_v2"],
+    names: ["task", "task_v2", "explore:task_v2", "read_agent"],
     Component: TaskToolDiff,
     summary: (tool) => {
       const desc = extractJSONField(tool.input, "description") || "";
@@ -332,7 +332,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "webfetch",
-    names: ["webfetch"],
+    names: ["webfetch", "web_fetch"],
     Component: DefaultToolDiff,
     summary: (tool) => {
       const url = extractJSONField(tool.input, "url") || "";

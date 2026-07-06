@@ -182,6 +182,36 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 				}
 			}
 		}
+		if tc.Name == "create" {
+			tc.Name = "write"
+			var args struct {
+				Path     string `json:"path"`
+				FileText string `json:"file_text"`
+			}
+			if err := json.Unmarshal(req.Arguments, &args); err == nil && args.FileText != "" {
+				newInput, err := json.Marshal(map[string]string{
+					"filePath": args.Path,
+					"content":  args.FileText,
+				})
+				if err != nil {
+					slog.Warn("failed to marshal create input", "error", err)
+					newInput = []byte("{}")
+				}
+				tc.Input = string(newInput)
+			}
+		}
+		if tc.Name == "web_fetch" {
+			tc.Name = "webfetch"
+		}
+		if tc.Name == "read_bash" {
+			tc.Name = "bash"
+		}
+		if tc.Name == "stop_bash" {
+			tc.Name = "bash"
+		}
+		if tc.Name == "read_agent" {
+			tc.Name = "task"
+		}
 		msg.ToolCalls = append(msg.ToolCalls, tc)
 	}
 
