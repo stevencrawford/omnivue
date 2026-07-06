@@ -28,6 +28,19 @@ function groupMessages(messages: Message[]): Message[] {
           }
           continue;
         }
+        // Merge tool-call message into the preceding reasoning-only assistant message
+        if (
+          last &&
+          last.role === "assistant" &&
+          last.reasoning &&
+          (!last.toolCalls || last.toolCalls.length === 0)
+        ) {
+          last.toolCalls = tools;
+          if (msg.reasoning) {
+            last.reasoning = last.reasoning + "\n\n" + msg.reasoning;
+          }
+          continue;
+        }
       }
     }
     result.push({ ...msg, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined });

@@ -194,8 +194,39 @@ func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, err
 	return nil, nil
 }
 
-func (a *Adapter) Diffs(_ context.Context, _ string) ([]ingest.DiffFile, error) {
-	return nil, nil
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	edits, err := a.Edits(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	var diffs []ingest.DiffFile
+	for _, e := range edits {
+		if seen[e.FilePath] {
+			continue
+		}
+		seen[e.FilePath] = true
+		adds := 0
+		dels := 0
+		if e.NewStr != "" {
+			adds = strings.Count(e.NewStr, "\n") + 1
+		}
+		if e.OldStr != "" {
+			dels = strings.Count(e.OldStr, "\n") + 1
+		}
+		status := ingest.DiffModified
+		if e.OldStr == "" && e.NewStr != "" {
+			status = ingest.DiffAdded
+		}
+		diffs = append(diffs, ingest.DiffFile{
+			Path:      e.FilePath,
+			Status:    status,
+			Additions: adds,
+			Deletions: dels,
+		})
+	}
+	return diffs, nil
 }
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
@@ -210,7 +241,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			if tc.Name != "write" && tc.Name != "edit" {
 				continue
 			}
-			var fp, content string
+			var fp, content, old string
 			if tc.Name == "write" {
 				var input struct {
 					FilePath string `json:"file_path"`
@@ -223,16 +254,25 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 				content = input.Content
 			} else {
 				var input struct {
-					FilePath string `json:"file_path"`
-					OldStr   string `json:"old_str"`
-					NewStr   string `json:"new_str"`
-					Content  string `json:"content"`
+					FilePath  string `json:"file_path"`
+					OldStr    string `json:"old_str"`
+					OldString string `json:"old_string"`
+					NewStr    string `json:"new_str"`
+					NewString string `json:"new_string"`
+					Content   string `json:"content"`
 				}
 				if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 					continue
 				}
 				fp = input.FilePath
+				old = input.OldStr
+				if old == "" {
+					old = input.OldString
+				}
 				content = input.NewStr
+				if content == "" {
+					content = input.NewString
+				}
 				if content == "" {
 					content = input.Content
 				}
@@ -243,6 +283,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			edits = append(edits, ingest.FileEdit{
 				FilePath:  fp,
 				ToolName:  tc.Name,
+				OldStr:    old,
 				NewStr:    content,
 				Timestamp: m.Timestamp,
 			})
@@ -560,142 +601,6 @@ func (a *Adapter) discoverSubagents(sessionID, projectPath string) []ingest.Sess
 	return sessions
 }
 
-func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, error) {
-	f, err := os.Open(fpath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	scanner := ingestkit.NewJSONLScanner(f)
-
-	var messages []ingest.Message
-	toolCallsByID := make(map[string]*ingest.ToolCall)
-	var currentModel string
-
-	// Resolve tool-results directory once
-	parentSID := resolveParentSessionID(sessionID)
-	toolResultsDir := resolveToolResultsDir(fpath, parentSID)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var env claudeMessageEnvelope
-		if err := json.Unmarshal(line, &env); err != nil {
-			continue
-		}
-
-		// Skip non-message types
-		switch env.Type {
-		case "file-history-snapshot", "queue-operation", "system":
-			continue
-		case "progress":
-			handleProgressEvent(line, toolCallsByID, parentSID)
-			continue
-		case "user":
-			if isMetaMsg(&env) {
-				continue
-			}
-		}
-
-		ts := ingestkit.ParseTime(env.Timestamp)
-
-		switch env.Type {
-		case "user", "assistant":
-			if env.Message == nil {
-				continue
-			}
-
-			// Check if this is a user message containing embedded tool results
-			if env.Type == "user" && env.Message.Role == "user" && env.Message.Content != nil {
-				if extractAndMergeToolResults(env.Message.Content, toolCallsByID, env.IsError) {
-					continue // tool_result user message, skip adding as a user message
-				}
-			}
-
-			msg := ingest.Message{
-				ID:        env.UUID,
-				Role:      ingest.MessageRole(env.Message.Role),
-				Timestamp: ts,
-				Model:     currentModel,
-			}
-
-			if env.Message.Model != "" {
-				currentModel = env.Message.Model
-				msg.Model = currentModel
-			}
-
-			if env.Message.Usage != nil {
-				msg.TokensInput = env.Message.Usage.InputTokens
-				msg.TokensOutput = env.Message.Usage.OutputTokens
-			}
-
-			if env.Slug != "" {
-				if msg.Metadata == nil {
-					msg.Metadata = make(map[string]string)
-				}
-				msg.Metadata["slug"] = env.Slug
-			}
-
-			switch env.Message.Role {
-			case "assistant":
-				text, reasoning, toolCalls := parseAssistantContent(env.Message.Content, msg.ID)
-				msg.Content = text
-				msg.Reasoning = reasoning
-				for i := range toolCalls {
-					if toolResultsDir != "" {
-						if tr := readToolResultFile(toolResultsDir, toolCalls[i].ID); tr != "" {
-							toolCalls[i].Output = truncateToolOutput(tr, toolCalls[i].Name)
-							toolCalls[i].Status = ingest.ToolCallCompleted
-						}
-					}
-					toolCallsByID[toolCalls[i].ID] = &toolCalls[i]
-				}
-				msg.ToolCalls = toolCalls
-
-			case "user":
-				msg.Content = extractUserContent(env.Message.Content)
-			}
-
-			messages = append(messages, msg)
-
-		case "tool_result":
-			tcID := env.ToolUseID
-			if tcID == "" {
-				continue
-			}
-			content := extractToolResultContent(env.Content)
-			if content == "" && toolResultsDir != "" {
-				content = readToolResultFile(toolResultsDir, tcID)
-			}
-
-			if tc, ok := toolCallsByID[tcID]; ok {
-				tc.Output = truncateToolOutput(content, tc.Name)
-				if env.IsError != nil && *env.IsError {
-					tc.Status = ingest.ToolCallFailed
-				} else {
-					tc.Status = ingest.ToolCallCompleted
-				}
-				if env.AgentID != "" {
-					setToolMetadataSessionID(tc, parentSID, env.AgentID)
-				}
-			}
-		}
-	}
-
-	// Normalize tool names
-	for i := range messages {
-		for j := range messages[i].ToolCalls {
-			normalizeToolCall(&messages[i].ToolCalls[j])
-		}
-	}
-
-	return messages, scanner.Err()
-}
-
 func (a *Adapter) findSlugFromSession(fpath string) string {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -753,41 +658,11 @@ func (a *Adapter) findSessionFile(sessionID string) string {
 	return found
 }
 
-func isMetaMsg(env *claudeMessageEnvelope) bool {
-	if env.IsMeta != nil && *env.IsMeta {
-		return true
-	}
-	return false
-}
 
-func normalizeToolCall(tc *ingest.ToolCall) {
-	switch tc.Name {
-	case "Read":
-		tc.Name = "read"
-	case "Write":
-		tc.Name = "write"
-	case "Edit":
-		tc.Name = "edit"
-	case "Bash":
-		tc.Name = "bash"
-	case "Glob":
-		tc.Name = "glob"
-	case "Grep":
-		tc.Name = "grep"
-	case "Task":
-		// Task tool spawns subagents — map to our internal task name
-		tc.Name = "task"
-	case "ExitPlanMode":
-		tc.Name = "exit_plan_mode"
-	case "Delete":
-		tc.Name = "delete"
-	case "WebFetch":
-		tc.Name = "webfetch"
-	case "WebSearch":
-		tc.Name = "websearch"
-	default:
-	}
-}
+
+
+
+
 
 // resolveParentSessionID extracts the parent session ID from a subagent composite ID.
 func resolveParentSessionID(sessionID string) string {

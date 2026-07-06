@@ -12,7 +12,9 @@ interface EditInput {
   filePath?: string;
   file_path?: string;
   old_str?: string;
+  old_string?: string;
   new_str?: string;
+  new_string?: string;
   oldString?: string;
   newString?: string;
   content?: string;
@@ -34,8 +36,8 @@ export function EditToolDiff({
   }
 
   const filePath = input.filePath || input.file_path || input.path || "";
-  const oldStr = input.old_str || input.oldString || "";
-  const newStr = input.new_str || input.newString || "";
+  const oldStr = input.old_str || input.old_string || input.oldString || "";
+  const newStr = input.new_str || input.new_string || input.newString || "";
   const content = input.content || "";
   const viewRange = input.view_range;
   const lang = detectLanguage(filePath);

@@ -634,19 +634,53 @@ func TestSimplifyModelName(t *testing.T) {
 	}
 }
 
-func TestGetDiffsReturnsNil(t *testing.T) {
-	a, err := New("/tmp/test")
+func TestGetDiffs(t *testing.T) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	dir := t.TempDir()
+	projDir := filepath.Join(dir, "projects", "proj")
+	if err := os.MkdirAll(projDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	writeInput := json.RawMessage(`{"file_path":"src/main.go","content":"package main\n\nfunc main() {\n\tprintln(\"hello\")\n}\n"}`)
+	editInput := json.RawMessage(`{"file_path":"src/utils.go","old_str":"func old()","new_str":"func new()"}`)
+
+	lines := []json.RawMessage{
+		json.RawMessage(`{"type":"assistant","uuid":"a1","timestamp":"` + now + `","message":{"role":"assistant","content":[{"type":"text","text":"Writing file"},{"type":"tool_use","id":"tu1","name":"Write","input":` + string(writeInput) + `}]}}`),
+		json.RawMessage(`{"type":"tool_result","tool_use_id":"tu1","content":"done","timestamp":"` + now + `"}`),
+		json.RawMessage(`{"type":"assistant","uuid":"a2","timestamp":"` + now + `","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu2","name":"Edit","input":` + string(editInput) + `}]}}`),
+		json.RawMessage(`{"type":"tool_result","tool_use_id":"tu2","content":"done","timestamp":"` + now + `"}`),
+	}
+
+	writeJSONL(t, filepath.Join(projDir, "sid-diffs.jsonl"), lines)
+
+	a, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer a.Close()
 
-	diffs, err := a.Diffs(context.Background(), "any-id")
+	diffs, err := a.Diffs(context.Background(), "sid-diffs")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(diffs) > 0 {
-		t.Error("Diffs should return nil for Claude Code")
+	if len(diffs) != 2 {
+		t.Fatalf("expected 2 diffs, got %d", len(diffs))
+	}
+	if diffs[0].Path != "src/main.go" || diffs[1].Path != "src/utils.go" {
+		t.Errorf("unexpected diff order: %+v", diffs)
+	}
+	if diffs[0].Status != ingest.DiffAdded {
+		t.Errorf("diffs[0] Status = %q, want %q", diffs[0].Status, ingest.DiffAdded)
+	}
+	if diffs[1].Status != ingest.DiffModified {
+		t.Errorf("diffs[1] Status = %q, want %q", diffs[1].Status, ingest.DiffModified)
+	}
+	if diffs[0].Additions != 6 || diffs[0].Deletions != 0 {
+		t.Errorf("diffs[0] Additions=%d Deletions=%d, want 6,0", diffs[0].Additions, diffs[0].Deletions)
+	}
+	if diffs[1].Additions != 1 || diffs[1].Deletions != 1 {
+		t.Errorf("diffs[1] Additions=%d Deletions=%d, want 1,1", diffs[1].Additions, diffs[1].Deletions)
 	}
 }
 
@@ -935,6 +969,184 @@ func TestGetEdits_NoEdits(t *testing.T) {
 	}
 	if len(edits) > 0 {
 		t.Errorf("expected nil edits, got %d", len(edits))
+	}
+}
+
+func TestProcessUserMessage_Interrupted(t *testing.T) {
+	msg := ingest.Message{
+		Content: "[Request interrupted by user — continuing...]",
+	}
+	result := processUserMessage(msg)
+	if result.Metadata["type"] != "turn_aborted" {
+		t.Errorf("expected turn_aborted, got %q", result.Metadata["type"])
+	}
+}
+
+func TestProcessUserMessage_CommandTags(t *testing.T) {
+	msg := ingest.Message{
+		Content: `<command-name>/model</command-name><command-message>claude-sonnet-4-5-20250929</command-message><command-args></command-args>`,
+	}
+	result := processUserMessage(msg)
+	if result.Metadata["command_name"] != "/model" {
+		t.Errorf("command_name = %q, want /model", result.Metadata["command_name"])
+	}
+	if result.Metadata["model_switch"] != "claude-sonnet-4-5-20250929" {
+		t.Errorf("model_switch = %q, want claude-sonnet-4-5-20250929", result.Metadata["model_switch"])
+	}
+	if len(result.ToolCalls) != 0 {
+		t.Errorf("expected 0 tool calls (metadata only), got %d", len(result.ToolCalls))
+	}
+}
+
+func TestProcessUserMessage_ClearCommandContent(t *testing.T) {
+	msg := ingest.Message{
+		Content: `<command-name>/help</command-name><command-message>show help</command-message><command-args></command-args>extra text`,
+	}
+	result := processUserMessage(msg)
+	if result.Metadata["command_name"] != "/help" {
+		t.Errorf("command_name = %q, want /help", result.Metadata["command_name"])
+	}
+	if result.Content != "extra text" {
+		t.Errorf("Content = %q, want %q", result.Content, "extra text")
+	}
+}
+
+func TestNormalizeTaskCreateInput(t *testing.T) {
+	tc := &ingest.ToolCall{
+		Name:   "TaskCreate",
+		Input:  `{"subject":"fix the bug","description":"fix the login bug"}`,
+		Status: ingest.ToolCallRunning,
+	}
+	normalizeTaskCreateInput(tc)
+	var parsed struct {
+		Todos []struct {
+			Content string `json:"content"`
+			ID      string `json:"id"`
+		} `json:"todos"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Todos) != 1 {
+		t.Fatalf("expected 1 todo, got %d", len(parsed.Todos))
+	}
+	if parsed.Todos[0].Content != "fix the bug" {
+		t.Errorf("Content = %q, want %q", parsed.Todos[0].Content, "fix the bug")
+	}
+	if parsed.Todos[0].ID != "" {
+		t.Errorf("ID = %q, want empty", parsed.Todos[0].ID)
+	}
+}
+
+func TestNormalizeTaskUpdateInput(t *testing.T) {
+	tc := &ingest.ToolCall{
+		Name:   "TaskUpdate",
+		Input:  `{"taskId":"3","status":"in_progress"}`,
+		Status: ingest.ToolCallRunning,
+	}
+	normalizeTaskUpdateInput(tc)
+	var parsed struct {
+		Todos []struct {
+			Content string `json:"content"`
+			ID      string `json:"id"`
+			Status  string `json:"status"`
+		} `json:"todos"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Todos) != 1 {
+		t.Fatalf("expected 1 todo, got %d", len(parsed.Todos))
+	}
+	// Content should be empty — will be resolved by postProcessToolCalls
+	if parsed.Todos[0].Content != "" {
+		t.Errorf("Content = %q, want empty (to be resolved later)", parsed.Todos[0].Content)
+	}
+	if parsed.Todos[0].Status != "in_progress" {
+		t.Errorf("Status = %q, want in_progress", parsed.Todos[0].Status)
+	}
+	if parsed.Todos[0].ID != "3" {
+		t.Errorf("ID = %q, want 3", parsed.Todos[0].ID)
+	}
+}
+
+func TestNormalizeTaskUpdateInput_EmptyStatus(t *testing.T) {
+	tc := &ingest.ToolCall{
+		Name:  "TaskUpdate",
+		Input: `{"taskId":"5"}`,
+	}
+	normalizeTaskUpdateInput(tc)
+	var parsed struct {
+		Todos []struct {
+			Status string `json:"status"`
+		} `json:"todos"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Todos[0].Status != "in_progress" {
+		t.Errorf("Status = %q, want default in_progress", parsed.Todos[0].Status)
+	}
+}
+
+func TestHarnessPrefixStripping(t *testing.T) {
+	tc := &ingest.ToolCall{Name: "Bash:Bash"}
+	normalizeToolCall(tc)
+	if tc.Name != "bash" {
+		t.Errorf("Name = %q, want bash", tc.Name)
+	}
+}
+
+func TestHarnessPrefixStripping_Normal(t *testing.T) {
+	tc := &ingest.ToolCall{Name: "Edit:Edit"}
+	normalizeToolCall(tc)
+	if tc.Name != "edit" {
+		t.Errorf("Name = %q, want edit", tc.Name)
+	}
+}
+
+func TestHarnessPrefixStripping_NoMatch(t *testing.T) {
+	tc := &ingest.ToolCall{Name: "ToolName:OtherName"}
+	normalizeToolCall(tc)
+	if tc.Name != "ToolName:OtherName" {
+		t.Errorf("Name = %q, want unchanged ToolName:OtherName", tc.Name)
+	}
+}
+
+func TestExtractOutputContent(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`<output>finished task</output>`, "finished task"},
+		{`<output>  spaced  </output>`, "spaced"},
+		{`plain text without tags`, "plain text without tags"},
+		{``, ""},
+	}
+	for _, tc := range tests {
+		got := extractOutputContent(tc.input)
+		if got != tc.expected {
+			t.Errorf("extractOutputContent(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestExtractAgentIDFromMetadata(t *testing.T) {
+	tc := &ingest.ToolCall{
+		Name:     "task",
+		Metadata: `{"sessionId":"parent-1-agent-sub-42"}`,
+	}
+	id := extractAgentIDFromMetadata(tc)
+	if id != "sub-42" {
+		t.Errorf("agent ID = %q, want sub-42", id)
+	}
+}
+
+func TestExtractAgentIDFromMetadata_Empty(t *testing.T) {
+	tc := &ingest.ToolCall{Name: "task"}
+	id := extractAgentIDFromMetadata(tc)
+	if id != "" {
+		t.Errorf("expected empty, got %q", id)
 	}
 }
 
