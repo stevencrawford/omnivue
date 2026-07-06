@@ -577,10 +577,16 @@ export function DiffView({
               <div className="group flex items-center gap-2 pb-2 border-b border-ov-border">
                 <File size={14} className="shrink-0 text-ov-text-secondary" />
                 <span className="font-mono text-xs text-ov-text-secondary truncate min-w-0">
-                  {sessionDirectory ? `${sessionDirectory}/${selectedDiff.path}` : selectedDiff.path}
+                  {sessionDirectory
+                    ? `${sessionDirectory}/${selectedDiff.path}`
+                    : selectedDiff.path}
                 </span>
                 <CopyButton
-                  text={sessionDirectory ? `${sessionDirectory}/${selectedDiff.path}` : selectedDiff.path}
+                  text={
+                    sessionDirectory
+                      ? `${sessionDirectory}/${selectedDiff.path}`
+                      : selectedDiff.path
+                  }
                   iconSize={12}
                 />
               </div>
