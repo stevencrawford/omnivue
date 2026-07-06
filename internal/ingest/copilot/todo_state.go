@@ -1,28 +1,26 @@
 package copilot
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"path/filepath"
 )
 
-// todoItem tracks the in-memory state of a todo item parsed from SQL tool calls.
-type todoItem struct {
-	ID      string
-	Title   string
-	Status  string
-	Content string
-}
-
-// todoState is a mutable accumulator for tracking todo state across sql tool calls.
+// todoState tracks todo state for a session by querying session.db directly.
+// It uses snapshot-based change detection: each call to synthesizeInput queries
+// the database and compares against a cached hash. Only changes emit output.
 type todoState struct {
-	items map[string]*todoItem
+	basePath  string
+	sessionID string
+	lastHash  string
 }
 
-func newTodoState() *todoState {
-	return &todoState{items: make(map[string]*todoItem)}
+func newTodoState(basePath, sessionID string) *todoState {
+	return &todoState{basePath: basePath, sessionID: sessionID}
 }
 
 // isTodoQuery checks whether a SQL query targets the todos table.
@@ -36,245 +34,76 @@ func isTodoQuery(query string) bool {
 	return false
 }
 
-// applySQL applies a single SQL statement to the todoState, extracting
-// todo items from INSERT INTO and status changes from UPDATE.
-func (ts *todoState) applySQL(query string) {
-	q := strings.TrimSpace(query)
-
-	switch {
-	case strings.HasPrefix(strings.ToUpper(q), "INSERT INTO TODOS"):
-		ts.parseInsert(q)
-	case strings.HasPrefix(strings.ToUpper(q), "UPDATE TODOS"):
-		ts.parseUpdate(q)
-	case strings.HasPrefix(strings.ToUpper(q), "DELETE FROM TODOS"):
-		clear(ts.items)
-	}
-}
-
-// parseInsert parses "INSERT INTO todos (id, title, description) VALUES (...), (...)".
-func (ts *todoState) parseInsert(query string) {
-	valuesIdx := strings.Index(strings.ToUpper(query), "VALUES")
-	if valuesIdx < 0 {
-		return
-	}
-	valuesPart := query[valuesIdx+6:]
-
-	parenOpen := strings.Index(query, "(")
-	parenClose := strings.Index(query, ")")
-	if parenOpen < 0 || parenClose < 0 || parenClose < parenOpen {
-		return
-	}
-	colSpec := query[parenOpen+1 : parenClose]
-	colNames := strings.FieldsFunc(colSpec, func(r rune) bool { return r == ',' || r == ' ' })
-	idIdx, titleIdx, descIdx := -1, -1, -1
-	for i, name := range colNames {
-		name = strings.TrimSpace(strings.ToLower(name))
-		switch name {
-		case "id":
-			idIdx = i
-		case "title":
-			titleIdx = i
-		case "description":
-			descIdx = i
-		}
-	}
-	if idIdx < 0 || titleIdx < 0 {
-		return
-	}
-
-	vals := valuesPart
-	for {
-		vals = strings.TrimSpace(vals)
-		if vals == "" || vals[0] != '(' {
-			break
-		}
-		vals = vals[1:]
-		var parts []string
-		for vals != "" {
-			vals = strings.TrimSpace(vals)
-			if vals[0] == ')' {
-				vals = vals[1:]
-				break
-			}
-			if vals[0] == ',' {
-				vals = vals[1:]
-				continue
-			}
-			if vals[0] == '\'' {
-				vals = vals[1:]
-				end := strings.IndexByte(vals, '\'')
-				if end < 0 {
-					parts = append(parts, vals)
-					break
-				}
-				parts = append(parts, vals[:end])
-				vals = vals[end+1:]
-				continue
-			}
-			if end := strings.IndexAny(vals, ",)"); end >= 0 {
-				parts = append(parts, strings.TrimSpace(vals[:end]))
-				vals = vals[end:]
-			} else {
-				parts = append(parts, strings.TrimSpace(vals))
-				break
-			}
-		}
-
-		if idIdx < len(parts) && titleIdx < len(parts) {
-			id := parts[idIdx]
-			title := parts[titleIdx]
-			desc := ""
-			if descIdx >= 0 && descIdx < len(parts) {
-				desc = parts[descIdx]
-			}
-			ts.items[id] = &todoItem{
-				ID:      id,
-				Title:   title,
-				Content: title,
-				Status:  "pending",
-			}
-			if desc != "" {
-				ts.items[id].Content = title + ": " + desc
-			}
-		}
-
-		vals = strings.TrimSpace(vals)
-		vals = strings.TrimPrefix(vals, ",")
-	}
-}
-
-// parseUpdate parses "UPDATE todos SET status = '<val>' WHERE id = '<id>' OR id IN (...)".
-func (ts *todoState) parseUpdate(query string) {
-	q := strings.ToUpper(query)
-
-	setIdx := strings.Index(q, "SET STATUS =")
-	if setIdx < 0 {
-		setIdx = strings.Index(q, "SET STATUS=")
-	}
-	if setIdx < 0 {
-		return
-	}
-	rest := q[setIdx+len("SET STATUS ="):]
-	rest = strings.TrimSpace(rest)
-
-	newStatus := "pending"
-	if strings.HasPrefix(rest, "'") {
-		if end := strings.IndexByte(rest[1:], '\''); end >= 0 {
-			newStatus = strings.ToLower(rest[1 : end+1])
-		}
-	}
-
-	_, whereClause, ok := strings.Cut(q, "WHERE")
-	if !ok {
-		return
-	}
-
-	if strings.Contains(whereClause, "ID =") {
-		eqIdx := strings.Index(whereClause, "=")
-		restID := strings.TrimSpace(whereClause[eqIdx+1:])
-		if strings.HasPrefix(restID, "'") {
-			if end := strings.IndexByte(restID[1:], '\''); end >= 0 {
-				id := strings.ToLower(restID[1 : end+1])
-				if t, ok := ts.items[id]; ok {
-					t.Status = newStatus
-				}
-			}
-		}
-	}
-
-	if strings.Contains(whereClause, "IN (") {
-		_, restIn, ok := strings.Cut(whereClause, "IN (")
-		if !ok {
-			return
-		}
-		listPart, _, _ := strings.Cut(restIn, ")")
-		items := strings.FieldsFunc(listPart, func(r rune) bool {
-			return r == ',' || r == ' ' || r == '\''
-		})
-		for _, id := range items {
-			id = strings.ToLower(strings.TrimSpace(id))
-			if id != "" {
-				if t, ok := ts.items[id]; ok {
-					t.Status = newStatus
-				}
-			}
-		}
-	}
-
-	if strings.Contains(whereClause, "STATUS =") {
-		_, restStatus, _ := strings.Cut(whereClause, "STATUS =")
-		restStatus = strings.TrimSpace(restStatus)
-		if strings.HasPrefix(restStatus, "'") {
-			if end := strings.IndexByte(restStatus[1:], '\''); end >= 0 {
-				srcStatus := strings.ToLower(restStatus[1 : end+1])
-				for _, t := range ts.items {
-					if t.Status == srcStatus {
-						t.Status = newStatus
-					}
-				}
-			}
-		}
-	}
-}
-
-// synthesizeInput builds a todowrite-compatible input JSON from the current todoState.
+// synthesizeInput queries session.db for the current todo state and returns
+// a todowrite-compatible JSON string if the state has changed since the last
+// call. Returns "" if no change, the session.db is unavailable, or empty.
 func (ts *todoState) synthesizeInput() string {
-	type todoEntry struct {
-		ID       string `json:"id"`
-		Content  string `json:"content"`
-		Status   string `json:"status"`
-		Priority string `json:"priority,omitempty"`
+	db, err := openSessionDB(ts.basePath, ts.sessionID)
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+
+	items := queryAllTodos(db)
+	if len(items) == 0 {
+		return ""
 	}
 
-	var entries []todoEntry
-	for _, item := range ts.items {
+	hash := ts.hashItems(items)
+	if hash == ts.lastHash {
+		return "" // no change since last call
+	}
+	ts.lastHash = hash
+
+	entries := make([]map[string]string, len(items))
+	for i, item := range items {
 		status := item.Status
 		if status == "done" {
 			status = "completed"
 		}
-		entries = append(entries, todoEntry{
-			ID:      item.ID,
-			Content: item.Content,
-			Status:  status,
-		})
+		entries[i] = map[string]string{
+			"id":      item.ID,
+			"content": item.Title,
+			"status":  status,
+		}
 	}
 
 	out, err := json.Marshal(map[string]any{"todos": entries})
 	if err != nil {
-		return "{}"
+		return ""
 	}
 	return string(out)
 }
 
-// loadSessionTodos reads the todos table from a Copilot session's session.db.
-// Returns nil if the db file is missing or has no todos table.
+// loadSessionTodos reads the todos table from a Copilot session's session.db
+// for the session-level TODOs view. Returns nil if unavailable or empty.
 func (a *Adapter) loadSessionTodos(sessionID string) []ingest.Todo {
-	dbPath := filepath.Join(a.basePath, "session-state", sessionID, "session.db")
-	db, err := ingest.OpenReadOnlyDB(dbPath)
+	db, err := openSessionDB(a.basePath, sessionID)
 	if err != nil {
 		return nil
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`SELECT id, title, COALESCE(description, ''), COALESCE(status, 'pending') FROM todos`)
-	if err != nil {
+	items := queryAllTodos(db)
+	if len(items) == 0 {
 		return nil
 	}
-	defer rows.Close()
 
-	var todos []ingest.Todo
-	todoIndex := make(map[string]*ingest.Todo)
-	for rows.Next() {
-		var t ingest.Todo
-		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status); err != nil {
-			continue
+	todos := make([]ingest.Todo, len(items))
+	todoIndex := make(map[string]*ingest.Todo, len(items))
+	for i, item := range items {
+		t := ingest.Todo{
+			ID:          item.ID,
+			Title:       item.Title,
+			Description: item.Description,
+			Status:      item.Status,
 		}
-		todos = append(todos, t)
-		todoIndex[t.ID] = &todos[len(todos)-1]
+		todos[i] = t
+		todoIndex[t.ID] = &todos[i]
 	}
 
-	depRows, err := db.Query(`SELECT todo_id, depends_on FROM todo_deps`)
-	if err == nil {
+	// Load dependencies
+	if depRows, err := db.Query(`SELECT todo_id, depends_on FROM todo_deps`); err == nil {
 		defer depRows.Close()
 		for depRows.Next() {
 			var todoID, dependsOn string
@@ -284,10 +113,26 @@ func (a *Adapter) loadSessionTodos(sessionID string) []ingest.Todo {
 				}
 			}
 		}
+		if err := depRows.Err(); err != nil {
+			slog.Warn("copilot: error reading todo_deps", "error", err)
+		}
 	}
 
-	if len(todos) == 0 {
-		return nil
-	}
 	return todos
+}
+
+// hashItems produces a deterministic hash of the todo items for change detection.
+func (ts *todoState) hashItems(items []sessionDBItem) string {
+	h := sha256.New()
+	for _, item := range items {
+		h.Write([]byte(item.ID))
+		h.Write([]byte{0})
+		h.Write([]byte(item.Title))
+		h.Write([]byte{0})
+		h.Write([]byte(item.Description))
+		h.Write([]byte{0})
+		h.Write([]byte(item.Status))
+		h.Write([]byte{0})
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
