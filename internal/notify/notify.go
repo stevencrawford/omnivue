@@ -126,6 +126,12 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 	}
 
 	enabledAt := time.UnixMilli(settings.EnabledAt)
+	if lastSeenCount > len(msgs) {
+		lastSeenCount = len(msgs)
+	}
+	if lastSeenCount < 0 {
+		lastSeenCount = 0
+	}
 	newMsgs := msgs[lastSeenCount:]
 
 	var candidates []Candidate

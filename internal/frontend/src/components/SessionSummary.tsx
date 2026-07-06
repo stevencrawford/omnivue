@@ -422,7 +422,8 @@ function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics }) {
     {
       icon: TrendingUp,
       label: "Efficiency",
-      value: metrics.efficiencyRatio !== null ? metrics.efficiencyRatio.toFixed(2) : "\u2014",
+      value:
+        metrics.efficiencyRatio !== null ? formatSmallPct(metrics.efficiencyRatio * 100) : "\u2014",
       tooltip:
         "Ratio of output tokens to input tokens. Lower numbers mean more context processed per response token.",
     },

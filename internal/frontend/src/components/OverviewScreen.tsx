@@ -538,7 +538,6 @@ export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: Ov
           hideCosts={hideCosts}
           maxModelTokens={maxModelTokens}
           maxAgentTokens={maxAgentTokens}
-          totalTokens={totalTokens}
           tokenSegments={tokenSegments}
           latestSessionTokens={latestSessionTokens}
           latestSessionCost={latestSessionCost}

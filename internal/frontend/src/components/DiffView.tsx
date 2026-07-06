@@ -4,6 +4,7 @@ import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
 import { computeDiff } from "../utils/diff";
 import { PatchRenderer } from "./DiffRenderer";
+import { CopyButton } from "./CopyButton";
 import { detectLanguage } from "../utils/detectLanguage";
 
 interface DiffViewProps {
@@ -465,6 +466,12 @@ export function DiffView({
     return { additions, deletions, added, modified, deleted };
   }, [mergedDiffs]);
 
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    rightPanelRef.current?.scrollTo(0, 0);
+  }, [selectedPath]);
+
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     for (const [type, handler] of resizeListeners.current) {
@@ -564,9 +571,25 @@ export function DiffView({
         </div>
 
         {/* Right: Diff view */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div ref={rightPanelRef} className="flex-1 overflow-y-auto min-w-0">
           {selectedDiff && selectedDiff.patch ? (
             <div className="p-4 space-y-3">
+              <div className="group flex items-center gap-2 pb-2 border-b border-ov-border">
+                <File size={14} className="shrink-0 text-ov-text-secondary" />
+                <span className="font-mono text-xs text-ov-text-secondary truncate min-w-0">
+                  {sessionDirectory
+                    ? `${sessionDirectory}/${selectedDiff.path}`
+                    : selectedDiff.path}
+                </span>
+                <CopyButton
+                  text={
+                    sessionDirectory
+                      ? `${sessionDirectory}/${selectedDiff.path}`
+                      : selectedDiff.path
+                  }
+                  iconSize={12}
+                />
+              </div>
               {selectedDiff.perHunkPatches.map((hunkPatch, i) => (
                 <PatchRenderer key={i} patch={hunkPatch} lang={detectLanguage(selectedDiff.path)} />
               ))}

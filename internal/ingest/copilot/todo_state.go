@@ -2,21 +2,25 @@ package copilot
 
 import (
 	"encoding/json"
+	"log/slog"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"path/filepath"
 )
 
 // todoItem tracks the in-memory state of a todo item parsed from SQL tool calls.
 type todoItem struct {
 	ID      string
 	Title   string
-	Status  string
 	Content string
+	Status  string
 }
 
-// todoState is a mutable accumulator for tracking todo state across sql tool calls.
+// todoState is a mutable accumulator that builds todo state by parsing SQL
+// tool calls in order. No external database required — it extracts task names
+// directly from INSERT VALUES and tracks status changes from UPDATE.
 type todoState struct {
 	items map[string]*todoItem
 }
@@ -25,28 +29,27 @@ func newTodoState() *todoState {
 	return &todoState{items: make(map[string]*todoItem)}
 }
 
-// isTodoQuery checks whether a SQL query targets the todos table.
-func isTodoQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	for _, keyword := range []string{"from todos", "into todos", "update todos", "table todos"} {
-		if strings.Contains(lower, keyword) {
-			return true
-		}
-	}
-	return false
-}
+// todoTableRe matches SQL statements referencing the todos table.
+var todoTableRe = regexp.MustCompile(
+	`(?i)(?:from|into|update|delete\s+(?:from\s+)?|table|alter\s+table|drop\s+table)\s+` +
+		`(?:["'` + "`" + `]?(?:\w+\.)?["'` + "`" + `]?)todo(?:s|es)?\b`,
+)
 
 // applySQL applies a single SQL statement to the todoState, extracting
 // todo items from INSERT INTO and status changes from UPDATE.
 func (ts *todoState) applySQL(query string) {
 	q := strings.TrimSpace(query)
+	norm := strings.ToUpper(q)
+	for _, quote := range []string{`"`, `'`, "`"} {
+		norm = strings.ReplaceAll(norm, quote+"TODOS"+quote, "TODOS")
+	}
 
 	switch {
-	case strings.HasPrefix(strings.ToUpper(q), "INSERT INTO TODOS"):
+	case strings.HasPrefix(norm, "INSERT INTO TODOS"):
 		ts.parseInsert(q)
-	case strings.HasPrefix(strings.ToUpper(q), "UPDATE TODOS"):
+	case strings.HasPrefix(norm, "UPDATE TODOS"):
 		ts.parseUpdate(q)
-	case strings.HasPrefix(strings.ToUpper(q), "DELETE FROM TODOS"):
+	case strings.HasPrefix(norm, "DELETE FROM TODOS"):
 		clear(ts.items)
 	}
 }
@@ -57,7 +60,6 @@ func (ts *todoState) parseInsert(query string) {
 	if valuesIdx < 0 {
 		return
 	}
-	valuesPart := query[valuesIdx+6:]
 
 	parenOpen := strings.Index(query, "(")
 	parenClose := strings.Index(query, ")")
@@ -82,7 +84,7 @@ func (ts *todoState) parseInsert(query string) {
 		return
 	}
 
-	vals := valuesPart
+	vals := query[valuesIdx+6:]
 	for {
 		vals = strings.TrimSpace(vals)
 		if vals == "" || vals[0] != '(' {
@@ -226,7 +228,7 @@ func (ts *todoState) synthesizeInput() string {
 		Priority string `json:"priority,omitempty"`
 	}
 
-	var entries []todoEntry
+	entries := make([]todoEntry, 0, len(ts.items))
 	for _, item := range ts.items {
 		status := item.Status
 		if status == "done" {
@@ -238,6 +240,9 @@ func (ts *todoState) synthesizeInput() string {
 			Status:  status,
 		})
 	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ID < entries[j].ID
+	})
 
 	out, err := json.Marshal(map[string]any{"todos": entries})
 	if err != nil {
@@ -246,35 +251,35 @@ func (ts *todoState) synthesizeInput() string {
 	return string(out)
 }
 
-// loadSessionTodos reads the todos table from a Copilot session's session.db.
-// Returns nil if the db file is missing or has no todos table.
+// loadSessionTodos reads the todos table from a Copilot session's session.db
+// for the session-level TODOs view. Returns nil if unavailable or empty.
 func (a *Adapter) loadSessionTodos(sessionID string) []ingest.Todo {
-	dbPath := filepath.Join(a.basePath, "session-state", sessionID, "session.db")
-	db, err := ingest.OpenReadOnlyDB(dbPath)
+	db, err := openSessionDB(a.basePath, sessionID)
 	if err != nil {
 		return nil
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`SELECT id, title, COALESCE(description, ''), COALESCE(status, 'pending') FROM todos`)
-	if err != nil {
+	items := queryAllTodos(db)
+	if len(items) == 0 {
 		return nil
 	}
-	defer rows.Close()
 
-	var todos []ingest.Todo
-	todoIndex := make(map[string]*ingest.Todo)
-	for rows.Next() {
-		var t ingest.Todo
-		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status); err != nil {
-			continue
+	todos := make([]ingest.Todo, len(items))
+	todoIndex := make(map[string]*ingest.Todo, len(items))
+	for i, item := range items {
+		t := ingest.Todo{
+			ID:          item.ID,
+			Title:       item.Title,
+			Description: item.Description,
+			Status:      item.Status,
 		}
-		todos = append(todos, t)
-		todoIndex[t.ID] = &todos[len(todos)-1]
+		todos[i] = t
+		todoIndex[t.ID] = &todos[i]
 	}
 
-	depRows, err := db.Query(`SELECT todo_id, depends_on FROM todo_deps`)
-	if err == nil {
+	// Load dependencies
+	if depRows, err := db.Query(`SELECT todo_id, depends_on FROM todo_deps`); err == nil {
 		defer depRows.Close()
 		for depRows.Next() {
 			var todoID, dependsOn string
@@ -284,10 +289,10 @@ func (a *Adapter) loadSessionTodos(sessionID string) []ingest.Todo {
 				}
 			}
 		}
+		if err := depRows.Err(); err != nil {
+			slog.Warn("copilot: error reading todo_deps", "error", err)
+		}
 	}
 
-	if len(todos) == 0 {
-		return nil
-	}
 	return todos
 }

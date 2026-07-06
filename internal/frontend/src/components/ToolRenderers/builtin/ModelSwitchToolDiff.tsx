@@ -1,16 +1,10 @@
 import { ArrowRightLeft } from "lucide-react";
 import type { ToolRendererProps } from "../types";
+import { extractJSONField } from "../../../utils/jsonField";
 
 export function ModelSwitchToolDiff({ tool, variant }: ToolRendererProps) {
-  let model = "";
-  let provider = "";
-  try {
-    const parsed = JSON.parse(tool.input);
-    model = parsed.model || "";
-    provider = parsed.provider || "";
-  } catch {
-    /* ignore */
-  }
+  const model = extractJSONField(tool.input, "model") || "";
+  const provider = extractJSONField(tool.input, "provider") || "";
 
   const shortName = model.split("/").pop() || model || "Unknown model";
 
@@ -24,22 +18,18 @@ export function ModelSwitchToolDiff({ tool, variant }: ToolRendererProps) {
   }
 
   return (
-    <div className="border border-blue-500/30 rounded-lg overflow-hidden bg-blue-500/[0.04] mb-3">
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-px bg-blue-500/20" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <ArrowRightLeft size={12} className="text-blue-400" />
-            <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider select-none">
-              {shortName}
-            </span>
-            {provider && (
-              <span className="text-[10px] text-ov-text-secondary/50 ml-0.5">({provider})</span>
-            )}
-          </div>
-          <div className="flex-1 h-px bg-blue-500/20" />
-        </div>
+    <div className="flex items-center gap-3 mb-3">
+      <div className="flex-1 h-px bg-blue-500/20" />
+      <div className="flex items-center gap-1.5 shrink-0">
+        <ArrowRightLeft size={12} className="text-blue-400" />
+        <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider select-none">
+          {shortName}
+        </span>
+        {provider && (
+          <span className="text-[10px] text-ov-text-secondary/50 ml-0.5">({provider})</span>
+        )}
       </div>
+      <div className="flex-1 h-px bg-blue-500/20" />
     </div>
   );
 }

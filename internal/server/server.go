@@ -1070,7 +1070,7 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 		}
 
 		// Advance the seen-message cursor regardless of whether we emitted.
-		if len(msgs) > st.LastSeenMessageCount {
+		if len(msgs) != st.LastSeenMessageCount {
 			if err := s.store.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
 				slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
 			}
@@ -1109,7 +1109,7 @@ func (s *State) advanceSeenCursor(ctx context.Context, sess *ingest.Session) {
 	if err != nil {
 		return
 	}
-	if len(msgs) > st.LastSeenMessageCount {
+	if len(msgs) != st.LastSeenMessageCount {
 		if err := s.store.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
 			slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
 		}

@@ -18,6 +18,7 @@ interface EditInput {
   oldString?: string;
   newString?: string;
   content?: string;
+  file_text?: string;
   view_range?: [number, number];
 }
 
@@ -38,11 +39,11 @@ export function EditToolDiff({
   const filePath = input.filePath || input.file_path || input.path || "";
   const oldStr = input.old_str || input.old_string || input.oldString || "";
   const newStr = input.new_str || input.new_string || input.newString || "";
-  const content = input.content || "";
+  const content = input.content || input.file_text || "";
   const viewRange = input.view_range;
   const lang = detectLanguage(filePath);
 
-  const isWrite = tool.name === "write" && !!content;
+  const isWrite = (tool.name === "write" || tool.name === "create") && !!content;
   const isAddition = (viewRange != null && !oldStr) || isWrite;
 
   const skipDiff = (oldStr && oldStr.length > 20000) || (newStr && newStr.length > 20000);
@@ -58,7 +59,7 @@ export function EditToolDiff({
           <File size={12} className="text-accent shrink-0" />
         )}
         <span className="text-ov-text-secondary/70 shrink-0">
-          {tool.name === "write" ? "write:" : "edit:"}
+          {tool.name === "write" || tool.name === "create" ? "write:" : "edit:"}
         </span>
         <span className="text-ov-text truncate min-w-0" title={filePath}>
           {baseName}

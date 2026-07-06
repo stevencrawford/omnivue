@@ -26,6 +26,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var currentModel string
 	var subAgentStack []*subAgentState
 	var todoState = newTodoState()
+	var shutdownSnapshots []shutdownSnapshot
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
@@ -53,14 +54,13 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "assistant.message":
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
-				// Normalize sql to todowrite when query targets the todos table
 				for i, tc := range msg.ToolCalls {
 					if tc.Name == "sql" {
 						var args struct {
 							Query string `json:"query"`
 						}
 						if err := json.Unmarshal([]byte(tc.Input), &args); err == nil && args.Query != "" {
-							if isTodoQuery(args.Query) {
+							if todoTableRe.MatchString(args.Query) {
 								msg.ToolCalls[i].Name = "todowrite"
 								for stmt := range strings.SplitSeq(args.Query, ";") {
 									stmt = strings.TrimSpace(stmt)
@@ -105,6 +105,37 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					messages = append(messages, *msg)
 				}
 			}
+
+		case "session.shutdown":
+			if snap := parseShutdownSnapshot(event); snap != nil {
+				if len(shutdownSnapshots) > 0 {
+					prev := shutdownSnapshots[len(shutdownSnapshots)-1]
+					dInput := snap.TokensInput - prev.TokensInput
+					dOutput := snap.TokensOutput - prev.TokensOutput
+					dReasoning := snap.TokensReasoning - prev.TokensReasoning
+					dCache := snap.TokensCacheRead - prev.TokensCacheRead
+					dCost := snap.Cost - prev.Cost
+					if dInput > 0 || dOutput > 0 || dReasoning > 0 || dCache > 0 {
+						delta := ingest.StepEvent{
+							Step: ingest.StepEventFinish,
+							Tokens: ingest.StepTokens{
+								Input:     max(dInput, 0),
+								Output:    max(dOutput, 0),
+								Reasoning: max(dReasoning, 0),
+								CacheRead: max(dCache, 0),
+							},
+							Cost: max(dCost, 0),
+						}
+						for i := range slices.Backward(messages) {
+							if messages[i].Role == ingest.MessageRoleAssistant {
+								messages[i].StepEvents = append(messages[i].StepEvents, delta)
+								break
+							}
+						}
+					}
+				}
+				shutdownSnapshots = append(shutdownSnapshots, *snap)
+			}
 		}
 	}
 
@@ -138,11 +169,12 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 		return nil
 	}
 	msg := ingest.Message{
-		ID:        data.MessageID,
-		Role:      ingest.MessageRoleAssistant,
-		Content:   data.Content,
-		Model:     currentModel,
-		Timestamp: ingestkit.ParseTime(event.Timestamp),
+		ID:           data.MessageID,
+		Role:         ingest.MessageRoleAssistant,
+		Content:      data.Content,
+		Model:        currentModel,
+		Timestamp:    ingestkit.ParseTime(event.Timestamp),
+		TokensOutput: data.OutputTokens,
 	}
 
 	for _, req := range data.ToolRequests {
@@ -181,6 +213,33 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 					tc.Input = string(newInput)
 				}
 			}
+		}
+		if tc.Name == "create" {
+			tc.Name = "write"
+			var args toolEditArgs
+			if err := json.Unmarshal(req.Arguments, &args); err == nil && args.FileText != "" {
+				newInput, err := json.Marshal(map[string]string{
+					"filePath": args.Path,
+					"content":  args.FileText,
+				})
+				if err != nil {
+					slog.Warn("failed to marshal create input", "error", err)
+					newInput = []byte("{}")
+				}
+				tc.Input = string(newInput)
+			}
+		}
+		if tc.Name == "web_fetch" {
+			tc.Name = "webfetch"
+		}
+		if tc.Name == "read_bash" {
+			tc.Name = "bash"
+		}
+		if tc.Name == "stop_bash" {
+			tc.Name = "bash"
+		}
+		if tc.Name == "read_agent" {
+			tc.Name = "task"
 		}
 		msg.ToolCalls = append(msg.ToolCalls, tc)
 	}
@@ -299,6 +358,42 @@ func handleSystemReminder(event eventEnvelope) *ingest.Message {
 			"file": fileName,
 		},
 	}
+}
+
+// parseShutdownSnapshot extracts cumulative token/cost data from a session.shutdown event.
+func parseShutdownSnapshot(event eventEnvelope) *shutdownSnapshot {
+	var data struct {
+		ModelMetrics map[string]*struct {
+			Requests *struct {
+				Cost float64 `json:"cost"`
+			} `json:"requests"`
+			Usage *struct {
+				InputTokens      int `json:"inputTokens"`
+				OutputTokens     int `json:"outputTokens"`
+				ReasoningTokens  int `json:"reasoningTokens"`
+				CacheReadTokens  int `json:"cacheReadTokens"`
+				CacheWriteTokens int `json:"cacheWriteTokens"`
+			} `json:"usage"`
+		} `json:"modelMetrics"`
+	}
+	if err := json.Unmarshal(event.Data, &data); err != nil {
+		return nil
+	}
+	snap := &shutdownSnapshot{
+		Timestamp: event.Timestamp,
+	}
+	for _, m := range data.ModelMetrics {
+		if m.Requests != nil {
+			snap.Cost += m.Requests.Cost
+		}
+		if m.Usage != nil {
+			snap.TokensInput += m.Usage.InputTokens
+			snap.TokensOutput += m.Usage.OutputTokens
+			snap.TokensReasoning += m.Usage.ReasoningTokens
+			snap.TokensCacheRead += m.Usage.CacheReadTokens
+		}
+	}
+	return snap
 }
 
 // updateToolCallResult finds the tool call by ID and updates its output/status.

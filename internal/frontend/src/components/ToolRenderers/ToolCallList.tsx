@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
 import { ChevronRight, Check, Copy, ArrowRight, Circle } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
+import type { ToolRendererDefinition } from "./types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { useSessionNav } from "../../hooks/useNav";
 import { useCopy } from "../../hooks/useCopy";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
+import { DefaultToolDiff } from "./builtin/DefaultToolDiff";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
 
 export function ToolCallList({
@@ -121,7 +123,19 @@ export function ToolCallRow({
     }
   })();
 
-  const renderer = !disableCustomRenderers ? toolRendererRegistry.getRenderer(kind) : null;
+  const fallbackRenderer = useMemo<ToolRendererDefinition>(
+    () => ({
+      kind: "unknown",
+      names: [],
+      Component: DefaultToolDiff,
+      display: { type: "expandable" },
+    }),
+    [],
+  );
+
+  const renderer = !disableCustomRenderers
+    ? (toolRendererRegistry.getRenderer(kind) ?? fallbackRenderer)
+    : null;
   const isTask = kind === "task";
   const isAlwaysOpen = renderer?.display?.type === "always-open";
 

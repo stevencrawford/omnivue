@@ -3,7 +3,7 @@ package pi
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"slices"
 	"strconv"
@@ -123,7 +123,7 @@ func (a *Adapter) parsePiMessages(filePath, sessionID string) ([]ingest.Message,
 		}
 		tc, ok := toolCallsByID[tcID]
 		if !ok {
-			log.Printf("pi adapter: orphaned toolResult for toolCallId=%s (no matching tool call found)", tcID)
+			slog.Warn("pi adapter: orphaned toolResult", "toolCallId", tcID)
 			continue
 		}
 		tc.Output = tr.Content

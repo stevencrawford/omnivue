@@ -15,7 +15,6 @@ interface ModelAgentBreakdownProps {
   hideCosts: boolean;
   maxModelTokens: number;
   maxAgentTokens: number;
-  totalTokens: number;
   tokenSegments: TokenSegment[];
   latestSessionTokens?: string;
   latestSessionCost?: number;
@@ -142,6 +141,44 @@ function AgentBreakdown({
 }
 
 // ---------------------------------------------------------------------------
+// TokenBreakdown
+// ---------------------------------------------------------------------------
+
+function TokenBreakdown({ segments }: { segments: TokenSegment[] }) {
+  const maxValue = segments.length > 0 ? Math.max(...segments.map((s) => s.value)) : 1;
+
+  if (segments.length === 0) {
+    return <p className="text-xs text-ov-text-secondary italic">No token data.</p>;
+  }
+
+  return (
+    <div>
+      {segments.map((seg) => {
+        const pct = maxValue > 0 ? (seg.value / maxValue) * 100 : 0;
+        return (
+          <div key={seg.label} className="ov-breakdown-row">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs truncate min-w-0">{seg.label}</span>
+              </div>
+              <div className="ov-breakdown-bar-track">
+                <div
+                  className="ov-breakdown-bar"
+                  style={{ width: `${pct}%`, background: seg.color }}
+                />
+              </div>
+            </div>
+            <div className="text-right shrink-0 ml-3">
+              <p className="text-xs font-semibold tabular-nums">{formatTokens(seg.value)}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ModelAgentBreakdown
 // ---------------------------------------------------------------------------
 
@@ -151,7 +188,6 @@ export function ModelAgentBreakdown({
   hideCosts,
   maxModelTokens,
   maxAgentTokens,
-  totalTokens,
   tokenSegments,
   latestSessionCost,
   latestSessionTokens,
@@ -190,40 +226,15 @@ export function ModelAgentBreakdown({
             <Zap size={14} />
             <h3>Token breakdown</h3>
           </div>
-          <div className="space-y-4">
-            <div className="flex h-2 rounded-full overflow-hidden bg-ov-bg-hover">
-              {tokenSegments.map((seg) => (
-                <div
-                  key={seg.label}
-                  style={{
-                    width: `${(seg.value / totalTokens) * 100}%`,
-                    background: seg.color,
-                  }}
-                  title={`${seg.label}: ${formatTokens(seg.value)}`}
-                />
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {tokenSegments.map((seg) => (
-                <div key={seg.label} className="flex items-center gap-2 text-xs">
-                  <span
-                    className="size-2 rounded-full shrink-0"
-                    style={{ background: seg.color }}
-                  />
-                  <span className="text-ov-text-secondary">{seg.label}</span>
-                  <span className="ml-auto tabular-nums">{formatTokens(seg.value)}</span>
-                </div>
-              ))}
-            </div>
-            {(latestSessionTokens || (latestSessionCost && latestSessionCost > 0)) && (
-              <p className="text-[11px] text-ov-text-secondary border-t border-ov-border pt-3">
-                Latest session: {latestSessionTokens}
-                {!hideCosts && latestSessionCost && latestSessionCost > 0 && (
-                  <> · {formatCost(latestSessionCost)}</>
-                )}
-              </p>
-            )}
-          </div>
+          <TokenBreakdown segments={tokenSegments} />
+          {(latestSessionTokens || (latestSessionCost && latestSessionCost > 0)) && (
+            <p className="text-[11px] text-ov-text-secondary border-t border-ov-border pt-3 mt-2">
+              Latest session: {latestSessionTokens}
+              {!hideCosts && latestSessionCost && latestSessionCost > 0 && (
+                <> · {formatCost(latestSessionCost)}</>
+              )}
+            </p>
+          )}
         </div>
       </div>
     </section>

@@ -17,6 +17,7 @@ import { SkillToolDiff } from "./SkillToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
+import { WebFetchToolDiff } from "./WebFetchToolDiff";
 import { DefaultToolDiff } from "./DefaultToolDiff";
 
 function fp(tool: ToolCall): string {
@@ -64,7 +65,7 @@ function firstQuestion(tool: ToolCall): string {
 export const definitions: ToolRendererDefinition[] = [
   {
     kind: "bash",
-    names: ["bash", "run_terminal_command_v2", "run_terminal_command"],
+    names: ["bash", "run_terminal_command_v2", "run_terminal_command", "read_bash", "stop_bash"],
     Component: BashToolDiff,
     summary: (tool) => cmd(tool),
     display: { type: "expandable" },
@@ -214,7 +215,7 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "task",
-    names: ["task", "task_v2", "explore:task_v2"],
+    names: ["task", "task_v2", "explore:task_v2", "read_agent"],
     Component: TaskToolDiff,
     summary: (tool) => {
       const desc = extractJSONField(tool.input, "description") || "";
@@ -277,7 +278,7 @@ export const definitions: ToolRendererDefinition[] = [
     Component: QuestionToolDiff,
     summary: (tool) => firstQuestion(tool),
     display: { type: "always-open" },
-    markerColor: "#f97316",
+    markerColor: "#ec4899",
     markerLabel: "Questions",
     markerDisplayType: "question",
     markerPriority: 40,
@@ -332,8 +333,8 @@ export const definitions: ToolRendererDefinition[] = [
   },
   {
     kind: "webfetch",
-    names: ["webfetch"],
-    Component: DefaultToolDiff,
+    names: ["webfetch", "web_fetch"],
+    Component: WebFetchToolDiff,
     summary: (tool) => {
       const url = extractJSONField(tool.input, "url") || "";
       if (url) return url.length > 80 ? url.slice(0, 80) + "…" : url;
