@@ -216,10 +216,7 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 		}
 		if tc.Name == "create" {
 			tc.Name = "write"
-			var args struct {
-				Path     string `json:"path"`
-				FileText string `json:"file_text"`
-			}
+			var args toolEditArgs
 			if err := json.Unmarshal(req.Arguments, &args); err == nil && args.FileText != "" {
 				newInput, err := json.Marshal(map[string]string{
 					"filePath": args.Path,

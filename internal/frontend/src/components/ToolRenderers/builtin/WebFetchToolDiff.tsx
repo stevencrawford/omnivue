@@ -18,7 +18,6 @@ export function WebFetchToolDiff({
   }
 
   if (!url) {
-    if (variant === "summary") return null;
     return null;
   }
 

@@ -1,16 +1,10 @@
 import { ArrowRightLeft } from "lucide-react";
 import type { ToolRendererProps } from "../types";
+import { extractJSONField } from "../../../utils/jsonField";
 
 export function ModelSwitchToolDiff({ tool, variant }: ToolRendererProps) {
-  let model = "";
-  let provider = "";
-  try {
-    const parsed = JSON.parse(tool.input);
-    model = parsed.model || "";
-    provider = parsed.provider || "";
-  } catch {
-    /* ignore */
-  }
+  const model = extractJSONField(tool.input, "model") || "";
+  const provider = extractJSONField(tool.input, "provider") || "";
 
   const shortName = model.split("/").pop() || model || "Unknown model";
 
