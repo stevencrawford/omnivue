@@ -133,6 +133,32 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
       }
     }
 
+    // Third fallback: single point from session-level totals (e.g. Copilot)
+    if (timeline.length === 0) {
+      const si = session.tokensInput;
+      const so = session.tokensOutput;
+      const sc = session.tokensCacheRead;
+      const sr = session.tokensReasoning;
+      const totalTokens = si + so + sc + sr;
+      if (totalTokens > 0) {
+        timeline.push({
+          stepIndex: 0,
+          timestamp: "",
+          tokensInput: si,
+          tokensOutput: so,
+          tokensCached: sc,
+          tokensReasoning: sr,
+          cost: session.cost,
+          cumulativeTotal: totalTokens,
+          cumulativeInput: si,
+          cumulativeOutput: so,
+          cumulativeCached: sc,
+          cumulativeReasoning: sr,
+          cumulativeCost: session.cost,
+        });
+      }
+    }
+
     const toolCalls: { kind: string; status: string }[] = [];
     for (const msg of messages) {
       if (!msg.toolCalls) continue;
