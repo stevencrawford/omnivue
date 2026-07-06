@@ -182,6 +182,9 @@ type Message struct {
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
 
+	// Error holds an API-level error message (rate limit, context length, etc.)
+	Error string `json:"error,omitempty"`
+
 	// Step events (step-start/step-finish markers)
 	StepEvents []StepEvent `json:"stepEvents,omitempty"`
 
