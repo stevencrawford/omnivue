@@ -278,7 +278,7 @@ export const definitions: ToolRendererDefinition[] = [
     Component: QuestionToolDiff,
     summary: (tool) => firstQuestion(tool),
     display: { type: "always-open" },
-    markerColor: "#f97316",
+    markerColor: "#ec4899",
     markerLabel: "Questions",
     markerDisplayType: "question",
     markerPriority: 40,

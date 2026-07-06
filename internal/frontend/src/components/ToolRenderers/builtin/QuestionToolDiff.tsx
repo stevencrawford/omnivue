@@ -51,18 +51,18 @@ export function QuestionToolDiff({
     if (variant === "summary") {
       return (
         <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-          <CircleHelp size={12} className="text-orange-400 shrink-0" />
+          <CircleHelp size={12} className="text-pink-400 shrink-0" />
           <span className="text-ov-text truncate min-w-0">{text}</span>
         </div>
       );
     }
 
     return (
-      <div className="border border-orange-500/30 rounded-lg overflow-hidden bg-orange-500/[0.03] mb-3">
+      <div className="border border-pink-500/30 rounded-lg overflow-hidden bg-pink-500/[0.03] mb-3">
         <div className="px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <CircleHelp size={20} className="text-orange-400 shrink-0" />
-            <span className="font-semibold text-[13px] text-orange-400">Question</span>
+            <CircleHelp size={20} className="text-pink-400 shrink-0" />
+            <span className="font-semibold text-[13px] text-pink-400">Question</span>
             <div className="ml-auto">
               <ToolActionsBar
                 tool={tool}
@@ -78,7 +78,7 @@ export function QuestionToolDiff({
             <p className="text-ov-text-secondary leading-relaxed">{text}</p>
           </div>
           {tool.output && (
-            <div className="mt-2 pt-2 border-t border-orange-500/20">
+            <div className="mt-2 pt-2 border-t border-pink-500/20">
               <span className="text-[11px] text-emerald-400">→ {tool.output}</span>
             </div>
           )}
@@ -96,7 +96,7 @@ export function QuestionToolDiff({
   if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-        <CircleHelp size={12} className="text-orange-400 shrink-0" />
+        <CircleHelp size={12} className="text-pink-400 shrink-0" />
         <span className="text-ov-text truncate min-w-0">
           {q.header || q.question || "question"}
         </span>
@@ -105,11 +105,11 @@ export function QuestionToolDiff({
   }
 
   return (
-    <div className="border border-orange-500/30 rounded-lg overflow-hidden bg-orange-500/[0.03] mb-3">
+    <div className="border border-pink-500/30 rounded-lg overflow-hidden bg-pink-500/[0.03] mb-3">
       <div className="px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <CircleHelp size={20} className="text-orange-400 shrink-0" />
-          <span className="font-semibold text-[13px] text-orange-400">Question</span>
+          <CircleHelp size={20} className="text-pink-400 shrink-0" />
+          <span className="font-semibold text-[13px] text-pink-400">Question</span>
           <div className="ml-auto">
             <ToolActionsBar
               tool={tool}
@@ -155,11 +155,11 @@ export function QuestionToolDiff({
             </div>
           )}
           {freeformText && (
-            <div className="mt-3 pt-3 border-t border-orange-500/20">
+            <div className="mt-3 pt-3 border-t border-pink-500/20">
               <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
                 Response
               </div>
-              <div className="text-[13px] text-ov-text pl-2 border-l-2 border-orange-400/40 whitespace-pre-wrap leading-relaxed">
+              <div className="text-[13px] text-ov-text pl-2 border-l-2 border-pink-400/40 whitespace-pre-wrap leading-relaxed">
                 {freeformText}
               </div>
             </div>

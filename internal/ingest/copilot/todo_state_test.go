@@ -1,77 +1,18 @@
 package copilot
 
 import (
-	"database/sql"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
-// setupTestSessionDB creates a temporary session.db with WAL journal mode
-// (matching realistic SQLite configurations from Copilot) and returns the
-// base path and session ID for use by openSessionDB / todoState.
-func setupTestSessionDB(t *testing.T) (string, string) {
-	t.Helper()
-	tmpDir := t.TempDir()
-	sessionID := "test-session"
+func TestTodoState_InsertParsesTaskNames(t *testing.T) {
+	ts := newTodoState()
+	ts.applySQL(`INSERT INTO "todos" (id, title, description) VALUES ('1', 'Fix login bug', 'The login form crashes')`)
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('2', 'Add dark mode')`)
 
-	sessionDir := filepath.Join(tmpDir, "session-state", sessionID)
-	if err := os.MkdirAll(sessionDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	dbPath := filepath.Join(sessionDir, "session.db")
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT, description TEXT, status TEXT)`); err != nil {
-		t.Fatal(err)
-	}
-
-	return tmpDir, sessionID
-}
-
-// execSQL opens session.db, runs all given queries, then closes.
-func execSQL(t *testing.T, dbPath string, queries ...string) {
-	t.Helper()
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	for _, q := range queries {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-// sessionDBPath returns the session.db path for a test session.
-func sessionDBPath(basePath, sessionID string) string {
-	return filepath.Join(basePath, "session-state", sessionID, "session.db")
-}
-
-func TestTodoState_FirstCallReturnsTodos(t *testing.T) {
-	basePath, sessionID := setupTestSessionDB(t)
-	dbPath := sessionDBPath(basePath, sessionID)
-
-	execSQL(t, dbPath,
-		`INSERT INTO todos VALUES ('1', 'Task A', '', 'pending')`,
-		`INSERT INTO todos VALUES ('2', 'Task B', 'Do B', 'in_progress')`,
-		`INSERT INTO todos VALUES ('3', 'Task C', '', 'done')`,
-	)
-
-	ts := newTodoState(basePath, sessionID)
 	result := ts.synthesizeInput()
-	if result == "" {
-		t.Fatal("expected non-empty result for first call with data")
+	if result == "" || result == "{}" {
+		t.Fatal("expected non-empty result")
 	}
 
 	var parsed struct {
@@ -84,160 +25,148 @@ func TestTodoState_FirstCallReturnsTodos(t *testing.T) {
 	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(parsed.Todos) != 3 {
-		t.Fatalf("expected 3 todos, got %d", len(parsed.Todos))
+	if len(parsed.Todos) != 2 {
+		t.Fatalf("expected 2 todos, got %d", len(parsed.Todos))
 	}
 
-	// Verify ordering (by rowid)
-	if parsed.Todos[0].ID != "1" || parsed.Todos[1].ID != "2" || parsed.Todos[2].ID != "3" {
-		t.Errorf("unexpected ordering: %+v", parsed.Todos)
+	if parsed.Todos[0].ID != "1" || parsed.Todos[0].Content != "Fix login bug: The login form crashes" {
+		t.Errorf("first item: id=%q content=%q", parsed.Todos[0].ID, parsed.Todos[0].Content)
 	}
-
-	// Verify status mapping: "done" → "completed"
-	if parsed.Todos[2].Status != "completed" {
-		t.Errorf("expected status 'completed' for done item, got %q", parsed.Todos[2].Status)
+	if parsed.Todos[1].ID != "2" || parsed.Todos[1].Content != "Add dark mode" {
+		t.Errorf("second item: id=%q content=%q", parsed.Todos[1].ID, parsed.Todos[1].Content)
 	}
-}
-
-func TestTodoState_NoChangeReturnsEmpty(t *testing.T) {
-	basePath, sessionID := setupTestSessionDB(t)
-	execSQL(t, sessionDBPath(basePath, sessionID),
-		`INSERT INTO todos VALUES ('1', 'Task A', '', 'pending')`,
-	)
-
-	ts := newTodoState(basePath, sessionID)
-
-	first := ts.synthesizeInput()
-	if first == "" {
-		t.Fatal("expected non-empty on first call")
-	}
-
-	second := ts.synthesizeInput()
-	if second != "" {
-		t.Fatal("expected empty on second call (no change)")
+	if parsed.Todos[1].Status != "pending" {
+		t.Errorf("expected pending status, got %q", parsed.Todos[1].Status)
 	}
 }
 
-func TestTodoState_ChangeAfterUpdateReturnsNewState(t *testing.T) {
-	basePath, sessionID := setupTestSessionDB(t)
-	dbPath := sessionDBPath(basePath, sessionID)
+func TestTodoState_UpdateChangesStatus(t *testing.T) {
+	ts := newTodoState()
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('1', 'Task A')`)
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('2', 'Task B')`)
+	ts.applySQL(`UPDATE todos SET status = 'in_progress' WHERE id = '1'`)
+	ts.applySQL(`UPDATE todos SET status = 'done', updated_at = datetime() WHERE id = '2'`)
 
-	execSQL(t, dbPath,
-		`INSERT INTO todos VALUES ('1', 'Task A', '', 'pending')`,
-		`INSERT INTO todos VALUES ('2', 'Task B', '', 'pending')`,
-	)
-
-	ts := newTodoState(basePath, sessionID)
-
-	first := ts.synthesizeInput()
-	if first == "" {
-		t.Fatal("expected non-empty on first call")
-	}
-
-	// Update the database
-	execSQL(t, dbPath,
-		`UPDATE todos SET status = 'done' WHERE id = '1'`,
-		`INSERT INTO todos VALUES ('3', 'Task C', '', 'pending')`,
-	)
-
-	second := ts.synthesizeInput()
-	if second == "" {
-		t.Fatal("expected non-empty after DB change")
-	}
-	if second == first {
-		t.Fatal("expected different output after DB change")
-	}
-}
-
-func TestTodoState_EmptyDBReturnsEmpty(t *testing.T) {
-	basePath, sessionID := setupTestSessionDB(t)
-
-	ts := newTodoState(basePath, sessionID)
 	result := ts.synthesizeInput()
-	if result != "" {
-		t.Fatal("expected empty when todos table has no rows")
-	}
-}
-
-func TestTodoState_NoSessionDBReturnsEmpty(t *testing.T) {
-	tmpDir := t.TempDir()
-	ts := newTodoState(tmpDir, "nonexistent-session")
-	result := ts.synthesizeInput()
-	if result != "" {
-		t.Fatal("expected empty when session.db doesn't exist")
-	}
-}
-
-func TestTodoState_OrderPreservedOnMultipleCalls(t *testing.T) {
-	basePath, sessionID := setupTestSessionDB(t)
-	dbPath := sessionDBPath(basePath, sessionID)
-
-	execSQL(t, dbPath,
-		`INSERT INTO todos VALUES ('b', 'Item B', '', 'pending')`,
-		`INSERT INTO todos VALUES ('a', 'Item A', '', 'pending')`,
-		`INSERT INTO todos VALUES ('c', 'Item C', '', 'pending')`,
-	)
-
-	ts := newTodoState(basePath, sessionID)
-
-	first := ts.synthesizeInput()
-	if first == "" {
-		t.Fatal("expected non-empty")
-	}
-
-	// Make a change
-	execSQL(t, dbPath, `UPDATE todos SET status = 'done' WHERE id = 'a'`)
-
-	second := ts.synthesizeInput()
-	if second == "" {
-		t.Fatal("expected non-empty after change")
-	}
-
 	var parsed struct {
 		Todos []struct {
 			ID     string `json:"id"`
 			Status string `json:"status"`
 		} `json:"todos"`
 	}
-	if err := json.Unmarshal([]byte(second), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
-	// Order must be b, a, c (insertion order = rowid order)
-	if len(parsed.Todos) != 3 {
-		t.Fatalf("expected 3 todos, got %d", len(parsed.Todos))
-	}
-	if parsed.Todos[0].ID != "b" || parsed.Todos[1].ID != "a" || parsed.Todos[2].ID != "c" {
-		t.Errorf("expected order b, a, c but got %+v", parsed.Todos)
+	for _, todo := range parsed.Todos {
+		switch todo.ID {
+		case "1":
+			if todo.Status != "in_progress" {
+				t.Errorf("expected in_progress for task 1, got %q", todo.Status)
+			}
+		case "2":
+			if todo.Status != "completed" {
+				t.Errorf("expected completed for task 2 (done), got %q", todo.Status)
+			}
+		}
 	}
 }
 
-func TestTodoState_HashDiffersAcrossSessions(t *testing.T) {
-	session1base, session1ID := setupTestSessionDB(t)
-	session2base, session2ID := setupTestSessionDB(t)
+func TestTodoState_MultipleStatementsInOneCall(t *testing.T) {
+	// In production, events.go splits on ";" before calling applySQL
+	ts := newTodoState()
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('1', 'Task A')`)
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('2', 'Task B')`)
+	ts.applySQL(`UPDATE todos SET status = 'done' WHERE id = '1'`)
 
-	// Both have identical data
-	for _, p := range []string{
-		sessionDBPath(session1base, session1ID),
-		sessionDBPath(session2base, session2ID),
-	} {
-		execSQL(t, p, `INSERT INTO todos VALUES ('1', 'Same', '', 'pending')`)
+	result := ts.synthesizeInput()
+	var parsed struct {
+		Todos []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"todos"`
 	}
-
-	ts1 := newTodoState(session1base, session1ID)
-	ts2 := newTodoState(session2base, session2ID)
-
-	r1 := ts1.synthesizeInput()
-	r2 := ts2.synthesizeInput()
-	if r1 != r2 {
-		t.Fatal("expected identical todowrite output for identical data")
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
 	}
-
-	// Both should return "" on second call
-	if ts1.synthesizeInput() != "" {
-		t.Fatal("expected empty on second call for session 1")
+	if len(parsed.Todos) != 2 {
+		t.Fatalf("expected 2 todos, got %d", len(parsed.Todos))
 	}
-	if ts2.synthesizeInput() != "" {
-		t.Fatal("expected empty on second call for session 2")
+	if parsed.Todos[0].ID != "1" || parsed.Todos[0].Status != "completed" {
+		t.Errorf("expected task 1 completed, got status=%q", parsed.Todos[0].Status)
+	}
+}
+
+func TestTodoState_DeleteClearsItems(t *testing.T) {
+	ts := newTodoState()
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('1', 'Task A')`)
+	ts.applySQL(`DELETE FROM todos`)
+
+	result := ts.synthesizeInput()
+	var parsed struct {
+		Todos []struct{} `json:"todos"`
+	}
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(parsed.Todos) != 0 {
+		t.Fatalf("expected empty after delete, got %d items", len(parsed.Todos))
+	}
+}
+
+func TestTodoState_NonTodoSQLIsIgnored(t *testing.T) {
+	ts := newTodoState()
+	ts.applySQL(`INSERT INTO todos (id, title) VALUES ('1', 'Task A')`)
+	ts.applySQL(`SELECT * FROM sessions`)
+
+	result := ts.synthesizeInput()
+	var parsed struct {
+		Todos []struct {
+			ID string `json:"id"`
+		} `json:"todos"`
+	}
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(parsed.Todos) != 1 {
+		t.Fatalf("expected 1 todo (non-todo SQL ignored), got %d", len(parsed.Todos))
+	}
+}
+
+func TestTodoState_EmptyStateReturnsEmptyArray(t *testing.T) {
+	ts := newTodoState()
+	result := ts.synthesizeInput()
+	var parsed struct {
+		Todos []struct{} `json:"todos"`
+	}
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(parsed.Todos) != 0 {
+		t.Fatalf("expected empty array, got %d items", len(parsed.Todos))
+	}
+}
+
+func TestTodoState_TodoTableReMatches(t *testing.T) {
+	cases := []struct {
+		query string
+		match bool
+	}{
+		{`SELECT * FROM todos`, true},
+		{`SELECT * FROM "todos"`, true},
+		{`INSERT INTO todos (id, title) VALUES (1, 'x')`, true},
+		{`INSERT INTO "todos" (id, title) VALUES (1, 'x')`, true},
+		{`UPDATE todos SET status = 'done'`, true},
+		{`DELETE FROM todos`, true},
+		{`CREATE TABLE todos (id TEXT)`, true},
+		{`ALTER TABLE todos ADD COLUMN x TEXT`, true},
+		{`SELECT * FROM sessions`, false},
+		{`INSERT INTO users (id) VALUES (1)`, false},
+	}
+	for _, c := range cases {
+		got := todoTableRe.MatchString(c.query)
+		if got != c.match {
+			t.Errorf("todoTableRe.MatchString(%q) = %v, want %v", c.query, got, c.match)
+		}
 	}
 }

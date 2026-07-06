@@ -21,7 +21,7 @@ function timeAgo(ms: number): string {
 function kindIcon(kind: AppNotification["kind"]) {
   switch (kind) {
     case "question":
-      return <AlertCircle className="size-3.5 text-orange-400" />;
+      return <AlertCircle className="size-3.5 text-pink-400" />;
     case "task_complete":
       return <CheckCircle2 className="size-3.5 text-emerald-400" />;
     case "new_messages":
