@@ -181,7 +181,7 @@ Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). E
 | `delete`         | red                           |
 | `todowrite`      | amber                         |
 | `task`           | violet                        |
-| `question`       | orange                        |
+| `question`       | pink                          |
 | `exit_plan_mode` | amber (self-contained card)   |
 | `task_complete`  | emerald (self-contained card) |
 | `compaction`     | gray                          |
