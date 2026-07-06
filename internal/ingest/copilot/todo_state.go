@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
+	"regexp"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
@@ -23,16 +23,10 @@ func newTodoState(basePath, sessionID string) *todoState {
 	return &todoState{basePath: basePath, sessionID: sessionID}
 }
 
-// isTodoQuery checks whether a SQL query targets the todos table.
-func isTodoQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	for _, keyword := range []string{"from todos", "into todos", "update todos", "table todos"} {
-		if strings.Contains(lower, keyword) {
-			return true
-		}
-	}
-	return false
-}
+var todoTableRe = regexp.MustCompile(
+	`(?i)(?:from|into|update|delete\s+(?:from\s+)?|table|alter\s+table|drop\s+table)\s+` +
+		`(?:["'` + "`" + `]?(?:\w+\.)?["'` + "`" + `]?)todo(?:s|es)?\b`,
+)
 
 // synthesizeInput queries session.db for the current todo state and returns
 // a todowrite-compatible JSON string if the state has changed since the last

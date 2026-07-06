@@ -53,21 +53,14 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "assistant.message":
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
-				// Normalize sql to todowrite when query targets the todos table.
-				// Instead of parsing the SQL, we query session.db directly for
-				// the current todo state and use snapshot-based change detection.
+				// Normalize sql to todowrite when the query changes the todos table.
+				// We detect this by querying session.db directly and using
+				// snapshot-based change detection — no SQL parsing needed.
 				for i, tc := range msg.ToolCalls {
 					if tc.Name == "sql" {
-						var args struct {
-							Query string `json:"query"`
-						}
-						if err := json.Unmarshal([]byte(tc.Input), &args); err == nil && args.Query != "" {
-							if isTodoQuery(args.Query) {
-								if synthesized := todoState.synthesizeInput(); synthesized != "" {
-									msg.ToolCalls[i].Name = "todowrite"
-									msg.ToolCalls[i].Input = synthesized
-								}
-							}
+						if synthesized := todoState.synthesizeInput(); synthesized != "" {
+							msg.ToolCalls[i].Name = "todowrite"
+							msg.ToolCalls[i].Input = synthesized
 						}
 					}
 				}
