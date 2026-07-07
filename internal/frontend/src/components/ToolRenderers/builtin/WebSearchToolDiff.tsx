@@ -1,4 +1,5 @@
-import { Globe } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Globe } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 
 interface SearchResult {
@@ -38,6 +39,8 @@ export function WebSearchToolDiff({
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
+  const [showAll, setShowAll] = useState(false);
+
   let query = "";
   try {
     const parsed = JSON.parse(tool.input);
@@ -68,6 +71,8 @@ export function WebSearchToolDiff({
   }
 
   const results = output?.results || [];
+  const INITIAL_SHOW = 3;
+  const visible = showAll ? results : results.slice(0, INITIAL_SHOW);
 
   return (
     <div className="px-3 py-2 space-y-1.5">
@@ -81,7 +86,7 @@ export function WebSearchToolDiff({
 
       {results.length > 0 && (
         <div className="space-y-1">
-          {results.map((result, i) => (
+          {visible.map((result, i) => (
             <div key={i} className="bg-ov-bg-hover rounded border border-ov-border overflow-hidden">
               <div className="px-2.5 py-2 space-y-1">
                 <a
@@ -103,6 +108,19 @@ export function WebSearchToolDiff({
               </div>
             </div>
           ))}
+          {results.length > INITIAL_SHOW && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-ov-text-secondary/70 hover:text-ov-text hover:bg-ov-bg-hover rounded transition-colors cursor-pointer border border-ov-border"
+            >
+              <ChevronDown
+                size={12}
+                className={`transition-transform ${showAll ? "rotate-180" : ""}`}
+              />
+              {showAll ? "Show less" : `Show all ${results.length} results`}
+            </button>
+          )}
         </div>
       )}
 

@@ -357,6 +357,7 @@ export const definitions: ToolRendererDefinition[] = [
       return "websearch";
     },
     display: { type: "expandable" },
+    truncateOutput: 0,
     markerColor: "#ec4899",
     markerLabel: "Web",
     markerDisplayType: "web",
