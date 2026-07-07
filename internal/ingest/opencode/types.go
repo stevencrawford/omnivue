@@ -57,10 +57,10 @@ type stepCacheTokens struct {
 }
 
 type partState struct {
-	Status   string   `json:"status"`
-	Input    any      `json:"input"`
-	Output   string   `json:"output"`
-	Metadata any      `json:"metadata,omitempty"`
+	Status   string    `json:"status"`
+	Input    any       `json:"input"`
+	Output   string    `json:"output"`
+	Metadata any       `json:"metadata,omitempty"`
 	Time     *partTime `json:"time,omitempty"`
 }
 

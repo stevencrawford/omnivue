@@ -12,17 +12,17 @@ func simplifyModelName(model string) string {
 var anthropicPricing = map[string]struct {
 	Input, Output, CacheRead, CacheWrite float64
 }{
-	"claude-4-5-sonnet-20250929":       {3.00, 15.00, 0.30, 3.75},
-	"claude-sonnet-4-5-20250929":       {3.00, 15.00, 0.30, 3.75},
-	"claude-4-5-opus-20251101":         {15.00, 75.00, 1.50, 18.75},
-	"claude-opus-4-5-20251101":         {15.00, 75.00, 1.50, 18.75},
-	"claude-4-5-haiku-20251001":        {0.25, 1.25, 0.025, 0.3125},
-	"claude-haiku-4-5-20251001":        {0.25, 1.25, 0.025, 0.3125},
-	"claude-3-5-sonnet-20241022":       {3.00, 15.00, 0.30, 3.75},
-	"claude-3-5-haiku-20241022":        {0.80, 4.00, 0.08, 1.00},
-	"claude-3-opus-20240229":           {15.00, 75.00, 1.50, 18.75},
-	"claude-3-sonnet-20240229":         {3.00, 15.00, 0.30, 3.75},
-	"claude-3-haiku-20240307":          {0.25, 1.25, 0.025, 0.3125},
+	"claude-4-5-sonnet-20250929": {3.00, 15.00, 0.30, 3.75},
+	"claude-sonnet-4-5-20250929": {3.00, 15.00, 0.30, 3.75},
+	"claude-4-5-opus-20251101":   {15.00, 75.00, 1.50, 18.75},
+	"claude-opus-4-5-20251101":   {15.00, 75.00, 1.50, 18.75},
+	"claude-4-5-haiku-20251001":  {0.25, 1.25, 0.025, 0.3125},
+	"claude-haiku-4-5-20251001":  {0.25, 1.25, 0.025, 0.3125},
+	"claude-3-5-sonnet-20241022": {3.00, 15.00, 0.30, 3.75},
+	"claude-3-5-haiku-20241022":  {0.80, 4.00, 0.08, 1.00},
+	"claude-3-opus-20240229":     {15.00, 75.00, 1.50, 18.75},
+	"claude-3-sonnet-20240229":   {3.00, 15.00, 0.30, 3.75},
+	"claude-3-haiku-20240307":    {0.25, 1.25, 0.025, 0.3125},
 }
 
 func calculateCost(model string, tokensIn, tokensOut, cacheWrite, cacheRead int) float64 {

@@ -45,7 +45,7 @@ const (
 type DiffFileStatus string
 
 const (
-	DiffAdded   DiffFileStatus = "added"
+	DiffAdded    DiffFileStatus = "added"
 	DiffModified DiffFileStatus = "modified"
 	DiffDeleted  DiffFileStatus = "deleted"
 	DiffRenamed  DiffFileStatus = "renamed"
@@ -55,10 +55,10 @@ const (
 type TodoStatus string
 
 const (
-	TodoPending     TodoStatus = "pending"
-	TodoInProgress  TodoStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from PlanItemStatus
-	TodoCompleted   TodoStatus = "completed"
-	TodoBlocked     TodoStatus = "blocked"
+	TodoPending    TodoStatus = "pending"
+	TodoInProgress TodoStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from PlanItemStatus
+	TodoCompleted  TodoStatus = "completed"
+	TodoBlocked    TodoStatus = "blocked"
 )
 
 // PlanDataSource indicates how a Plan's markdown content was obtained.
@@ -81,10 +81,10 @@ const (
 type PlanItemStatus string
 
 const (
-	PlanItemPending     PlanItemStatus = "pending"
-	PlanItemInProgress  PlanItemStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from TodoStatus
-	PlanItemCompleted   PlanItemStatus = "completed"
-	PlanItemCanceled    PlanItemStatus = "canceled"
+	PlanItemPending    PlanItemStatus = "pending"
+	PlanItemInProgress PlanItemStatus = "in_progress" //lint:ignore gostyle.repetition disambiguates from TodoStatus
+	PlanItemCompleted  PlanItemStatus = "completed"
+	PlanItemCanceled   PlanItemStatus = "canceled"
 )
 
 // PlanItemPriority represents the urgency of a plan item.
@@ -108,20 +108,20 @@ type Source struct {
 
 // Session represents a unified session entry from any agent.
 type Session struct {
-	ID         string    `json:"id"`
-	SourceID   string    `json:"sourceId"`
-	ParentID   string    `json:"parentId,omitempty"`
-	Title      string    `json:"title"`
-	Repository string    `json:"repository"`
-	Branch     string    `json:"branch"`
-	Agent      AgentType `json:"agent"`
-	SubAgent   string    `json:"subAgent,omitempty"`
-	Model      string    `json:"model"`
-	Cost       float64   `json:"cost"`
-	Directory  string    `json:"directory"`
+	ID         string        `json:"id"`
+	SourceID   string        `json:"sourceId"`
+	ParentID   string        `json:"parentId,omitempty"`
+	Title      string        `json:"title"`
+	Repository string        `json:"repository"`
+	Branch     string        `json:"branch"`
+	Agent      AgentType     `json:"agent"`
+	SubAgent   string        `json:"subAgent,omitempty"`
+	Model      string        `json:"model"`
+	Cost       float64       `json:"cost"`
+	Directory  string        `json:"directory"`
 	Status     SessionStatus `json:"status"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	CreatedAt  time.Time     `json:"createdAt"`
+	UpdatedAt  time.Time     `json:"updatedAt"`
 
 	// Token usage
 	TokensInput      int `json:"tokensInput"`
@@ -154,10 +154,10 @@ type Todo struct {
 // StepEvent represents a step-start or step-finish event in a message.
 type StepEvent struct {
 	Step     StepEventType `json:"step"`
-	Snapshot string     `json:"snapshot,omitempty"`
-	Reason   string     `json:"reason,omitempty"`
-	Cost     float64    `json:"cost,omitempty"`
-	Tokens   StepTokens `json:"tokens,omitzero"`
+	Snapshot string        `json:"snapshot,omitempty"`
+	Reason   string        `json:"reason,omitempty"`
+	Cost     float64       `json:"cost,omitempty"`
+	Tokens   StepTokens    `json:"tokens,omitzero"`
 }
 
 // StepTokens represents token usage for a step.
@@ -171,13 +171,13 @@ type StepTokens struct {
 
 // Message represents a conversation message within a session.
 type Message struct {
-	ID        string     `json:"id"`
+	ID        string      `json:"id"`
 	Role      MessageRole `json:"role"`
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"toolCalls,omitempty"`
-	Timestamp time.Time  `json:"timestamp"`
-	Model     string     `json:"model,omitempty"`
-	Agent     string     `json:"agent,omitempty"`
+	Content   string      `json:"content"`
+	ToolCalls []ToolCall  `json:"toolCalls,omitempty"`
+	Timestamp time.Time   `json:"timestamp"`
+	Model     string      `json:"model,omitempty"`
+	Agent     string      `json:"agent,omitempty"`
 
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
@@ -198,25 +198,25 @@ type Message struct {
 
 // ToolCall represents a tool invocation within a message.
 type ToolCall struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Input    string `json:"input"`
-	Output   string `json:"output"`
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	Input    string         `json:"input"`
+	Output   string         `json:"output"`
 	Status   ToolCallStatus `json:"status"`
-	Duration int64  `json:"duration,omitempty"` // milliseconds
-	Metadata string `json:"metadata,omitempty"` // tool-specific metadata (JSON)
+	Duration int64          `json:"duration,omitempty"` // milliseconds
+	Metadata string         `json:"metadata,omitempty"` // tool-specific metadata (JSON)
 }
 
 // PlanItem represents a task/todo within a session plan.
 type PlanItem struct {
-	Content  string `json:"content"`
+	Content  string           `json:"content"`
 	Status   PlanItemStatus   `json:"status"`
 	Priority PlanItemPriority `json:"priority"`
 }
 
 // Plan represents a session plan rendered as markdown.
 type Plan struct {
-	Markdown string `json:"markdown"`
+	Markdown string         `json:"markdown"`
 	Source   PlanDataSource `json:"source"`
 }
 
@@ -233,11 +233,11 @@ type FileEdit struct {
 
 // DiffFile represents a changed file in a session.
 type DiffFile struct {
-	Path      string `json:"path"`
-	Status   DiffFileStatus `json:"status"`
-	Additions int    `json:"additions"`
-	Deletions int    `json:"deletions"`
-	Patch     string `json:"patch,omitempty"` // unified diff content
+	Path      string         `json:"path"`
+	Status    DiffFileStatus `json:"status"`
+	Additions int            `json:"additions"`
+	Deletions int            `json:"deletions"`
+	Patch     string         `json:"patch,omitempty"` // unified diff content
 }
 
 // SessionDetail includes the full session with messages, plan, and diffs.

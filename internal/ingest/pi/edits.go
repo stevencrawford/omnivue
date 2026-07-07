@@ -1,11 +1,55 @@
 package pi
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
+
+func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	msgs, err := a.Messages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var edits []ingest.FileEdit
+	for _, msg := range msgs {
+		for _, tc := range msg.ToolCalls {
+			if tc.Name != "edit" && tc.Name != "write" {
+				continue
+			}
+
+			fp, oldContent, newContent := parsePiEditContent(tc)
+			if fp == "" {
+				continue
+			}
+
+			content := newContent
+			if oldContent != "" {
+				content = ""
+			}
+
+			edits = append(edits, ingest.FileEdit{
+				FilePath: fp,
+				ToolName: tc.Name,
+				OldStr:   oldContent,
+				NewStr:   newContent,
+				Content:  content,
+			})
+		}
+	}
+	return edits, nil
+}
+
+func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	edits, err := a.Edits(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return ingest.DiffStatsFromEdits(edits), nil
+}
 
 // parsePiEditContent extracts file path and old/new content from an edit or
 // write tool call, handling Pi's native formats:
@@ -44,7 +88,6 @@ func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 		return filePath, "", newStr
 	case "edit":
 		if len(input.Edits) == 0 {
-			// Some edit calls may use oldString/newString directly
 			var fallback struct {
 				OldString string `json:"oldString"`
 				NewString string `json:"newString"`
@@ -54,9 +97,6 @@ func parsePiEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 			}
 			return filePath, "", ""
 		}
-		// Merge all edits into a single old/new pair.
-		// Each edit entry is a standalone replacement within the file; concatenating
-		// them produces a single diff that the frontend can display as multiple hunks.
 		var oldParts, newParts []string
 		for _, e := range input.Edits {
 			oldParts = append(oldParts, e.OldText)

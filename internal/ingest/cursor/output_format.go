@@ -53,7 +53,7 @@ func extractBashOutput(raw string) (text string, rejected bool) {
 // -> newline-separated file paths. Returns "" on mismatch.
 func formatLegacyGlobOutput(raw string) string {
 	var resp struct {
-		Files                     []struct {
+		Files []struct {
 			Name string `json:"name"`
 		} `json:"files"`
 		DirectoryRelWorkspacePath string `json:"directoryRelativeWorkspacePath"`

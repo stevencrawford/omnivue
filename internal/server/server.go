@@ -1003,6 +1003,9 @@ func (s *State) classifyChanges(ctx context.Context, changedIDs []string, transi
 	// Cap per-tick work to protect against a first-load burst.
 	if len(changedIDs) > 50 {
 		slog.Warn("classifyChanges: capping changed sessions", "count", len(changedIDs))
+		// Advance cursors for uncapped sessions so their bookkeeping
+		// stays in sync even though we defer their classification.
+		s.advanceSeenCursors(ctx, changedIDs[50:])
 		changedIDs = changedIDs[:50]
 	}
 
