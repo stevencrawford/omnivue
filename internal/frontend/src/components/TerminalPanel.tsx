@@ -170,13 +170,15 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
       {!xtermLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-ov-text-secondary">
+        <div className="absolute inset-0 flex items-center justify-center gap-2 text-xs text-ov-text-secondary">
+          <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           Loading terminal...
         </div>
       )}
       <div ref={termRef} className={`absolute inset-0 ${xtermLoaded ? "" : "hidden"}`} />
       {xtermLoaded && status !== "connected" && (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-ov-text-secondary">
+        <div className="absolute inset-0 flex items-center justify-center gap-2 text-xs text-ov-text-secondary">
+          <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           {status === "connecting" && "Connecting..."}
           {status === "disconnected" && "Reconnecting..."}
           {status === "error" && "Connection failed, retrying..."}
