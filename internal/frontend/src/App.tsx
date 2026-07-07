@@ -348,6 +348,7 @@ export function App() {
                       <SessionViewer
                         key={activeSession.id}
                         session={activeSession}
+                        childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
                         liveChangedIds={liveChangedIds}
                         activeTab={activeTab}
                         onTabChange={setActiveTab}

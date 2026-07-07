@@ -38,6 +38,7 @@ export type Tab =
 
 interface SessionViewerProps {
   session: Session;
+  childSessions?: Session[];
   liveChangedIds: Set<string>;
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
@@ -78,6 +79,7 @@ const MAIN_TABS: {
 
 export function SessionViewer({
   session,
+  childSessions,
   liveChangedIds,
   activeTab: activeTabProp,
   onTabChange,
@@ -301,6 +303,7 @@ export function SessionViewer({
           <ConversationView
             messages={messages}
             session={session}
+            childSessions={childSessions}
             loading={loading}
             onOpenModal={(content, title) => setMarkdownModal({ content, title })}
             onPin={onPinMessage}

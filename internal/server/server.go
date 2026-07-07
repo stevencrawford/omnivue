@@ -61,12 +61,12 @@ type sseEvent struct {
 // and starts background polling.
 func NewState(ctx context.Context) *State {
 	s := &State{
-		adapters:     make(map[string]ingest.Adapter),
-		subscribers:  make(map[chan sseEvent]struct{}),
-		shutdownCh:   make(chan struct{}, 1),
-		restartCh:    make(chan string, 1),
-		prevStatus:   make(map[string]string),
-		activeViews:  make(map[string]time.Time),
+		adapters:    make(map[string]ingest.Adapter),
+		subscribers: make(map[chan sseEvent]struct{}),
+		shutdownCh:  make(chan struct{}, 1),
+		restartCh:   make(chan string, 1),
+		prevStatus:  make(map[string]string),
+		activeViews: make(map[string]time.Time),
 	}
 
 	// Open Omnivue store
@@ -609,6 +609,47 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		allSessions = append(allSessions, sessions...)
 	}
 
+	// Propagate "active" status and latest UpdatedAt from children to parents
+	// so parent sessions reflect sub-agent activity and don't appear "stuck".
+	{
+		childMap := make(map[string][]*ingest.Session)
+		for i := range allSessions {
+			if allSessions[i].ParentID != "" {
+				childMap[allSessions[i].ParentID] = append(childMap[allSessions[i].ParentID], &allSessions[i])
+			}
+		}
+		var propagate func(id string) bool
+		propagate = func(id string) bool {
+			children := childMap[id]
+			if len(children) == 0 {
+				return false
+			}
+			anyActive := false
+			for _, c := range children {
+				if c.Status == ingest.SessionStatusActive {
+					anyActive = true
+				}
+				if propagate(c.ID) {
+					anyActive = true
+				}
+			}
+			if anyActive {
+				for i := range allSessions {
+					if allSessions[i].ID == id {
+						if allSessions[i].Status != ingest.SessionStatusActive {
+							allSessions[i].Status = ingest.SessionStatusActive
+						}
+						break
+					}
+				}
+			}
+			return anyActive
+		}
+		for i := range allSessions {
+			propagate(allSessions[i].ID)
+		}
+	}
+
 	// Filter out Copilot sessions with no messages (e.g. sessions created on CLI launch)
 	filtered := allSessions[:0]
 	for _, sess := range allSessions {
@@ -640,6 +681,23 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		}
 		if old, ok := prevStatus[sess.ID]; ok && old != string(sess.Status) {
 			transitions = append(transitions, statusTransition{sessionID: sess.ID, from: old, to: string(sess.Status)})
+		}
+	}
+
+	// Also include parent IDs in changedIDs when a child changed, so the
+	// frontend re-fetches the parent's hub view with updated child data.
+	changedSet := make(map[string]struct{}, len(changedIDs))
+	for _, id := range changedIDs {
+		changedSet[id] = struct{}{}
+	}
+	for _, sess := range allSessions {
+		if sess.ParentID != "" {
+			if _, ok := changedSet[sess.ID]; ok {
+				if _, ok := changedSet[sess.ParentID]; !ok {
+					changedIDs = append(changedIDs, sess.ParentID)
+					changedSet[sess.ParentID] = struct{}{}
+				}
+			}
 		}
 	}
 
@@ -871,7 +929,7 @@ func (s *State) pollLoop(ctx context.Context) {
 			if changed {
 				ids, lc, transitions := s.refreshSessions(ctx)
 				liveCount = lc
-	
+
 				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
 				if len(ids) > 0 {
@@ -979,7 +1037,6 @@ func (s *State) reportActiveView(sessionID string) {
 	s.activeViews[sessionID] = time.Now()
 	s.activeViewsMu.Unlock()
 }
-
 
 // classifyChanges inspects the changed sessions, runs the pure classifier, and
 // persists+emits any resulting notifications. It must not block the poll loop,
