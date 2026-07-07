@@ -49,6 +49,13 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     }, []),
   });
 
+  // Fit xterm to the container size
+  const doFit = useCallback(() => {
+    requestAnimationFrame(() => {
+      fitAddonRef.current?.fit();
+    });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let term: any = null;
@@ -79,11 +86,6 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       term.loadAddon(fitAddon);
       term.open(termRef.current);
 
-      // Defer fit to next frame so layout is settled
-      requestAnimationFrame(() => {
-        fitAddon?.fit();
-      });
-
       term.onData((data: string) => {
         send(data);
       });
@@ -104,6 +106,12 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       fitAddonRef.current = null;
     };
   }, [sessionId, connect, disconnect, send]);
+
+  // Fit after xterm loads (container has its final size at this point)
+  useEffect(() => {
+    if (!xtermLoaded) return;
+    doFit();
+  }, [xtermLoaded, doFit]);
 
   // Observe theme changes and apply to xterm
   useEffect(() => {
@@ -129,7 +137,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   }, []);
 
   return (
-    <div ref={containerRef} className="h-full w-full relative">
+    <div ref={containerRef} className="absolute inset-0">
       {!xtermLoaded && (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-ov-text-secondary">
           Loading terminal...
