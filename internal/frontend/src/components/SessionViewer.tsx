@@ -27,7 +27,14 @@ import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
 
-export type Tab = "session" | "diff" | "plan" | "summary" | "todos" | "terminal" | `scratch:${string}`;
+export type Tab =
+  | "session"
+  | "diff"
+  | "plan"
+  | "summary"
+  | "todos"
+  | "terminal"
+  | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
@@ -178,8 +185,8 @@ export function SessionViewer({
         {MAIN_TABS.map(
           (meta) =>
             (meta.tab !== "diff" || !session.parentId) &&
-              (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) &&
-              (meta.tab !== "terminal" || !session.parentId) && (
+            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) &&
+            (meta.tab !== "terminal" || !session.parentId) && (
               <button
                 key={meta.tab}
                 type="button"

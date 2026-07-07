@@ -42,7 +42,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const fitAddonRef = useRef<{ fit: () => void } | null>(null);
   const [xtermLoaded, setXtermLoaded] = useState(false);
 
-  const { connect, disconnect, send } = useTerminal({
+  const { status, connect, disconnect, send } = useTerminal({
     sessionId,
     onOutput: useCallback((data: string) => {
       terminalInstance.current?.write(data);
@@ -135,10 +135,14 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
           Loading terminal...
         </div>
       )}
-      <div
-        ref={termRef}
-        className={`absolute inset-0 ${xtermLoaded ? "" : "hidden"}`}
-      />
+      <div ref={termRef} className={`absolute inset-0 ${xtermLoaded ? "" : "hidden"}`} />
+      {xtermLoaded && status !== "connected" && (
+        <div className="absolute bottom-0 left-0 right-0 bg-ov-bg/80 text-ov-text-secondary text-xs px-2 py-0.5 text-center">
+          {status === "connecting" && "Connecting..."}
+          {status === "disconnected" && "Disconnected, reconnecting..."}
+          {status === "error" && "Connection error, retrying..."}
+        </div>
+      )}
     </div>
   );
 }

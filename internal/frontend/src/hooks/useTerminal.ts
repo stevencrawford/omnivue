@@ -62,11 +62,13 @@ export function useTerminal({
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     const url = `${protocol}//${host}/_/ws/terminal?session_id=${encodeURIComponent(sessionId)}`;
+    console.log("useTerminal connecting to", url);
 
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      console.log("useTerminal ws open");
       if (disposedRef.current) {
         ws.close();
         return;
@@ -91,7 +93,16 @@ export function useTerminal({
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      console.log(
+        "useTerminal ws close",
+        "code:",
+        event.code,
+        "reason:",
+        event.reason,
+        "wasClean:",
+        event.wasClean,
+      );
       wsRef.current = null;
       if (disposedRef.current) return;
       setStatusSafe("disconnected");
