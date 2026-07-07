@@ -87,6 +87,8 @@ func TestAdapter_WithSampleSession(t *testing.T) {
 			}
 		}
 
+		// hasAnyToolCalls guards against sessions with no tool calls (e.g. pure chat).
+		// Without this guard, a session with zero tool calls would falsely assert.
 		if hasAnyToolCalls && toolCallsWithOutput == 0 {
 			t.Error("expected tool calls to have output merged from toolResult messages")
 		}
