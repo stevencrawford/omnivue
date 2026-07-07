@@ -42,7 +42,13 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const fitAddonRef = useRef<any>(null);
   const [xtermLoaded, setXtermLoaded] = useState(false);
 
-  const { status, connect, disconnect, send } = useTerminal({
+  const {
+    status,
+    connect,
+    disconnect,
+    send,
+    resize: terminalResize,
+  } = useTerminal({
     sessionId,
     onOutput: useCallback((data: string) => {
       terminalInstance.current?.write(data);
@@ -58,9 +64,10 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       const dims = fa.proposeDimensions();
       if (containerRect && dims) {
         term.resize(dims.cols + 1, dims.rows + 1);
+        terminalResize(dims.cols, dims.rows);
       }
     });
-  }, []);
+  }, [terminalResize]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +145,13 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     };
   }, [xtermLoaded, doFit]);
 
+  // Focus xterm when it loads so keystrokes go straight to the agent TUI
+  useEffect(() => {
+    if (!xtermLoaded || status !== "connected") return;
+    const term = terminalInstance.current;
+    if (term) term.focus();
+  }, [xtermLoaded, status]);
+
   // Observe theme changes and apply to xterm
   useEffect(() => {
     const el = document.documentElement;
@@ -161,11 +175,12 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       const dims = fa.proposeDimensions();
       if (dims) {
         term.resize(dims.cols + 1, dims.rows + 1);
+        terminalResize(dims.cols, dims.rows);
       }
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [terminalResize]);
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">

@@ -28,16 +28,22 @@ type resizePayload struct {
 	Rows int `json:"rows"`
 }
 
-// Run spawns the agent command directly in a PTY and bidirectionally
-// pipes between the PTY and WebSocket connection. Blocks until the
-// process exits or context is canceled.
+// Run spawns the agent command in a PTY and bidirectionally pipes between
+// the PTY and WebSocket connection. The command is run through the user's
+// login shell so that shell profile (PATH, aliases, etc.) is loaded.
+// Blocks until the process exits or context is canceled.
 func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) error {
-	parts := strings.Fields(cmdline)
-	if len(parts) == 0 {
+	if cmdline == "" {
 		return fmt.Errorf("terminal: empty command")
 	}
 
-	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...) //nolint:gosec // agent command from adapter, safe in local app
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+
+	cmdline = fmt.Sprintf("exec %s", cmdline)
+	cmd := exec.CommandContext(ctx, shell, "-l", "-c", cmdline) //nolint:gosec // agent command from adapter, safe in local app
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
