@@ -11,6 +11,7 @@ import {
   Check,
   Copy,
   BarChart3,
+  Terminal,
 } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
@@ -52,6 +53,8 @@ interface SessionViewerProps {
   focusMessageId?: string;
   onClearFocus?: () => void;
   searchHighlightQuery?: string | null;
+  terminalOpen?: boolean;
+  onTerminalToggle?: () => void;
 }
 
 const MAIN_TABS: {
@@ -86,6 +89,8 @@ export function SessionViewer({
   focusMessageId,
   onClearFocus,
   searchHighlightQuery,
+  terminalOpen,
+  onTerminalToggle,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -204,6 +209,16 @@ export function SessionViewer({
                 )}
               </button>
             ),
+        )}
+        {!session.parentId && onTerminalToggle && (
+          <button
+            type="button"
+            onClick={onTerminalToggle}
+            className={`sess-tab-pill shrink-0 ${terminalOpen ? "sess-tab-pill--active" : ""}`}
+          >
+            <Terminal size={14} />
+            Terminal
+          </button>
         )}
         {(openScratchTabs.length > 0 || !session.parentId) && (
           <div className="w-px h-4 bg-ov-border mx-1 shrink-0" />
