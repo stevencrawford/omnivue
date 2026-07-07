@@ -54,24 +54,8 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "assistant.message":
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
-				for i, tc := range msg.ToolCalls {
-					if tc.Name == "sql" {
-						var args struct {
-							Query string `json:"query"`
-						}
-						if err := json.Unmarshal([]byte(tc.Input), &args); err == nil && args.Query != "" {
-							if todoTableRe.MatchString(args.Query) {
-								msg.ToolCalls[i].Name = "todowrite"
-								for stmt := range strings.SplitSeq(args.Query, ";") {
-									stmt = strings.TrimSpace(stmt)
-									if stmt != "" {
-										todoState.applySQL(stmt)
-									}
-								}
-								msg.ToolCalls[i].Input = todoState.synthesizeInput()
-							}
-						}
-					}
+				for i := range msg.ToolCalls {
+					normalizeSQLToTodoWrite(&msg.ToolCalls[i], todoState)
 				}
 				if len(subAgentStack) > 0 {
 					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
@@ -189,58 +173,7 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 			Input:  string(inputJSON),
 			Status: ingest.ToolCallRunning,
 		}
-		if tc.Name == "ask_user" {
-			tc.Name = "question"
-			tc.Input = normalizeAskUserInput(tc.Input)
-		}
-		if tc.Name == "atlassian-getJiraIssue" || tc.Name == "atlassian_getJiraIssue" {
-			tc.Name = "jira"
-		}
-		if tc.Name == "apply_patch" {
-			tc.Name = "edit"
-			var patchText string
-			if err := json.Unmarshal(req.Arguments, &patchText); err == nil && patchText != "" {
-				filePath := extractCopilotPatchPath(patchText)
-				if filePath != "" {
-					newInput, err := json.Marshal(map[string]string{
-						"filePath": filePath,
-						"content":  patchText,
-					})
-					if err != nil {
-						slog.Warn("failed to marshal patch input", "error", err)
-						newInput = []byte("{}")
-					}
-					tc.Input = string(newInput)
-				}
-			}
-		}
-		if tc.Name == "create" {
-			tc.Name = "write"
-			var args toolEditArgs
-			if err := json.Unmarshal(req.Arguments, &args); err == nil && args.FileText != "" {
-				newInput, err := json.Marshal(map[string]string{
-					"filePath": args.Path,
-					"content":  args.FileText,
-				})
-				if err != nil {
-					slog.Warn("failed to marshal create input", "error", err)
-					newInput = []byte("{}")
-				}
-				tc.Input = string(newInput)
-			}
-		}
-		if tc.Name == "web_fetch" {
-			tc.Name = "webfetch"
-		}
-		if tc.Name == "read_bash" {
-			tc.Name = "bash"
-		}
-		if tc.Name == "stop_bash" {
-			tc.Name = "bash"
-		}
-		if tc.Name == "read_agent" {
-			tc.Name = "task"
-		}
+		normalizeToolCall(&tc, req.Arguments)
 		msg.ToolCalls = append(msg.ToolCalls, tc)
 	}
 
@@ -436,35 +369,4 @@ func extractCopilotPatchPath(patch string) string {
 	return ""
 }
 
-// normalizeAskUserInput transforms Copilot's ask_user input format
-// {question, choices, allow_freeform} to the standard QuestionToolDiff format
-// {questions: [{question, header, options: [{label}]}]}.
-func normalizeAskUserInput(input string) string {
-	var raw struct {
-		Question      string   `json:"question"`
-		Choices       []string `json:"choices"`
-		AllowFreeform bool     `json:"allow_freeform"`
-	}
-	if err := json.Unmarshal([]byte(input), &raw); err != nil || raw.Question == "" {
-		return input
-	}
-	options := make([]map[string]string, len(raw.Choices))
-	for i, c := range raw.Choices {
-		options[i] = map[string]string{"label": c}
-	}
-	transformed := map[string]any{
-		"questions": []map[string]any{
-			{
-				"question": raw.Question,
-				"header":   "Question for you",
-				"options":  options,
-			},
-		},
-	}
-	out, err := json.Marshal(transformed)
-	if err != nil {
-		slog.Warn("failed to marshal ask_user input", "error", err)
-		return "{}"
-	}
-	return string(out)
-}
+
