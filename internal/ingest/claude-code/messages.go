@@ -1,7 +1,9 @@
 package claudecode
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -9,6 +11,14 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
+
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	fpath := a.findSessionFile(sessionID)
+	if fpath == "" {
+		return nil, fmt.Errorf("session file not found: %s", sessionID)
+	}
+	return a.parseMessages(fpath, sessionID)
+}
 
 func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, error) {
 	f, err := os.Open(fpath)
