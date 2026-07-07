@@ -42,8 +42,7 @@ func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) er
 		shell = "/bin/zsh"
 	}
 
-	cmdline = fmt.Sprintf("exec %s", cmdline)
-	cmd := exec.CommandContext(ctx, shell, "-l", "-c", cmdline) //nolint:gosec // agent command from adapter, safe in local app
+	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c", cmdline) //nolint:gosec // agent command from adapter, safe in local app
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
