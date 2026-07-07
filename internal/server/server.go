@@ -2361,30 +2361,27 @@ func handleTerminalWS(state *State) http.HandlerFunc {
 		}
 
 		state.mu.RLock()
-		var sourceID string
-		var sess *ingest.Session
-		for i, se := range state.sessions {
+		var dir string
+		var initCmd string
+		for _, se := range state.sessions {
 			if se.ID == sessionID {
-				sourceID = se.SourceID
-				sess = &state.sessions[i]
+				dir = se.Directory
+				if adapter, ok := state.adapters[se.SourceID]; ok {
+					initCmd = terminal.ExtractCmd(adapter.ResumeCommand(&se))
+				}
 				break
 			}
 		}
-		adapter := state.adapters[sourceID]
 		state.mu.RUnlock()
 
-		if adapter == nil || sess == nil {
+		if initCmd == "" {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}
 
-		dir := sess.Directory
 		if dir == "" {
 			dir = "."
 		}
-
-		resumeCmd := adapter.ResumeCommand(sess)
-		initCmd := terminal.ExtractCmd(resumeCmd)
 
 		ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			InsecureSkipVerify: true,

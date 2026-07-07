@@ -86,6 +86,7 @@ func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) er
 		for {
 			_, msg, err := ws.Read(ctx)
 			if err != nil {
+				killProcess(cmd)
 				cancel()
 				return
 			}
@@ -118,7 +119,21 @@ func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) er
 	}()
 
 	wg.Wait()
+
+	// Reap the child process to avoid zombie accumulation.
+	// If the process already exited, Wait returns immediately; if it was
+	// killed by killProcess above (WS disconnect), Wait blocks until it dies.
+	if cmd.Process != nil {
+		cmd.Wait() //nolint:errcheck
+	}
+
 	return nil
+}
+
+func killProcess(cmd *exec.Cmd) {
+	if cmd != nil && cmd.Process != nil {
+		cmd.Process.Kill() //nolint:errcheck
+	}
 }
 
 // ExtractCmd extracts the agent command portion from a resume command string.
@@ -132,15 +147,11 @@ func ExtractCmd(resumeCmd string) string {
 }
 
 func writeMsg(ctx context.Context, ws *websocket.Conn, typ, data string) error {
-	return ws.Write(ctx, websocket.MessageText, mustJSON(serverMessage{Type: typ, Data: data}))
-}
-
-func mustJSON(v any) []byte {
-	b, err := json.Marshal(v)
+	b, err := json.Marshal(serverMessage{Type: typ, Data: data})
 	if err != nil {
-		return []byte("{}")
+		return fmt.Errorf("terminal: marshal message: %w", err)
 	}
-	return b
+	return ws.Write(ctx, websocket.MessageText, b)
 }
 
 func clampUint16(v, min int) uint16 {
