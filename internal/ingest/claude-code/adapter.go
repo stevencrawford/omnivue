@@ -296,7 +296,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && claude -p %s -s %s", session.Directory, session.Directory, session.ID)
+	return fmt.Sprintf("cd %s && claude -r %s", session.Directory, session.ID)
 }
 
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {

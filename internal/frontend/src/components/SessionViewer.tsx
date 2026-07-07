@@ -348,7 +348,7 @@ export function SessionViewer({
           </div>
         )}
         {activeTab === "terminal" && !session.parentId && (
-          <div className="absolute inset-0 flex flex-col">
+          <div className="absolute inset-0 flex flex-col overflow-hidden">
             <TerminalPanel sessionId={session.id} />
           </div>
         )}

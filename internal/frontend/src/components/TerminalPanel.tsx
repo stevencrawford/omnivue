@@ -137,7 +137,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   }, []);
 
   return (
-    <div ref={containerRef} className="absolute inset-0">
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
       {!xtermLoaded && (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-ov-text-secondary">
           Loading terminal...
