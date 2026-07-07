@@ -2392,8 +2392,7 @@ func handleTerminalWS(state *State) http.HandlerFunc {
 		}
 		defer ws.Close(websocket.StatusNormalClosure, "terminal closed") //nolint:errcheck
 
-		wsCtx := ws.CloseRead(r.Context())
-		if err := terminal.Run(wsCtx, ws, dir, initCmd); err != nil {
+		if err := terminal.Run(r.Context(), ws, dir, initCmd); err != nil {
 			slog.Debug("terminal: session ended", "session", sessionID, "error", err)
 		}
 	}
