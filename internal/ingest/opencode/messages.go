@@ -210,3 +210,28 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 
 	return messages, nil
 }
+
+type compactionInput struct {
+	Kind     string `json:"kind"`
+	Label    string `json:"label"`
+	Auto     bool   `json:"auto"`
+	Overflow bool   `json:"overflow"`
+}
+
+func marshalCompactionInput(p partData) string {
+	auto := false
+	if p.Auto != nil {
+		auto = *p.Auto
+	}
+	overflow := false
+	if p.Overflow != nil {
+		overflow = *p.Overflow
+	}
+	input := compactionInput{
+		Kind:     "context_compaction",
+		Label:    "Compaction",
+		Auto:     auto,
+		Overflow: overflow,
+	}
+	return ingestkit.MarshalJSON(input)
+}
