@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/claude-code"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/codex"
@@ -26,6 +27,7 @@ import (
 	"github.com/stevencrawford/omnivue/internal/notify"
 	"github.com/stevencrawford/omnivue/internal/static"
 	"github.com/stevencrawford/omnivue/internal/store"
+	"github.com/stevencrawford/omnivue/internal/terminal"
 	"github.com/stevencrawford/omnivue/version"
 )
 
@@ -1324,6 +1326,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("POST /_/api/reset", handleReset(state))
 	mux.HandleFunc("GET /_/events", handleSSE(state))
+	mux.HandleFunc("GET /_/ws/terminal", handleTerminalWS(state))
 
 	// SPA fallback
 	mux.HandleFunc("/", handleSPA())
@@ -2403,6 +2406,52 @@ func handleSSE(state *State) http.HandlerFunc {
 				fmt.Fprintf(w, "\n")
 				flusher.Flush()
 			}
+		}
+	}
+}
+
+func handleTerminalWS(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.URL.Query().Get("session_id")
+		if sessionID == "" {
+			http.Error(w, "missing session_id", http.StatusBadRequest)
+			return
+		}
+
+		state.mu.RLock()
+		var dir string
+		var initCmd string
+		for _, se := range state.sessions {
+			if se.ID == sessionID {
+				dir = se.Directory
+				if adapter, ok := state.adapters[se.SourceID]; ok {
+					initCmd = terminal.ExtractCmd(adapter.ResumeCommand(&se))
+				}
+				break
+			}
+		}
+		state.mu.RUnlock()
+
+		if initCmd == "" {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		if dir == "" {
+			dir = "."
+		}
+
+		ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			InsecureSkipVerify: true,
+		})
+		if err != nil {
+			slog.Warn("terminal: websocket upgrade failed", "session", sessionID, "error", err)
+			return
+		}
+		defer ws.Close(websocket.StatusNormalClosure, "terminal closed") //nolint:errcheck
+
+		if err := terminal.Run(r.Context(), ws, dir, initCmd); err != nil {
+			slog.Debug("terminal: session ended", "session", sessionID, "error", err)
 		}
 	}
 }

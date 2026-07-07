@@ -610,7 +610,7 @@ func TestResumeCommand(t *testing.T) {
 	}
 
 	cmd := a.ResumeCommand(s)
-	expected := `cd /home/user/project && claude -p /home/user/project -s sess-001`
+	expected := `cd /home/user/project && claude -r sess-001`
 	if cmd != expected {
 		t.Errorf("ResumeCommand() = %q, want %q", cmd, expected)
 	}
