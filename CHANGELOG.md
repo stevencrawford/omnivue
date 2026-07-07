@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.1.2](https://github.com/stevencrawford/omnivue/compare/v0.1.1...v0.1.2) - 2026-07-07
+
+### Other Changes
+- feat: Compaction card styling, marker visibility, and summary improvements by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/33
+- feat: surface API errors and model changes in Pi adapter by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/34
+- fix(claude): Refactor adapter and fix task output rendering by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/37
+- fix: normalize Copilot tool calls, improve token/todo tracking, frontend fixes by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/36
+- fix(copilot): fix todo state SQL parsing for real Copilot patterns by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/38
+- feat: Add custom websearch tool renderer with Globe icon by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/39
+- refactor(ingest): Split adapter packages into canonical 8-file layout by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/41
+- feat: Add Terminal panel with xterm.js by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/42
+- feat: Support deeply nested sub-agent sessions by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/43
+
 ## [v0.1.1](https://github.com/stevencrawford/omnivue/compare/v0.1.0...v0.1.1) - 2026-07-05
 
 ### Dependency Updates ⬆️
