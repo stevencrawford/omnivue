@@ -27,6 +27,32 @@ export function parentIdsWithChildren(sessions: Session[]): Set<string> {
   return ids;
 }
 
+const MAX_CHILD_DEPTH = 10;
+
+function buildChildTree(
+  parentId: string,
+  childMap: Map<string, Session[]>,
+  repoKey: string,
+  parentPath: string,
+  depth: number,
+): TreeNode[] {
+  if (depth >= MAX_CHILD_DEPTH) return [];
+  const children = childMap.get(parentId);
+  if (!children) return [];
+  return [...children]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .map((cs) => {
+      const childPath = `${parentPath}/${cs.id}`;
+      return {
+        name: cs.title || cs.id.slice(0, 8),
+        fullPath: childPath,
+        children: buildChildTree(cs.id, childMap, repoKey, childPath, depth + 1),
+        session: cs,
+        isGroup: false,
+      };
+    });
+}
+
 export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): TreeNode[] {
   if (!sessions || sessions.length === 0) return [];
 
@@ -82,22 +108,10 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
 
     const children: TreeNode[] = sorted.map((session) => {
       const childSessions = childMap.get(session.id);
-      const childNodes = childSessions
-        ? [...childSessions]
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-            .map((cs) => ({
-              name: cs.title || cs.id.slice(0, 8),
-              fullPath: `${repoKey}/${session.id}/${cs.id}`,
-              children: [],
-              session: cs,
-              isGroup: false,
-            }))
-        : [];
-
       return {
         name: session.title || session.id,
         fullPath: `${repoKey}/${session.id}`,
-        children: childNodes,
+        children: buildChildTree(session.id, childMap, repoKey, `${repoKey}/${session.id}`, 0),
         session,
         isGroup: false,
         childSessions,

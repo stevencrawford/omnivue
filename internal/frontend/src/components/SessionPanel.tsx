@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
+import { ChevronRight, Folder, Plus, Minus, ArrowUpDown } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
@@ -12,10 +12,20 @@ import {
   shortDir,
   shortModel,
 } from "../utils/sessionUtils";
-import { useSessionNav } from "../hooks/useNav";
 import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
 import { ContextMenu } from "./ContextMenu";
 import { AddToProjectDialog } from "./AddToProjectDialog";
+
+function getAncestorChain(sessions: Session[], id: string): string[] {
+  const chain: string[] = [];
+  let current = sessions.find((s) => s.id === id);
+  while (current && current.parentId) {
+    const parentId = current.parentId;
+    chain.unshift(parentId);
+    current = sessions.find((s) => s.id === parentId);
+  }
+  return chain;
+}
 
 interface SessionPanelProps {
   sessions: Session[];
@@ -92,12 +102,12 @@ export function SessionPanel({
       return next;
     });
   }, []);
-  const [expandedParentId, setExpandedParentId] = useState<string | null>(() => {
-    if (!activeSessionId) return null;
-    const session = sessions.find((s) => s.id === activeSessionId);
-    if (session?.parentId) return session.parentId;
-    if (sessions.some((s) => s.parentId === activeSessionId)) return activeSessionId;
-    return null;
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    if (!activeSessionId) return new Set();
+    const ids = new Set<string>();
+    for (const id of getAncestorChain(sessions, activeSessionId)) ids.add(id);
+    if (sessions.some((s) => s.parentId === activeSessionId)) ids.add(activeSessionId);
+    return ids;
   });
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
@@ -121,14 +131,22 @@ export function SessionPanel({
 
   useEffect(() => {
     if (!activeSessionId) return;
-    const session = sessions.find((s) => s.id === activeSessionId);
-    const parentId = session?.parentId || null;
-    if (parentId) {
-      setExpandedParentId(parentId);
-    } else if (sessions.some((s) => s.parentId === activeSessionId)) {
-      setExpandedParentId(activeSessionId);
+    const ids = new Set(expandedIds);
+    for (const id of getAncestorChain(sessions, activeSessionId)) ids.add(id);
+    if (sessions.some((s) => s.parentId === activeSessionId)) ids.add(activeSessionId);
+    if (ids.size !== expandedIds.size || ![...ids].every((v) => expandedIds.has(v))) {
+      setExpandedIds(ids);
     }
-  }, [activeSessionId, sessions]);
+  }, [activeSessionId, sessions, expandedIds]);
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
 
@@ -330,8 +348,8 @@ export function SessionPanel({
                 onToggleCollapse={toggleCollapse}
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
-                expandedParentId={expandedParentId}
-                onExpandParent={setExpandedParentId}
+                expandedIds={expandedIds}
+                onExpand={toggleExpand}
                 onContextMenu={handleContextMenu}
                 displayMode={displayMode}
                 sessionUnread={sessionUnread}
@@ -459,8 +477,8 @@ function RepoNode({
   onToggleCollapse,
   activeSessionId,
   onSessionSelect,
-  expandedParentId,
-  onExpandParent,
+  expandedIds,
+  onExpand,
   onContextMenu,
   displayMode,
   sessionUnread,
@@ -470,8 +488,8 @@ function RepoNode({
   onToggleCollapse: (path: string) => void;
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  expandedParentId: string | null;
-  onExpandParent: (id: string) => void;
+  expandedIds: Set<string>;
+  onExpand: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   sessionUnread: Record<string, number>;
@@ -509,9 +527,9 @@ function RepoNode({
                 childNodes={child.children}
                 isActive={session.id === activeSessionId}
                 activeSessionId={activeSessionId}
-                onSelect={() => onSessionSelect(session.id)}
-                expandedParentId={expandedParentId}
-                onExpandParent={onExpandParent}
+                onSessionSelect={onSessionSelect}
+                expandedIds={expandedIds}
+                onExpand={onExpand}
                 onContextMenu={onContextMenu}
                 displayMode={displayMode}
                 unreadCount={sessionUnread[session.id] || 0}
@@ -540,9 +558,9 @@ function SessionRow({
   childNodes,
   isActive,
   activeSessionId,
-  onSelect,
-  expandedParentId,
-  onExpandParent,
+  onSessionSelect,
+  expandedIds,
+  onExpand,
   onContextMenu,
   displayMode,
   unreadCount = 0,
@@ -551,16 +569,15 @@ function SessionRow({
   childNodes: TreeNode[];
   isActive: boolean;
   activeSessionId: string | null;
-  onSelect: () => void;
-  expandedParentId: string | null;
-  onExpandParent: (id: string) => void;
+  onSessionSelect: (id: string) => void;
+  expandedIds: Set<string>;
+  onExpand: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   unreadCount?: number;
 }) {
-  const { navigateToSession } = useSessionNav();
   const subCount = childNodes.length;
-  const subsVisible = session.id === expandedParentId;
+  const subsVisible = expandedIds.has(session.id);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
@@ -568,8 +585,8 @@ function SessionRow({
   };
 
   const handleClick = () => {
-    onExpandParent(session.id);
-    onSelect();
+    onExpand(session.id);
+    onSessionSelect(session.id);
   };
 
   return (
@@ -618,36 +635,21 @@ function SessionRow({
       {subCount > 0 && subsVisible && (
         <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
           {childNodes.map((child) => {
-            const session = child.session;
-            if (!session) return null;
-            const subActive = session.id === activeSessionId;
+            const childSession = child.session;
+            if (!childSession) return null;
             return (
-              <button
-                key={session.id}
-                type="button"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", session.id);
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
-                onClick={() => navigateToSession(session.id)}
-                onContextMenu={(e) => onContextMenu(session.id, e)}
-                title={buildChildTooltip(session)}
-                className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-                  subActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-                }`}
-              >
-                <ArrowRight size={11} className="text-accent/80 shrink-0" />
-                <span className="text-[11px] truncate flex-1">
-                  {session.subAgent ? (
-                    <span className="text-ov-text-secondary">{session.subAgent}: </span>
-                  ) : null}
-                  {sessionTitle(session)}
-                </span>
-                <span className="text-[11px] opacity-60 tabular-nums shrink-0">
-                  {relativeTime(session.updatedAt)}
-                </span>
-              </button>
+              <SessionRow
+                key={childSession.id}
+                session={childSession}
+                childNodes={child.children}
+                isActive={childSession.id === activeSessionId}
+                activeSessionId={activeSessionId}
+                onSessionSelect={onSessionSelect}
+                expandedIds={expandedIds}
+                onExpand={onExpand}
+                onContextMenu={onContextMenu}
+                displayMode={displayMode}
+              />
             );
           })}
         </div>
@@ -717,14 +719,7 @@ function VerboseStats({ session }: { session: Session }) {
   );
 }
 
-// buildChildTooltip returns a descriptive tooltip for child/sub-agent sessions.
-function buildChildTooltip(session: Session): string {
-  if (session.subAgent) {
-    const title = session.title?.trim() || session.id.slice(0, 10);
-    return `${session.subAgent}: ${title}`;
-  }
-  return session.directory || session.title || session.id.slice(0, 10);
-}
+
 
 // ─── Small SVG icons ──────────────────────────────────────────────
 

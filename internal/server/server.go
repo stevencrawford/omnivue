@@ -607,6 +607,47 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		allSessions = append(allSessions, sessions...)
 	}
 
+	// Propagate "active" status and latest UpdatedAt from children to parents
+	// so parent sessions reflect sub-agent activity and don't appear "stuck".
+	{
+		childMap := make(map[string][]*ingest.Session)
+		for i := range allSessions {
+			if allSessions[i].ParentID != "" {
+				childMap[allSessions[i].ParentID] = append(childMap[allSessions[i].ParentID], &allSessions[i])
+			}
+		}
+		var propagate func(id string) bool
+		propagate = func(id string) bool {
+			children := childMap[id]
+			if len(children) == 0 {
+				return false
+			}
+			anyActive := false
+			for _, c := range children {
+				if c.Status == ingest.SessionStatusActive {
+					anyActive = true
+				}
+				if propagate(c.ID) {
+					anyActive = true
+				}
+			}
+			if anyActive {
+				for i := range allSessions {
+					if allSessions[i].ID == id {
+						if allSessions[i].Status != ingest.SessionStatusActive {
+							allSessions[i].Status = ingest.SessionStatusActive
+						}
+						break
+					}
+				}
+			}
+			return anyActive
+		}
+		for i := range allSessions {
+			propagate(allSessions[i].ID)
+		}
+	}
+
 	// Filter out Copilot sessions with no messages (e.g. sessions created on CLI launch)
 	filtered := allSessions[:0]
 	for _, sess := range allSessions {
@@ -638,6 +679,23 @@ func (s *State) refreshSessions(ctx context.Context) (changedIDs []string, liveC
 		}
 		if old, ok := prevStatus[sess.ID]; ok && old != string(sess.Status) {
 			transitions = append(transitions, statusTransition{sessionID: sess.ID, from: old, to: string(sess.Status)})
+		}
+	}
+
+	// Also include parent IDs in changedIDs when a child changed, so the
+	// frontend re-fetches the parent's hub view with updated child data.
+	changedSet := make(map[string]struct{}, len(changedIDs))
+	for _, id := range changedIDs {
+		changedSet[id] = struct{}{}
+	}
+	for _, sess := range allSessions {
+		if sess.ParentID != "" {
+			if _, ok := changedSet[sess.ID]; ok {
+				if _, ok := changedSet[sess.ParentID]; !ok {
+					changedIDs = append(changedIDs, sess.ParentID)
+					changedSet[sess.ParentID] = struct{}{}
+				}
+			}
 		}
 	}
 

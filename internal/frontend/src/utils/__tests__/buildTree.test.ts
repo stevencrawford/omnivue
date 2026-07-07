@@ -67,6 +67,26 @@ describe("buildTree", () => {
     expect(tree[0].children[0].children[0].session?.id).toBe("child-1");
   });
 
+  it("nests grandchildren sessions recursively", () => {
+    const sessions = [
+      baseSession({ id: "root", repository: "org/repo" }),
+      baseSession({ id: "child", parentId: "root", repository: "org/repo" }),
+      baseSession({ id: "grandchild", parentId: "child", repository: "org/repo" }),
+      baseSession({ id: "great-grandchild", parentId: "grandchild", repository: "org/repo" }),
+    ];
+    const tree = buildTree(sessions, "name");
+    expect(tree).toHaveLength(1);
+    expect(tree[0].children).toHaveLength(1);
+    // root → child → grandchild → great-grandchild
+    expect(tree[0].children[0].session?.id).toBe("root");
+    expect(tree[0].children[0].children).toHaveLength(1);
+    expect(tree[0].children[0].children[0].session?.id).toBe("child");
+    expect(tree[0].children[0].children[0].children).toHaveLength(1);
+    expect(tree[0].children[0].children[0].children[0].session?.id).toBe("grandchild");
+    expect(tree[0].children[0].children[0].children[0].children).toHaveLength(1);
+    expect(tree[0].children[0].children[0].children[0].children[0].session?.id).toBe("great-grandchild");
+  });
+
   it("handles empty session list", () => {
     expect(buildTree([], "recent")).toEqual([]);
   });
