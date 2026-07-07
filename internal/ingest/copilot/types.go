@@ -6,6 +6,12 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
 
+// syntheticSession holds a virtual child session created from sub-agent delegation events.
+type syntheticSession struct {
+	session  ingest.Session
+	messages []ingest.Message
+}
+
 // Event types for parsing events.jsonl.
 
 type eventEnvelope struct {
