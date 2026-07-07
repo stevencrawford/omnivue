@@ -61,12 +61,12 @@ type sseEvent struct {
 // and starts background polling.
 func NewState(ctx context.Context) *State {
 	s := &State{
-		adapters:     make(map[string]ingest.Adapter),
-		subscribers:  make(map[chan sseEvent]struct{}),
-		shutdownCh:   make(chan struct{}, 1),
-		restartCh:    make(chan string, 1),
-		prevStatus:   make(map[string]string),
-		activeViews:  make(map[string]time.Time),
+		adapters:    make(map[string]ingest.Adapter),
+		subscribers: make(map[chan sseEvent]struct{}),
+		shutdownCh:  make(chan struct{}, 1),
+		restartCh:   make(chan string, 1),
+		prevStatus:  make(map[string]string),
+		activeViews: make(map[string]time.Time),
 	}
 
 	// Open Omnivue store
@@ -929,7 +929,7 @@ func (s *State) pollLoop(ctx context.Context) {
 			if changed {
 				ids, lc, transitions := s.refreshSessions(ctx)
 				liveCount = lc
-	
+
 				go s.indexSessions(ctx)
 				s.sendEvent(sseEvent{Name: "update"})
 				if len(ids) > 0 {
@@ -1037,7 +1037,6 @@ func (s *State) reportActiveView(sessionID string) {
 	s.activeViews[sessionID] = time.Now()
 	s.activeViewsMu.Unlock()
 }
-
 
 // classifyChanges inspects the changed sessions, runs the pure classifier, and
 // persists+emits any resulting notifications. It must not block the poll loop,

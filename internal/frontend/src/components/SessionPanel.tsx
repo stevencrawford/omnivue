@@ -768,8 +768,6 @@ function VerboseStats({ session }: { session: Session }) {
   );
 }
 
-
-
 // ─── Small SVG icons ──────────────────────────────────────────────
 
 function IconBtn({

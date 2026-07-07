@@ -51,11 +51,7 @@ function groupMessages(messages: Message[]): Message[] {
   return result;
 }
 
-function SubAgentHubView({
-  childSessions,
-}: {
-  childSessions: Session[];
-}) {
+function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
   const { navigateToSession } = useSessionNav();
 
   return (
@@ -63,7 +59,8 @@ function SubAgentHubView({
       <div className="flex-1 relative min-h-0 overflow-y-auto py-4 px-4">
         <div className="max-w-lg mx-auto">
           <p className="text-sm text-ov-text-secondary mb-4">
-            This session delegated work to <strong>{childSessions.length}</strong> sub-agent{childSessions.length > 1 ? "s" : ""}. Select one to view its conversation.
+            This session delegated work to <strong>{childSessions.length}</strong> sub-agent
+            {childSessions.length > 1 ? "s" : ""}. Select one to view its conversation.
           </p>
           <div className="space-y-1">
             {childSessions.map((cs) => (
@@ -82,9 +79,17 @@ function SubAgentHubView({
                     {cs.title || cs.id.slice(0, 12)}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-ov-text-secondary">{cs.messageCount} message{cs.messageCount !== 1 ? "s" : ""}</span>
-                    <span className="text-[11px] text-ov-text-secondary">{relativeTime(cs.updatedAt)}</span>
-                    <span className={`text-[11px] capitalize ${cs.status === "active" ? "text-green-500" : "text-ov-text-secondary"}`}>{cs.status}</span>
+                    <span className="text-[11px] text-ov-text-secondary">
+                      {cs.messageCount} message{cs.messageCount !== 1 ? "s" : ""}
+                    </span>
+                    <span className="text-[11px] text-ov-text-secondary">
+                      {relativeTime(cs.updatedAt)}
+                    </span>
+                    <span
+                      className={`text-[11px] capitalize ${cs.status === "active" ? "text-green-500" : "text-ov-text-secondary"}`}
+                    >
+                      {cs.status}
+                    </span>
                   </div>
                 </div>
               </button>

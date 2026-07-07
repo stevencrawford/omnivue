@@ -84,7 +84,9 @@ describe("buildTree", () => {
     expect(tree[0].children[0].children[0].children).toHaveLength(1);
     expect(tree[0].children[0].children[0].children[0].session?.id).toBe("grandchild");
     expect(tree[0].children[0].children[0].children[0].children).toHaveLength(1);
-    expect(tree[0].children[0].children[0].children[0].children[0].session?.id).toBe("great-grandchild");
+    expect(tree[0].children[0].children[0].children[0].children[0].session?.id).toBe(
+      "great-grandchild",
+    );
   });
 
   it("handles empty session list", () => {
