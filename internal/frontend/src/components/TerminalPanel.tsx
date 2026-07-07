@@ -55,20 +55,15 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     }, []),
   });
 
-  // Extra bottom rows left empty so agent TUI status lines aren't flush
-  // against the panel edge.
-  const PAD_ROWS = 2;
-
   const doFit = useCallback(() => {
     requestAnimationFrame(() => {
       const term = terminalInstance.current;
       const fa = fitAddonRef.current;
       if (!term?.element || !fa?.proposeDimensions) return;
-      const containerRect = term.element.parentElement?.getBoundingClientRect();
       const dims = fa.proposeDimensions();
-      if (containerRect && dims) {
+      if (dims) {
         term.resize(dims.cols + 1, dims.rows + 1);
-        terminalResize(dims.cols, Math.max(1, dims.rows - PAD_ROWS));
+        terminalResize(dims.cols, dims.rows);
       }
     });
   }, [terminalResize]);
@@ -179,19 +174,10 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const term = terminalInstance.current;
-      const fa = fitAddonRef.current;
-      if (!term?.element || !fa?.proposeDimensions) return;
-      const dims = fa.proposeDimensions();
-      if (dims) {
-        term.resize(dims.cols + 1, dims.rows + 1);
-        terminalResize(dims.cols, Math.max(1, dims.rows - PAD_ROWS));
-      }
-    });
+    const ro = new ResizeObserver(() => doFit());
     ro.observe(el);
     return () => ro.disconnect();
-  }, [terminalResize]);
+  }, [doFit]);
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
