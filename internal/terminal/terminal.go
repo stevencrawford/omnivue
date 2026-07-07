@@ -28,16 +28,16 @@ type resizePayload struct {
 	Rows int `json:"rows"`
 }
 
-// Run spawns a shell in the given directory, sends the init command,
-// and bidirectionally pipes between the PTY and WebSocket connection.
-// Blocks until the connection closes or context is canceled.
-func Run(ctx context.Context, ws *websocket.Conn, dir string, initCmd string) error {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/bash"
+// Run spawns the agent command directly in a PTY and bidirectionally
+// pipes between the PTY and WebSocket connection. Blocks until the
+// process exits or context is canceled.
+func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) error {
+	parts := strings.Fields(cmdline)
+	if len(parts) == 0 {
+		return fmt.Errorf("terminal: empty command")
 	}
 
-	cmd := exec.CommandContext(ctx, shell) //nolint:gosec // $SHELL is user-controlled via env, safe in local app
+	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...) //nolint:gosec // agent command from adapter, safe in local app
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
@@ -51,12 +51,6 @@ func Run(ctx context.Context, ws *websocket.Conn, dir string, initCmd string) er
 	defer cancel()
 
 	_ = writeMsg(ws, ctx, "status", "connected")
-
-	if initCmd != "" {
-		if _, err := f.Write([]byte(initCmd + "\n")); err != nil {
-			return fmt.Errorf("terminal: write init: %w", err)
-		}
-	}
 
 	var wg sync.WaitGroup
 

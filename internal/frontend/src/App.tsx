@@ -4,7 +4,6 @@ import type { Section } from "./components/IconChannel";
 import { SessionViewer } from "./components/SessionViewer";
 import { SearchPanel } from "./components/SearchPanel";
 import { SearchResultsDrawer } from "./components/SearchResultsDrawer";
-import { TerminalPanel } from "./components/TerminalPanel";
 import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ShortcutsModal } from "./components/ShortcutsModal";
@@ -77,7 +76,6 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [terminalOpen, setTerminalOpen] = useState(false);
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -368,8 +366,6 @@ export function App() {
                         focusMessageId={focusMessageId}
                         onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
-                        terminalOpen={terminalOpen}
-                        onTerminalToggle={() => setTerminalOpen((v) => !v)}
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>
@@ -393,12 +389,6 @@ export function App() {
                   />
                 )}
               </main>
-              {terminalOpen && activeSession && !showOverview && (
-                <TerminalPanel
-                  sessionId={activeSession.id}
-                  onClose={() => setTerminalOpen(false)}
-                />
-              )}
             </div>
           </SessionNavContext.Provider>
 
