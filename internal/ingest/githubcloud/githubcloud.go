@@ -73,19 +73,6 @@ func New(token string) *Adapter {
 	}
 }
 
-// updateToken replaces the PAT at runtime (e.g. after settings change).
-func (a *Adapter) updateToken(token string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.token = token
-}
-
-func (a *Adapter) getToken() string {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.token
-}
-
 // Type returns the agent type identifier.
 func (a *Adapter) Type() ingest.AgentType {
 	return ingest.AgentGitHubCloud
@@ -101,55 +88,6 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
-// doRequest performs an authenticated GET request to the GitHub API.
-func (a *Adapter) doRequest(ctx context.Context, url string) ([]byte, error) {
-	token := a.getToken()
-	if token == "" {
-		return nil, fmt.Errorf("github-cloud adapter: no token configured")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("github-cloud adapter: creating request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", apiVersion)
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("github-cloud adapter: API request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("github-cloud adapter: reading response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github-cloud adapter: API returned %d: %s", resp.StatusCode, string(body))
-	}
-
-	return body, nil
-}
-
-// fetchTasks calls GET /agents/tasks and returns the parsed tasks.
-func (a *Adapter) fetchTasks(ctx context.Context) ([]apiTask, error) {
-	body, err := a.doRequest(ctx, agentTasksURL)
-	if err != nil {
-		return nil, err
-	}
-
-	// The API returns an array of tasks at the top level.
-	var tasks []apiTask
-	if err := json.Unmarshal(body, &tasks); err != nil {
-		return nil, fmt.Errorf("github-cloud adapter: parsing tasks: %w", err)
-	}
-
-	return tasks, nil
-}
-
 // apiStateToOmnivue maps GitHub API task states to Omnivue session statuses.
 func apiStateToOmnivue(state string) ingest.SessionStatus {
 	switch state {
@@ -163,16 +101,11 @@ func apiStateToOmnivue(state string) ingest.SessionStatus {
 		return ingest.SessionStatusCompleted
 	case "failed", "timed_out":
 		return ingest.SessionStatusCompleted
-	case "cancelled":
+	case "canceled":
 		return ingest.SessionStatusArchived
 	default:
 		return ingest.SessionStatusPending
 	}
-}
-
-// isErrorStatus returns true for terminal failure states.
-func isErrorStatus(state string) bool {
-	return state == "failed" || state == "timed_out"
 }
 
 // buildSessions converts API tasks and their nested sessions to unified Session objects.
@@ -384,7 +317,64 @@ func VerifyToken(token string) (string, error) {
 
 // SetToken updates the PAT at runtime.
 func (a *Adapter) SetToken(token string) {
-	a.updateToken(token)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.token = token
+}
+
+func (a *Adapter) getToken() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.token
+}
+
+// doRequest performs an authenticated GET request to the GitHub API.
+func (a *Adapter) doRequest(ctx context.Context, url string) ([]byte, error) {
+	token := a.getToken()
+	if token == "" {
+		return nil, fmt.Errorf("github-cloud adapter: no token configured")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("github-cloud adapter: creating request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", apiVersion)
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("github-cloud adapter: API request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("github-cloud adapter: reading response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github-cloud adapter: API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return body, nil
+}
+
+// fetchTasks calls GET /agents/tasks and returns the parsed tasks.
+func (a *Adapter) fetchTasks(ctx context.Context) ([]apiTask, error) {
+	body, err := a.doRequest(ctx, agentTasksURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// The API returns an array of tasks at the top level.
+	var tasks []apiTask
+	if err := json.Unmarshal(body, &tasks); err != nil {
+		return nil, fmt.Errorf("github-cloud adapter: parsing tasks: %w", err)
+	}
+
+	return tasks, nil
 }
 
 // Ensure Adapter implements ingest.Adapter.
