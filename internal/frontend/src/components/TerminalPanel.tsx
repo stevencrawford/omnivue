@@ -49,16 +49,15 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     }, []),
   });
 
-  // Fit xterm to the container size using proposeDimensions + 1
-  // Workaround: fit() rounds down (Math.floor), leaving ~1 cell of
-  // unused space. proposeDimensions + manual resize fills it fully.
   const doFit = useCallback(() => {
     requestAnimationFrame(() => {
+      const term = terminalInstance.current;
       const fa = fitAddonRef.current;
-      if (!fa?.proposeDimensions) return;
+      if (!term?.element || !fa?.proposeDimensions) return;
+      const containerRect = term.element.parentElement?.getBoundingClientRect();
       const dims = fa.proposeDimensions();
-      if (dims) {
-        terminalInstance.current?.resize(dims.cols + 1, dims.rows + 1);
+      if (containerRect && dims) {
+        term.resize(dims.cols + 1, dims.rows + 1);
       }
     });
   }, []);
@@ -115,10 +114,28 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     };
   }, [sessionId, connect, disconnect, send]);
 
-  // Fit after xterm loads (container has its final size at this point)
+  // Inject CSS to force xterm elements to fill their container
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .xterm { width: 100% !important; height: 100% !important; }
+      .xterm-viewport { width: 100% !important; height: 100% !important; overflow-y: hidden !important; }
+    `;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
+
+  // Fit after xterm loads — try multiple times with increasing delay
+  // to handle lazy layout settling (especially on initial mount)
   useEffect(() => {
     if (!xtermLoaded) return;
     doFit();
+    const t1 = setTimeout(doFit, 50);
+    const t2 = setTimeout(doFit, 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [xtermLoaded, doFit]);
 
   // Observe theme changes and apply to xterm
@@ -138,11 +155,12 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
+      const term = terminalInstance.current;
       const fa = fitAddonRef.current;
-      if (!fa?.proposeDimensions) return;
+      if (!term?.element || !fa?.proposeDimensions) return;
       const dims = fa.proposeDimensions();
       if (dims) {
-        terminalInstance.current?.resize(dims.cols + 1, dims.rows + 1);
+        term.resize(dims.cols + 1, dims.rows + 1);
       }
     });
     ro.observe(el);
@@ -158,10 +176,10 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       )}
       <div ref={termRef} className={`absolute inset-0 ${xtermLoaded ? "" : "hidden"}`} />
       {xtermLoaded && status !== "connected" && (
-        <div className="absolute bottom-0 left-0 right-0 bg-ov-bg/80 text-ov-text-secondary text-xs px-2 py-0.5 text-center">
+        <div className="absolute inset-0 flex items-center justify-center text-xs text-ov-text-secondary">
           {status === "connecting" && "Connecting..."}
-          {status === "disconnected" && "Disconnected, reconnecting..."}
-          {status === "error" && "Connection error, retrying..."}
+          {status === "disconnected" && "Reconnecting..."}
+          {status === "error" && "Connection failed, retrying..."}
         </div>
       )}
     </div>
