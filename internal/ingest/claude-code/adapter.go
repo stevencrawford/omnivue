@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
@@ -16,10 +15,7 @@ import (
 type Adapter struct {
 	basePath  string
 	claudeDir string
-
-	mu       sync.RWMutex
-	sessions []ingest.Session
-	lastMod  int64
+	cache     *ingest.SessionCache
 }
 
 func init() {
@@ -73,6 +69,7 @@ func New(basePath string) (*Adapter, error) {
 	return &Adapter{
 		basePath:  basePath,
 		claudeDir: basePath,
+		cache:     ingest.NewSessionCacheWithKey(basePath, ".jsonl", claudeSessionIDFromPath),
 	}, nil
 }
 
@@ -110,9 +107,7 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 }
 
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {
-	a.mu.RLock()
-	lastMod := a.lastMod
-	a.mu.RUnlock()
+	currentLastMod := a.cache.LastModified()
 
 	var maxMod int64
 	projectsPath := filepath.Join(a.claudeDir, projectDir)
@@ -141,11 +136,8 @@ func (a *Adapter) LastModified(_ context.Context) (int64, error) {
 		maxMod = time.Now().UnixMilli()
 	}
 
-	if maxMod > lastMod {
-		a.mu.Lock()
-		a.sessions = nil
-		a.lastMod = maxMod
-		a.mu.Unlock()
+	if maxMod > currentLastMod {
+		a.cache.ReplaceAll(nil)
 	}
 
 	return maxMod, nil

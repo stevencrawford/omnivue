@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -16,27 +15,16 @@ import (
 )
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
-	a.mu.RLock()
-	cached := a.sessions
-	a.mu.RUnlock()
-	if len(cached) > 0 {
-		return cached, nil
+	if sessions := a.cache.List(); len(sessions) > 0 {
+		return sessions, nil
 	}
 	return a.loadSessions(ctx)
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	a.mu.RLock()
-	if len(a.sessions) > 0 {
-		for i := range a.sessions {
-			if a.sessions[i].ID == id {
-				s := a.sessions[i]
-				a.mu.RUnlock()
-				return &s, nil
-			}
-		}
+	if s, ok := a.cache.Lookup(id); ok {
+		return &s, nil
 	}
-	a.mu.RUnlock()
 
 	indexPath := filepath.Join(a.basePath, "session_index.jsonl")
 	indexEntries, err := readIndex(indexPath)
@@ -65,15 +53,7 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		return nil, fmt.Errorf("codex adapter: reading index: %w", err)
 	}
 
-	var sessions []ingest.Session
-	var maxMod int64
-
-	indexFi, err := os.Stat(indexPath)
-	if err == nil {
-		if m := indexFi.ModTime().UnixMilli(); m > maxMod {
-			maxMod = m
-		}
-	}
+	entries := make(map[string]ingest.SessionEntry)
 
 	for _, entry := range indexEntries {
 		session, err := a.resolveSessionFromIndex(ctx, entry)
@@ -85,13 +65,18 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 			continue
 		}
 
-		sessions = append(sessions, *session)
-
-		sfi, err := os.Stat(a.sessionFilePath(entry.ID))
-		if err == nil {
-			if m := sfi.ModTime().UnixMilli(); m > maxMod {
-				maxMod = m
+		fpath := a.sessionFilePath(entry.ID)
+		modTime := session.UpdatedAt.UnixMilli()
+		if fpath != "" {
+			if fi, err := os.Stat(fpath); err == nil {
+				modTime = fi.ModTime().UnixMilli()
 			}
+		}
+
+		entries[entry.ID] = ingest.SessionEntry{
+			Session:  *session,
+			FilePath: fpath,
+			ModTime:  modTime,
 		}
 	}
 
@@ -112,35 +97,30 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 		indexIDs[id] = true
 		fi, err := d.Info()
 		if err != nil {
-			fi = nil
+			return nil
 		}
+		modTime := fi.ModTime().UnixMilli()
 		s := ingest.Session{
-			ID:     id,
-			Agent:  ingest.AgentCodex,
-			Title:  id,
-			Status: ingest.SessionStatusActive,
+			ID:        id,
+			Agent:     ingest.AgentCodex,
+			Title:     id,
+			Status:    ingest.SessionStatusActive,
+			CreatedAt: fi.ModTime(),
+			UpdatedAt: fi.ModTime(),
 		}
-		if fi != nil {
-			s.CreatedAt = fi.ModTime()
-			s.UpdatedAt = fi.ModTime()
-			if m := fi.ModTime().UnixMilli(); m > maxMod {
-				maxMod = m
-			}
+		if len(id) > 8 {
+			s.Title = id[:8]
 		}
-		sessions = append(sessions, s)
+		entries[id] = ingest.SessionEntry{
+			Session:  s,
+			FilePath: p,
+			ModTime:  modTime,
+		}
 		return nil
 	})
 
-	slices.SortFunc(sessions, func(a, b ingest.Session) int {
-		return b.UpdatedAt.Compare(a.UpdatedAt)
-	})
-
-	a.mu.Lock()
-	a.sessions = sessions
-	a.lastMod = maxMod
-	a.mu.Unlock()
-
-	return sessions, nil
+	a.cache.ReplaceAll(entries)
+	return a.cache.List(), nil
 }
 
 func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexEntry) (*ingest.Session, error) {
@@ -337,4 +317,14 @@ func (a *Adapter) sessionFilePath(sessionID string) string {
 		return nil
 	})
 	return found
+}
+
+// codexSessionIDFromPath extracts a session ID from a codex JSONL file path.
+// Used as the key function for SessionCache. Falls back to the file stem.
+func codexSessionIDFromPath(path string) string {
+	name := filepath.Base(path)
+	if idx := strings.LastIndex(name, ".jsonl"); idx > 0 {
+		return name[:idx]
+	}
+	return name
 }

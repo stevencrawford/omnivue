@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -16,27 +15,16 @@ import (
 )
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
-	a.mu.RLock()
-	cached := a.sessions
-	a.mu.RUnlock()
-	if len(cached) > 0 {
-		return cached, nil
+	if sessions := a.cache.List(); len(sessions) > 0 {
+		return sessions, nil
 	}
 	return a.loadSessions(ctx)
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	a.mu.RLock()
-	if len(a.sessions) > 0 {
-		for i := range a.sessions {
-			if a.sessions[i].ID == id {
-				s := a.sessions[i]
-				a.mu.RUnlock()
-				return &s, nil
-			}
-		}
+	if s, ok := a.cache.Lookup(id); ok {
+		return &s, nil
 	}
-	a.mu.RUnlock()
 
 	fpath := a.findSessionFile(id)
 	if fpath == "" {
@@ -60,20 +48,13 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 		return nil, fmt.Errorf("claude-code adapter: reading projects dir: %w", err)
 	}
 
-	var sessions []ingest.Session
-	var maxMod int64
+	entries := make(map[string]ingest.SessionEntry)
 
 	for _, ent := range ents {
 		if !ent.IsDir() {
 			continue
 		}
 		projectPath := filepath.Join(projectsPath, ent.Name())
-		info, err := ent.Info()
-		if err == nil {
-			if m := info.ModTime().UnixMilli(); m > maxMod {
-				maxMod = m
-			}
-		}
 		sessionEnts, err := os.ReadDir(projectPath)
 		if err != nil {
 			continue
@@ -92,38 +73,35 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 				continue
 			}
 			fi, err := se.Info()
+			modTime := session.UpdatedAt.UnixMilli()
 			if err == nil {
-				if m := fi.ModTime().UnixMilli(); m > maxMod {
-					maxMod = m
-				}
+				modTime = fi.ModTime().UnixMilli()
 			}
 
 			sessionID := strings.TrimSuffix(se.Name(), ".jsonl")
-			subagents := a.discoverSubagents(sessionID, projectPath)
+			entries[sessionID] = ingest.SessionEntry{
+				Session:  *session,
+				FilePath: fpath,
+				ModTime:  modTime,
+			}
 
-			sessions = append(sessions, *session)
+			subagents := a.discoverSubagents(sessionID, projectPath)
 			for _, sa := range subagents {
 				if sa.MessageCount == 0 {
 					continue
 				}
-				if m := sa.UpdatedAt.UnixMilli(); m > maxMod {
-					maxMod = m
+				saMod := sa.UpdatedAt.UnixMilli()
+				entries[sa.ID] = ingest.SessionEntry{
+					Session: sa,
+					// Subagents don't have a separate file path tracked here
+					ModTime: saMod,
 				}
-				sessions = append(sessions, sa)
 			}
 		}
 	}
 
-	slices.SortFunc(sessions, func(a, b ingest.Session) int {
-		return b.UpdatedAt.Compare(a.UpdatedAt)
-	})
-
-	a.mu.Lock()
-	a.sessions = sessions
-	a.lastMod = maxMod
-	a.mu.Unlock()
-
-	return sessions, nil
+	a.cache.ReplaceAll(entries)
+	return a.cache.List(), nil
 }
 
 func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, error) {
@@ -302,4 +280,11 @@ func (a *Adapter) discoverSubagents(sessionID, projectPath string) []ingest.Sess
 		sessions = append(sessions, *session)
 	}
 	return sessions
+}
+
+// claudeSessionIDFromPath extracts a session ID from a claude-code JSONL file path.
+// Uses the file stem as the best approximation for the SessionCache key function.
+func claudeSessionIDFromPath(path string) string {
+	name := filepath.Base(path)
+	return strings.TrimSuffix(name, ".jsonl")
 }

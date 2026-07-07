@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
@@ -33,9 +32,7 @@ func detectPath(path string) *ingest.DiscoveredSource {
 
 type Adapter struct {
 	basePath string
-	mu       sync.RWMutex
-	sessions []ingest.Session
-	lastMod  int64
+	cache    *ingest.SessionCache
 }
 
 func New(basePath string) (*Adapter, error) {
@@ -54,7 +51,10 @@ func New(basePath string) (*Adapter, error) {
 	if !hasIndexFile(basePath) {
 		return nil, fmt.Errorf("codex adapter: session_index.jsonl not found at %s", basePath)
 	}
-	return &Adapter{basePath: basePath}, nil
+	return &Adapter{
+		basePath: basePath,
+		cache:    ingest.NewSessionCacheWithKey(basePath, ".jsonl", codexSessionIDFromPath),
+	}, nil
 }
 
 func (a *Adapter) Type() ingest.AgentType { return ingest.AgentCodex }
@@ -70,9 +70,7 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
-	a.mu.RLock()
-	lastMod := a.lastMod
-	a.mu.RUnlock()
+	currentLastMod := a.cache.LastModified()
 
 	var maxMod int64
 
@@ -107,8 +105,8 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 		return nil
 	})
 	if err != nil {
-		if lastMod > 0 {
-			return lastMod, nil
+		if currentLastMod > 0 {
+			return currentLastMod, nil
 		}
 		return time.Now().UnixMilli(), nil
 	}
@@ -117,11 +115,8 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 		maxMod = time.Now().UnixMilli()
 	}
 
-	if maxMod > lastMod {
-		a.mu.Lock()
-		a.sessions = nil
-		a.lastMod = maxMod
-		a.mu.Unlock()
+	if maxMod > currentLastMod {
+		a.cache.ReplaceAll(nil)
 	}
 
 	return maxMod, nil
