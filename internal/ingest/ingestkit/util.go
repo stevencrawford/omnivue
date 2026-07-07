@@ -51,7 +51,7 @@ func HasPlanContent(text string) bool {
 const (
 	// DefaultJSONLBufferSize is the initial buffer size for bufio.Scanner when reading JSONL lines.
 	// File content embedded in JSONL lines can exceed the default 64KB limit.
-	DefaultJSONLBufferSize = 512 * 1024
+	DefaultJSONLBufferSize = 4 * 1024 * 1024
 
 	// MaxContentBytes is the maximum number of bytes for tool call input/output
 	// content before truncation. Shared across adapters to keep truncation

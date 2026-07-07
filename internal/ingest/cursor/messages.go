@@ -1,7 +1,6 @@
 package cursor
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -246,7 +245,7 @@ func parseTranscriptJSONL(path string) []ingest.Message {
 	defer f.Close()
 
 	var messages []ingest.Message
-	scanner := bufio.NewScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
