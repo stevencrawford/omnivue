@@ -11,6 +11,7 @@ import {
   Check,
   Copy,
   BarChart3,
+  Terminal,
 } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
@@ -21,11 +22,19 @@ import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
 import { ScratchEditor } from "./ScratchEditor";
 import { TodosView } from "./TodosView";
+import { TerminalPanel } from "./TerminalPanel";
 import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
 
-export type Tab = "session" | "diff" | "plan" | "summary" | "todos" | `scratch:${string}`;
+export type Tab =
+  | "session"
+  | "diff"
+  | "plan"
+  | "summary"
+  | "todos"
+  | "terminal"
+  | `scratch:${string}`;
 
 interface SessionViewerProps {
   session: Session;
@@ -55,7 +64,7 @@ interface SessionViewerProps {
 }
 
 const MAIN_TABS: {
-  tab: "session" | "diff" | "plan" | "summary" | "todos";
+  tab: "session" | "diff" | "plan" | "summary" | "todos" | "terminal";
   label: string;
   icon: ReactNode;
 }[] = [
@@ -64,6 +73,7 @@ const MAIN_TABS: {
   { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
   { tab: "summary", label: "Summary", icon: <BarChart3 size={14} /> },
   { tab: "todos", label: "TODOs", icon: <BarChart3 size={14} /> },
+  { tab: "terminal", label: "Terminal", icon: <Terminal size={14} /> },
 ];
 
 export function SessionViewer({
@@ -152,6 +162,7 @@ export function SessionViewer({
     if (tab === "diff") return <FileText size={14} />;
     if (tab === "plan") return <ListTodo size={14} />;
     if (tab === "summary") return <BarChart3 size={14} />;
+    if (tab === "terminal") return <Terminal size={14} />;
     if (tab.startsWith("scratch:")) return <File size={14} />;
     return null;
   };
@@ -174,7 +185,8 @@ export function SessionViewer({
         {MAIN_TABS.map(
           (meta) =>
             (meta.tab !== "diff" || !session.parentId) &&
-            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) && (
+            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) &&
+            (meta.tab !== "terminal" || !session.parentId) && (
               <button
                 key={meta.tab}
                 type="button"
@@ -333,6 +345,11 @@ export function SessionViewer({
         {activeTab === "todos" && session.todos && (
           <div className="absolute inset-0">
             <TodosView todos={session.todos} />
+          </div>
+        )}
+        {activeTab === "terminal" && !session.parentId && (
+          <div className="absolute inset-0 flex flex-col overflow-hidden">
+            <TerminalPanel sessionId={session.id} />
           </div>
         )}
         {isScratchTab(activeTab) &&

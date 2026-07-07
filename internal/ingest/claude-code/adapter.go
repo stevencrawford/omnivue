@@ -103,7 +103,7 @@ func (a *Adapter) Detect(path string) bool {
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && claude -p %s -s %s", session.Directory, session.Directory, session.ID)
+	return fmt.Sprintf("cd %s && claude -r %s", session.Directory, session.ID)
 }
 
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {
