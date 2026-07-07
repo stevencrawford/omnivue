@@ -3,7 +3,6 @@ package claudecode
 import (
 	"context"
 	"encoding/json"
-	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
@@ -13,34 +12,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 	if err != nil {
 		return nil, err
 	}
-
-	seen := make(map[string]bool)
-	var diffs []ingest.DiffFile
-	for _, e := range edits {
-		if seen[e.FilePath] {
-			continue
-		}
-		seen[e.FilePath] = true
-		adds := 0
-		dels := 0
-		if e.NewStr != "" {
-			adds = strings.Count(e.NewStr, "\n") + 1
-		}
-		if e.OldStr != "" {
-			dels = strings.Count(e.OldStr, "\n") + 1
-		}
-		status := ingest.DiffModified
-		if e.OldStr == "" && e.NewStr != "" {
-			status = ingest.DiffAdded
-		}
-		diffs = append(diffs, ingest.DiffFile{
-			Path:      e.FilePath,
-			Status:    status,
-			Additions: adds,
-			Deletions: dels,
-		})
-	}
-	return diffs, nil
+	return ingest.DiffStatsFromEdits(edits), nil
 }
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
