@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, Plus, Minus, ArrowUpDown } from "lucide-react";
+import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
@@ -102,13 +102,36 @@ export function SessionPanel({
       return next;
     });
   }, []);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    if (!activeSessionId) return new Set();
-    const ids = new Set<string>();
-    for (const id of getAncestorChain(sessions, activeSessionId)) ids.add(id);
-    if (sessions.some((s) => s.parentId === activeSessionId)) ids.add(activeSessionId);
+  const [toggledIds, setToggledIds] = useState<Set<string>>(new Set());
+  const prevActiveRef = useRef(activeSessionId);
+
+  const toggleExpand = useCallback((id: string) => {
+    setToggledIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // On navigation, clear manual toggles and auto-expand the ancestor chain
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (activeSessionId !== prevActiveRef.current) {
+      prevActiveRef.current = activeSessionId;
+      setToggledIds(new Set());
+    }
+  }, [activeSessionId]);
+
+  // Derive the full set of expanded IDs: ancestors of active session + manual toggles
+  const expandedIds = useMemo(() => {
+    const ids = new Set(toggledIds);
+    if (activeSessionId) {
+      for (const id of getAncestorChain(sessions, activeSessionId)) ids.add(id);
+      if (sessions.some((s) => s.parentId === activeSessionId)) ids.add(activeSessionId);
+    }
     return ids;
-  });
+  }, [toggledIds, activeSessionId, sessions]);
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
     x: number;
@@ -128,25 +151,6 @@ export function SessionPanel({
     repository: null,
     model: null,
   });
-
-  useEffect(() => {
-    if (!activeSessionId) return;
-    const ids = new Set(expandedIds);
-    for (const id of getAncestorChain(sessions, activeSessionId)) ids.add(id);
-    if (sessions.some((s) => s.parentId === activeSessionId)) ids.add(activeSessionId);
-    if (ids.size !== expandedIds.size || ![...ids].every((v) => expandedIds.has(v))) {
-      setExpandedIds(ids);
-    }
-  }, [activeSessionId, sessions, expandedIds]);
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
 
@@ -349,7 +353,7 @@ export function SessionPanel({
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
                 expandedIds={expandedIds}
-                onExpand={toggleExpand}
+                onToggleExpand={toggleExpand}
                 onContextMenu={handleContextMenu}
                 displayMode={displayMode}
                 sessionUnread={sessionUnread}
@@ -478,7 +482,7 @@ function RepoNode({
   activeSessionId,
   onSessionSelect,
   expandedIds,
-  onExpand,
+  onToggleExpand,
   onContextMenu,
   displayMode,
   sessionUnread,
@@ -489,7 +493,7 @@ function RepoNode({
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
   expandedIds: Set<string>;
-  onExpand: (id: string) => void;
+  onToggleExpand: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   sessionUnread: Record<string, number>;
@@ -529,7 +533,7 @@ function RepoNode({
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
                 expandedIds={expandedIds}
-                onExpand={onExpand}
+                onToggleExpand={onToggleExpand}
                 onContextMenu={onContextMenu}
                 displayMode={displayMode}
                 unreadCount={sessionUnread[session.id] || 0}
@@ -560,10 +564,11 @@ function SessionRow({
   activeSessionId,
   onSessionSelect,
   expandedIds,
-  onExpand,
+  onToggleExpand,
   onContextMenu,
   displayMode,
   unreadCount = 0,
+  compact = false,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -571,10 +576,11 @@ function SessionRow({
   activeSessionId: string | null;
   onSessionSelect: (id: string) => void;
   expandedIds: Set<string>;
-  onExpand: (id: string) => void;
+  onToggleExpand: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   unreadCount?: number;
+  compact?: boolean;
 }) {
   const subCount = childNodes.length;
   const subsVisible = expandedIds.has(session.id);
@@ -585,9 +591,73 @@ function SessionRow({
   };
 
   const handleClick = () => {
-    onExpand(session.id);
-    onSessionSelect(session.id);
+    if (isActive) {
+      onToggleExpand(session.id);
+    } else {
+      onSessionSelect(session.id);
+    }
   };
+
+  const childContent = subCount > 0 && subsVisible && (
+    <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
+      {childNodes.map((child) => {
+        const childSession = child.session;
+        if (!childSession) return null;
+        return (
+          <SessionRow
+            key={childSession.id}
+            session={childSession}
+            childNodes={child.children}
+            isActive={childSession.id === activeSessionId}
+            activeSessionId={activeSessionId}
+            onSessionSelect={onSessionSelect}
+            expandedIds={expandedIds}
+            onToggleExpand={onToggleExpand}
+            onContextMenu={onContextMenu}
+            displayMode={displayMode}
+            compact={true}
+          />
+        );
+      })}
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div>
+        <button
+          type="button"
+          draggable
+          onDragStart={handleDragStart}
+          onClick={handleClick}
+          onContextMenu={(e) => onContextMenu(session.id, e)}
+          title={session.directory || session.repository}
+          className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
+            isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
+          }`}
+        >
+          {subCount > 0 ? (
+            <ChevronRight
+              size={10}
+              className={`shrink-0 text-accent/80 transition-transform ${subsVisible ? "rotate-90" : ""}`}
+            />
+          ) : (
+            <ArrowRight size={10} className="text-accent/80 shrink-0" />
+          )}
+          <span className="text-[11px] truncate flex-1">
+            {session.subAgent ? (
+              <span className="text-ov-text-secondary">{session.subAgent}: </span>
+            ) : null}
+            {sessionTitle(session)}
+          </span>
+          <span className="text-[11px] opacity-60 tabular-nums shrink-0">
+            {relativeTime(session.updatedAt)}
+          </span>
+        </button>
+        {childContent}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -632,28 +702,7 @@ function SessionRow({
         )}
         {displayMode === "verbose" && <VerboseStats session={session} />}
       </button>
-      {subCount > 0 && subsVisible && (
-        <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
-          {childNodes.map((child) => {
-            const childSession = child.session;
-            if (!childSession) return null;
-            return (
-              <SessionRow
-                key={childSession.id}
-                session={childSession}
-                childNodes={child.children}
-                isActive={childSession.id === activeSessionId}
-                activeSessionId={activeSessionId}
-                onSessionSelect={onSessionSelect}
-                expandedIds={expandedIds}
-                onExpand={onExpand}
-                onContextMenu={onContextMenu}
-                displayMode={displayMode}
-              />
-            );
-          })}
-        </div>
-      )}
+      {childContent}
     </div>
   );
 }
