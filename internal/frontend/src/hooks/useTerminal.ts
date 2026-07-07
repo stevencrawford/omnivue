@@ -101,8 +101,8 @@ export function useTerminal({
       }, retryDelayRef.current);
     };
 
-    ws.onerror = () => {
-      // onclose will fire after onerror
+    ws.onerror = (event) => {
+      console.error("useTerminal ws error event:", event.type);
     };
   }, [sessionId, setStatusSafe]);
 

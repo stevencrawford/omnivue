@@ -37,6 +37,7 @@ function xtermTheme() {
 
 export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const termRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<any>(null);
   const fitAddonRef = useRef<{ fit: () => void } | null>(null);
   const [xtermLoaded, setXtermLoaded] = useState(false);
@@ -57,6 +58,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       const [xtermMod, fitMod] = await Promise.all([
         import("@xterm/xterm"),
         import("@xterm/addon-fit"),
+        import("@xterm/xterm/css/xterm.css"),
       ]);
 
       if (cancelled || !termRef.current) return;
@@ -76,7 +78,11 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.open(termRef.current);
-      fitAddon.fit();
+
+      // Defer fit to next frame so layout is settled
+      requestAnimationFrame(() => {
+        fitAddon?.fit();
+      });
 
       term.onData((data: string) => {
         send(data);
@@ -111,15 +117,19 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     return () => mo.disconnect();
   }, []);
 
-  // Fit on window resize
+  // Fit whenever the container changes size (handles tab visibility, window resize)
   useEffect(() => {
-    const onResize = () => fitAddonRef.current?.fit();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      fitAddonRef.current?.fit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   return (
-    <div className="h-full w-full relative">
+    <div ref={containerRef} className="h-full w-full relative">
       {!xtermLoaded && (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-ov-text-secondary">
           Loading terminal...
