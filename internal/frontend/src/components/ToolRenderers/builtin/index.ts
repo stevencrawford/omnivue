@@ -18,6 +18,7 @@ import { QuestionToolDiff } from "./QuestionToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
 import { WebFetchToolDiff } from "./WebFetchToolDiff";
+import { WebSearchToolDiff } from "./WebSearchToolDiff";
 import { DefaultToolDiff } from "./DefaultToolDiff";
 
 function fp(tool: ToolCall): string {
@@ -349,7 +350,7 @@ export const definitions: ToolRendererDefinition[] = [
   {
     kind: "websearch",
     names: ["websearch"],
-    Component: DefaultToolDiff,
+    Component: WebSearchToolDiff,
     summary: (tool) => {
       const q = extractJSONField(tool.input, "query") || "";
       if (q) return q.length > 80 ? q.slice(0, 80) + "…" : q;
