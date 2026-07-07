@@ -22,6 +22,7 @@ import (
 	_ "github.com/stevencrawford/omnivue/internal/ingest/codex"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/copilot"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/cursor"
+	"github.com/stevencrawford/omnivue/internal/ingest/githubcloud"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/opencode"
 	_ "github.com/stevencrawford/omnivue/internal/ingest/pi"
 	"github.com/stevencrawford/omnivue/internal/notify"
@@ -113,6 +114,19 @@ func NewState(ctx context.Context) *State {
 }
 
 func createAdapter(src ingest.Source) (ingest.Adapter, error) {
+	// Cloud sources bypass the path-based registry — we read the token from
+	// the config table and inject it into the adapter.
+	if src.AgentType == ingest.AgentGitHubCloud {
+		token := ""
+		if st, err := store.New(); err == nil {
+			defer st.Close()
+			if cfg, err := st.Config("github-token"); err == nil {
+				token = cfg
+			}
+		}
+		adapter := githubcloud.New(token)
+		return adapter, nil
+	}
 	return ingest.CreateAdapter(src)
 }
 
@@ -1321,6 +1335,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("POST /_/api/notifications/active-view", handleActiveView(state))
 	mux.HandleFunc("GET /_/api/notifications/settings", handleGetNotifySettings(state))
 	mux.HandleFunc("PUT /_/api/notifications/settings", handleSetNotifySettings(state))
+	mux.HandleFunc("POST /_/api/github/verify-token", handleVerifyGitHubToken(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("POST /_/api/reset", handleReset(state))
@@ -1383,7 +1398,7 @@ func handleAddSource(state *State) http.HandlerFunc {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if body.Path == "" {
+		if body.Path == "" && body.AgentType != string(ingest.AgentGitHubCloud) {
 			http.Error(w, "path is required", http.StatusBadRequest)
 			return
 		}
@@ -1406,9 +1421,16 @@ func handleAddSource(state *State) http.HandlerFunc {
 				}
 			}
 		}
-		// Generate source ID from path (same scheme as CLI)
-		h := sha256.Sum256([]byte(body.Path))
-		id := hex.EncodeToString(h[:])[:12]
+		// Generate source ID. For cloud sources (which have no path), use a
+		// stable ID derived from the agent type so re-adding is idempotent.
+		var id string
+		if body.Path != "" {
+			h := sha256.Sum256([]byte(body.Path))
+			id = hex.EncodeToString(h[:])[:12]
+		} else {
+			h := sha256.Sum256([]byte(body.AgentType))
+			id = hex.EncodeToString(h[:])[:12]
+		}
 
 		src := ingest.Source{
 			ID:        id,
@@ -2305,6 +2327,31 @@ func handleSetNotifySettings(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(settings); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleVerifyGitHubToken(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Token string `json:"token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Token == "" {
+			http.Error(w, "token is required", http.StatusBadRequest)
+			return
+		}
+		msg, err := githubcloud.VerifyToken(body.Token)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok", "message": msg}); err != nil {
 			slog.Warn("failed to encode response", "error", err)
 		}
 	}
