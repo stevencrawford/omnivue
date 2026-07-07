@@ -55,6 +55,10 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     }, []),
   });
 
+  // Extra bottom rows left empty so agent TUI status lines aren't flush
+  // against the panel edge.
+  const PAD_ROWS = 2;
+
   const doFit = useCallback(() => {
     requestAnimationFrame(() => {
       const term = terminalInstance.current;
@@ -64,7 +68,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       const dims = fa.proposeDimensions();
       if (containerRect && dims) {
         term.resize(dims.cols + 1, dims.rows + 1);
-        terminalResize(dims.cols, dims.rows);
+        terminalResize(dims.cols, Math.max(1, dims.rows - PAD_ROWS));
       }
     });
   }, [terminalResize]);
@@ -152,6 +156,13 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     if (term) term.focus();
   }, [xtermLoaded, status]);
 
+  // Re-fit on reconnect: after Ctrl+C kills the agent the WS reconnects
+  // spawning a fresh PTY at 24x80 — send the current container size.
+  useEffect(() => {
+    if (!xtermLoaded || status !== "connected") return;
+    doFit();
+  }, [status, xtermLoaded, doFit]);
+
   // Observe theme changes and apply to xterm
   useEffect(() => {
     const el = document.documentElement;
@@ -175,7 +186,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       const dims = fa.proposeDimensions();
       if (dims) {
         term.resize(dims.cols + 1, dims.rows + 1);
-        terminalResize(dims.cols, dims.rows);
+        terminalResize(dims.cols, Math.max(1, dims.rows - PAD_ROWS));
       }
     });
     ro.observe(el);
