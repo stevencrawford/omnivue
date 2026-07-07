@@ -39,7 +39,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const termRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<any>(null);
-  const fitAddonRef = useRef<{ fit: () => void } | null>(null);
+  const fitAddonRef = useRef<any>(null);
   const [xtermLoaded, setXtermLoaded] = useState(false);
 
   const { status, connect, disconnect, send } = useTerminal({
@@ -49,10 +49,17 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     }, []),
   });
 
-  // Fit xterm to the container size
+  // Fit xterm to the container size using proposeDimensions + 1
+  // Workaround: fit() rounds down (Math.floor), leaving ~1 cell of
+  // unused space. proposeDimensions + manual resize fills it fully.
   const doFit = useCallback(() => {
     requestAnimationFrame(() => {
-      fitAddonRef.current?.fit();
+      const fa = fitAddonRef.current;
+      if (!fa?.proposeDimensions) return;
+      const dims = fa.proposeDimensions();
+      if (dims) {
+        terminalInstance.current?.resize(dims.cols + 1, dims.rows + 1);
+      }
     });
   }, []);
 
@@ -80,6 +87,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
         fontFamily: "'JetBrains Mono', 'Geist Mono', ui-monospace, monospace",
         allowTransparency: true,
         theme: xtermTheme(),
+        scrollback: 0,
       });
 
       fitAddon = new FitAddon();
@@ -130,7 +138,12 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      fitAddonRef.current?.fit();
+      const fa = fitAddonRef.current;
+      if (!fa?.proposeDimensions) return;
+      const dims = fa.proposeDimensions();
+      if (dims) {
+        terminalInstance.current?.resize(dims.cols + 1, dims.rows + 1);
+      }
     });
     ro.observe(el);
     return () => ro.disconnect();
