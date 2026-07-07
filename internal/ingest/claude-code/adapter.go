@@ -117,7 +117,7 @@ func (a *Adapter) LastModified(_ context.Context) (int64, error) {
 	var maxMod int64
 	projectsPath := filepath.Join(a.claudeDir, projectDir)
 
-	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil {
 			return nil
 		}

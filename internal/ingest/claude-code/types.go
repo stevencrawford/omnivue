@@ -4,11 +4,11 @@ import "encoding/json"
 
 // claudeMessageEnvelope wraps every JSONL line with type routing.
 type claudeMessageEnvelope struct {
-	Type      string          `json:"type"`
-	UUID      string          `json:"uuid,omitempty"`
-	SessionID string          `json:"sessionId,omitempty"`
-	Timestamp string          `json:"timestamp,omitempty"`
-	ParentUuid string         `json:"parentUuid,omitempty"`
+	Type       string `json:"type"`
+	UUID       string `json:"uuid,omitempty"`
+	SessionID  string `json:"sessionId,omitempty"`
+	Timestamp  string `json:"timestamp,omitempty"`
+	ParentUuid string `json:"parentUuid,omitempty"`
 
 	// user / assistant
 	Message     *claudeMessageData `json:"message,omitempty"`
@@ -21,7 +21,7 @@ type claudeMessageEnvelope struct {
 	IsSidechain bool               `json:"isSidechain"`
 
 	// agent / subagent
-	AgentID    string `json:"agentId,omitempty"`
+	AgentID string `json:"agentId,omitempty"`
 
 	// system (local_command)
 	Subtype string `json:"subtype,omitempty"`
@@ -34,24 +34,24 @@ type claudeMessageEnvelope struct {
 }
 
 type claudeMessageData struct {
-	Role    string               `json:"role"`
-	Content json.RawMessage      `json:"content"`
-	ID      string               `json:"id,omitempty"`
-	Model   string               `json:"model,omitempty"`
-	Usage   *claudeUsage         `json:"usage,omitempty"`
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+	ID      string          `json:"id,omitempty"`
+	Model   string          `json:"model,omitempty"`
+	Usage   *claudeUsage    `json:"usage,omitempty"`
 }
 
 type claudeUsage struct {
-	InputTokens             int  `json:"input_tokens"`
-	OutputTokens            int  `json:"output_tokens"`
+	InputTokens              int  `json:"input_tokens"`
+	OutputTokens             int  `json:"output_tokens"`
 	CacheCreationInputTokens *int `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     *int `json:"cache_read_input_tokens"`
 }
 
 type claudeContentPart struct {
-	Type     string          `json:"type"`
-	Text     string          `json:"text,omitempty"`
-	Thinking string          `json:"thinking,omitempty"`
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	Thinking string `json:"thinking,omitempty"`
 
 	// tool_use
 	ID    string          `json:"id,omitempty"`
@@ -69,14 +69,14 @@ type claudeProgressData struct {
 
 // claudeProgressEnvelope wraps progress events (including agent_progress).
 type claudeProgressEnvelope struct {
-	ParentToolUseID string             `json:"parentToolUseID,omitempty"`
-	ToolUseID       string             `json:"toolUseID,omitempty"`
+	ParentToolUseID string              `json:"parentToolUseID,omitempty"`
+	ToolUseID       string              `json:"toolUseID,omitempty"`
 	Data            *claudeProgressData `json:"data,omitempty"`
 }
 
 // progressMessageWrapper wraps the nested message inside agent_progress data.
 type progressMessageWrapper struct {
-	Type    string            `json:"type"`
+	Type    string             `json:"type"`
 	Message *claudeMessageData `json:"message"`
 }
 

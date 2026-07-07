@@ -234,7 +234,7 @@ func (a *Adapter) transcriptMtime(sessionID string) time.Time {
 		return time.Time{}
 	}
 	var latest time.Time
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -261,7 +261,7 @@ func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSe
 
 	var sessions []transcriptSession
 
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -310,7 +310,7 @@ func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) 
 
 	var messages []ingest.Message
 
-	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() {
 			return nil
 		}

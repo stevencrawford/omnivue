@@ -131,9 +131,9 @@ func (ts *todoState) parseInsert(query string) {
 				desc = parts[descIdx]
 			}
 			ts.items[id] = &todoItem{
-				ID:      id,
-				Title:   title,
-				Status:  "pending",
+				ID:     id,
+				Title:  title,
+				Status: "pending",
 			}
 			if desc != "" {
 				ts.items[id].Description = desc

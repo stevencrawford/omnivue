@@ -35,17 +35,17 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 	var input struct {
 		RelativeWorkspacePath string `json:"relativeWorkspacePath"`
-		FilePath             string `json:"filePath"`
-		Path                 string `json:"path"`
-		Contents             string `json:"contents"`
-		Content              string `json:"content"`
-		NewStr               string `json:"newStr"`
-		NewString            string `json:"newString"`
-		NewStringSnake       string `json:"new_string"`
-		StreamingContent     string `json:"streamingContent"`
-		OldStr               string `json:"oldStr"`
-		OldString            string `json:"oldString"`
-		OldStringSnake       string `json:"old_string"`
+		FilePath              string `json:"filePath"`
+		Path                  string `json:"path"`
+		Contents              string `json:"contents"`
+		Content               string `json:"content"`
+		NewStr                string `json:"newStr"`
+		NewString             string `json:"newString"`
+		NewStringSnake        string `json:"new_string"`
+		StreamingContent      string `json:"streamingContent"`
+		OldStr                string `json:"oldStr"`
+		OldString             string `json:"oldString"`
+		OldStringSnake        string `json:"old_string"`
 	}
 	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 		return

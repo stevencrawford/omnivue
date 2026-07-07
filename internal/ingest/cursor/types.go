@@ -16,20 +16,20 @@ type mentionsData struct {
 }
 
 type composerData struct {
-	V                             int                    `json:"_v"`
-	ComposerID                    string                 `json:"composerId"`
-	Name                          string                 `json:"name"`
-	CreatedAt                     json.Number            `json:"createdAt"`
-	LastUpdatedAt                 json.Number            `json:"lastUpdatedAt"`
-	Status                        string                 `json:"status"`
-	IsAgentic                     bool                   `json:"isAgentic"`
-	LatestConversationSummary     *conversationSummary   `json:"latestConversationSummary,omitempty"`
-	FullConversationHeadersOnly   []bubbleReference      `json:"fullConversationHeadersOnly,omitempty"`
-	UsageData                     json.RawMessage        `json:"usageData,omitempty"`
-	Context                       *composerContext       `json:"context,omitempty"`
-	ConversationState             string                 `json:"conversationState,omitempty"`
-	UnifiedMode                   string                 `json:"unifiedMode,omitempty"`
-	AllAttachedFileCodeChunksUris []string               `json:"allAttachedFileCodeChunksUris,omitempty"`
+	V                             int                  `json:"_v"`
+	ComposerID                    string               `json:"composerId"`
+	Name                          string               `json:"name"`
+	CreatedAt                     json.Number          `json:"createdAt"`
+	LastUpdatedAt                 json.Number          `json:"lastUpdatedAt"`
+	Status                        string               `json:"status"`
+	IsAgentic                     bool                 `json:"isAgentic"`
+	LatestConversationSummary     *conversationSummary `json:"latestConversationSummary,omitempty"`
+	FullConversationHeadersOnly   []bubbleReference    `json:"fullConversationHeadersOnly,omitempty"`
+	UsageData                     json.RawMessage      `json:"usageData,omitempty"`
+	Context                       *composerContext     `json:"context,omitempty"`
+	ConversationState             string               `json:"conversationState,omitempty"`
+	UnifiedMode                   string               `json:"unifiedMode,omitempty"`
+	AllAttachedFileCodeChunksUris []string             `json:"allAttachedFileCodeChunksUris,omitempty"`
 }
 
 type conversationSummary struct {

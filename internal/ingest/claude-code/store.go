@@ -41,7 +41,7 @@ func (a *Adapter) findSessionFile(sessionID string) string {
 	}
 
 	var found string
-	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(projectsPath, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || found != "" {
 			return err
 		}

@@ -58,7 +58,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 			}
 			var p struct {
 				RelativeWorkspacePath string `json:"relativeWorkspacePath"`
-				FilePath             string `json:"filePath"`
+				FilePath              string `json:"filePath"`
 			}
 			if err := json.Unmarshal([]byte(tc.Input), &p); err != nil {
 				continue
@@ -83,7 +83,7 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 
 	var rows *sql.Rows
 	rows, err = a.db.QueryContext(ctx,
-		`SELECT key FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:`+sessionID+`:%'`)
+		`SELECT key FROM cursorDiskKV WHERE key LIKE 'codeBlockDiff:`+sessionID+`:%'`) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("querying diffs: %w", err)
 	}

@@ -77,12 +77,12 @@ type toolEditArgs struct {
 
 // shutdownSnapshot holds the cumulative token/cost data from one session.shutdown event.
 type shutdownSnapshot struct {
-	Timestamp      string
-	TokensInput    int
-	TokensOutput   int
+	Timestamp       string
+	TokensInput     int
+	TokensOutput    int
 	TokensReasoning int
 	TokensCacheRead int
-	Cost           float64
+	Cost            float64
 }
 
 // eventsMetadata holds summary info extracted from events.jsonl.

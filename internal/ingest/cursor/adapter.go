@@ -101,7 +101,7 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 
 	transcriptDir := filepath.Join(a.cursorDir, "projects")
 	if ingestkit.PathExists(transcriptDir) {
-		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error {
+		filepath.WalkDir(transcriptDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 			if err != nil {
 				return nil
 			}

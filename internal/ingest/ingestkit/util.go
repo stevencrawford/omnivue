@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -46,8 +47,6 @@ func HasPlanContent(text string) bool {
 	}
 	return false
 }
-
-
 
 const (
 	// DefaultJSONLBufferSize is the initial buffer size for bufio.Scanner when reading JSONL lines.
@@ -234,12 +233,7 @@ func CanonicalToolNames() []string {
 // IsCanonicalToolName reports whether name is one of the standard tool call
 // names that adapters normalize to.
 func IsCanonicalToolName(name string) bool {
-	for _, c := range canonicalToolNames {
-		if name == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(canonicalToolNames, name)
 }
 
 // FindCursorVscdbPath resolves a Cursor entry path (directory or file) to the

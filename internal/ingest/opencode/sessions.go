@@ -36,17 +36,17 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 	for rows.Next() {
 		var (
-			s            ingest.Session
-			parentID     sql.NullString
-			modelJSON    sql.NullString
-			agentCol     sql.NullString
-			summFiles    sql.NullInt64
-			summAdd      sql.NullInt64
-			summDel      sql.NullInt64
-			timeCreated  int64
-			timeUpdated  int64
-			projectName  string
-			msgCount     int
+			s           ingest.Session
+			parentID    sql.NullString
+			modelJSON   sql.NullString
+			agentCol    sql.NullString
+			summFiles   sql.NullInt64
+			summAdd     sql.NullInt64
+			summDel     sql.NullInt64
+			timeCreated int64
+			timeUpdated int64
+			projectName string
+			msgCount    int
 		)
 
 		err := rows.Scan(
@@ -121,17 +121,17 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
 	var (
-		s            ingest.Session
-		parentID     sql.NullString
-		modelJSON    sql.NullString
-		agentCol     sql.NullString
-		summFiles    sql.NullInt64
-		summAdd      sql.NullInt64
-		summDel      sql.NullInt64
-		timeCreated  int64
-		timeUpdated  int64
-		projectName  string
-		msgCount     int
+		s           ingest.Session
+		parentID    sql.NullString
+		modelJSON   sql.NullString
+		agentCol    sql.NullString
+		summFiles   sql.NullInt64
+		summAdd     sql.NullInt64
+		summDel     sql.NullInt64
+		timeCreated int64
+		timeUpdated int64
+		projectName string
+		msgCount    int
 	)
 
 	err := a.db.QueryRowContext(ctx, `

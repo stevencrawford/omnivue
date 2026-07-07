@@ -101,7 +101,7 @@ func (a *Adapter) loadSessions(ctx context.Context) ([]ingest.Session, error) {
 	}
 
 	sessionsDir := filepath.Join(a.basePath, "sessions")
-	filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
 			return nil
 		}
@@ -323,7 +323,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 func (a *Adapter) sessionFilePath(sessionID string) string {
 	sessionsDir := filepath.Join(a.basePath, "sessions")
 	var found string
-	filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error {
+	filepath.WalkDir(sessionsDir, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
 		if err != nil {
 			return err
 		}

@@ -10,11 +10,11 @@ type piEditEntry struct {
 
 // piCost holds the per-message cost breakdown from Pi's usage object.
 type piCost struct {
-	Input     float64 `json:"input"`
-	Output    float64 `json:"output"`
-	CacheRead float64 `json:"cacheRead"`
+	Input      float64 `json:"input"`
+	Output     float64 `json:"output"`
+	CacheRead  float64 `json:"cacheRead"`
 	CacheWrite float64 `json:"cacheWrite"`
-	Total     float64 `json:"total"`
+	Total      float64 `json:"total"`
 }
 
 // piSessionHeader is the JSONL session header line.
@@ -49,16 +49,16 @@ type piMessageEnvelope struct {
 }
 
 type piMessageData struct {
-	Role      string          `json:"role"`
-	Content   json.RawMessage `json:"content"`
-	Model     string          `json:"model,omitempty"`
-	Provider  string          `json:"provider,omitempty"`
-	API       string          `json:"api,omitempty"`
-	StopReason string         `json:"stopReason,omitempty"`
-	ResponseID string         `json:"responseId,omitempty"`
-	ResponseModel string      `json:"responseModel,omitempty"`
-	Usage     *piUsage        `json:"usage,omitempty"`
-	ErrorMsg  string          `json:"errorMessage,omitempty"`
+	Role          string          `json:"role"`
+	Content       json.RawMessage `json:"content"`
+	Model         string          `json:"model,omitempty"`
+	Provider      string          `json:"provider,omitempty"`
+	API           string          `json:"api,omitempty"`
+	StopReason    string          `json:"stopReason,omitempty"`
+	ResponseID    string          `json:"responseId,omitempty"`
+	ResponseModel string          `json:"responseModel,omitempty"`
+	Usage         *piUsage        `json:"usage,omitempty"`
+	ErrorMsg      string          `json:"errorMessage,omitempty"`
 
 	// toolResult-specific
 	ToolCallID string `json:"toolCallId,omitempty"`
@@ -67,20 +67,20 @@ type piMessageData struct {
 }
 
 type piUsage struct {
-	Input       int      `json:"input"`
-	Output      int      `json:"output"`
-	CacheRead   int      `json:"cacheRead"`
-	CacheWrite  int      `json:"cacheWrite"`
-	Reasoning   int      `json:"reasoning"`
-	TotalTokens int      `json:"totalTokens"`
-	Cost        *piCost  `json:"cost,omitempty"`
+	Input       int     `json:"input"`
+	Output      int     `json:"output"`
+	CacheRead   int     `json:"cacheRead"`
+	CacheWrite  int     `json:"cacheWrite"`
+	Reasoning   int     `json:"reasoning"`
+	TotalTokens int     `json:"totalTokens"`
+	Cost        *piCost `json:"cost,omitempty"`
 }
 
 type piContentPart struct {
-	Type    string          `json:"type"`
-	Text    string          `json:"text,omitempty"`
-	Thinking string         `json:"thinking,omitempty"`
-	Signature string        `json:"thinkingSignature,omitempty"`
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	Thinking  string `json:"thinking,omitempty"`
+	Signature string `json:"thinkingSignature,omitempty"`
 
 	// toolCall
 	ToolCallID string          `json:"id,omitempty"`
