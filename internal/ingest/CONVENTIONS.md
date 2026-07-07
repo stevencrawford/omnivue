@@ -85,14 +85,19 @@ All adapters normalize to these destination field names when producing
 | `command` | Shell command (bash) |
 
 Native aliases (`file_path`, `path`, `file`, `new_content`, `old_content`,
-`pattern` for grep, etc.) are mapped to these cannonical names in
+`pattern` for grep, etc.) are mapped to these canonical names in
 `normalize.go`.
 
 ## When to promote a helper to `ingestkit`
 
 - **≥3 adapters** share the same logic (e.g. `ScanJSONL`, `ParseTime`).
-- **≥2 adapters** share byte-identical logic (e.g. `DiffStatsFromEdits` in
-  claude-code + pi).
+- **≥2 adapters** share byte-identical logic.
+
+**Exception — import-cycle constraint:** `DiffStatsFromEdits` lives in
+package `ingest` (not `ingestkit`) because it operates on `ingest.FileEdit`
+/ `ingest.DiffFile` types that `ingestkit` cannot import (circular
+dependency). When a helper's signature references types from the `ingest`
+package itself, promote to `ingest` instead of `ingestkit`.
 
 Below either bar, keep the helper in the adapter package. Prefer
 conservative extraction — a helper extracted too early constrains future
