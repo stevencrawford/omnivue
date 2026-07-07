@@ -12,10 +12,11 @@ import (
 
 // todoItem tracks the in-memory state of a todo item parsed from SQL tool calls.
 type todoItem struct {
-	ID      string
-	Title   string
-	Content string
-	Status  string
+	ID          string
+	Title       string
+	Description string
+	Content     string
+	Status      string
 }
 
 // todoState is a mutable accumulator that builds todo state by parsing SQL
@@ -132,11 +133,13 @@ func (ts *todoState) parseInsert(query string) {
 			ts.items[id] = &todoItem{
 				ID:      id,
 				Title:   title,
-				Content: title,
 				Status:  "pending",
 			}
 			if desc != "" {
+				ts.items[id].Description = desc
 				ts.items[id].Content = title + ": " + desc
+			} else {
+				ts.items[id].Content = title
 			}
 		}
 
@@ -145,65 +148,42 @@ func (ts *todoState) parseInsert(query string) {
 	}
 }
 
-// parseUpdate parses "UPDATE todos SET status = '<val>' WHERE id = '<id>' OR id IN (...)".
+// parseUpdate applies a single UPDATE to the todoState, extracting status changes,
+// description updates, and target items from the WHERE clause.
 func (ts *todoState) parseUpdate(query string) {
-	q := strings.ToUpper(query)
+	uq := strings.ToUpper(query)
 
-	setIdx := strings.Index(q, "SET STATUS =")
-	if setIdx < 0 {
-		setIdx = strings.Index(q, "SET STATUS=")
-	}
-	if setIdx < 0 {
+	// Extract SET values
+	newStatus, hasStatus := extractSetStatus(uq)
+	newDescription, hasDesc := extractSetDescription(query)
+
+	if !hasStatus && !hasDesc {
 		return
 	}
-	rest := q[setIdx+len("SET STATUS ="):]
-	rest = strings.TrimSpace(rest)
 
-	newStatus := "pending"
-	if strings.HasPrefix(rest, "'") {
-		if end := strings.IndexByte(rest[1:], '\''); end >= 0 {
-			newStatus = strings.ToLower(rest[1 : end+1])
-		}
-	}
-
-	_, whereClause, ok := strings.Cut(q, "WHERE")
+	// Extract WHERE clause
+	_, whereClause, ok := strings.Cut(uq, "WHERE")
 	if !ok {
 		return
 	}
 
-	if strings.Contains(whereClause, "ID =") {
-		eqIdx := strings.Index(whereClause, "=")
-		restID := strings.TrimSpace(whereClause[eqIdx+1:])
-		if strings.HasPrefix(restID, "'") {
-			if end := strings.IndexByte(restID[1:], '\''); end >= 0 {
-				id := strings.ToLower(restID[1 : end+1])
-				if t, ok := ts.items[id]; ok {
-					t.Status = newStatus
-				}
+	// Build list of target IDs
+	targets := extractUpdateTargets(whereClause, ts.items)
+	if len(targets) > 0 {
+		for _, t := range targets {
+			if hasStatus {
+				t.Status = newStatus
+			}
+			if hasDesc && newDescription != "" {
+				t.Description = newDescription
+				t.Content = t.Title + ": " + newDescription
 			}
 		}
+		return
 	}
 
-	if strings.Contains(whereClause, "IN (") {
-		_, restIn, ok := strings.Cut(whereClause, "IN (")
-		if !ok {
-			return
-		}
-		listPart, _, _ := strings.Cut(restIn, ")")
-		items := strings.FieldsFunc(listPart, func(r rune) bool {
-			return r == ',' || r == ' ' || r == '\''
-		})
-		for _, id := range items {
-			id = strings.ToLower(strings.TrimSpace(id))
-			if id != "" {
-				if t, ok := ts.items[id]; ok {
-					t.Status = newStatus
-				}
-			}
-		}
-	}
-
-	if strings.Contains(whereClause, "STATUS =") {
+	// Fallback: WHERE status = 'value' — update all items with matching status
+	if strings.Contains(whereClause, "STATUS =") && hasStatus {
 		_, restStatus, _ := strings.Cut(whereClause, "STATUS =")
 		restStatus = strings.TrimSpace(restStatus)
 		if strings.HasPrefix(restStatus, "'") {
@@ -217,6 +197,128 @@ func (ts *todoState) parseUpdate(query string) {
 			}
 		}
 	}
+}
+
+// extractSetStatus extracts the new status value from an uppercased SET clause.
+// Returns the lowercased status and whether it was found.
+func extractSetStatus(uq string) (string, bool) {
+	prefix, prefixLen := "SET STATUS =", len("SET STATUS =")
+	setIdx := strings.Index(uq, prefix)
+	if setIdx < 0 {
+		prefix = "SET STATUS="
+		prefixLen = len(prefix)
+		setIdx = strings.Index(uq, prefix)
+	}
+	if setIdx < 0 {
+		return "", false
+	}
+	rest := uq[setIdx+prefixLen:]
+	rest = strings.TrimSpace(rest)
+	if !strings.HasPrefix(rest, "'") {
+		return "", true
+	}
+	end := strings.IndexByte(rest[1:], '\'')
+	if end < 0 {
+		return "", true
+	}
+	return strings.ToLower(rest[1 : end+1]), true
+}
+
+// extractSetDescription searches for a SET description clause in the original
+// (non-uppercased) query and returns the value with original casing preserved.
+func extractSetDescription(query string) (string, bool) {
+	uq := strings.ToUpper(query)
+
+	prefix, prefixLen := "SET DESCRIPTION =", len("SET DESCRIPTION =")
+	setIdx := strings.Index(uq, prefix)
+	descLen := prefixLen
+	if setIdx < 0 {
+		prefix = "SET DESCRIPTION="
+		prefixLen = len(prefix)
+		setIdx = strings.Index(uq, prefix)
+		descLen = prefixLen
+	}
+	if setIdx < 0 {
+		return "", false
+	}
+
+	// Skip to the value start in the original query. Since the prefix
+	// may differ in length between upper and original case (e.g. "DESCRIPTION="
+	// vs "description="), find the character of the original query at the
+	// same byte position as the value start in the uppercased query.
+	valStart := setIdx + descLen
+	origRest := query
+	if valStart < len(origRest) {
+		origRest = origRest[valStart:]
+	}
+	origRest = strings.TrimSpace(origRest)
+	if !strings.HasPrefix(origRest, "'") {
+		return "", true
+	}
+	end := strings.IndexByte(origRest[1:], '\'')
+	if end < 0 {
+		return "", true
+	}
+	return origRest[1 : end+1], true
+}
+
+// extractUpdateTargets extracts the list of todoItem pointers targeted by
+// a WHERE clause. Supports "WHERE id = 'value'", "WHERE id='value'",
+// and "WHERE id IN ('a','b')" patterns. Returns nil if no targets found.
+func extractUpdateTargets(whereClause string, items map[string]*todoItem) []*todoItem {
+	// WHERE id = 'value' (with space around =)
+	if strings.Contains(whereClause, "ID =") {
+		eqIdx := strings.Index(whereClause, "=")
+		restID := strings.TrimSpace(whereClause[eqIdx+1:])
+		if strings.HasPrefix(restID, "'") {
+			if end := strings.IndexByte(restID[1:], '\''); end >= 0 {
+				id := strings.ToLower(restID[1 : end+1])
+				if t, ok := items[id]; ok {
+					return []*todoItem{t}
+				}
+			}
+		}
+	}
+
+	// WHERE id='value' (no space around =)
+	if strings.Contains(whereClause, "ID=") {
+		eqIdx := strings.Index(whereClause, "=")
+		restID := strings.TrimSpace(whereClause[eqIdx+1:])
+		if strings.HasPrefix(restID, "'") {
+			if end := strings.IndexByte(restID[1:], '\''); end >= 0 {
+				id := strings.ToLower(restID[1 : end+1])
+				if t, ok := items[id]; ok {
+					return []*todoItem{t}
+				}
+			}
+		}
+	}
+
+	// WHERE id IN ('a', 'b')
+	if strings.Contains(whereClause, "IN (") {
+		_, restIn, ok := strings.Cut(whereClause, "IN (")
+		if !ok {
+			return nil
+		}
+		listPart, _, _ := strings.Cut(restIn, ")")
+		parts := strings.FieldsFunc(listPart, func(r rune) bool {
+			return r == ',' || r == ' ' || r == '\''
+		})
+		var result []*todoItem
+		for _, id := range parts {
+			id = strings.ToLower(strings.TrimSpace(id))
+			if id != "" {
+				if t, ok := items[id]; ok {
+					result = append(result, t)
+				}
+			}
+		}
+		if len(result) > 0 {
+			return result
+		}
+	}
+
+	return nil
 }
 
 // synthesizeInput builds a todowrite-compatible input JSON from the current todoState.
