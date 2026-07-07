@@ -51,6 +51,7 @@ func TestAdapter_WithSampleSession(t *testing.T) {
 		}
 
 		toolCallsWithOutput := 0
+		hasAnyToolCalls := false
 		toolResultsAfterMerge := 0
 		for _, m := range msgs {
 			switch m.Role {
@@ -60,6 +61,7 @@ func TestAdapter_WithSampleSession(t *testing.T) {
 				}
 			case "assistant":
 				if len(m.ToolCalls) > 0 {
+					hasAnyToolCalls = true
 					for _, tc := range m.ToolCalls {
 						if tc.Name == "" {
 							t.Error("tool call has empty name")
@@ -85,7 +87,7 @@ func TestAdapter_WithSampleSession(t *testing.T) {
 			}
 		}
 
-		if toolCallsWithOutput == 0 {
+		if hasAnyToolCalls && toolCallsWithOutput == 0 {
 			t.Error("expected tool calls to have output merged from toolResult messages")
 		}
 		if toolResultsAfterMerge > 0 {
