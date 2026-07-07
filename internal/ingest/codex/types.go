@@ -65,18 +65,18 @@ type itemComplete struct {
 }
 
 type responseItemPayload struct {
-	Type      string             `json:"type"`
-	Role      string             `json:"role,omitempty"`
-	Content   []responseContent  `json:"content,omitempty"`
-	Name      string             `json:"name,omitempty"`
-	Arguments string             `json:"arguments,omitempty"`
-	CallID    string             `json:"call_id,omitempty"`
-	Output    string             `json:"output,omitempty"`
-	Phase     string             `json:"phase,omitempty"`
-	Status    string             `json:"status,omitempty"`
-	Input     string             `json:"input,omitempty"`
-	Metadata  map[string]string  `json:"metadata,omitempty"`
-	Summary   []json.RawMessage  `json:"summary,omitempty"`
+	Type      string            `json:"type"`
+	Role      string            `json:"role,omitempty"`
+	Content   []responseContent `json:"content,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Arguments string            `json:"arguments,omitempty"`
+	CallID    string            `json:"call_id,omitempty"`
+	Output    string            `json:"output,omitempty"`
+	Phase     string            `json:"phase,omitempty"`
+	Status    string            `json:"status,omitempty"`
+	Input     string            `json:"input,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	Summary   []json.RawMessage `json:"summary,omitempty"`
 }
 
 type responseContent struct {

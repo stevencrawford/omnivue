@@ -21,5 +21,3 @@ func AutoDiscover() []DiscoveredSource {
 
 	return discovered
 }
-
-

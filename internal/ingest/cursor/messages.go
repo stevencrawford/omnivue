@@ -1,16 +1,30 @@
 package cursor
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
+
+func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	if msgs, err := a.readBubbleMessages(ctx, sessionID); err == nil {
+		if len(msgs) > 0 {
+			return msgs, nil
+		}
+	} else {
+		slog.Debug("cursor: bubble messages unavailable", "session", sessionID, "error", err)
+	}
+	if msgs := a.readTranscriptMessages(ctx, sessionID); len(msgs) > 0 {
+		return msgs, nil
+	}
+	return nil, nil
+}
 
 // parseEditContent extracts file path and old/new content from a tool call,
 // handling Cursor's various edit formats:
@@ -20,17 +34,17 @@ import (
 func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 	var input struct {
 		RelativeWorkspacePath string `json:"relativeWorkspacePath"`
-		FilePath             string `json:"filePath"`
-		Path                 string `json:"path"`
-		Contents             string `json:"contents"`
-		Content              string `json:"content"`
-		NewStr               string `json:"newStr"`
-		NewString            string `json:"newString"`
-		NewStringSnake       string `json:"new_string"`
-		StreamingContent     string `json:"streamingContent"`
-		OldStr               string `json:"oldStr"`
-		OldString            string `json:"oldString"`
-		OldStringSnake       string `json:"old_string"`
+		FilePath              string `json:"filePath"`
+		Path                  string `json:"path"`
+		Contents              string `json:"contents"`
+		Content               string `json:"content"`
+		NewStr                string `json:"newStr"`
+		NewString             string `json:"newString"`
+		NewStringSnake        string `json:"new_string"`
+		StreamingContent      string `json:"streamingContent"`
+		OldStr                string `json:"oldStr"`
+		OldString             string `json:"oldString"`
+		OldStringSnake        string `json:"old_string"`
 	}
 	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 		return
@@ -72,9 +86,6 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 		newStr = input.Contents
 	}
 
-	// If the output contains content-ID references (Cursor stores file content
-	// in the KV table keyed by hash), look up the actual content. The output
-	// may also embed pre-computed unified diff chunks.
 	var output struct {
 		BeforeContentID string `json:"beforeContentId"`
 		AfterContentID  string `json:"afterContentId"`
@@ -104,8 +115,6 @@ func (a *Adapter) parseEditContent(ctx context.Context, tc ingest.ToolCall) (fil
 	return
 }
 
-// readContentBlock looks up a composer.content.<hash> key in the KV store.
-// The contentID may or may not include the "composer.content." prefix.
 func (a *Adapter) readContentBlock(ctx context.Context, contentID string) string {
 	key := contentID
 	if !strings.HasPrefix(key, "composer.content.") {
@@ -120,9 +129,6 @@ func (a *Adapter) readContentBlock(ctx context.Context, contentID string) string
 	return string(value)
 }
 
-// enrichToolCall resolves content-ID references in the tool call's output and
-// populates the input with the actual file content. This ensures the Session
-// tab's EditToolDiff component sees oldStr/newStr instead of cloudAgentEdit.
 func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
 	if tc.Name != "edit" {
 		return
@@ -157,8 +163,6 @@ func (a *Adapter) enrichToolCall(ctx context.Context, tc *ingest.ToolCall) {
 		tc.Input = string(out)
 	}
 }
-
-// --- Bubble message reader ---
 
 func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	var value []byte
@@ -233,8 +237,6 @@ func (a *Adapter) readBubbleMessages(ctx context.Context, sessionID string) ([]i
 	return messages, nil
 }
 
-// --- Agent-transcripts JSONL reader ---
-
 func parseTranscriptJSONL(path string) []ingest.Message {
 	f, err := os.Open(path)
 	if err != nil {
@@ -243,7 +245,7 @@ func parseTranscriptJSONL(path string) []ingest.Message {
 	defer f.Close()
 
 	var messages []ingest.Message
-	scanner := bufio.NewScanner(f)
+	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {

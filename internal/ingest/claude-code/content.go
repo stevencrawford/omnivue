@@ -42,13 +42,13 @@ func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning strin
 				// Claude Code stores the plan under either "plan", "content", or "summary" key.
 				planText := extractPlanContent(p.Input)
 				if planText != "" {
-				transformed, err := json.Marshal(map[string]string{
-					"summary": planText,
-				})
-				if err != nil {
-					slog.Warn("failed to marshal plan text", "error", err)
-					transformed = []byte("{}")
-				}
+					transformed, err := json.Marshal(map[string]string{
+						"summary": planText,
+					})
+					if err != nil {
+						slog.Warn("failed to marshal plan text", "error", err)
+						transformed = []byte("{}")
+					}
 					tc := ingest.ToolCall{
 						ID:     p.ID,
 						Name:   p.Name,

@@ -147,9 +147,9 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 
 func TestDetect(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func(t *testing.T, dir string)
-		want     bool
+		name  string
+		setup func(t *testing.T, dir string)
+		want  bool
 	}{
 		{
 			name: "no projects directory",
@@ -464,10 +464,10 @@ func TestToolNameNormalization(t *testing.T) {
 
 func TestCostCalculation(t *testing.T) {
 	tests := []struct {
-		model                  string
-		tokensIn, tokensOut    int
-		cacheWrite, cacheRead  int
-		want                   float64
+		model                 string
+		tokensIn, tokensOut   int
+		cacheWrite, cacheRead int
+		want                  float64
 	}{
 		{"claude-sonnet-4-5-20250929", 1000, 500, 200, 100, 1000.0/1e6*3 + 500.0/1e6*15 + 200.0/1e6*3.75 + 100.0/1e6*0.30},
 		{"claude-opus-4-5-20251101", 1000, 500, 200, 100, 1000.0/1e6*15 + 500.0/1e6*75 + 200.0/1e6*18.75 + 100.0/1e6*1.50},

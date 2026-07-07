@@ -2,6 +2,7 @@ package opencode
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -9,6 +10,35 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
+
+func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	var parentID sql.NullString
+	var agentCol sql.NullString
+	err := a.db.QueryRowContext(ctx, `SELECT parent_id, agent FROM session WHERE id = ?`, sessionID).Scan(&parentID, &agentCol)
+	if err != nil || !parentID.Valid {
+		if agentCol.Valid && agentCol.String == "plan" {
+			return a.planFromLastMessage(ctx, sessionID)
+		}
+		return a.planFromMessages(ctx, sessionID)
+	}
+
+	output, err := a.findTaskOutput(ctx, parentID.String, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if output != "" {
+		source := "task-output"
+		cleaned := stripTaskWrapper(output)
+		md := "# Sub-agent Response\n\n" + cleaned
+		return &ingest.Plan{Markdown: md, Source: ingest.PlanDataSource(source)}, nil
+	}
+
+	if agentCol.Valid && agentCol.String == "plan" {
+		return a.planFromLastMessage(ctx, sessionID)
+	}
+
+	return a.planFromMessages(ctx, sessionID)
+}
 
 func (a *Adapter) planFromLastMessage(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	// Get the last assistant message

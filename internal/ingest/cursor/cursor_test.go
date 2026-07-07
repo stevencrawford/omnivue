@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	testAdapter *gocursor.Adapter
+	testAdapter  *gocursor.Adapter
 	testSessions []ingest.Session
 )
 

@@ -6,6 +6,12 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
 
+// syntheticSession holds a virtual child session created from sub-agent delegation events.
+type syntheticSession struct {
+	session  ingest.Session
+	messages []ingest.Message
+}
+
 // Event types for parsing events.jsonl.
 
 type eventEnvelope struct {
@@ -71,12 +77,12 @@ type toolEditArgs struct {
 
 // shutdownSnapshot holds the cumulative token/cost data from one session.shutdown event.
 type shutdownSnapshot struct {
-	Timestamp      string
-	TokensInput    int
-	TokensOutput   int
+	Timestamp       string
+	TokensInput     int
+	TokensOutput    int
 	TokensReasoning int
 	TokensCacheRead int
-	Cost           float64
+	Cost            float64
 }
 
 // eventsMetadata holds summary info extracted from events.jsonl.
