@@ -56,7 +56,9 @@ func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) er
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	_ = writeMsg(ws, ctx, "status", "connected")
+	if err := writeMsg(ctx, ws, "status", "connected"); err != nil {
+		return fmt.Errorf("terminal: write status: %w", err)
+	}
 
 	var wg sync.WaitGroup
 
@@ -71,7 +73,7 @@ func Run(ctx context.Context, ws *websocket.Conn, dir string, cmdline string) er
 				cancel()
 				return
 			}
-			if err := writeMsg(ws, ctx, "output", string(buf[:n])); err != nil {
+			if err := writeMsg(ctx, ws, "output", string(buf[:n])); err != nil {
 				cancel()
 				return
 			}
@@ -130,12 +132,15 @@ func ExtractCmd(resumeCmd string) string {
 	return resumeCmd
 }
 
-func writeMsg(ws *websocket.Conn, ctx context.Context, typ, data string) error {
+func writeMsg(ctx context.Context, ws *websocket.Conn, typ, data string) error {
 	return ws.Write(ctx, websocket.MessageText, mustJSON(serverMessage{Type: typ, Data: data}))
 }
 
 func mustJSON(v any) []byte {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return []byte("{}")
+	}
 	return b
 }
 
