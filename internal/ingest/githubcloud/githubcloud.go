@@ -295,7 +295,7 @@ func VerifyToken(token string) (string, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("API request failed: %w", err)
+		return "", fmt.Errorf("api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -311,8 +311,11 @@ func VerifyToken(token string) (string, error) {
 		return "Token is valid", nil
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	return "", fmt.Errorf("API returned %d: %s", resp.StatusCode, string(body))
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("api returned status %d (reading body: %w)", resp.StatusCode, err)
+	}
+	return "", fmt.Errorf("api returned %d: %s", resp.StatusCode, string(body))
 }
 
 // SetToken updates the PAT at runtime.
@@ -322,15 +325,11 @@ func (a *Adapter) SetToken(token string) {
 	a.token = token
 }
 
-func (a *Adapter) getToken() string {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.token
-}
-
 // doRequest performs an authenticated GET request to the GitHub API.
 func (a *Adapter) doRequest(ctx context.Context, url string) ([]byte, error) {
-	token := a.getToken()
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
 	if token == "" {
 		return nil, fmt.Errorf("github-cloud adapter: no token configured")
 	}
