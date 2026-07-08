@@ -111,7 +111,7 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	}
 
 	if err := os.Rename(tmpPath, binPath); err != nil {
-		os.Rename(bakPath, binPath)
+		_ = os.Rename(bakPath, binPath)
 		os.Remove(tmpPath)
 		return fmt.Errorf("cannot replace binary: %w", err)
 	}
@@ -211,7 +211,7 @@ func compareVersions(a, b string) int {
 }
 
 func downloadAndExtract(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // URL is constructed from trusted base
 	if err != nil {
 		return nil, err
 	}
