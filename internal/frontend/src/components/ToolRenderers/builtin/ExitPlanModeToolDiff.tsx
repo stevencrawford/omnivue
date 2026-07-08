@@ -66,7 +66,6 @@ export function ExitPlanModeToolDiff({
               childSessionId={childSessionId}
               navigateToSession={navigateToSession}
               showPin
-              showCopy={false}
               copyText={summary || undefined}
               pinText={summary || undefined}
             />
@@ -75,7 +74,7 @@ export function ExitPlanModeToolDiff({
         {summary && (
           <div className="text-[13px]">
             {isMarkdown ? (
-              <MarkdownContent content={summary} className="markdown-body--wide" />
+              <MarkdownContent content={summary} className="markdown-body--wide" hideCopy />
             ) : (
               <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
                 {summary}
