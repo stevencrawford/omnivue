@@ -99,6 +99,8 @@ Key gostyle rules that commonly trigger:
 
 - `omnivue init` — Discover and configure AI agent session sources interactively
 - `omnivue add <path> [--type opencode|copilot|cursor|pi|claude-code|codex]` — Manually add a session source
+- `omnivue version` — Print the current version (also supports `--json`)
+- `omnivue upgrade [--check] [--yes] [--force]` — Check for and perform binary upgrade from GitHub releases
 
 ## Architecture
 
@@ -107,6 +109,8 @@ Key gostyle rules that commonly trigger:
 - `cmd/root.go` — CLI entry point (Cobra). Handles single-instance detection, server lifecycle (background/foreground), status/shutdown/restart.
 - `cmd/init.go` — `omnivue init` command: auto-discovers session sources, interactive prompts.
 - `cmd/add.go` — `omnivue add` command: manually adds a source.
+- `cmd/version.go` — `omnivue version` command: prints version info.
+- `cmd/upgrade.go` — `omnivue upgrade` command: self-updates the binary from GitHub releases.
 - `internal/ingest/` — Core ingest layer:
   - `types.go` — Unified types: `Session`, `Message`, `ToolCall`, `PlanItem`, `DiffFile`, `Source`, `FileEdit`, `StepEvent`
   - `adapter.go` — `Adapter` interface + `OpenReadOnlyDB()` safeguard

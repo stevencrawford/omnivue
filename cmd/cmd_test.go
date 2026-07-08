@@ -54,3 +54,60 @@ func TestAddCmd_Help(t *testing.T) {
 		t.Fatalf("add help should not error: %v", err)
 	}
 }
+
+func TestVersionCmd_Help(t *testing.T) {
+	rootCmd.SetArgs([]string{"version", "--help"})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("version help should not error: %v", err)
+	}
+}
+
+func TestVersionCmd_Run(t *testing.T) {
+	rootCmd.SetArgs([]string{"version"})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("version should not error: %v", err)
+	}
+}
+
+func TestUpgradeCmd_Help(t *testing.T) {
+	rootCmd.SetArgs([]string{"upgrade", "--help"})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("upgrade help should not error: %v", err)
+	}
+}
+
+func TestUpgradeCmd_CheckNoServer(t *testing.T) {
+	oldStderr := os.Stderr
+	os.Stderr = nil
+	defer func() { os.Stderr = oldStderr }()
+
+	rootCmd.SetArgs([]string{"upgrade", "--check"})
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("upgrade --check should not error on network failure: %v", err)
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want int
+	}{
+		{"v0.1.1", "v0.1.2", -1},
+		{"v0.1.2", "v0.1.2", 0},
+		{"v0.1.3", "v0.1.2", 1},
+		{"v1.0.0", "v0.9.9", 1},
+		{"v0.1.2", "v0.1.2-alpha", 0},
+		{"0.1.1", "0.1.2", -1},
+		{"v0.1", "v0.1.0", 0},
+	}
+	for _, tt := range tests {
+		got := compareVersions(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("compareVersions(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
