@@ -20,24 +20,44 @@ Adapters are the pluggable interface between Omnivue and AI coding agent data st
 | | | `~/.claude/plans/{slug}.md` | Markdown (implementation plan files) |
 | | | `~/.claude/projects/*/*/subagents/agent-*.jsonl` | JSONL (subagent transcripts) |
 | Codex | `internal/ingest/codex/` | `~/.codex/session_index.jsonl` | JSONL (session index) |
+| | | `~/.codex/edits/*.json` | JSON (edit events) |
+| | | `~/.codex/plans/*.json` | JSON (implementation plans) |
 
 ## Adapter interface
 
 `internal/ingest/adapter.go`:
 
+The `Adapter` interface is composed of four sub-interfaces. Adapters that don't support optional features return `(nil, nil)`.
+
 ```go
-type Adapter interface {
+type SessionSource interface {
     Type() AgentType
     Detect(path string) bool
     ListSessions(ctx context.Context) ([]Session, error)
-    GetSession(ctx context.Context, id string) (*Session, error)
-    GetMessages(ctx context.Context, sessionID string) ([]Message, error)
-    GetPlan(ctx context.Context, sessionID string) (*Plan, error)
-    GetDiffs(ctx context.Context, sessionID string) ([]DiffFile, error)
-    GetEdits(ctx context.Context, sessionID string) ([]FileEdit, error)
+    Session(ctx context.Context, id string) (*Session, error)
+    Messages(ctx context.Context, sessionID string) ([]Message, error)
     ResumeCommand(session *Session) string
     LastModified(ctx context.Context) (int64, error)
     Close() error
+}
+
+type Planner interface {
+    Plan(ctx context.Context, sessionID string) (*Plan, error)
+}
+
+type Differ interface {
+    Diffs(ctx context.Context, sessionID string) ([]DiffFile, error)
+}
+
+type Editor interface {
+    Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
+}
+
+type Adapter interface {
+    SessionSource
+    Planner
+    Differ
+    Editor
 }
 ```
 
