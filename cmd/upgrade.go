@@ -111,7 +111,9 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 	}
 
 	if err := os.Rename(tmpPath, binPath); err != nil {
-		_ = os.Rename(bakPath, binPath)
+		if rerr := os.Rename(bakPath, binPath); rerr != nil {
+			fmt.Fprintf(os.Stderr, "omnivue: failed to restore backup: %v\n", rerr)
+		}
 		os.Remove(tmpPath)
 		return fmt.Errorf("cannot replace binary: %w", err)
 	}
@@ -195,10 +197,14 @@ func compareVersions(a, b string) int {
 	for i := 0; i < max; i++ {
 		var av, bv int
 		if i < len(va) {
-			av, _ = strconv.Atoi(va[i])
+			if n, err := strconv.Atoi(va[i]); err == nil {
+				av = n
+			}
 		}
 		if i < len(vb) {
-			bv, _ = strconv.Atoi(vb[i])
+			if n, err := strconv.Atoi(vb[i]); err == nil {
+				bv = n
+			}
 		}
 		if av < bv {
 			return -1
@@ -218,7 +224,7 @@ func downloadAndExtract(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %s", resp.Status)
+		return nil, fmt.Errorf("http %s", resp.Status)
 	}
 
 	data, err := io.ReadAll(resp.Body)
