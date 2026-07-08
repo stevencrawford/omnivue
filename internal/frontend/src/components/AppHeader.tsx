@@ -79,7 +79,7 @@ export function AppHeader({
             <X size={12} />
           </span>
         )}
-        <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}F</span>
+        <span className="sess-kbd">{isMac ? "⌘" : "Ctrl"}K</span>
       </button>
 
       <div className="flex items-center justify-end gap-2">

@@ -49,7 +49,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
       const isInput =
         target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
-      if ((e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "k")) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         if (drawerOpen) {
           setDrawerOpen(false);
@@ -77,6 +77,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        if (isInput) return;
         e.preventDefault();
         setSidebarOpen((v: boolean) => !v);
         return;

@@ -1,4 +1,12 @@
-import { Bell, MessageSquare, CheckCircle2, AlertCircle, Wrench, Activity } from "lucide-react";
+import {
+  Bell,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  ShieldAlert,
+  Wrench,
+  Activity,
+} from "lucide-react";
 import type { AppNotification } from "../hooks/types";
 
 interface NotificationRowProps {
@@ -22,6 +30,8 @@ function kindIcon(kind: AppNotification["kind"]) {
   switch (kind) {
     case "question":
       return <AlertCircle className="size-3.5 text-pink-400" />;
+    case "permission_request":
+      return <ShieldAlert className="size-3.5 text-amber-400" />;
     case "task_complete":
       return <CheckCircle2 className="size-3.5 text-emerald-400" />;
     case "new_messages":
@@ -41,7 +51,7 @@ function kindIcon(kind: AppNotification["kind"]) {
 
 export function NotificationRow({ notification, sessionTitle, onClick }: NotificationRowProps) {
   const unread = !notification.readAt;
-  const isQuestion = notification.kind === "question";
+  const isQuestion = notification.kind === "question" || notification.kind === "permission_request";
   return (
     <button
       type="button"

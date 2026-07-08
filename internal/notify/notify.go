@@ -25,13 +25,14 @@ import (
 type Kind string
 
 const (
-	KindQuestion      Kind = "question"
-	KindTaskComplete  Kind = "task_complete"
-	KindNewMessages   Kind = "new_messages"
-	KindNewToolCall   Kind = "new_tool_call"
-	KindStatusActive  Kind = "status_active"
-	KindStatusDone    Kind = "status_completed"
-	KindStatusError   Kind = "status_error"
+	KindQuestion           Kind = "question"
+	KindPermissionRequest  Kind = "permission_request"
+	KindTaskComplete       Kind = "task_complete"
+	KindNewMessages        Kind = "new_messages"
+	KindNewToolCall        Kind = "new_tool_call"
+	KindStatusActive       Kind = "status_active"
+	KindStatusDone         Kind = "status_completed"
+	KindStatusError        Kind = "status_error"
 )
 
 // Severity indicates how prominently a notification should be surfaced.
@@ -65,7 +66,7 @@ type Settings struct {
 func DefaultSettings() Settings {
 	return Settings{
 		Enabled:           false,
-		Kinds:             []Kind{KindQuestion, KindTaskComplete},
+		Kinds:             []Kind{KindQuestion, KindPermissionRequest, KindTaskComplete},
 		Scope:             "all",
 		InAppToast:        true,
 		SidebarBadge:      true,
@@ -90,6 +91,12 @@ var QuestionToolNames = map[string]struct{}{
 	"question":       {},
 	"ask":            {},
 	"exit_plan_mode": {},
+}
+
+// PermissionToolNames is the set of tool-call names that count as the agent
+// requesting permission to perform an action. Names are lowercased before lookup.
+var PermissionToolNames = map[string]struct{}{
+	"permission_request": {},
 }
 
 // TaskCompleteToolNames is the set of tool-call names signaling task
@@ -150,7 +157,24 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		for _, tc := range m.ToolCalls {
 			name := strings.ToLower(tc.Name)
 			if _, ok := QuestionToolNames[name]; ok {
-				if settings.has(KindQuestion) {
+				// When the tool name is "question", check if it's actually a
+				// permission request (choices contain Allow/Deny) and route to
+				// KindPermissionRequest instead.
+				if name == "question" && isPermissionInput(tc.Input) && settings.has(KindPermissionRequest) {
+					candidates = append(candidates, Candidate{
+						Kind:     KindPermissionRequest,
+						DedupKey: toolDedupKey(tc.ID, m.ID, name),
+						Title:    "Permission needed",
+						Preview:  previewForPermission(m.Content, tc.Input),
+						Severity: SeverityAttention,
+						Payload: map[string]any{
+							"toolCallId":   tc.ID,
+							"messageId":    m.ID,
+							"messageIndex": lastSeenCount + i,
+							"tabHint":      "session",
+						},
+					})
+				} else if settings.has(KindQuestion) {
 					candidates = append(candidates, Candidate{
 						Kind:     KindQuestion,
 						DedupKey: toolDedupKey(tc.ID, m.ID, name),
@@ -165,7 +189,25 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						},
 					})
 				}
-				continue // a question tool call is not also a "new tool call"
+				continue // a question/permission tool call is not also a "new tool call"
+			}
+			if _, ok := PermissionToolNames[name]; ok {
+				if settings.has(KindPermissionRequest) {
+					candidates = append(candidates, Candidate{
+						Kind:     KindPermissionRequest,
+						DedupKey: toolDedupKey(tc.ID, m.ID, name),
+						Title:    "Permission needed",
+						Preview:  previewForPermission(m.Content, tc.Input),
+						Severity: SeverityAttention,
+						Payload: map[string]any{
+							"toolCallId":   tc.ID,
+							"messageId":    m.ID,
+							"messageIndex": lastSeenCount + i,
+							"tabHint":      "session",
+						},
+					})
+				}
+				continue
 			}
 			if _, ok := TaskCompleteToolNames[name]; ok {
 				if settings.has(KindTaskComplete) {
@@ -298,6 +340,66 @@ func previewForQuestion(content, input string) string {
 		}
 	}
 	return "Agent asked you a question"
+}
+
+// previewForPermission builds a preview for permission request notifications.
+// It prefers the message content, then tries to extract a "command" or
+// "questions[0].question" field from the tool input JSON, and falls back to
+// a descriptive default.
+func previewForPermission(content, input string) string {
+	if s := strings.TrimSpace(content); s != "" && s != "{}" {
+		return previewText(s, "")
+	}
+	var data map[string]any
+	if json.Unmarshal([]byte(input), &data) == nil {
+		if s, ok := data["command"].(string); ok && s != "" {
+			return previewText(s, "")
+		}
+		if qs, ok := data["questions"].([]any); ok && len(qs) > 0 {
+			if q, ok := qs[0].(map[string]any); ok {
+				if s, ok := q["question"].(string); ok && s != "" {
+					return previewText(s, "")
+				}
+			}
+		}
+	}
+	return "Session is blocked awaiting permissions"
+}
+
+// isPermissionInput reports whether the tool input represents a permission
+// request — a question-like tool call whose choices contain "Allow"/"Deny".
+func isPermissionInput(input string) bool {
+	var raw struct {
+		Choices  []string `json:"choices"`
+		Questions []struct {
+			Question string `json:"question"`
+			Options  []struct {
+				Label string `json:"label"`
+			} `json:"options"`
+		} `json:"questions"`
+	}
+	if err := json.Unmarshal([]byte(input), &raw); err != nil {
+		return false
+	}
+	if slices.ContainsFunc(raw.Choices, isPermissionKeyword) {
+		return true
+	}
+	for _, q := range raw.Questions {
+		for _, opt := range q.Options {
+			if isPermissionKeyword(opt.Label) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isPermissionKeyword(s string) bool {
+	switch strings.ToLower(s) {
+	case "allow", "deny", "allow once", "allow once for this session":
+		return true
+	}
+	return false
 }
 
 // previewForTaskComplete builds a preview for task-complete notifications.

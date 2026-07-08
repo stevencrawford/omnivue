@@ -189,12 +189,28 @@ export function App() {
       setFocusMessageKey(0);
       setActiveTab("session");
       setSearchHighlightQuery(null);
-      // Mark all unread notifications for this session as read
-      const unreadForSession = notifications
-        .filter((n) => n.sessionId === sessionId && !n.readAt)
-        .map((n) => n.id);
-      if (unreadForSession.length > 0) {
-        markNotificationRead(unreadForSession);
+      // Mark all unread notifications for this session as read and
+      // jump to the first notification's message if one exists.
+      const unreadForSession = notifications.filter((n) => n.sessionId === sessionId && !n.readAt);
+      const ids = unreadForSession.map((n) => n.id);
+      if (ids.length > 0) {
+        markNotificationRead(ids);
+        // Pick the earliest unread notification to jump to.
+        const first = unreadForSession.sort((a, b) => a.createdAt - b.createdAt)[0];
+        try {
+          if (first.payload) {
+            const payload = JSON.parse(first.payload);
+            if (typeof payload.messageIndex === "number") {
+              setFocusMessageIndex(payload.messageIndex);
+            }
+            if (typeof payload.messageId === "string") {
+              setFocusMessageId(payload.messageId);
+            }
+            setFocusMessageKey((k) => k + 1);
+          }
+        } catch {
+          // ignore malformed payload
+        }
       }
     },
     [notifications, markNotificationRead],
@@ -394,6 +410,7 @@ export function App() {
           </SessionNavContext.Provider>
 
           <SettingsModal
+            key={"settings-" + settingsOpen}
             isOpen={settingsOpen}
             onClose={() => setSettingsOpen(false)}
             notificationSettings={notificationSettings}

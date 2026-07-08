@@ -23,7 +23,7 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: "Search",
     shortcuts: [
-      { keys: "⌘K / ⌘F", desc: "Open search palette" },
+      { keys: "⌘K", desc: "Open search palette" },
       { keys: "↑↓", desc: "Navigate results" },
       { keys: "↵", desc: "Open result" },
       { keys: "⌘↵", desc: "Open results drawer" },

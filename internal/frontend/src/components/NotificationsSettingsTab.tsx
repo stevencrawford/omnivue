@@ -10,6 +10,7 @@ interface NotificationsSettingsTabProps {
 
 const KIND_OPTIONS: { value: NotificationKind; label: string }[] = [
   { value: "question", label: "Agent questions (question/ask/exit_plan_mode)" },
+  { value: "permission_request", label: "Permission requests (permission_request)" },
   { value: "task_complete", label: "Task completion (task_complete)" },
   { value: "new_messages", label: "New messages in sessions" },
   { value: "new_tool_call", label: "New tool calls" },
