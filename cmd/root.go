@@ -192,6 +192,10 @@ func startServer(ctx context.Context, addr string) error {
 	case restoreFile := <-state.RestartCh():
 		slog.Info("restarting")
 		cleanup()
+		// Wait for the old listener to fully release the port before
+		// spawning the replacement. Without this sleep the new process
+		// races with http.Server.Shutdown and gets EADDRINUSE.
+		time.Sleep(300 * time.Millisecond)
 		_, err := spawnNewProcess(addr, restoreFile)
 		return err
 	}

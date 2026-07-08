@@ -21,6 +21,7 @@ Omnivue is a 100% local session browser for your AI Agent Harnesses. It reads th
 ## Features
 
 - **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex out of the box
+- **Embedded terminal** — In-browser PTY that runs the agent's resume command (xterm.js + WebSocket)
 - **Conversation viewer** — Full message history with tool calls, reasoning, and step events
 - **File diffs** — Unified diff view of every file change made during a session
 - **Plan tracking** — Implementation plans and checkpoints with status indicators
@@ -86,6 +87,7 @@ curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/om
 | `⌘2` / `Ctrl+2` | Diff tab |
 | `⌘F` / `Ctrl+F` or `⌘K` / `Ctrl+K` | Open search (scoped to active session) |
 | `⌘B` / `Ctrl+B` | Toggle sidebar |
+| `⌘D` / `Ctrl+D` | Toggle terminal panel |
 | `Escape` | Close search / results |
 
 ## Documentation
