@@ -232,6 +232,13 @@ export function SettingsModal({
           console.error("Failed to reset:", err);
           return Effect.void;
         }),
+        Effect.ensuring(
+          Effect.sync(() => {
+            setResetting(false);
+            setResetStep(0);
+            setResetConfirmText("");
+          }),
+        ),
       ),
     );
   };
