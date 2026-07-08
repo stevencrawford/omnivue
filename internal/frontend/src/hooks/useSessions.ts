@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Effect } from "effect";
 import type { Session } from "./types";
-import { fetchSessions } from "./apiClient";
 import { useSSE } from "./useSSE";
+import { SessionService, ApiError } from "../services";
+import { runPromise } from "../lib/effect";
 
 export interface SessionsState {
   sessions: Session[];
@@ -13,6 +15,16 @@ export interface SessionsState {
   setActiveSessionId: (id: string | null) => void;
 }
 
+function listSessionsEffect() {
+  return SessionService.pipe(
+    Effect.flatMap((svc) => svc.list()),
+    Effect.catchAll((err: ApiError) => {
+      console.error("[sessions] failed to load:", err.message);
+      return Effect.succeed([] as Session[]);
+    }),
+  );
+}
+
 export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -22,8 +34,8 @@ export function useSessions(): SessionsState {
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
     try {
-      const data = await fetchSessions();
-      setSessions(data || []);
+      const data = await runPromise(listSessionsEffect());
+      setSessions(data ?? []);
     } catch (err) {
       console.error("Failed to load sessions:", err);
     } finally {

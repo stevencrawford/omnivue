@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Effect } from "effect";
 import type { Bookmark } from "./types";
-import { fetchBookmarks, createBookmark, deleteBookmark } from "./apiClient";
+import { BookmarkService, ApiError } from "../services";
+import { runPromise } from "../lib/effect";
 
 export interface BookmarksState {
   bookmarks: Bookmark[];
@@ -14,6 +16,39 @@ export interface BookmarksState {
     label: string,
   ) => Promise<void>;
   handleBookmarkDelete: (id: string) => Promise<void>;
+}
+
+function listBookmarksEffect() {
+  return BookmarkService.pipe(
+    Effect.flatMap((svc) => svc.list()),
+    Effect.catchAll((err: ApiError) => {
+      console.error("[bookmarks] failed to load:", err.message);
+      return Effect.succeed([] as Bookmark[]);
+    }),
+  );
+}
+
+function createBookmarkEffect(
+  sessionId: string,
+  messageIndex: number,
+  toolCallId: string | undefined,
+  label: string,
+) {
+  return BookmarkService.pipe(
+    Effect.flatMap((svc) => svc.create({ sessionId, messageIndex, toolCallId, label })),
+    Effect.catchAll((err: ApiError) =>
+      Effect.sync(() => console.error("Failed to create bookmark:", err.message)),
+    ),
+  );
+}
+
+function deleteBookmarkEffect(id: string) {
+  return BookmarkService.pipe(
+    Effect.flatMap((svc) => svc.remove(id)),
+    Effect.catchAll((err: ApiError) =>
+      Effect.sync(() => console.error("Failed to delete bookmark:", err.message)),
+    ),
+  );
 }
 
 export function useBookmarks(): BookmarksState {
@@ -30,8 +65,8 @@ export function useBookmarks(): BookmarksState {
 
   const loadBookmarks = useCallback(async () => {
     try {
-      const data = await fetchBookmarks();
-      setBookmarks(data || []);
+      const data = await runPromise(listBookmarksEffect());
+      setBookmarks(data ?? []);
     } catch {
       setBookmarks([]);
     }
@@ -44,24 +79,16 @@ export function useBookmarks(): BookmarksState {
       toolCallId: string | undefined,
       label: string,
     ) => {
-      try {
-        await createBookmark({ sessionId, messageIndex, toolCallId, label });
-        await loadBookmarks();
-      } catch {
-        /* ignore — will be replaced with toast in Phase 5 */
-      }
+      await runPromise(createBookmarkEffect(sessionId, messageIndex, toolCallId, label));
+      await loadBookmarks();
     },
     [loadBookmarks],
   );
 
   const handleBookmarkDelete = useCallback(
     async (id: string) => {
-      try {
-        await deleteBookmark(id);
-        await loadBookmarks();
-      } catch {
-        /* ignore */
-      }
+      await runPromise(deleteBookmarkEffect(id));
+      await loadBookmarks();
     },
     [loadBookmarks],
   );
