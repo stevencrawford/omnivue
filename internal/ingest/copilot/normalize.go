@@ -3,6 +3,7 @@ package copilot
 import (
 	"encoding/json"
 	"log/slog"
+	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
@@ -11,8 +12,13 @@ import (
 // the canonical ingest set. Called during assistant message parsing.
 func normalizeToolCall(tc *ingest.ToolCall, rawArgs json.RawMessage) {
 	if tc.Name == "ask_user" {
-		tc.Name = "question"
-		tc.Input = normalizeAskUserInput(tc.Input)
+		if isPermissionAskUser(tc.Input) {
+			tc.Name = "permission_request"
+			tc.Input = normalizePermissionInput(tc.Input)
+		} else {
+			tc.Name = "question"
+			tc.Input = normalizeAskUserInput(tc.Input)
+		}
 		return
 	}
 	if tc.Name == "atlassian-getJiraIssue" || tc.Name == "atlassian_getJiraIssue" {
@@ -121,6 +127,53 @@ func normalizeAskUserInput(input string) string {
 	out, err := json.Marshal(transformed)
 	if err != nil {
 		slog.Warn("failed to marshal ask_user input", "error", err)
+		return "{}"
+	}
+	return string(out)
+}
+
+// isPermissionAskUser checks whether an ask_user tool call is asking for
+// permission to run a command (rather than a general question). Permission
+// requests have choices containing "Allow" or "Deny".
+func isPermissionAskUser(input string) bool {
+	var raw struct {
+		Question string   `json:"question"`
+		Choices  []string `json:"choices"`
+	}
+	if err := json.Unmarshal([]byte(input), &raw); err != nil || len(raw.Choices) == 0 {
+		return false
+	}
+	for _, c := range raw.Choices {
+		lower := strings.ToLower(c)
+		if lower == "allow" || lower == "deny" || lower == "allow once" || lower == "allow once for this session" {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizePermissionInput transforms Copilot's ask_user permission input to
+// a standardized format for the permission_request renderer.
+func normalizePermissionInput(input string) string {
+	var raw struct {
+		Question      string   `json:"question"`
+		Choices       []string `json:"choices"`
+		AllowFreeform bool     `json:"allow_freeform"`
+	}
+	if err := json.Unmarshal([]byte(input), &raw); err != nil || raw.Question == "" {
+		return input
+	}
+	options := make([]map[string]string, len(raw.Choices))
+	for i, c := range raw.Choices {
+		options[i] = map[string]string{"label": c}
+	}
+	transformed := map[string]any{
+		"command":  raw.Question,
+		"options":  options,
+	}
+	out, err := json.Marshal(transformed)
+	if err != nil {
+		slog.Warn("failed to marshal permission input", "error", err)
 		return "{}"
 	}
 	return string(out)

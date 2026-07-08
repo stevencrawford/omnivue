@@ -15,6 +15,7 @@ import { ModelSwitchToolDiff } from "./ModelSwitchToolDiff";
 import { TaskToolDiff } from "./TaskToolDiff";
 import { SkillToolDiff } from "./SkillToolDiff";
 import { QuestionToolDiff } from "./QuestionToolDiff";
+import { PermissionRequestToolDiff } from "./PermissionRequestToolDiff";
 import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
 import { WebFetchToolDiff } from "./WebFetchToolDiff";
@@ -362,5 +363,20 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Web",
     markerDisplayType: "web",
     markerPriority: 80,
+  },
+  {
+    kind: "permission_request",
+    names: ["permission_request"],
+    Component: PermissionRequestToolDiff,
+    summary: (tool) => {
+      const c = extractJSONField(tool.input, "command") || "";
+      if (c) return c.length > 80 ? c.slice(0, 80) + "…" : c;
+      return "permission_request";
+    },
+    display: { type: "always-open" },
+    markerColor: "#f59e0b",
+    markerLabel: "Permissions",
+    markerDisplayType: "permission",
+    markerPriority: 35,
   },
 ];

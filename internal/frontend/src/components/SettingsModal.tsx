@@ -113,6 +113,7 @@ export function SettingsModal({
 
   useEffect(() => {
     if (isOpen) {
+      setActiveTab("agent");
       loadSources();
       setAddingPath("");
       setAddingType("opencode");

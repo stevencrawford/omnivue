@@ -162,6 +162,7 @@ export interface Bookmark {
 
 export type NotificationKind =
   | "question"
+  | "permission_request"
   | "task_complete"
   | "new_messages"
   | "new_tool_call"
