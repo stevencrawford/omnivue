@@ -14,9 +14,10 @@ vi.mock("../../hooks/apiClient", () => ({
 const mockSource = {
   id: "src-1",
   path: "/tmp/.opencode",
-  agent_type: "opencode" as const,
+  agentType: "opencode",
   label: "OpenCode",
   enabled: true,
+  createdAt: "2024-01-01T00:00:00Z",
 };
 
 describe("SourceService", () => {

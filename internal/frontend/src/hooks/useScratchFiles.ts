@@ -39,18 +39,12 @@ function createScratchFileEffect(
 ) {
   return ScratchService.pipe(
     Effect.flatMap((svc) => svc.create(sessionId, title, content, mode)),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to create scratch file:", err.message)),
-    ),
   );
 }
 
 function renameScratchFileEffect(sessionId: string, fileId: string, newTitle: string) {
   return ScratchService.pipe(
     Effect.flatMap((svc) => svc.rename(sessionId, fileId, newTitle)),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to rename scratch file:", err.message)),
-    ),
   );
 }
 
