@@ -66,6 +66,8 @@ export function ExitPlanModeToolDiff({
               childSessionId={childSessionId}
               navigateToSession={navigateToSession}
               showPin
+              copyText={summary || undefined}
+              pinText={summary || undefined}
             />
           </div>
         </div>
