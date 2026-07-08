@@ -11,8 +11,9 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
-import { Lock, Minimize2, Maximize2, X } from "lucide-react";
+import { Copy, Check, Lock, Minimize2, Maximize2, X } from "lucide-react";
 import { getScratchFile, updateScratchFile } from "../hooks/useApi";
+import { useCopy } from "../hooks/useCopy";
 
 marked.use({ gfm: true, breaks: true });
 const lowlight = createLowlight(common);
@@ -96,6 +97,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const { copied, copy } = useCopy(2000);
   const originalTitleRef = useRef("Untitled");
   const lastSavedMarkdownRef = useRef("");
   const isUpdatingRef = useRef(false);
@@ -417,6 +419,14 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
               <div className="w-px h-4 bg-ov-border mx-1" />
             </>
           )}
+          <button
+            type="button"
+            onClick={() => copy(sourceContent)}
+            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
+            title="Copy"
+          >
+            {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+          </button>
           <button
             type="button"
             onClick={() => setIsFullscreen((v) => !v)}
