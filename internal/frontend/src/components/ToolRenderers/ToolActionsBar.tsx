@@ -29,6 +29,7 @@ export function ToolActionsBar({
   childSessionId,
   navigateToSession,
   showPin,
+  showCopy = true,
   copyText,
   pinText,
 }: {
@@ -39,6 +40,7 @@ export function ToolActionsBar({
   childSessionId?: string | null;
   navigateToSession?: (id: string) => void;
   showPin?: boolean;
+  showCopy?: boolean;
   copyText?: string;
   pinText?: string;
 }) {
@@ -69,7 +71,7 @@ export function ToolActionsBar({
           <ArrowRightIcon size={12} className="inline" /> View session
         </button>
       )}
-      <CopyOutputBtn tool={tool} copyText={copyText} />
+      {showCopy && <CopyOutputBtn tool={tool} copyText={copyText} />}
       {onBookmark && (
         <button
           type="button"
