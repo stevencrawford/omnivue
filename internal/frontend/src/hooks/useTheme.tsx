@@ -1,6 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-export type ThemeName = "default" | "nord" | "catppuccin" | "tokyo-night" | "github";
+export type ThemeName =
+  | "default"
+  | "nord"
+  | "catppuccin"
+  | "tokyo-night"
+  | "github"
+  | "one-monokai"
+  | "atom-one"
+  | "dracula"
+  | "night-owl";
 export type ThemeMode = "light" | "dark";
 
 export const THEMES: { name: ThemeName; label: string; description: string }[] = [
@@ -9,6 +18,10 @@ export const THEMES: { name: ThemeName; label: string; description: string }[] =
   { name: "catppuccin", label: "Catppuccin", description: "Warm pastel tones" },
   { name: "tokyo-night", label: "Tokyo Night", description: "Deep blue night" },
   { name: "github", label: "GitHub", description: "GitHub's official palette" },
+  { name: "one-monokai", label: "One Monokai", description: "Vibrant warm contrast" },
+  { name: "atom-one", label: "Atom One", description: "Clean classic palette" },
+  { name: "dracula", label: "Dracula", description: "Deep purple darkness" },
+  { name: "night-owl", label: "Night Owl", description: "Soft nocturnal tones" },
 ];
 
 const THEME_NAMES: readonly ThemeName[] = [
@@ -17,6 +30,10 @@ const THEME_NAMES: readonly ThemeName[] = [
   "catppuccin",
   "tokyo-night",
   "github",
+  "one-monokai",
+  "atom-one",
+  "dracula",
+  "night-owl",
 ];
 
 /** Type predicate — narrows string to ThemeName at runtime. */

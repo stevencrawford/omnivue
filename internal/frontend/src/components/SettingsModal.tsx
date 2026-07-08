@@ -37,6 +37,22 @@ const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
     light: ["#ffffff", "#f6f8fa", "#0969da", "#1f883d"],
     dark: ["#0d1117", "#151b23", "#58a6ff", "#3fb950"],
   },
+  "one-monokai": {
+    light: ["#f8f9fa", "#ffffff", "#e53b50", "#78dce8"],
+    dark: ["#2d2d2d", "#363636", "#ff6188", "#a9dc76"],
+  },
+  "atom-one": {
+    light: ["#fafafa", "#ffffff", "#4078f2", "#50a14f"],
+    dark: ["#282c34", "#21252b", "#61afef", "#98c379"],
+  },
+  dracula: {
+    light: ["#f8f8f2", "#ffffff", "#ff79c6", "#8be9fd"],
+    dark: ["#282a36", "#21222c", "#ff79c6", "#8be9fd"],
+  },
+  "night-owl": {
+    light: ["#fbfbfb", "#ffffff", "#0c6e9d", "#4f7e65"],
+    dark: ["#011627", "#0b1e2e", "#82aaff", "#7fdbca"],
+  },
 };
 
 interface SettingsModalProps {
