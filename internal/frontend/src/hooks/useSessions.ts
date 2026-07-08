@@ -33,14 +33,9 @@ export function useSessions(): SessionsState {
 
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
-    try {
-      const data = await runPromise(listSessionsEffect());
-      setSessions(data ?? []);
-    } catch (err) {
-      console.error("Failed to load sessions:", err);
-    } finally {
-      setSessionsLoading(false);
-    }
+    const data = await runPromise(listSessionsEffect());
+    setSessions(data ?? []);
+    setSessionsLoading(false);
   }, []);
 
   useEffect(() => {

@@ -37,15 +37,11 @@ function createScratchFileEffect(
   content?: string,
   mode?: "writable" | "readonly",
 ) {
-  return ScratchService.pipe(
-    Effect.flatMap((svc) => svc.create(sessionId, title, content, mode)),
-  );
+  return ScratchService.pipe(Effect.flatMap((svc) => svc.create(sessionId, title, content, mode)));
 }
 
 function renameScratchFileEffect(sessionId: string, fileId: string, newTitle: string) {
-  return ScratchService.pipe(
-    Effect.flatMap((svc) => svc.rename(sessionId, fileId, newTitle)),
-  );
+  return ScratchService.pipe(Effect.flatMap((svc) => svc.rename(sessionId, fileId, newTitle)));
 }
 
 export function useScratchFiles(
@@ -74,12 +70,8 @@ export function useScratchFiles(
   }, [validScratchFiles]);
 
   const loadScratchFiles = useCallback(async () => {
-    try {
-      const data = await runPromise(listAllScratchFilesEffect());
-      setScratchFiles(data ?? []);
-    } catch {
-      setScratchFiles([]);
-    }
+    const data = await runPromise(listAllScratchFilesEffect());
+    setScratchFiles(data ?? []);
   }, []);
 
   useEffect(() => {

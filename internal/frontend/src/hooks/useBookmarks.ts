@@ -64,12 +64,8 @@ export function useBookmarks(): BookmarksState {
   }, [bookmarks]);
 
   const loadBookmarks = useCallback(async () => {
-    try {
-      const data = await runPromise(listBookmarksEffect());
-      setBookmarks(data ?? []);
-    } catch {
-      setBookmarks([]);
-    }
+    const data = await runPromise(listBookmarksEffect());
+    setBookmarks(data ?? []);
   }, []);
 
   const handleBookmark = useCallback(
