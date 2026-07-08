@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState } from "react";
+import { Effect } from "effect";
 import type { SearchResult } from "./useApi";
-import { fetchSearch } from "./useApi";
 import type { Tab } from "../components/SessionViewer";
+import { runFork } from "../lib/effect";
+import { SearchService } from "../services";
 
 export function useSearchState(
   addSearch: (q: string) => void,
@@ -17,9 +19,29 @@ export function useSearchState(
   const [drawerQuery, setDrawerQuery] = useState("");
   const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
 
-  // AbortController ref to cancel in-flight search requests and prevent
-  // race conditions when the user rapidly changes scope or triggers searches.
-  const abortRef = useRef<AbortController | null>(null);
+  const cancelSearch = useRef<(() => void) | null>(null);
+
+  function runSearch(query: string, limit: number, scope: string | undefined): void {
+    cancelSearch.current?.();
+
+    const cancel = runFork(
+      SearchService.pipe(
+        Effect.flatMap((svc) => svc.search(query, limit, scope)),
+        Effect.map((results) => {
+          setDrawerQuery(query);
+          setDrawerResults(results || []);
+          setDrawerOpen(true);
+        }),
+        Effect.catchAll(() =>
+          Effect.sync(() => {
+            setDrawerResults([]);
+          }),
+        ),
+      ),
+    );
+
+    cancelSearch.current = cancel;
+  }
 
   const handleSearchSelect = useCallback(
     (
@@ -60,28 +82,9 @@ export function useSearchState(
   );
 
   const handleSearchOpenDrawer = useCallback(
-    async (q: string) => {
+    (q: string) => {
       if (q.trim()) addSearch(q);
-      // Cancel any in-flight request
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      try {
-        const data = await fetchSearch(
-          q.trim(),
-          100,
-          searchSessionScope ?? undefined,
-          controller.signal,
-        );
-        if (controller.signal.aborted) return;
-        setDrawerQuery(q);
-        setDrawerResults(data || []);
-        setDrawerOpen(true);
-      } catch {
-        if (!controller.signal.aborted) {
-          setDrawerResults([]);
-        }
-      }
+      runSearch(q.trim(), 100, searchSessionScope ?? undefined);
     },
     [searchSessionScope, addSearch],
   );
@@ -93,20 +96,7 @@ export function useSearchState(
 
   const handleDrawerClearScope = useCallback(() => {
     if (drawerQuery.trim()) {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      fetchSearch(drawerQuery.trim(), 100, undefined, controller.signal)
-        .then((data) => {
-          if (!controller.signal.aborted) {
-            setDrawerResults(data || []);
-          }
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            setDrawerResults([]);
-          }
-        });
+      runSearch(drawerQuery.trim(), 100, undefined);
     }
   }, [drawerQuery]);
 

@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Effect } from "effect";
 import type { AppNotification, NotificationSettings } from "./types";
-import {
-  fetchNotifications,
-  fetchNotificationSettings,
-  markNotificationsRead,
-  clearNotifications,
-  setNotificationActiveView,
-  setNotificationSettings,
-} from "./apiClient";
 import { useSSE } from "./useSSE";
+import { NotificationService, ApiError } from "../services";
+import { runPromise } from "../lib/effect";
 
 export interface NotificationsState {
   notifications: AppNotification[];
@@ -24,6 +19,43 @@ export interface NotificationsState {
   saveSettings: (settings: NotificationSettings) => Promise<void>;
 }
 
+function fetchNotificationsEffect(opts: { limit?: number; unreadOnly?: boolean } = {}) {
+  return NotificationService.pipe(
+    Effect.flatMap((svc) => svc.list(opts)),
+    Effect.catchAll((err: ApiError) => {
+      console.error("[notifications] reload failed:", err.message);
+      return Effect.succeed([] as AppNotification[]);
+    }),
+  );
+}
+
+function markReadEffect(ids: string[]) {
+  return NotificationService.pipe(
+    Effect.flatMap((svc) => svc.markRead(ids)),
+    Effect.catchAll((err: ApiError) =>
+      Effect.sync(() => console.error("Failed to mark read:", err.message)),
+    ),
+  );
+}
+
+function markAllReadEffect() {
+  return NotificationService.pipe(
+    Effect.flatMap((svc) => svc.markRead(null)),
+    Effect.catchAll((err: ApiError) =>
+      Effect.sync(() => console.error("Failed to mark all read:", err.message)),
+    ),
+  );
+}
+
+function clearAllEffect() {
+  return NotificationService.pipe(
+    Effect.flatMap((svc) => svc.clearAll()),
+    Effect.catchAll((err: ApiError) =>
+      Effect.sync(() => console.error("Failed to clear notifications:", err.message)),
+    ),
+  );
+}
+
 export function useNotifications(): NotificationsState {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -31,24 +63,27 @@ export function useNotifications(): NotificationsState {
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reload = useCallback(() => {
-    fetchNotifications({ limit: 100 })
+    setLoading(true);
+    runPromise(fetchNotificationsEffect({ limit: 100 }))
       .then((data) => {
         setNotifications(data || []);
       })
-      .catch((err) => console.error("[notifications] reload failed:", err))
       .finally(() => setLoading(false));
   }, []);
 
   const reloadSettings = useCallback(async () => {
-    try {
-      const s = await fetchNotificationSettings();
-      setSettings(s);
-    } catch (err) {
-      console.error("Failed to load notification settings:", err);
-    }
+    const s = await runPromise(
+      NotificationService.pipe(
+        Effect.flatMap((svc) => svc.getSettings()),
+        Effect.catchAll((err: ApiError) => {
+          console.error("[notifications] failed to load settings:", err.message);
+          return Effect.succeed(null as unknown as NotificationSettings);
+        }),
+      ),
+    );
+    setSettings(s);
   }, []);
 
-  // Debounced refetch on SSE notification events so a burst doesn't flood.
   const scheduleReload = useCallback(() => {
     if (reloadTimer.current) clearTimeout(reloadTimer.current);
     reloadTimer.current = setTimeout(() => reload(), 300);
@@ -59,8 +94,6 @@ export function useNotifications(): NotificationsState {
     reloadSettings();
   }, [reload, reloadSettings]);
 
-  // Periodic polling fallback: refresh every 60s so the frontend recovers
-  // from dropped SSE events (e.g. tab backgrounded during delivery).
   useEffect(() => {
     const id = setInterval(() => reload(), 60000);
     return () => clearInterval(id);
@@ -87,33 +120,36 @@ export function useNotifications(): NotificationsState {
     const set = new Set(ids);
     const now = Date.now();
     setNotifications((prev) => prev.map((n) => (set.has(n.id) ? { ...n, readAt: now } : n)));
-    markNotificationsRead(ids).catch((err) => console.error("Failed to mark read:", err));
+    runPromise(markReadEffect(ids));
   }, []);
 
   const markAllRead = useCallback(() => {
     const now = Date.now();
     setNotifications((prev) => prev.map((n) => ({ ...n, readAt: now })));
-    markNotificationsRead(null).catch((err) => console.error("Failed to mark all read:", err));
+    runPromise(markAllReadEffect());
   }, []);
 
   const clearAll = useCallback(() => {
     setNotifications([]);
-    clearNotifications().catch((err) => console.error("Failed to clear notifications:", err));
+    runPromise(clearAllEffect());
   }, []);
 
   const saveSettings = useCallback(async (next: NotificationSettings) => {
     setSettings(next);
-    try {
-      const saved = await setNotificationSettings(next);
-      setSettings(saved);
-    } catch (err) {
-      console.error("Failed to save notification settings:", err);
-    }
+    const saved = await runPromise(
+      NotificationService.pipe(
+        Effect.flatMap((svc) => svc.saveSettings(next)),
+        Effect.catchAll((err: ApiError) => {
+          console.error("[notifications] failed to save settings:", err.message);
+          return Effect.succeed(next);
+        }),
+      ),
+    );
+    setSettings(saved);
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
-  // Per-session unread counts for sidebar badges.
   const sessionUnread: Record<string, number> = {};
   for (const n of notifications) {
     if (!n.readAt) {
@@ -136,20 +172,18 @@ export function useNotifications(): NotificationsState {
   };
 }
 
-/**
- * Tracks the currently-viewed session id and POSTs it to the server (debounced)
- * so the ExcludeActiveView notification setting can suppress alerts for the
- * session the user is already looking at.
- */
 export function useActiveView(activeSessionId: string | null) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!activeSessionId) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      setNotificationActiveView(activeSessionId).catch(() => {
-        // Non-critical; ignore.
-      });
+      runPromise(
+        NotificationService.pipe(
+          Effect.flatMap((svc) => svc.setActiveView(activeSessionId)),
+          Effect.catchAll(() => Effect.void),
+        ),
+      );
     }, 500);
     return () => {
       if (timer.current) clearTimeout(timer.current);

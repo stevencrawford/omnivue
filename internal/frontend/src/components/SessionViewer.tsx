@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Bot,
   FileText,
@@ -13,8 +13,11 @@ import {
   BarChart3,
   Terminal,
 } from "lucide-react";
+import { Effect } from "effect";
 import type { Session, Message } from "../hooks/useApi";
-import { fetchMessages, deleteScratchFile } from "../hooks/useApi";
+import { deleteScratchFile } from "../hooks/useApi";
+import { runFork } from "../lib/effect";
+import { SessionService } from "../services";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 import { useCopy } from "../hooks/useCopy";
@@ -116,17 +119,27 @@ export function SessionViewer({
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const loadMessages = useCallback(async () => {
+  const cancelLoadRef = useRef<(() => void) | null>(null);
+
+  const loadMessages = useCallback(() => {
+    cancelLoadRef.current?.();
     setLoading(true);
-    try {
-      const data = await fetchMessages(session.id);
-      setMessages(data || []);
-    } catch (err) {
-      console.error("Failed to load messages:", err);
-      setMessages([]);
-    } finally {
-      setLoading(false);
-    }
+    const cancel = runFork(
+      SessionService.pipe(
+        Effect.flatMap((svc) => svc.getMessages(session.id)),
+        Effect.map((data) => {
+          setMessages(data || []);
+        }),
+        Effect.catchAll((err) =>
+          Effect.sync(() => {
+            console.error("Failed to load messages:", err.message);
+            setMessages([]);
+          }),
+        ),
+        Effect.ensuring(Effect.sync(() => setLoading(false))),
+      ),
+    );
+    cancelLoadRef.current = cancel;
   }, [session.id]);
 
   useEffect(() => {

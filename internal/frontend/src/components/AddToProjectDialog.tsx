@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Folder as FolderIcon, Plus, Loader } from "lucide-react";
+import { Effect } from "effect";
 import { Modal } from "./Modal";
-import { fetchFolders, createFolder, assignSessionToFolder } from "../hooks/useApi";
-import type { Folder } from "../hooks/useApi";
+import type { Folder } from "../hooks/types";
+import { FolderService } from "../services";
+import { runPromise } from "../lib/effect";
 
 interface AddToProjectDialogProps {
   isOpen: boolean;
@@ -40,39 +42,59 @@ export function AddToProjectDialog({
 
   const loadFolders = useCallback(async () => {
     setLoading(true);
-    try {
-      const data = await fetchFolders();
-      setFolders(data);
-    } catch {
-      console.error("Failed to load folders");
-    } finally {
-      setLoading(false);
-    }
+    const data = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.list()),
+        Effect.catchAll(() => {
+          console.error("Failed to load folders");
+          return Effect.succeed([] as Folder[]);
+        }),
+      ),
+    );
+    setFolders(data);
+    setLoading(false);
   }, []);
 
   const handleAssign = async (folder: Folder) => {
     setAssigning(folder.id);
-    try {
-      await assignSessionToFolder(folder.id, sessionId);
-      onAssigned(folder.name);
-      onClose();
-    } catch (err) {
-      console.error("Failed to assign session:", err);
-    } finally {
-      setAssigning(null);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.assignSession(folder.id, sessionId)),
+        Effect.catchAll((err) => {
+          console.error("Failed to assign session:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    onAssigned(folder.name);
+    onClose();
+    setAssigning(null);
   };
 
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) return;
-    try {
-      const folder = await createFolder(name);
-      await assignSessionToFolder(folder.id, sessionId);
+    const folder = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.create(name)),
+        Effect.catchAll((err) => {
+          console.error("Failed to create folder:", err);
+          return Effect.succeed(null as unknown as Folder);
+        }),
+      ),
+    );
+    if (folder) {
+      await runPromise(
+        FolderService.pipe(
+          Effect.flatMap((svc) => svc.assignSession(folder.id, sessionId)),
+          Effect.catchAll((err) => {
+            console.error("Failed to assign session:", err);
+            return Effect.void;
+          }),
+        ),
+      );
       onAssigned(folder.name);
       onClose();
-    } catch (err) {
-      console.error("Failed to create folder:", err);
     }
   };
 
