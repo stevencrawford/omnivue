@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, Plus, Loader2, TriangleAlert } from "lucide-react";
+import { Effect } from "effect";
 import { Modal } from "./Modal";
-import { fetchSources, addSource, removeSource, setConfig, resetApp } from "../hooks/useApi";
-import type { Source, NotificationSettings } from "../hooks/useApi";
+import type { Source, NotificationSettings } from "../hooks/types";
+import { SourceService, ConfigService } from "../services";
+import { runPromise } from "../lib/effect";
 import { useTheme, THEMES } from "../hooks/useTheme";
 import type { ThemeName, ThemeMode } from "../hooks/useTheme";
 import { NotificationsSettingsTab } from "./NotificationsSettingsTab";
@@ -117,14 +119,17 @@ export function SettingsModal({
   const loadSources = useCallback(async () => {
     setSourcesLoading(true);
     setSourcesError(null);
-    try {
-      const data = await fetchSources();
-      setSources(data || []);
-    } catch {
-      setSourcesError("Failed to load sources");
-    } finally {
-      setSourcesLoading(false);
-    }
+    const data = await runPromise(
+      SourceService.pipe(
+        Effect.flatMap((svc) => svc.list()),
+        Effect.catchAll(() => {
+          setSourcesError("Failed to load sources");
+          return Effect.succeed([] as Source[]);
+        }),
+      ),
+    );
+    setSources(data || []);
+    setSourcesLoading(false);
   }, []);
 
   useEffect(() => {
@@ -163,7 +168,12 @@ export function SettingsModal({
     setPendingSources((prev) => [...prev, { id: pendingId, path, agentType, status: "loading" }]);
     setAddingPath("");
     try {
-      await addSource(path, agentType);
+      await runPromise(
+        SourceService.pipe(
+          Effect.flatMap((svc) => svc.add(path, agentType)),
+          Effect.catchAll((err) => Effect.fail(err)),
+        ),
+      );
       await loadSources();
       setPendingSources((prev) => prev.filter((p) => p.id !== pendingId));
     } catch (err) {
@@ -179,45 +189,51 @@ export function SettingsModal({
 
   const handleRemove = async (id: string) => {
     setRemovingId(id);
-    try {
-      await removeSource(id);
-      setConfirmingDeleteId(null);
-      await loadSources();
-    } catch (err) {
-      console.error("Failed to remove source:", err);
-    } finally {
-      setRemovingId(null);
-    }
+    await runPromise(
+      SourceService.pipe(
+        Effect.flatMap((svc) => svc.remove(id)),
+        Effect.catchAll((err) => {
+          console.error("Failed to remove source:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    setConfirmingDeleteId(null);
+    await loadSources();
+    setRemovingId(null);
   };
 
   const handleThemeNameChange = async (name: ThemeName) => {
     setThemeName(name);
-    try {
-      await setConfig("theme-name", name);
-    } catch {
-      // Non-critical
-    }
+    await runPromise(
+      ConfigService.pipe(
+        Effect.flatMap((svc) => svc.set("theme-name", name)),
+        Effect.catchAll(() => Effect.void),
+      ),
+    );
   };
 
   const handleThemeModeChange = async (mode: ThemeMode) => {
     setTheme(mode);
-    try {
-      await setConfig("theme-mode", mode);
-    } catch {
-      // Non-critical
-    }
+    await runPromise(
+      ConfigService.pipe(
+        Effect.flatMap((svc) => svc.set("theme-mode", mode)),
+        Effect.catchAll(() => Effect.void),
+      ),
+    );
   };
 
   const handleReset = async () => {
     setResetting(true);
-    try {
-      await resetApp();
-    } catch (err) {
-      console.error("Failed to reset:", err);
-      setResetting(false);
-      setResetStep(0);
-      setResetConfirmText("");
-    }
+    await runPromise(
+      ConfigService.pipe(
+        Effect.flatMap((svc) => svc.reset()),
+        Effect.catchAll((err) => {
+          console.error("Failed to reset:", err);
+          return Effect.void;
+        }),
+      ),
+    );
   };
 
   const handleResetClose = useCallback(() => {

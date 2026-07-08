@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import * as api from "../hooks/apiClient";
 import type { AppNotification, NotificationSettings } from "../hooks/types";
-import { ApiError } from "./common";
+import { ApiError, catchToApiError } from "./common";
 
 export class NotificationService extends Effect.Service<NotificationService>()(
   "NotificationService",
@@ -12,48 +12,31 @@ export class NotificationService extends Effect.Service<NotificationService>()(
       ): Effect.Effect<AppNotification[], ApiError> =>
         Effect.tryPromise({
           try: () => api.fetchNotifications(opts),
-          catch: (e) =>
-            new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/notifications"),
+          catch: catchToApiError("/_/api/notifications"),
         });
 
       const markRead = (ids: string[] | null): Effect.Effect<void, ApiError> =>
         Effect.tryPromise({
           try: () => api.markNotificationsRead(ids),
-          catch: (e) =>
-            new ApiError(
-              String(e),
-              e instanceof Response ? e.status : 0,
-              "/_/api/notifications/read",
-            ),
+          catch: catchToApiError("/_/api/notifications/read"),
         });
 
       const clearAll = (): Effect.Effect<void, ApiError> =>
         Effect.tryPromise({
           try: () => api.clearNotifications(),
-          catch: (e) =>
-            new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/notifications"),
+          catch: catchToApiError("/_/api/notifications"),
         });
 
       const setActiveView = (sessionId: string): Effect.Effect<void, ApiError> =>
         Effect.tryPromise({
           try: () => api.setNotificationActiveView(sessionId),
-          catch: (e) =>
-            new ApiError(
-              String(e),
-              e instanceof Response ? e.status : 0,
-              "/_/api/notifications/active-view",
-            ),
+          catch: catchToApiError("/_/api/notifications/active-view"),
         });
 
       const getSettings = (): Effect.Effect<NotificationSettings, ApiError> =>
         Effect.tryPromise({
           try: () => api.fetchNotificationSettings(),
-          catch: (e) =>
-            new ApiError(
-              String(e),
-              e instanceof Response ? e.status : 0,
-              "/_/api/notifications/settings",
-            ),
+          catch: catchToApiError("/_/api/notifications/settings"),
         });
 
       const saveSettings = (
@@ -61,12 +44,7 @@ export class NotificationService extends Effect.Service<NotificationService>()(
       ): Effect.Effect<NotificationSettings, ApiError> =>
         Effect.tryPromise({
           try: () => api.setNotificationSettings(settings),
-          catch: (e) =>
-            new ApiError(
-              String(e),
-              e instanceof Response ? e.status : 0,
-              "/_/api/notifications/settings",
-            ),
+          catch: catchToApiError("/_/api/notifications/settings"),
         });
 
       return { list, markRead, clearAll, setActiveView, getSettings, saveSettings } as const;

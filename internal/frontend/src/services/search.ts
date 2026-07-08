@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import * as api from "../hooks/apiClient";
 import type { SearchResult } from "../hooks/types";
-import { ApiError } from "./common";
+import { ApiError, catchToApiError } from "./common";
 
 export class SearchService extends Effect.Service<SearchService>()("SearchService", {
   effect: Effect.gen(function* () {
@@ -15,7 +15,7 @@ export class SearchService extends Effect.Service<SearchService>()("SearchServic
         try: () => api.fetchSearch(query, limit, sessionId, signal),
         catch: (e) => {
           if (e instanceof DOMException && e.name === "AbortError") throw e;
-          return new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/search");
+          return catchToApiError("/_/api/search")(e);
         },
       });
 

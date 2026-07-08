@@ -1,4 +1,11 @@
 export { SessionService } from "./session";
 export { NotificationService } from "./notification";
 export { SearchService } from "./search";
+export { SourceService } from "./source";
+export { ConfigService } from "./config";
+export { StatusService } from "./status";
+export { FolderService } from "./folder";
+export { ScratchService } from "./scratch";
+export { BookmarkService } from "./bookmark";
+export { RecentSearchService } from "./recentSearch";
 export { ApiError } from "./common";

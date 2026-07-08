@@ -1,11 +1,7 @@
 import { Effect, Schedule } from "effect";
 import * as api from "../hooks/apiClient";
 import type { Session, Message, Plan, DiffFile, FileEdit } from "../hooks/types";
-import { ApiError } from "./common";
-
-function catchToApiError(url: string): (e: unknown) => ApiError {
-  return (e) => new ApiError(String(e), e instanceof Response ? e.status : 0, url);
-}
+import { ApiError, catchToApiError } from "./common";
 
 export class SessionService extends Effect.Service<SessionService>()("SessionService", {
   effect: Effect.gen(function* () {

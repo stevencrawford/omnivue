@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Effect } from "effect";
 import type { AppNotification, NotificationSettings } from "./types";
-import { fetchNotificationSettings, setNotificationSettings } from "./apiClient";
 import { useSSE } from "./useSSE";
 import { NotificationService, ApiError } from "../services";
 import { runPromise } from "../lib/effect";
@@ -69,19 +68,20 @@ export function useNotifications(): NotificationsState {
       .then((data) => {
         setNotifications(data || []);
       })
-      .catch(() => {
-        /* already caught in effect */
-      })
       .finally(() => setLoading(false));
   }, []);
 
   const reloadSettings = useCallback(async () => {
-    try {
-      const s = await fetchNotificationSettings();
-      setSettings(s);
-    } catch (err) {
-      console.error("Failed to load notification settings:", err);
-    }
+    const s = await runPromise(
+      NotificationService.pipe(
+        Effect.flatMap((svc) => svc.getSettings()),
+        Effect.catchAll((err: ApiError) => {
+          console.error("[notifications] failed to load settings:", err.message);
+          return Effect.succeed(null as unknown as NotificationSettings);
+        }),
+      ),
+    );
+    setSettings(s);
   }, []);
 
   const scheduleReload = useCallback(() => {
@@ -136,12 +136,16 @@ export function useNotifications(): NotificationsState {
 
   const saveSettings = useCallback(async (next: NotificationSettings) => {
     setSettings(next);
-    try {
-      const saved = await setNotificationSettings(next);
-      setSettings(saved);
-    } catch (err) {
-      console.error("Failed to save notification settings:", err);
-    }
+    const saved = await runPromise(
+      NotificationService.pipe(
+        Effect.flatMap((svc) => svc.saveSettings(next)),
+        Effect.catchAll((err: ApiError) => {
+          console.error("[notifications] failed to save settings:", err.message);
+          return Effect.succeed(next);
+        }),
+      ),
+    );
+    setSettings(saved);
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
