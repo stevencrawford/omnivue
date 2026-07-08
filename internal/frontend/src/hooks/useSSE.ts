@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { Stream, Effect, Schedule } from "effect";
+import { runFork } from "../lib/effect";
 
 interface SSECallbacks {
   onUpdate: () => void;
@@ -8,95 +10,127 @@ interface SSECallbacks {
   onStarted?: () => void;
 }
 
+type SSEEvent =
+  | { type: "update" }
+  | { type: "session-changed"; ids: string[] }
+  | { type: "notification" }
+  | { type: "notifications-read"; ids: string[] | null }
+  | { type: "started"; pid: number }
+  | { type: "reset" };
+
+function makeSSEStream() {
+  return Stream.async<SSEEvent, string>((emit) => {
+    const es = new EventSource("/_/events");
+
+    es.addEventListener("started", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        if (typeof data.pid === "number") {
+          emit.single({ type: "started", pid: data.pid });
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+
+    es.addEventListener("update", () => {
+      emit.single({ type: "update" });
+    });
+
+    es.addEventListener("reset", () => {
+      emit.single({ type: "reset" });
+    });
+
+    es.addEventListener("session-changed", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        if (Array.isArray(data.ids)) {
+          emit.single({ type: "session-changed", ids: data.ids });
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+
+    es.addEventListener("notification", () => {
+      emit.single({ type: "notification" });
+    });
+
+    es.addEventListener("notifications-read", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        if (data && data.all) {
+          emit.single({ type: "notifications-read", ids: null });
+        } else if (Array.isArray(data.ids)) {
+          emit.single({ type: "notifications-read", ids: data.ids });
+        } else {
+          emit.single({ type: "notifications-read", ids: null });
+        }
+      } catch {
+        emit.single({ type: "notifications-read", ids: null });
+      }
+    });
+
+    es.onerror = () => {
+      emit.fail("connection_error");
+    };
+
+    return Effect.sync(() => es.close());
+  }).pipe(
+    Stream.retry(
+      Schedule.exponential("1 seconds").pipe(
+        Schedule.whileInput((_e: string) => true),
+        Schedule.upTo("60 seconds"),
+      ),
+    ),
+  );
+}
+
 export function useSSE(callbacks: SSECallbacks) {
   const callbacksRef = useRef(callbacks);
-  useLayoutEffect(() => {
-    callbacksRef.current = callbacks;
-  });
+  callbacksRef.current = callbacks;
 
   useEffect(() => {
-    let disposed = false;
-    let es: EventSource | null = null;
-    let retryDelay = 1000;
-    const maxRetryDelay = 30000;
     let serverPid: number | null = null;
 
-    function connect() {
-      if (disposed) return;
+    const cancel = runFork(
+      makeSSEStream().pipe(
+        Stream.runForEach((event) =>
+          Effect.sync(() => {
+            const cb = callbacksRef.current;
 
-      es = new EventSource("/_/events");
+            switch (event.type) {
+              case "update":
+                cb.onUpdate();
+                break;
+              case "session-changed":
+                if (event.ids.length > 0) {
+                  cb.onSessionChanged?.(event.ids);
+                }
+                break;
+              case "notification":
+                cb.onNotification?.();
+                break;
+              case "notifications-read":
+                cb.onNotificationsRead?.(event.ids);
+                break;
+              case "started":
+                if (serverPid !== null && event.pid !== serverPid) {
+                  window.location.reload();
+                  return;
+                }
+                serverPid = event.pid;
+                cb.onStarted?.();
+                break;
+              case "reset":
+                window.location.reload();
+                break;
+            }
+          }),
+        ),
+      ),
+    );
 
-      es.addEventListener("started", (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (typeof data.pid !== "number") return;
-          if (serverPid !== null && data.pid !== serverPid) {
-            window.location.reload();
-            return;
-          }
-          serverPid = data.pid;
-        } catch {
-          // ignore
-        }
-        callbacksRef.current.onStarted?.();
-      });
-
-      es.addEventListener("update", () => {
-        callbacksRef.current.onUpdate();
-      });
-
-      es.addEventListener("reset", () => {
-        window.location.reload();
-      });
-
-      es.addEventListener("session-changed", (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (Array.isArray(data.ids)) {
-            callbacksRef.current.onSessionChanged?.(data.ids);
-          }
-        } catch {
-          // ignore
-        }
-      });
-
-      es.addEventListener("notification", () => {
-        callbacksRef.current.onNotification?.();
-      });
-
-      es.addEventListener("notifications-read", (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data && data.all) {
-            callbacksRef.current.onNotificationsRead?.(null);
-          } else if (Array.isArray(data.ids)) {
-            callbacksRef.current.onNotificationsRead?.(data.ids);
-          } else {
-            callbacksRef.current.onNotificationsRead?.(null);
-          }
-        } catch {
-          callbacksRef.current.onNotificationsRead?.(null);
-        }
-      });
-
-      es.onopen = () => {
-        retryDelay = 1000;
-      };
-
-      es.onerror = () => {
-        es?.close();
-        if (!disposed) {
-          setTimeout(connect, retryDelay);
-          retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
-        }
-      };
-    }
-
-    connect();
-
-    return () => {
-      disposed = true;
-      es?.close();
-    };
+    return cancel;
   }, []);
 }
