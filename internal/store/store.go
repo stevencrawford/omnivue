@@ -829,7 +829,9 @@ func (s *Store) IndexState(sessionID string) (string, error) {
 }
 
 // sanitizeFTS5Query wraps individual tokens in double quotes to prevent FTS5
-// from interpreting hyphens, AND, OR, NOT, and other operators as syntax.
+// from interpreting hyphens, AND, OR, NOT, and other operators as syntax, and
+// appends * to each term to enable prefix (partial-word) matching. For example,
+// "instru" becomes `"instru"*`, which matches "instrument", "instruction", etc.
 func sanitizeFTS5Query(q string) string {
 	fields := strings.Fields(q)
 	if len(fields) == 0 {
@@ -837,7 +839,7 @@ func sanitizeFTS5Query(q string) string {
 	}
 	quoted := make([]string, len(fields))
 	for i, f := range fields {
-		quoted[i] = `"` + strings.NewReplacer(`"`, `""`).Replace(f) + `"`
+		quoted[i] = `"` + strings.NewReplacer(`"`, `""`).Replace(f) + `"*`
 	}
 	return strings.Join(quoted, " ")
 }
