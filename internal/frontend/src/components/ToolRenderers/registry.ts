@@ -201,7 +201,10 @@ class ToolRendererRegistry {
 
   private resolveKind(tool: ToolCall): string {
     const fromName = this.nameToKind.get(tool.name);
-    if (fromName) return fromName;
+    if (fromName) {
+      if (fromName === "question" && isPermissionInput(tool.input)) return "permission_request";
+      return fromName;
+    }
 
     const alias = HEURISTIC_KIND_ALIASES[tool.name];
     if (alias) return alias;
@@ -261,6 +264,35 @@ class ToolRendererRegistry {
     const generic = new Set(["build", "tool", "step", "action", "run", "execute", "invoke"]);
     return generic.has(name.toLowerCase());
   }
+}
+
+const PERMISSION_KEYWORDS = new Set(["allow", "deny", "allow once", "allow once for this session"]);
+
+function isPermissionInput(input: string): boolean {
+  try {
+    const parsed = JSON.parse(input);
+    const choices: string[] = [];
+    if (Array.isArray(parsed.choices)) {
+      for (const c of parsed.choices) {
+        if (typeof c === "string") choices.push(c);
+      }
+    }
+    if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+      const q = parsed.questions[0];
+      if (Array.isArray(q.options)) {
+        for (const opt of q.options) {
+          if (typeof opt.label === "string") choices.push(opt.label);
+          else if (typeof opt === "string") choices.push(opt);
+        }
+      }
+    }
+    for (const c of choices) {
+      if (PERMISSION_KEYWORDS.has(c.toLowerCase())) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
 }
 
 export const toolRendererRegistry = new ToolRendererRegistry();

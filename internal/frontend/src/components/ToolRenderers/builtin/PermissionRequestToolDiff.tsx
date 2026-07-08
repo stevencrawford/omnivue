@@ -26,6 +26,12 @@ export function PermissionRequestToolDiff({
       options = parsed.options;
     } else if (Array.isArray(parsed.choices)) {
       options = parsed.choices.map((label: string) => ({ label }));
+    } else if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+      const q = parsed.questions[0];
+      command = q.question || q.header || "";
+      if (Array.isArray(q.options)) {
+        options = q.options;
+      }
     }
   } catch {
     /* ignore */
