@@ -11,8 +11,9 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
-import { Lock, Minimize2, Maximize2, X } from "lucide-react";
+import { Copy, Check, Lock, Minimize2, Maximize2 } from "lucide-react";
 import { getScratchFile, updateScratchFile } from "../hooks/useApi";
+import { useCopy } from "../hooks/useCopy";
 
 marked.use({ gfm: true, breaks: true });
 const lowlight = createLowlight(common);
@@ -88,7 +89,7 @@ interface ScratchEditorProps {
   onDelete?: () => void;
 }
 
-export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProps) {
+export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
   const [sourceContent, setSourceContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [editorMode, setEditorMode] = useState<"wysiwyg" | "source">("wysiwyg");
@@ -96,6 +97,7 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const { copied, copy } = useCopy(2000);
   const originalTitleRef = useRef("Untitled");
   const lastSavedMarkdownRef = useRef("");
   const isUpdatingRef = useRef(false);
@@ -224,9 +226,14 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
     [sessionId],
   );
 
-  const handleClose = () => {
-    onDelete?.();
-  };
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
 
   const handleToolbarAction = (action: string) => {
     if (!editor) return;
@@ -419,19 +426,19 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
           )}
           <button
             type="button"
+            onClick={() => copy(sourceContent)}
+            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
+            title="Copy"
+          >
+            {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+          </button>
+          <button
+            type="button"
             onClick={() => setIsFullscreen((v) => !v)}
             className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
-            title="Close"
-          >
-            <X size={14} />
           </button>
         </div>
       </div>

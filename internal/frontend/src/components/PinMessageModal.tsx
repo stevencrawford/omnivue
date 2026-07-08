@@ -18,7 +18,13 @@ export function PinMessageModal({
   return (
     <Modal isOpen={pinningContent !== null} onClose={onCancel} title="Pin Message" size="md">
       {pinningContent && (
-        <div className="p-3 space-y-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onConfirm();
+          }}
+          className="p-3 space-y-3"
+        >
           <div>
             <label className="text-xs font-medium text-ov-text-secondary block mb-1">Title</label>
             <input
@@ -48,14 +54,13 @@ export function PinMessageModal({
               Cancel
             </button>
             <button
-              type="button"
-              onClick={onConfirm}
+              type="submit"
               className="px-3 py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-secondary cursor-pointer transition-colors"
             >
               Pin
             </button>
           </div>
-        </div>
+        </form>
       )}
     </Modal>
   );

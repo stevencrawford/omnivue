@@ -19,6 +19,7 @@ interface MarkdownContentProps {
   expandable?: boolean;
   defaultExpanded?: boolean;
   searchHighlightQuery?: string;
+  hideCopy?: boolean;
 }
 
 /** Rehype plugin: wraps matching text in <mark> tags for search highlighting */
@@ -73,6 +74,7 @@ export function MarkdownContent({
   expandable = false,
   defaultExpanded = false,
   searchHighlightQuery: searchHighlightQueryProp,
+  hideCopy = false,
 }: MarkdownContentProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { copied, copy } = useCopy(2000);
@@ -99,14 +101,16 @@ export function MarkdownContent({
               className={`transition-transform ${expanded ? "rotate-90" : ""}`}
             />
           </button>
-          <button
-            type="button"
-            onClick={() => copy(content)}
-            className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            title="Copy"
-          >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-          </button>
+          {!hideCopy && (
+            <button
+              type="button"
+              onClick={() => copy(content)}
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              title="Copy"
+            >
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            </button>
+          )}
           {onPin && (
             <button
               type="button"
@@ -182,16 +186,18 @@ export function MarkdownContent({
   }
 
   return (
-    <div className="relative group">
-      <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={() => copy(content)}
-          className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
-          title="Copy"
-        >
-          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-        </button>
+    <div className="relative">
+      <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5">
+        {!hideCopy && (
+          <button
+            type="button"
+            onClick={() => copy(content)}
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+            title="Copy"
+          >
+            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+          </button>
+        )}
         {onPin && (
           <button
             type="button"

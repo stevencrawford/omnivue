@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Copy, Check, Pin, ArrowRight as ArrowRightIcon, Bookmark } from "lucide-react";
 import type { ToolCall } from "../../hooks/useApi";
 
-function CopyOutputBtn({ tool }: { tool: ToolCall }) {
+function CopyOutputBtn({ tool, copyText }: { tool: ToolCall; copyText?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(tool.output || "");
+        navigator.clipboard.writeText(copyText ?? tool.output ?? "");
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
@@ -29,6 +29,9 @@ export function ToolActionsBar({
   childSessionId,
   navigateToSession,
   showPin,
+  showCopy = true,
+  copyText,
+  pinText,
 }: {
   tool: ToolCall;
   onPin?: (content: string) => void;
@@ -37,15 +40,18 @@ export function ToolActionsBar({
   childSessionId?: string | null;
   navigateToSession?: (id: string) => void;
   showPin?: boolean;
+  showCopy?: boolean;
+  copyText?: string;
+  pinText?: string;
 }) {
   return (
     <div className="flex items-center gap-0.5 shrink-0">
-      {showPin && tool.output && onPin && (
+      {showPin && (pinText || tool.output) && onPin && (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onPin(tool.output!);
+            onPin(pinText ?? tool.output!);
           }}
           className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
           title="Pin as scratch note"
@@ -65,7 +71,7 @@ export function ToolActionsBar({
           <ArrowRightIcon size={12} className="inline" /> View session
         </button>
       )}
-      <CopyOutputBtn tool={tool} />
+      {showCopy && <CopyOutputBtn tool={tool} copyText={copyText} />}
       {onBookmark && (
         <button
           type="button"
