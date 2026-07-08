@@ -11,7 +11,7 @@ import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
-import { Copy, Check, Lock, Minimize2, Maximize2, X } from "lucide-react";
+import { Copy, Check, Lock, Minimize2, Maximize2 } from "lucide-react";
 import { getScratchFile, updateScratchFile } from "../hooks/useApi";
 import { useCopy } from "../hooks/useCopy";
 
@@ -89,7 +89,7 @@ interface ScratchEditorProps {
   onDelete?: () => void;
 }
 
-export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProps) {
+export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
   const [sourceContent, setSourceContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [editorMode, setEditorMode] = useState<"wysiwyg" | "source">("wysiwyg");
@@ -234,10 +234,6 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [isFullscreen]);
-
-  const handleClose = () => {
-    onDelete?.();
-  };
 
   const handleToolbarAction = (action: string) => {
     if (!editor) return;
@@ -443,14 +439,6 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
-            title="Close"
-          >
-            <X size={14} />
           </button>
         </div>
       </div>
