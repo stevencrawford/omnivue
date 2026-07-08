@@ -226,6 +226,15 @@ export function ScratchEditor({ sessionId, fileId, onDelete }: ScratchEditorProp
     [sessionId],
   );
 
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
+
   const handleClose = () => {
     onDelete?.();
   };
