@@ -9,16 +9,10 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { Folder, Session } from "../hooks/useApi";
-import {
-  fetchFolders,
-  createFolder,
-  updateFolder,
-  deleteFolder,
-  fetchFolderSessions,
-  assignSessionToFolder,
-  unassignSessionFromFolder,
-} from "../hooks/useApi";
+import { Effect } from "effect";
+import type { Folder, Session } from "../hooks/types";
+import { FolderService } from "../services";
+import { runPromise } from "../lib/effect";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 
 interface FolderPanelProps {
@@ -57,12 +51,16 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
   }, [folderSortOpen]);
 
   const loadFolders = useCallback(async () => {
-    try {
-      const data = await fetchFolders();
-      setFolders(data);
-    } catch (err) {
-      console.error("Failed to load folders:", err);
-    }
+    const data = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.list()),
+        Effect.catchAll((err) => {
+          console.error("Failed to load folders:", err);
+          return Effect.succeed([] as Folder[]);
+        }),
+      ),
+    );
+    setFolders(data);
   }, []);
 
   useEffect(() => {
@@ -79,35 +77,47 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    try {
-      await createFolder(newName.trim());
-      setNewName("");
-      setCreating(false);
-      loadFolders();
-    } catch (err) {
-      console.error("Failed to create folder:", err);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.create(newName.trim())),
+        Effect.catchAll((err) => {
+          console.error("Failed to create folder:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    setNewName("");
+    setCreating(false);
+    loadFolders();
   };
 
   const handleRename = async (id: string) => {
     if (!editName.trim()) return;
-    try {
-      await updateFolder(id, editName.trim());
-      setEditingId(null);
-      loadFolders();
-    } catch (err) {
-      console.error("Failed to rename folder:", err);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.update(id, editName.trim())),
+        Effect.catchAll((err) => {
+          console.error("Failed to rename folder:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    setEditingId(null);
+    loadFolders();
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await deleteFolder(id);
-      if (expandedFolder === id) setExpandedFolder(null);
-      loadFolders();
-    } catch (err) {
-      console.error("Failed to delete folder:", err);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.remove(id)),
+        Effect.catchAll((err) => {
+          console.error("Failed to delete folder:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    if (expandedFolder === id) setExpandedFolder(null);
+    loadFolders();
   };
 
   const toggleExpand = async (id: string) => {
@@ -116,43 +126,74 @@ export function FolderPanel({ sessions, activeSessionId, onSessionSelect }: Fold
       return;
     }
     setExpandedFolder(id);
-    try {
-      const ids = await fetchFolderSessions(id);
-      setFolderSessions((prev) => ({ ...prev, [id]: ids }));
-    } catch (err) {
-      console.error("Failed to load folder sessions:", err);
-    }
+    const ids = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.listSessions(id)),
+        Effect.catchAll((err) => {
+          console.error("Failed to load folder sessions:", err);
+          return Effect.succeed([] as string[]);
+        }),
+      ),
+    );
+    setFolderSessions((prev) => ({ ...prev, [id]: ids }));
   };
 
   const handleDrop = async (folderId: string, sessionId: string) => {
-    try {
-      await assignSessionToFolder(folderId, sessionId);
-      const ids = await fetchFolderSessions(folderId);
-      setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
-    } catch (err) {
-      console.error("Failed to assign session to folder:", err);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.assignSession(folderId, sessionId)),
+        Effect.catchAll((err) => {
+          console.error("Failed to assign session to folder:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    const ids = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.listSessions(folderId)),
+        Effect.catchAll(() => Effect.succeed([] as string[])),
+      ),
+    );
+    setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
   };
 
   const handleAssign = async (folderId: string, sessionId: string) => {
-    try {
-      await assignSessionToFolder(folderId, sessionId);
-      const ids = await fetchFolderSessions(folderId);
-      setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
-      setAssigningFolder(null);
-    } catch (err) {
-      console.error("Failed to assign session to folder:", err);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.assignSession(folderId, sessionId)),
+        Effect.catchAll((err) => {
+          console.error("Failed to assign session to folder:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    const ids = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.listSessions(folderId)),
+        Effect.catchAll(() => Effect.succeed([] as string[])),
+      ),
+    );
+    setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
+    setAssigningFolder(null);
   };
 
   const handleUnassign = async (folderId: string, sessionId: string) => {
-    try {
-      await unassignSessionFromFolder(folderId, sessionId);
-      const ids = await fetchFolderSessions(folderId);
-      setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
-    } catch (err) {
-      console.error("Failed to unassign session from folder:", err);
-    }
+    await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.unassignSession(folderId, sessionId)),
+        Effect.catchAll((err) => {
+          console.error("Failed to unassign session from folder:", err);
+          return Effect.void;
+        }),
+      ),
+    );
+    const ids = await runPromise(
+      FolderService.pipe(
+        Effect.flatMap((svc) => svc.listSessions(folderId)),
+        Effect.catchAll(() => Effect.succeed([] as string[])),
+      ),
+    );
+    setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
   };
 
   const handleDragOver = (e: React.DragEvent) => {

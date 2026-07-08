@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Bot, Coins, Folder, GitBranch, Sparkles, Zap } from "lucide-react";
+import { Effect } from "effect";
 import { ResumeButton } from "./ResumeButton";
 import { SessionsIcon } from "./IconChannel";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { ActivityCharts } from "./ActivityCharts";
 import { ModelAgentBreakdown } from "./ModelAgentBreakdown";
-import type { Folder as FolderType, Session } from "../hooks/useApi";
-import { fetchFolderSessions, fetchFolders } from "../hooks/useApi";
+import type { Folder as FolderType, Session } from "../hooks/types";
+import { FolderService } from "../services";
+import { runPromise } from "../lib/effect";
 import { useTimeRange } from "../hooks/useTimeRange";
 import { shortRepoName } from "../utils/buildTree";
 import {
@@ -331,28 +333,27 @@ export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: Ov
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const list = await fetchFolders();
-        if (cancelled) return;
-        setFolders(list || []);
-        const map: Record<string, string[]> = {};
-        await Promise.all(
-          (list || []).map(async (f) => {
-            try {
-              const ids = await fetchFolderSessions(f.id);
-              map[f.id] = ids || [];
-            } catch {
-              map[f.id] = [];
-            }
-          }),
-        );
-        if (!cancelled) setFolderSessions(map);
-      } catch {
-        if (!cancelled) {
-          setFolders([]);
-          setFolderSessions({});
-        }
-      }
+      const list = await runPromise(
+        FolderService.pipe(
+          Effect.flatMap((svc) => svc.list()),
+          Effect.catchAll(() => Effect.succeed([] as FolderType[])),
+        ),
+      );
+      if (cancelled) return;
+      setFolders(list || []);
+      const map: Record<string, string[]> = {};
+      await Promise.all(
+        (list || []).map(async (f) => {
+          const ids = await runPromise(
+            FolderService.pipe(
+              Effect.flatMap((svc) => svc.listSessions(f.id)),
+              Effect.catchAll(() => Effect.succeed([] as string[])),
+            ),
+          );
+          map[f.id] = ids || [];
+        }),
+      );
+      if (!cancelled) setFolderSessions(map);
     })();
     return () => {
       cancelled = true;
