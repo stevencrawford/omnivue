@@ -15,6 +15,7 @@ The frontend is a React 19 SPA located in `internal/frontend/`. It is built with
 | Code editor | `@monaco-editor/react` + `monaco-editor` |
 | Diff | `diff` (unified diff parsing) |
 | Markdown utility | `marked` (markdown→HTML), `turndown` (HTML→markdown) |
+| Terminal | `@xterm/xterm`, `@xterm/addon-fit` (PTY terminal in browser) |
 | Charts | `recharts` (activity charts, model/agent breakdown) |
 | Validation | `zod` (runtime schema validation for API responses) |
 | Fonts | `@fontsource/geist-mono`, `@fontsource/geist-sans` |
@@ -121,6 +122,17 @@ CRUD UI for virtual folders. Supports nesting, color labels, and icons.
 - `NotificationsSettingsTab` — settings UI for notification kinds, scope, channels, quiet hours, auto-dismiss
 - `NotificationToaster` (in `App.tsx`) — subscribes to notification list, fires in-app toasts and browser OS notifications
 
+### Terminal (`TerminalPanel.tsx`)
+
+Inline PTY terminal inside the session viewer. Uses xterm.js backed by a WebSocket (`/_/ws/terminal`) that spawns the agent's resume command in a PTY. Supports:
+- Full TUI interaction (keyboard input, resize)
+- Auto-reconnect with exponential backoff
+- Theme-aware styling (reads CSS variables)
+- ResizeObserver-based fitting
+- Lazy-loaded xterm.js (dynamic import)
+
+Connected via a `ResumeButton` that opens a terminal tab for the session.
+
 ### Bookmarks (`BookmarkPanel.tsx`, `BookmarkButton.tsx`)
 
 - `BookmarkPanel` — sidebar panel listing bookmarks with time-ago, delete-on-hover
@@ -166,6 +178,7 @@ interface SearchResult { sessionId, sessionName?, sourceId, chunkType, repositor
 
 | Hook | File | Purpose |
 |------|------|---------|
+| `useTerminal` | `hooks/useTerminal.ts` | WebSocket terminal connect/disconnect, send input, resize, auto-reconnect with backoff |
 | `useSessions` | `hooks/useSessions.ts` | Session list, loading, active session, SSE live updates |
 | `useSSE` | `hooks/useSSE.ts` | SSE connection with auto-reconnect |
 | `useApi` | `hooks/useApi.ts` | Typed API fetchers (barrel) |

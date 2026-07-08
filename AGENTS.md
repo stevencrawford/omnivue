@@ -90,6 +90,7 @@ Key gostyle rules that commonly trigger:
 - `--no-open` — Never open browser
 - `--foreground` — Run server in foreground (do not background)
 - `--status` — Show status of running servers
+- `--debug` / `-d` — Enable debug logging
 - `--shutdown` — Shut down the running server
 - `--restart` — Restart the running server
 - `--json` — Output structured data as JSON
@@ -205,15 +206,16 @@ Before applying any migration to a database that already holds application data 
 | GET | `/_/api/folders/{id}/sessions` | List session IDs in a folder |
 | POST | `/_/api/folders/{id}/sessions/{sid}` | Assign a session to a folder |
 | DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
+| POST | `/_/api/reset` | Reset all user data (keeps agent data intact) |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
+| GET | `/_/ws/terminal?session_id=` | WebSocket PTY terminal for session resume |
 | GET | `/_/api/notifications?limit=&unreadOnly=` | List notifications (newest first) |
 | DELETE | `/_/api/notifications` | Clear all notifications |
 | POST | `/_/api/notifications/read` | Mark notifications read `{ids:[]\|null}` |
 | POST | `/_/api/notifications/active-view` | Report currently-viewed session `{sessionId}` |
 | GET | `/_/api/notifications/settings` | Get notification settings JSON |
 | PUT | `/_/api/notifications/settings` | Save notification settings JSON |
-| POST | `/_/api/restart` | Restart server |
 | GET | `/_/events` | SSE event stream (update, session-changed) |
 
 ## Frontend
@@ -246,9 +248,9 @@ Before applying any migration to a database that already holds application data 
   - `NotificationPanel.tsx` — Notifications list (bell section) with read/unread + filters
   - `NotificationRow.tsx` — Single notification row
   - `NotificationsSettingsTab.tsx` — Notification settings (kinds, scope, delivery, quiet hours)
-- Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission)
+  - `TerminalPanel.tsx` — In-browser PTY terminal (xterm.js + WebSocket)
+- Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize)
 - Utilities: `lib/browserNotify.ts` (OS notification helper + quiet-hours resolution), `buildTree.ts` (groups sessions by repository)
-- Utilities: `buildTree.ts` (groups sessions by repository)
 - Theme: GitHub-style light/dark via `data-theme` attribute
 - localStorage keys use `omnivue-` prefix.
 
@@ -283,4 +285,6 @@ Before applying any migration to a database that already holds application data 
 - [x] Phase 9: Settings UI + keyboard shortcuts + deep linking (COMPLETE)
 - [x] Phase 10: Pi adapter (COMPLETE)
 - [x] Phase 11: Claude Code adapter (COMPLETE)
-- [ ] Phase 12: Notification system (in progress)
+- [x] Phase 12: Codex adapter (COMPLETE)
+- [x] Phase 13: Notification system (COMPLETE)
+- [x] Phase 14: In-browser terminal (PTY + WebSocket) (COMPLETE)

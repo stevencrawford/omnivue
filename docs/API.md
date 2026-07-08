@@ -509,6 +509,28 @@ PUT /_/api/notifications/settings
 
 Save notification settings. Accepts the same JSON shape as above.
 
+## Terminal (WebSocket)
+
+```http
+GET /_/ws/terminal?session_id={id}
+```
+
+Open an interactive terminal (PTY) for the session's working directory, running the agent's resume command. The WebSocket protocol uses JSON messages:
+
+**Server → Client:**
+```
+{"type":"status","data":"connected"}
+{"type":"output","data":"\u001b[0m$ "}
+```
+
+**Client → Server:**
+```
+{"type":"input","data":"ls -la\n"}
+{"type":"resize","data":{"cols":80,"rows":24}}
+```
+
+The terminal is backed by a PTY running through the user's login shell, so shell profile (PATH, aliases) is loaded. Supports resize events and reconnection with backoff.
+
 ## Server Lifecycle
 
 ```http
