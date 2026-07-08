@@ -10,3 +10,17 @@ export class ApiError {
     this.endpoint = endpoint;
   }
 }
+
+export function catchToApiError(endpoint: string): (e: unknown) => ApiError {
+  return (e) => {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "status" in e &&
+      typeof (e as Record<string, unknown>).status === "number"
+    ) {
+      return new ApiError(String(e), (e as { status: number }).status, endpoint);
+    }
+    return new ApiError(String(e), 0, endpoint);
+  };
+}

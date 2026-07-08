@@ -1,26 +1,20 @@
 import { Effect } from "effect";
 import * as api from "../hooks/apiClient";
 import type { ScratchFile } from "../hooks/types";
-import { ApiError } from "./common";
+import { ApiError, catchToApiError } from "./common";
 
 export class ScratchService extends Effect.Service<ScratchService>()("ScratchService", {
   effect: Effect.gen(function* () {
     const listAll = (): Effect.Effect<ScratchFile[], ApiError> =>
       Effect.tryPromise({
         try: () => api.fetchAllScratchFiles(),
-        catch: (e) =>
-          new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/scratch"),
+        catch: catchToApiError("/_/api/scratch"),
       });
 
     const listForSession = (sessionId: string): Effect.Effect<ScratchFile[], ApiError> =>
       Effect.tryPromise({
         try: () => api.fetchScratchFiles(sessionId),
-        catch: (e) =>
-          new ApiError(
-            String(e),
-            e instanceof Response ? e.status : 0,
-            `/_/api/sessions/${sessionId}/scratch`,
-          ),
+        catch: catchToApiError(`/_/api/sessions/${sessionId}/scratch`),
       });
 
     const create = (
@@ -31,23 +25,13 @@ export class ScratchService extends Effect.Service<ScratchService>()("ScratchSer
     ): Effect.Effect<ScratchFile, ApiError> =>
       Effect.tryPromise({
         try: () => api.createScratchFile(sessionId, title, content, mode),
-        catch: (e) =>
-          new ApiError(
-            String(e),
-            e instanceof Response ? e.status : 0,
-            `/_/api/sessions/${sessionId}/scratch`,
-          ),
+        catch: catchToApiError(`/_/api/sessions/${sessionId}/scratch`),
       });
 
     const get = (sessionId: string, fileId: string): Effect.Effect<ScratchFile, ApiError> =>
       Effect.tryPromise({
         try: () => api.getScratchFile(sessionId, fileId),
-        catch: (e) =>
-          new ApiError(
-            String(e),
-            e instanceof Response ? e.status : 0,
-            `/_/api/sessions/${sessionId}/scratch/${fileId}`,
-          ),
+        catch: catchToApiError(`/_/api/sessions/${sessionId}/scratch/${fileId}`),
       });
 
     const update = (
@@ -58,12 +42,7 @@ export class ScratchService extends Effect.Service<ScratchService>()("ScratchSer
     ): Effect.Effect<void, ApiError> =>
       Effect.tryPromise({
         try: () => api.updateScratchFile(sessionId, fileId, title, content),
-        catch: (e) =>
-          new ApiError(
-            String(e),
-            e instanceof Response ? e.status : 0,
-            `/_/api/sessions/${sessionId}/scratch/${fileId}`,
-          ),
+        catch: catchToApiError(`/_/api/sessions/${sessionId}/scratch/${fileId}`),
       });
 
     const rename = (
@@ -73,23 +52,13 @@ export class ScratchService extends Effect.Service<ScratchService>()("ScratchSer
     ): Effect.Effect<void, ApiError> =>
       Effect.tryPromise({
         try: () => api.renameScratchFile(sessionId, fileId, newTitle),
-        catch: (e) =>
-          new ApiError(
-            String(e),
-            e instanceof Response ? e.status : 0,
-            `/_/api/sessions/${sessionId}/scratch/${fileId}`,
-          ),
+        catch: catchToApiError(`/_/api/sessions/${sessionId}/scratch/${fileId}`),
       });
 
     const remove = (sessionId: string, fileId: string): Effect.Effect<void, ApiError> =>
       Effect.tryPromise({
         try: () => api.deleteScratchFile(sessionId, fileId),
-        catch: (e) =>
-          new ApiError(
-            String(e),
-            e instanceof Response ? e.status : 0,
-            `/_/api/sessions/${sessionId}/scratch/${fileId}`,
-          ),
+        catch: catchToApiError(`/_/api/sessions/${sessionId}/scratch/${fileId}`),
       });
 
     return {

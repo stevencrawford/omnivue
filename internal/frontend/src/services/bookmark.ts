@@ -1,15 +1,14 @@
 import { Effect } from "effect";
 import * as api from "../hooks/apiClient";
 import type { Bookmark } from "../hooks/types";
-import { ApiError } from "./common";
+import { ApiError, catchToApiError } from "./common";
 
 export class BookmarkService extends Effect.Service<BookmarkService>()("BookmarkService", {
   effect: Effect.gen(function* () {
     const list = (): Effect.Effect<Bookmark[], ApiError> =>
       Effect.tryPromise({
         try: () => api.fetchBookmarks(),
-        catch: (e) =>
-          new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/bookmarks"),
+        catch: catchToApiError("/_/api/bookmarks"),
       });
 
     const create = (data: {
@@ -23,15 +22,13 @@ export class BookmarkService extends Effect.Service<BookmarkService>()("Bookmark
     > =>
       Effect.tryPromise({
         try: () => api.createBookmark(data),
-        catch: (e) =>
-          new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/bookmarks"),
+        catch: catchToApiError("/_/api/bookmarks"),
       });
 
     const remove = (id: string): Effect.Effect<void, ApiError> =>
       Effect.tryPromise({
         try: () => api.deleteBookmark(id),
-        catch: (e) =>
-          new ApiError(String(e), e instanceof Response ? e.status : 0, `/_/api/bookmarks/${id}`),
+        catch: catchToApiError(`/_/api/bookmarks/${id}`),
       });
 
     return { list, create, remove } as const;
