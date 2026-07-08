@@ -26,6 +26,7 @@ import { TerminalPanel } from "./TerminalPanel";
 import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
+import { ResumeButton } from "./ResumeButton";
 
 export type Tab =
   | "session"
@@ -65,7 +66,7 @@ interface SessionViewerProps {
 }
 
 const MAIN_TABS: {
-  tab: "session" | "diff" | "plan" | "summary" | "todos" | "terminal";
+  tab: "session" | "diff" | "plan" | "summary" | "todos";
   label: string;
   icon: ReactNode;
 }[] = [
@@ -74,7 +75,6 @@ const MAIN_TABS: {
   { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
   { tab: "summary", label: "Summary", icon: <BarChart3 size={14} /> },
   { tab: "todos", label: "TODOs", icon: <BarChart3 size={14} /> },
-  { tab: "terminal", label: "Terminal", icon: <Terminal size={14} /> },
 ];
 
 export function SessionViewer({
@@ -187,8 +187,7 @@ export function SessionViewer({
         {MAIN_TABS.map(
           (meta) =>
             (meta.tab !== "diff" || !session.parentId) &&
-            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) &&
-            (meta.tab !== "terminal" || !session.parentId) && (
+            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) && (
               <button
                 key={meta.tab}
                 type="button"
@@ -295,6 +294,23 @@ export function SessionViewer({
             <Plus size={14} />
           </button>
         )}
+        <div className="ml-auto flex items-center gap-1">
+          <ResumeButton sessionId={session.id} />
+          {!session.parentId && (
+            <button
+              type="button"
+              className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${
+                activeTab === "terminal"
+                  ? "sess-tab-pill--active"
+                  : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+              }`}
+              onClick={() => setActiveTab("terminal")}
+              title="Terminal"
+            >
+              <Terminal size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab content — all panels are always mounted, inactive ones hidden */}
