@@ -186,8 +186,8 @@ export function MarkdownContent({
   }
 
   return (
-    <div className="relative">
-      <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5">
+    <div className="relative group">
+      <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {!hideCopy && (
           <button
             type="button"
