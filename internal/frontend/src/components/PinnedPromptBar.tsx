@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronRight, User, Check, ListRestart } from "lucide-react";
+import { ChevronRight, User } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
-import { fetchResumeCommand } from "../hooks/useApi";
 import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
 
@@ -15,7 +14,6 @@ export function PinnedPromptBar({
   onOpenModal?: (content: string, title?: string) => void;
 }) {
   const [pinnedExpanded, setPinnedExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [pinnedHeight, setPinnedHeight] = useState(() => {
     try {
       const stored = localStorage.getItem("omnivue-pinned-height");
@@ -29,7 +27,6 @@ export function PinnedPromptBar({
   const totalTokens =
     session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     return () => {
@@ -39,23 +36,6 @@ export function PinnedPromptBar({
       resizeListeners.current = [];
     };
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    };
-  }, []);
-
-  const handleResume = async () => {
-    try {
-      const cmd = await fetchResumeCommand(session.id);
-      await navigator.clipboard.writeText(cmd);
-      setCopied(true);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  };
 
   const handlePinnedResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -146,32 +126,6 @@ export function PinnedPromptBar({
               {formatCost(session.cost)}
             </span>
           )}
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleResume();
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md border cursor-pointer transition-all ml-auto shrink-0 ${
-              copied
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                : "border-accent-border bg-accent-muted text-accent hover:shadow-[0_0_12px_var(--color-glow)]"
-            }`}
-            title="Copy resume command"
-          >
-            {copied ? (
-              <>
-                <Check size={10} className="text-emerald-400" />
-                Copied
-              </>
-            ) : (
-              <>
-                <ListRestart size={10} />
-                Resume
-              </>
-            )}
-          </button>
         </button>
         {pinnedExpanded && (
           <div className="px-4 pb-3 overflow-y-auto border-t border-ov-border">
