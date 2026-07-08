@@ -3,7 +3,6 @@ package cmd
 import (
 	"archive/tar"
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"fmt"
@@ -20,11 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	upgradeCheck bool
-	upgradeYes   bool
-	upgradeForce bool
-)
+var upgradeCheck bool
 
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
@@ -40,8 +35,6 @@ On macOS, the binary is re-signed after installation.`,
 
 func init() {
 	upgradeCmd.Flags().BoolVarP(&upgradeCheck, "check", "c", false, "Check for latest version without downloading")
-	upgradeCmd.Flags().BoolVarP(&upgradeYes, "yes", "y", false, "Skip confirmation prompt")
-	upgradeCmd.Flags().BoolVar(&upgradeForce, "force", false, "Allow downgrade or reinstall same version")
 	rootCmd.AddCommand(upgradeCmd)
 }
 
@@ -70,26 +63,13 @@ func runUpgrade(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	if cmp <= 0 && !upgradeForce {
+	if cmp <= 0 {
 		if cmp == 0 {
 			fmt.Fprintf(os.Stderr, "omnivue: already up to date (%s)\n", currentTag)
 		} else {
 			fmt.Fprintf(os.Stderr, "omnivue: current version (%s) is newer than latest release (%s)\n", currentTag, latestTag)
 		}
 		return nil
-	}
-
-	if !upgradeYes {
-		fmt.Fprintf(os.Stderr, "omnivue: update available: %s -> %s. Proceed? [Y/n] ", currentTag, latestTag)
-		scanner := bufio.NewScanner(os.Stdin)
-		if !scanner.Scan() {
-			return nil
-		}
-		ans := strings.TrimSpace(scanner.Text())
-		if ans != "" && !strings.EqualFold(ans, "y") && !strings.EqualFold(ans, "yes") {
-			fmt.Fprintln(os.Stderr, "omnivue: upgrade cancelled")
-			return nil
-		}
 	}
 
 	downloadURL := fmt.Sprintf("https://github.com/stevencrawford/omnivue/releases/latest/download/%s", asset)

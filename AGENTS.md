@@ -100,7 +100,7 @@ Key gostyle rules that commonly trigger:
 - `omnivue init` — Discover and configure AI agent session sources interactively
 - `omnivue add <path> [--type opencode|copilot|cursor|pi|claude-code|codex]` — Manually add a session source
 - `omnivue version` — Print the current version (also supports `--json`)
-- `omnivue upgrade [--check] [--yes] [--force]` — Check for and perform binary upgrade from GitHub releases
+- `omnivue upgrade [--check]` — Check for and perform binary upgrade from GitHub releases
 
 ## Architecture
 

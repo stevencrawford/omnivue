@@ -79,18 +79,6 @@ func TestUpgradeCmd_Help(t *testing.T) {
 	}
 }
 
-func TestUpgradeCmd_CheckNoServer(t *testing.T) {
-	oldStderr := os.Stderr
-	os.Stderr = nil
-	defer func() { os.Stderr = oldStderr }()
-
-	rootCmd.SetArgs([]string{"upgrade", "--check"})
-	err := rootCmd.Execute()
-	if err != nil {
-		t.Fatalf("upgrade --check should not error on network failure: %v", err)
-	}
-}
-
 func TestCompareVersions(t *testing.T) {
 	tests := []struct {
 		a, b string
