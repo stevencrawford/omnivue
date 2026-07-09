@@ -97,10 +97,14 @@ func (s *Store) ListSources() ([]ingest.Source, error) {
 			src       ingest.Source
 			agentType string
 			createdAt string
+			path      sql.NullString
+			label     sql.NullString
 		)
-		if err := rows.Scan(&src.ID, &src.Path, &agentType, &src.Label, &src.Enabled, &createdAt); err != nil {
+		if err := rows.Scan(&src.ID, &path, &agentType, &label, &src.Enabled, &createdAt); err != nil {
 			return nil, err
 		}
+		src.Path = path.String
+		src.Label = label.String
 		src.AgentType = ingest.AgentType(agentType)
 		src.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 		if err != nil {
@@ -132,12 +136,16 @@ func (s *Store) Source(id string) (*ingest.Source, error) {
 	var src ingest.Source
 	var agentType string
 	var createdAt string
+	var path sql.NullString
+	var label sql.NullString
 	err := s.db.QueryRow(
 		`SELECT id, path, agent_type, label, enabled, created_at FROM sources WHERE id = ?`, id,
-	).Scan(&src.ID, &src.Path, &agentType, &src.Label, &src.Enabled, &createdAt)
+	).Scan(&src.ID, &path, &agentType, &label, &src.Enabled, &createdAt)
 	if err != nil {
 		return nil, err
 	}
+	src.Path = path.String
+	src.Label = label.String
 	src.AgentType = ingest.AgentType(agentType)
 	src.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 	if err != nil {
