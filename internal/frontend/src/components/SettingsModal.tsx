@@ -143,9 +143,7 @@ export function SettingsModal({
 
   const loadGithubToken = useCallback(async () => {
     try {
-      const cfg = await runPromise(
-        ConfigService.pipe(Effect.flatMap((svc) => svc.fetch())),
-      );
+      const cfg = await runPromise(ConfigService.pipe(Effect.flatMap((svc) => svc.fetch())));
       const token = cfg["github-token"] || "";
       setSavedToken(token);
       setGithubToken(token);
@@ -246,15 +244,11 @@ export function SettingsModal({
         return;
       }
       // Token is valid — persist it and add the cloud source
-      await runPromise(
-        ConfigService.pipe(Effect.flatMap((svc) => svc.set("github-token", token))),
-      );
+      await runPromise(ConfigService.pipe(Effect.flatMap((svc) => svc.set("github-token", token))));
       // Add the cloud source if not already present
       const existing = sources.find((s) => s.agentType === "github-cloud");
       if (!existing) {
-        await runPromise(
-          SourceService.pipe(Effect.flatMap((svc) => svc.add("", "github-cloud"))),
-        );
+        await runPromise(SourceService.pipe(Effect.flatMap((svc) => svc.add("", "github-cloud"))));
         await loadSources();
       }
       setSavedToken(token);
@@ -267,9 +261,7 @@ export function SettingsModal({
   };
 
   const handleGithubDisconnect = async () => {
-    await runPromise(
-      ConfigService.pipe(Effect.flatMap((svc) => svc.set("github-token", ""))),
-    );
+    await runPromise(ConfigService.pipe(Effect.flatMap((svc) => svc.set("github-token", ""))));
     setSavedToken("");
     setGithubToken("");
     setGithubStatus("idle");
@@ -277,9 +269,7 @@ export function SettingsModal({
     // Remove the cloud source
     const cloudSource = sources.find((s) => s.agentType === "github-cloud");
     if (cloudSource) {
-      await runPromise(
-        SourceService.pipe(Effect.flatMap((svc) => svc.remove(cloudSource.id))),
-      );
+      await runPromise(SourceService.pipe(Effect.flatMap((svc) => svc.remove(cloudSource.id))));
       await loadSources();
     }
   };
