@@ -53,6 +53,13 @@ type apiTaskArtifact struct {
 	Data     json.RawMessage `json:"data"`
 }
 
+// apiTaskListResponse maps the top-level response envelope from GET /agents/tasks.
+type apiTaskListResponse struct {
+	Tasks              []apiTask `json:"tasks"`
+	TotalActiveCount   int       `json:"total_active_count"`
+	TotalArchivedCount int       `json:"total_archived_count"`
+}
+
 // Adapter implements ingest.Adapter for GitHub Copilot cloud agent sessions.
 type Adapter struct {
 	mu     sync.RWMutex
@@ -304,9 +311,9 @@ func VerifyToken(token string) (string, error) {
 		if err != nil {
 			return "Token is valid", nil
 		}
-		var tasks []apiTask
-		if err := json.Unmarshal(body, &tasks); err == nil {
-			return fmt.Sprintf("Token is valid — found %d task(s)", len(tasks)), nil
+		var resp apiTaskListResponse
+		if err := json.Unmarshal(body, &resp); err == nil {
+			return fmt.Sprintf("Token is valid — found %d task(s)", len(resp.Tasks)), nil
 		}
 		return "Token is valid", nil
 	}
@@ -367,13 +374,13 @@ func (a *Adapter) fetchTasks(ctx context.Context) ([]apiTask, error) {
 		return nil, err
 	}
 
-	// The API returns an array of tasks at the top level.
-	var tasks []apiTask
-	if err := json.Unmarshal(body, &tasks); err != nil {
+	// The API returns an object with a "tasks" field.
+	var resp apiTaskListResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("github-cloud adapter: parsing tasks: %w", err)
 	}
 
-	return tasks, nil
+	return resp.Tasks, nil
 }
 
 // Ensure Adapter implements ingest.Adapter.
