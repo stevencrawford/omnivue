@@ -155,7 +155,6 @@ export function SettingsModal({
   useEffect(() => {
     if (isOpen) {
       setActiveTab("agent");
-      discoveredRef.current = false;
       loadSources();
       setAddingPath("");
       setAddingType("opencode");
@@ -163,7 +162,6 @@ export function SettingsModal({
       setAgentFilter(null);
       setResetStep(0);
       setResetConfirmText("");
-      setDiscoveredSources([]);
       setPendingSources((prev) => prev.filter((p) => p.status === "loading"));
     }
   }, [isOpen, loadSources]);

@@ -410,7 +410,6 @@ export function App() {
           </SessionNavContext.Provider>
 
           <SettingsModal
-            key={"settings-" + settingsOpen}
             isOpen={settingsOpen}
             onClose={() => setSettingsOpen(false)}
             notificationSettings={notificationSettings}
