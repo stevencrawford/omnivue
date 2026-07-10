@@ -1470,7 +1470,7 @@ func handleUpdateSource(state *State) http.HandlerFunc {
 func handleDiscoverSources(_ *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		discovered := ingest.AutoDiscover()
-		if discovered == nil {
+		if len(discovered) == 0 {
 			discovered = []ingest.DiscoveredSource{}
 		}
 		w.Header().Set("Content-Type", "application/json")
