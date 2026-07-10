@@ -88,6 +88,7 @@ export function SettingsModal({
 
   const [discoveredSources, setDiscoveredSources] = useState<DiscoveredSource[]>([]);
   const [discovering, setDiscovering] = useState(false);
+  const discoveredRef = useRef(false);
 
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -119,7 +120,7 @@ export function SettingsModal({
   const [resetStep, setResetStep] = useState<0 | 1>(0);
   const [resetConfirmText, setResetConfirmText] = useState("");
 
-  const loadSources = useCallback(async () => {
+  const loadSources = useCallback(async (opts?: { skipDiscover?: boolean }) => {
     setSourcesLoading(true);
     setSourcesError(null);
     const data = await runPromise(
@@ -135,8 +136,10 @@ export function SettingsModal({
     setSources(srcs);
     setSourcesLoading(false);
 
-    // Auto-discover potential sources when none are configured yet.
-    if (srcs.length === 0) {
+    // Auto-discover potential sources only when none are configured
+    // and we haven't already discovered this session.
+    if (srcs.length === 0 && !opts?.skipDiscover && !discoveredRef.current) {
+      discoveredRef.current = true;
       setDiscovering(true);
       const discovered = await runPromise(
         SourceService.pipe(
@@ -146,14 +149,13 @@ export function SettingsModal({
       );
       setDiscoveredSources(discovered || []);
       setDiscovering(false);
-    } else {
-      setDiscoveredSources([]);
     }
   }, []);
 
   useEffect(() => {
     if (isOpen) {
       setActiveTab("agent");
+      discoveredRef.current = false;
       loadSources();
       setAddingPath("");
       setAddingType("opencode");
@@ -161,6 +163,7 @@ export function SettingsModal({
       setAgentFilter(null);
       setResetStep(0);
       setResetConfirmText("");
+      setDiscoveredSources([]);
       setPendingSources((prev) => prev.filter((p) => p.status === "loading"));
     }
   }, [isOpen, loadSources]);
@@ -474,47 +477,6 @@ export function SettingsModal({
               {sources.length === 0 &&
                 !sourcesLoading &&
                 !discovering &&
-                discoveredSources.length > 0 && (
-                  <div className="space-y-1 mb-3">
-                    <p className="text-[11px] font-medium text-ov-text-secondary mb-1">
-                      Detected Agent Directories
-                    </p>
-                    {discoveredSources.map((d) => (
-                      <div
-                        key={`discovered-${d.agentType}-${d.path}`}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-ov-bg-secondary border border-dashed border-ov-border/60 text-xs"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-ov-text">
-                            {d.agentType}
-                            {d.label && ` · ${d.label}`}
-                            <span className="ml-1.5 text-[10px] text-ov-text-secondary italic">
-                              suggested
-                            </span>
-                          </p>
-                          <p className="truncate text-[11px] text-ov-text-secondary font-mono">
-                            {d.path}
-                          </p>
-                        </div>
-                        <span className="text-[10px] text-ov-text-secondary shrink-0">
-                          {d.sessions} sessions
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleAddDiscovered(d)}
-                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-md border cursor-pointer transition-colors border-accent-border bg-accent-muted text-accent hover:bg-accent/20 shrink-0"
-                        >
-                          <Plus className="size-3" />
-                          Add
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-              {sources.length === 0 &&
-                !sourcesLoading &&
-                !discovering &&
                 discoveredSources.length === 0 && (
                   <p className="text-xs text-ov-text-secondary mb-2">No sources configured.</p>
                 )}
@@ -555,6 +517,41 @@ export function SettingsModal({
                   Add
                 </button>
               </div>
+
+              {!discovering && discoveredSources.length > 0 && (
+                <div className="space-y-1 mt-3">
+                  <p className="text-[11px] font-medium text-ov-text-secondary mb-1">
+                    Detected Agent Directories
+                  </p>
+                  {discoveredSources.map((d) => (
+                    <div
+                      key={`discovered-${d.agentType}-${d.path}`}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-ov-bg-secondary border border-dashed border-ov-border/60 text-xs"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-ov-text">
+                          {d.agentType}
+                          {d.label && ` · ${d.label}`}
+                          <span className="ml-1.5 text-[10px] text-ov-text-secondary italic">
+                            suggested
+                          </span>
+                        </p>
+                        <p className="truncate text-[11px] text-ov-text-secondary font-mono">
+                          {d.path}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddDiscovered(d)}
+                        className="flex items-center gap-1 text-xs px-2 py-1 rounded-md border cursor-pointer transition-colors border-accent-border bg-accent-muted text-accent hover:bg-accent/20 shrink-0"
+                      >
+                        <Plus className="size-3" />
+                        Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
