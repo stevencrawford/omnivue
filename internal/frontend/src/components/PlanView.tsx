@@ -67,7 +67,7 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
     }
   }, [searchHighlightQuery, plan]);
 
-  if (loading) {
+  if (loading && plan === null) {
     return (
       <div className="h-full flex items-center justify-center gap-2 text-sm text-ov-text-secondary">
         <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
