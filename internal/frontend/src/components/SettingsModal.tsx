@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, Plus, Loader2, TriangleAlert } from "lucide-react";
 import { Effect } from "effect";
 import { Modal } from "./Modal";
-import type { Source, NotificationSettings } from "../hooks/types";
+import type { Source, DiscoveredSource, NotificationSettings } from "../hooks/types";
 import { SourceService, ConfigService } from "../services";
 import { runPromise } from "../lib/effect";
 import { useTheme, THEMES } from "../hooks/useTheme";
@@ -86,6 +86,9 @@ export function SettingsModal({
   const [addingType, setAddingType] = useState("opencode");
   const [pendingSources, setPendingSources] = useState<PendingSource[]>([]);
 
+  const [discoveredSources, setDiscoveredSources] = useState<DiscoveredSource[]>([]);
+  const [discovering, setDiscovering] = useState(false);
+
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
@@ -128,8 +131,24 @@ export function SettingsModal({
         }),
       ),
     );
-    setSources(data || []);
+    const srcs = data || [];
+    setSources(srcs);
     setSourcesLoading(false);
+
+    // Auto-discover potential sources when none are configured yet.
+    if (srcs.length === 0) {
+      setDiscovering(true);
+      const discovered = await runPromise(
+        SourceService.pipe(
+          Effect.flatMap((svc) => svc.discover()),
+          Effect.catchAll(() => Effect.succeed([] as DiscoveredSource[])),
+        ),
+      );
+      setDiscoveredSources(discovered || []);
+      setDiscovering(false);
+    } else {
+      setDiscoveredSources([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -174,9 +193,40 @@ export function SettingsModal({
           Effect.catchAll((err) => Effect.fail(err)),
         ),
       );
+      // Remove any suggested source that matches the manually added path
+      setDiscoveredSources((prev) => prev.filter((s) => s.path !== path));
       await loadSources();
       setPendingSources((prev) => prev.filter((p) => p.id !== pendingId));
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPendingSources((prev) =>
+        prev.map((p) => (p.id === pendingId ? { ...p, status: "error", error: msg } : p)),
+      );
+    }
+  };
+
+  const handleAddDiscovered = async (d: DiscoveredSource) => {
+    const pendingId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setPendingSources((prev) => [
+      ...prev,
+      { id: pendingId, path: d.path, agentType: d.agentType, status: "loading" },
+    ]);
+    setDiscoveredSources((prev) => prev.filter((s) => s.path !== d.path));
+    try {
+      await runPromise(
+        SourceService.pipe(
+          Effect.flatMap((svc) => svc.add(d.path, d.agentType)),
+          Effect.catchAll((err) => Effect.fail(err)),
+        ),
+      );
+      await loadSources();
+      setPendingSources((prev) => prev.filter((p) => p.id !== pendingId));
+    } catch (err) {
+      // Re-add to discovered on failure so the user can retry
+      setDiscoveredSources((prev) => [...prev, d]);
       const msg = err instanceof Error ? err.message : String(err);
       setPendingSources((prev) =>
         prev.map((p) => (p.id === pendingId ? { ...p, status: "error", error: msg } : p)),
@@ -414,9 +464,60 @@ export function SettingsModal({
                 </>
               )}
 
-              {sources.length === 0 && !sourcesLoading && (
-                <p className="text-xs text-ov-text-secondary mb-2">No sources configured.</p>
+              {sources.length === 0 && !sourcesLoading && discovering && (
+                <div className="flex items-center gap-2 text-xs text-ov-text-secondary mb-2">
+                  <Loader2 className="size-3 animate-spin" />
+                  Scanning for agent data directories…
+                </div>
               )}
+
+              {sources.length === 0 &&
+                !sourcesLoading &&
+                !discovering &&
+                discoveredSources.length > 0 && (
+                  <div className="space-y-1 mb-3">
+                    <p className="text-[11px] font-medium text-ov-text-secondary mb-1">
+                      Detected Agent Directories
+                    </p>
+                    {discoveredSources.map((d) => (
+                      <div
+                        key={`discovered-${d.agentType}-${d.path}`}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-ov-bg-secondary border border-dashed border-ov-border/60 text-xs"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-ov-text">
+                            {d.agentType}
+                            {d.label && ` · ${d.label}`}
+                            <span className="ml-1.5 text-[10px] text-ov-text-secondary italic">
+                              suggested
+                            </span>
+                          </p>
+                          <p className="truncate text-[11px] text-ov-text-secondary font-mono">
+                            {d.path}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-ov-text-secondary shrink-0">
+                          {d.sessions} sessions
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddDiscovered(d)}
+                          className="flex items-center gap-1 text-xs px-2 py-1 rounded-md border cursor-pointer transition-colors border-accent-border bg-accent-muted text-accent hover:bg-accent/20 shrink-0"
+                        >
+                          <Plus className="size-3" />
+                          Add
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+              {sources.length === 0 &&
+                !sourcesLoading &&
+                !discovering &&
+                discoveredSources.length === 0 && (
+                  <p className="text-xs text-ov-text-secondary mb-2">No sources configured.</p>
+                )}
 
               {/* Add source form */}
               <div className="flex items-center gap-2 mt-2">

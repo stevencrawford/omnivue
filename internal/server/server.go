@@ -1284,6 +1284,7 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("POST /_/api/sources", handleAddSource(state))
 	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(state))
 	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(state))
+	mux.HandleFunc("GET /_/api/sources/discover", handleDiscoverSources(state))
 	mux.HandleFunc("GET /_/api/config", handleGetConfig(state))
 	mux.HandleFunc("PUT /_/api/config", handleSetConfig(state))
 	mux.HandleFunc("GET /_/api/sessions", handleSessions(state))
@@ -1463,6 +1464,19 @@ func handleUpdateSource(state *State) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleDiscoverSources(_ *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		discovered := ingest.AutoDiscover()
+		if discovered == nil {
+			discovered = []ingest.DiscoveredSource{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(discovered); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 

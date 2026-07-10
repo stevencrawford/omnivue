@@ -101,6 +101,14 @@ export const SourceSchema = z.object({
 
 export const SourcesSchema = z.array(SourceSchema);
 
+const DiscoveredSourceSchema = z.object({
+  path: z.string(),
+  agentType: z.string(),
+  label: z.string(),
+  sessions: z.number(),
+});
+export const DiscoveredSourcesSchema = z.array(DiscoveredSourceSchema);
+
 // ---------------------------------------------------------------------------
 // Plan
 // ---------------------------------------------------------------------------

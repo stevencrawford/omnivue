@@ -5,6 +5,7 @@ import { z, type ZodType } from "zod/v4";
 import type {
   Session,
   Source,
+  DiscoveredSource,
   Message,
   Plan,
   DiffFile,
@@ -29,6 +30,7 @@ import {
   SearchResultsSchema,
   SourcesSchema,
   SourceSchema,
+  DiscoveredSourcesSchema,
   FoldersSchema,
   FolderSchema,
   FolderSessionsSchema,
@@ -144,6 +146,10 @@ export async function fetchResumeCommand(sessionId: string): Promise<string> {
 
 export async function fetchSources(): Promise<Source[]> {
   return fetchJson("/_/api/sources", SourcesSchema);
+}
+
+export async function fetchDiscoveredSources(): Promise<DiscoveredSource[]> {
+  return fetchJson("/_/api/sources/discover", DiscoveredSourcesSchema);
 }
 
 export async function addSource(
