@@ -559,13 +559,6 @@ export function DiffView({
     <div className="flex flex-col min-h-0" style={{ height: "100%" }}>
       {/* Summary bar */}
       <div className="flex items-center gap-3 px-4 py-3 bg-surface-elevated border-b border-ov-border text-xs shrink-0">
-        <span className="font-semibold text-ov-text">
-          {mergedDiffs.length} {mergedDiffs.length === 1 ? "file" : "files"} changed
-        </span>
-        {stats.additions > 0 && (
-          <span className="text-green-500 font-mono">+{stats.additions}</span>
-        )}
-        {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
         <button
           type="button"
           onClick={() => {
@@ -579,11 +572,18 @@ export function DiffView({
               return next;
             });
           }}
-          className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+          className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
           title={treeCollapsed ? "Show file tree" : "Hide file tree"}
         >
           {treeCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
         </button>
+        <span className="font-semibold text-ov-text">
+          {mergedDiffs.length} {mergedDiffs.length === 1 ? "file" : "files"} changed
+        </span>
+        {stats.additions > 0 && (
+          <span className="text-green-500 font-mono">+{stats.additions}</span>
+        )}
+        {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
         <div className="ml-auto flex items-center gap-1.5 text-[11px] text-ov-text-secondary">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
