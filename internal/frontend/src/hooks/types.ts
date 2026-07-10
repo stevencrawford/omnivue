@@ -132,6 +132,8 @@ export interface FileEdit {
   content?: string;
   viewRange?: [number, number];
   timestamp: string;
+  messageIndex?: number;
+  messageId?: string;
 }
 
 export interface SearchResult {

@@ -22,7 +22,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 	}
 
 	var edits []ingest.FileEdit
-	for _, m := range msgs {
+	for mi, m := range msgs {
 		for _, tc := range m.ToolCalls {
 			if tc.Name != "write" && tc.Name != "edit" {
 				continue
@@ -67,11 +67,13 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 				continue
 			}
 			edits = append(edits, ingest.FileEdit{
-				FilePath:  fp,
-				ToolName:  tc.Name,
-				OldStr:    old,
-				NewStr:    content,
-				Timestamp: m.Timestamp,
+				FilePath:     fp,
+				ToolName:     tc.Name,
+				OldStr:       old,
+				NewStr:       content,
+				Timestamp:    m.Timestamp,
+				MessageIndex: mi,
+				MessageID:    m.ID,
 			})
 		}
 	}

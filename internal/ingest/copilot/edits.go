@@ -22,6 +22,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 	defer f.Close()
 
 	var edits []ingest.FileEdit
+	var msgCounter int
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 
@@ -31,7 +32,13 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			continue
 		}
 
-		if event.Type != "assistant.message" {
+		switch event.Type {
+		case "user.message":
+			msgCounter++
+			continue
+		case "assistant.message":
+			msgCounter++
+		default:
 			continue
 		}
 
@@ -53,10 +60,12 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 					continue
 				}
 				edits = append(edits, ingest.FileEdit{
-					FilePath:  filePath,
-					ToolName:  "edit",
-					Content:   patchText,
-					Timestamp: ts,
+					FilePath:     filePath,
+					ToolName:     "edit",
+					Content:      patchText,
+					Timestamp:    ts,
+					MessageIndex: msgCounter - 1,
+					MessageID:    data.MessageID,
 				})
 				continue
 			}
@@ -72,21 +81,25 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 					continue
 				}
 				edits = append(edits, ingest.FileEdit{
-					FilePath:  args.Path,
-					ToolName:  "write",
-					Content:   args.FileText,
-					Timestamp: ts,
+					FilePath:     args.Path,
+					ToolName:     "write",
+					Content:      args.FileText,
+					Timestamp:    ts,
+					MessageIndex: msgCounter - 1,
+					MessageID:    data.MessageID,
 				})
 			case "edit":
 				if args.Path == "" && args.OldStr == "" && args.NewStr == "" {
 					continue
 				}
 				edits = append(edits, ingest.FileEdit{
-					FilePath:  args.Path,
-					ToolName:  "edit",
-					OldStr:    args.OldStr,
-					NewStr:    args.NewStr,
-					Timestamp: ts,
+					FilePath:     args.Path,
+					ToolName:     "edit",
+					OldStr:       args.OldStr,
+					NewStr:       args.NewStr,
+					Timestamp:    ts,
+					MessageIndex: msgCounter - 1,
+					MessageID:    data.MessageID,
 				})
 			}
 		}
