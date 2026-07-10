@@ -54,7 +54,7 @@ Omnivue keeps your workflow on your machine:
 
 ### 1. Clone, build, and run (recommended)
 
-Requires Go 1.26+ and [pnpm](https://pnpm.io/). Build from source avoids Gatekeeper issues on macOS.
+Requires Go 1.26+, [Node.js](https://nodejs.org/) (for the frontend build), and [pnpm](https://pnpm.io/). Build from source avoids Gatekeeper issues on macOS.
 
 ```bash
 git clone https://github.com/stevencrawford/omnivue.git
