@@ -13,7 +13,7 @@ import (
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
 	rows, err := a.db.QueryContext(ctx, `
-		SELECT p.data, m.time_created,
+		SELECT p.data, m.time_created, m.id,
 			(SELECT COUNT(*) FROM message m2 WHERE m2.session_id = m.session_id AND (m2.time_created < m.time_created OR (m2.time_created = m.time_created AND m2.id < m.id))) AS message_index
 		FROM part p
 		JOIN message m ON p.message_id = m.id
@@ -31,8 +31,9 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 	for rows.Next() {
 		var dataJSON string
 		var timeCreated int64
+		var messageID string
 		var messageIndex int
-		if err := rows.Scan(&dataJSON, &timeCreated, &messageIndex); err != nil {
+		if err := rows.Scan(&dataJSON, &timeCreated, &messageID, &messageIndex); err != nil {
 			continue
 		}
 
@@ -69,6 +70,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 			ViewRange:    in.ViewRange,
 			Timestamp:    time.UnixMilli(timeCreated),
 			MessageIndex: messageIndex,
+			MessageID:    messageID,
 		})
 	}
 

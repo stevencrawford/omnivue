@@ -65,6 +65,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 					Content:      patchText,
 					Timestamp:    ts,
 					MessageIndex: msgCounter - 1,
+					MessageID:    data.MessageID,
 				})
 				continue
 			}
@@ -85,6 +86,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 					Content:      args.FileText,
 					Timestamp:    ts,
 					MessageIndex: msgCounter - 1,
+					MessageID:    data.MessageID,
 				})
 			case "edit":
 				if args.Path == "" && args.OldStr == "" && args.NewStr == "" {
@@ -97,6 +99,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 					NewStr:       args.NewStr,
 					Timestamp:    ts,
 					MessageIndex: msgCounter - 1,
+					MessageID:    data.MessageID,
 				})
 			}
 		}

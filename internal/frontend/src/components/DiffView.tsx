@@ -20,7 +20,7 @@ interface DiffViewProps {
   sessionDirectory?: string;
   refreshKey: number;
   searchHighlightQuery?: string | null;
-  onNavigateToMessage?: (messageIndex: number) => void;
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }
 
 interface MergedFileDiff {
@@ -645,12 +645,14 @@ export function DiffView({
                 const msgIdx = selectedDiff.perHunkMessageIndices[i];
                 const prevMsgIdx = i > 0 ? selectedDiff.perHunkMessageIndices[i - 1] : -2;
                 const showIndicator = msgIdx >= 0 && msgIdx !== prevMsgIdx && onNavigateToMessage;
+                const edit = edits.find((e) => e.messageIndex === msgIdx);
+                const msgId = edit?.messageId;
                 return (
                   <div key={i}>
                     {showIndicator && (
                       <button
                         type="button"
-                        onClick={() => onNavigateToMessage(msgIdx)}
+                        onClick={() => onNavigateToMessage(msgIdx, msgId)}
                         className="flex items-center gap-1 px-2 py-1 text-[10px] text-ov-text-secondary/60 hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors w-full"
                         title={`Jump to message #${msgIdx + 1}`}
                       >

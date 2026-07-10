@@ -253,8 +253,9 @@ export function App() {
     [],
   );
 
-  const handleDiffNavigateToMessage = useCallback((messageIndex: number) => {
-    setFocusMessageIndex(messageIndex);
+  const handleDiffNavigateToMessage = useCallback((messageIndex: number, messageId?: string) => {
+    setFocusMessageIndex(messageId ? undefined : messageIndex);
+    setFocusMessageId(messageId || undefined);
     setFocusMessageKey((k) => k + 1);
     setActiveTab("session");
   }, []);

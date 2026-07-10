@@ -38,6 +38,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 				NewStr:       newContent,
 				Content:      content,
 				MessageIndex: mi,
+				MessageID:    msg.ID,
 			})
 		}
 	}

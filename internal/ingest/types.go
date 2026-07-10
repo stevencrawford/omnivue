@@ -230,6 +230,7 @@ type FileEdit struct {
 	ViewRange    []int     `json:"viewRange,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
 	MessageIndex int       `json:"messageIndex,omitempty"`
+	MessageID    string    `json:"messageId,omitempty"`
 }
 
 // DiffFile represents a changed file in a session.
