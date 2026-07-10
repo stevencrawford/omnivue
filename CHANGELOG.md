@@ -1,5 +1,24 @@
 # Changelog
 
+## [v0.1.3](https://github.com/stevencrawford/omnivue/compare/v0.1.2...v0.1.3) - 2026-07-10
+
+### Dependency Updates ⬆️
+- chore(deps): Bump the dependencies group in /internal/frontend with 18 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/55
+### Other Changes
+- fix: Resume + Terminal as icon-only buttons on tab bar RHS by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/44
+- fix: Keyboard shortcuts, notification dots, permission requests, settings flash, and 4 new themes by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/46
+- fix: Copy/pin plan content, scratch editor improvements, Pin Message dialog UX by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/47
+- docs: Update documentation to reflect current codebase by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/48
+- feat: Integrate EffectJS for frontend state management and event streams by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/49
+- feat: Enable partial word matching in search via FTS5 prefix queries by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/50
+- refactor: migrate remaining API consumers to EffectJS by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/53
+- fix(settings): Reset UI state after reset API call by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/54
+- feat: punctuate copilot todo accumulation on batch completion by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/57
+- fix: banner scroll, plan refresh, and exit_plan_mode notification kind by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/56
+- feat: auto-discover and suggest agent sources in settings when empty by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/58
+- feat: diff tab enhancements — collapse file tree + jump to message from diff by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/59
+- docs(site): Polish landing page copy and fix platform details by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/60
+
 ## [v0.1.2](https://github.com/stevencrawford/omnivue/compare/v0.1.1...v0.1.2) - 2026-07-07
 
 ### Other Changes
