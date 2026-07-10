@@ -30,6 +30,7 @@ import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
 import { ResumeButton } from "./ResumeButton";
+import { GitHubSessionView } from "./GitHubSessionView";
 
 export type Tab =
   | "session"
@@ -38,6 +39,7 @@ export type Tab =
   | "summary"
   | "todos"
   | "terminal"
+  | "github"
   | `scratch:${string}`;
 
 interface SessionViewerProps {
@@ -69,8 +71,10 @@ interface SessionViewerProps {
   onNavigateToMessage?: (messageIndex: number) => void;
 }
 
+type MainTab = "session" | "diff" | "plan" | "summary" | "todos" | "github";
+
 const MAIN_TABS: {
-  tab: "session" | "diff" | "plan" | "summary" | "todos";
+  tab: MainTab;
   label: string;
   icon: ReactNode;
 }[] = [
@@ -79,6 +83,7 @@ const MAIN_TABS: {
   { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
   { tab: "summary", label: "Summary", icon: <BarChart3 size={14} /> },
   { tab: "todos", label: "TODOs", icon: <BarChart3 size={14} /> },
+  { tab: "github", label: "GitHub", icon: <FileText size={14} /> },
 ];
 
 export function SessionViewer({
@@ -104,7 +109,9 @@ export function SessionViewer({
   searchHighlightQuery,
   onNavigateToMessage,
 }: SessionViewerProps) {
-  const [localTab, setLocalTab] = useState<Tab>("session");
+  const [localTab, setLocalTab] = useState<Tab>(
+    session.agent === "github-cloud" ? "github" : "session",
+  );
   const activeTab = activeTabProp ?? localTab;
   const setActiveTab = onTabChange ?? setLocalTab;
   const [messages, setMessages] = useState<Message[]>([]);
@@ -199,7 +206,13 @@ export function SessionViewer({
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-ov-border shrink-0 overflow-x-auto">
-        {MAIN_TABS.map(
+        {MAIN_TABS.filter((meta) => {
+          // Cloud sessions only show the GitHub tab
+          if (session.agent === "github-cloud") return meta.tab === "github";
+          // Non-cloud sessions hide the GitHub tab
+          if (meta.tab === "github") return false;
+          return true;
+        }).map(
           (meta) =>
             (meta.tab !== "diff" || !session.parentId) &&
             (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) && (
@@ -385,6 +398,11 @@ export function SessionViewer({
         {activeTab === "terminal" && !session.parentId && (
           <div className="absolute inset-0 flex flex-col overflow-hidden">
             <TerminalPanel sessionId={session.id} />
+          </div>
+        )}
+        {activeTab === "github" && (
+          <div className="absolute inset-0">
+            <GitHubSessionView session={session} />
           </div>
         )}
         {isScratchTab(activeTab) &&

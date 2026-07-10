@@ -764,6 +764,18 @@ body {
   background: rgba(168, 85, 247, 0.1);
 }
 
+/* GitHub Cloud badge — GitHub brand blue */
+.sess-agent-badge--github-cloud {
+  background: rgba(88, 166, 255, 0.15);
+  color: #79c0ff;
+  border-color: rgba(88, 166, 255, 0.25);
+}
+
+[data-mode="light"] .sess-agent-badge--github-cloud {
+  color: #0969da;
+  background: rgba(9, 105, 218, 0.1);
+}
+
 .sess-privacy-badge {
   font-size: 0.5625rem;
   font-weight: 700;

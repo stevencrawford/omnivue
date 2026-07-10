@@ -47,18 +47,18 @@ const (
 // Settings mirrors the frontend notification settings form. It is persisted as a
 // JSON blob in the config table under key "notifications.settings".
 type Settings struct {
-	Enabled           bool     `json:"enabled"`
-	Kinds             []Kind   `json:"kinds"`
-	Scope             string   `json:"scope"` // "all" | "opened" | "pinned"
-	InAppToast        bool     `json:"inAppToast"`
-	SidebarBadge      bool     `json:"sidebarBadge"`
-	BrowserNotify     bool     `json:"browserNotify"`
-	QuietHoursEnabled bool     `json:"quietHoursEnabled"`
-	QuietHoursStart   string   `json:"quietHoursStart"` // "22:00"
-	QuietHoursEnd     string   `json:"quietHoursEnd"`   // "08:00"
-	AutoDismissSec    int      `json:"autoDismissSec"`
-	ExcludeActiveView bool     `json:"excludeActiveView"`
-	EnabledAt         int64    `json:"enabledAt"` // unix ms when notifications were enabled
+	Enabled           bool   `json:"enabled"`
+	Kinds             []Kind `json:"kinds"`
+	Scope             string `json:"scope"` // "all" | "opened" | "pinned"
+	InAppToast        bool   `json:"inAppToast"`
+	SidebarBadge      bool   `json:"sidebarBadge"`
+	BrowserNotify     bool   `json:"browserNotify"`
+	QuietHoursEnabled bool   `json:"quietHoursEnabled"`
+	QuietHoursStart   string `json:"quietHoursStart"` // "22:00"
+	QuietHoursEnd     string `json:"quietHoursEnd"`   // "08:00"
+	AutoDismissSec    int    `json:"autoDismissSec"`
+	ExcludeActiveView bool   `json:"excludeActiveView"`
+	EnabledAt         int64  `json:"enabledAt"` // unix ms when notifications were enabled
 }
 
 // DefaultSettings returns the default settings: everything off (opt-in). The
@@ -102,9 +102,9 @@ var PermissionToolNames = map[string]struct{}{
 // TaskCompleteToolNames is the set of tool-call names signaling task
 // completion.
 var TaskCompleteToolNames = map[string]struct{}{
-	"task_complete":  {},
-	"task-complete":  {},
-	"taskcomplete":   {},
+	"task_complete": {},
+	"task-complete": {},
+	"taskcomplete":  {},
 }
 
 // Candidate is a classification result. The caller persists one notification
@@ -284,6 +284,8 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		switch {
 		case currStatus == string(ingest.SessionStatusActive) && settings.has(KindStatusActive):
 			candidates = append(candidates, statusCandidate(KindStatusActive, "Session became active", "is now active"))
+		case currStatus == string(ingest.SessionStatusWaiting) && settings.has(KindQuestion):
+			candidates = append(candidates, statusCandidate(KindQuestion, "Cloud agent needs input", "waiting_for_user"))
 		case currStatus == string(ingest.SessionStatusCompleted) && settings.has(KindStatusDone):
 			candidates = append(candidates, statusCandidate(KindStatusDone, "Session completed", "completed"))
 		case isStatusError(currStatus) && settings.has(KindStatusError):

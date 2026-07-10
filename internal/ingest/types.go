@@ -6,12 +6,13 @@ import "time"
 type AgentType string
 
 const (
-	AgentOpenCode   AgentType = "opencode"
-	AgentCopilot    AgentType = "copilot"
-	AgentCursor     AgentType = "cursor"
-	AgentPi         AgentType = "pi"
-	AgentCodex      AgentType = "codex"
-	AgentClaudeCode AgentType = "claude-code"
+	AgentOpenCode    AgentType = "opencode"
+	AgentCopilot     AgentType = "copilot"
+	AgentCursor      AgentType = "cursor"
+	AgentPi          AgentType = "pi"
+	AgentCodex       AgentType = "codex"
+	AgentClaudeCode  AgentType = "claude-code"
+	AgentGitHubCloud AgentType = "github-cloud"
 )
 
 // SessionStatus represents the lifecycle state of a session.
@@ -19,6 +20,8 @@ type SessionStatus string
 
 const (
 	SessionStatusActive    SessionStatus = "active"
+	SessionStatusPending   SessionStatus = "pending"
+	SessionStatusWaiting   SessionStatus = "waiting"
 	SessionStatusCompleted SessionStatus = "completed"
 	SessionStatusArchived  SessionStatus = "archived"
 )

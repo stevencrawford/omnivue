@@ -377,8 +377,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 2 {
-		t.Fatalf("expected schema version 2 on fresh install, got %d", v)
+	if v != 3 {
+		t.Fatalf("expected schema version 3 on fresh install, got %d", v)
 	}
 }
 
@@ -424,8 +424,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 2 {
-		t.Fatalf("expected legacy db stamped to version 2, got %d", v)
+	if v != 3 {
+		t.Fatalf("expected legacy db stamped to version 3, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -449,8 +449,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 2 {
-		t.Fatalf("expected version 2 after first open, got %d", v1)
+	if v1 != 3 {
+		t.Fatalf("expected version 3 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -463,7 +463,7 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 2 {
-		t.Fatalf("expected version 2 after second open, got %d", v2)
+	if v2 != 3 {
+		t.Fatalf("expected version 3 after second open, got %d", v2)
 	}
 }
