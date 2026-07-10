@@ -27,6 +27,7 @@ type Kind string
 const (
 	KindQuestion           Kind = "question"
 	KindPermissionRequest  Kind = "permission_request"
+	KindExitPlanMode       Kind = "exit_plan_mode"
 	KindTaskComplete       Kind = "task_complete"
 	KindNewMessages        Kind = "new_messages"
 	KindNewToolCall        Kind = "new_tool_call"
@@ -66,7 +67,7 @@ type Settings struct {
 func DefaultSettings() Settings {
 	return Settings{
 		Enabled:           false,
-		Kinds:             []Kind{KindQuestion, KindPermissionRequest, KindTaskComplete},
+		Kinds:             []Kind{KindQuestion, KindPermissionRequest, KindExitPlanMode, KindTaskComplete},
 		Scope:             "all",
 		InAppToast:        true,
 		SidebarBadge:      true,
@@ -88,9 +89,8 @@ func (s *Settings) has(k Kind) bool {
 // the human a question. Centralized here so adding a new agent is a one-line
 // change. Names are lowercased before lookup.
 var QuestionToolNames = map[string]struct{}{
-	"question":       {},
-	"ask":            {},
-	"exit_plan_mode": {},
+	"question": {},
+	"ask":      {},
 }
 
 // PermissionToolNames is the set of tool-call names that count as the agent
@@ -190,6 +190,22 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 					})
 				}
 				continue // a question/permission tool call is not also a "new tool call"
+			}
+			if name == "exit_plan_mode" && settings.has(KindExitPlanMode) {
+				candidates = append(candidates, Candidate{
+					Kind:     KindExitPlanMode,
+					DedupKey: toolDedupKey(tc.ID, m.ID, name),
+					Title:    "Plan mode exited",
+					Preview:  previewForExitPlanMode(tc.Input, tc.Output),
+					Severity: SeverityAttention,
+					Payload: map[string]any{
+						"toolCallId":   tc.ID,
+						"messageId":    m.ID,
+						"messageIndex": lastSeenCount + i,
+						"tabHint":      "session",
+					},
+				})
+				continue
 			}
 			if _, ok := PermissionToolNames[name]; ok {
 				if settings.has(KindPermissionRequest) {
@@ -413,6 +429,24 @@ func previewForTaskComplete(content, output string) string {
 		return previewText("", s)
 	}
 	return "Task completed successfully"
+}
+
+// previewForExitPlanMode builds a preview for exit_plan_mode notifications.
+// It tries to extract the plan summary from the tool input or output JSON,
+// which typically stores content under "summary", "plan", or "content" keys.
+func previewForExitPlanMode(input, output string) string {
+	if s := strings.TrimSpace(output); s != "" {
+		return previewText(s, "")
+	}
+	var data map[string]any
+	if json.Unmarshal([]byte(input), &data) == nil {
+		for _, key := range []string{"summary", "plan", "content"} {
+			if s, ok := data[key].(string); ok && s != "" {
+				return previewText(s, "")
+			}
+		}
+	}
+	return "Plan mode exited"
 }
 
 // InQuietHours reports whether the given time falls within the configured quiet

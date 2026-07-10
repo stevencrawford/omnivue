@@ -163,6 +163,7 @@ export interface Bookmark {
 export type NotificationKind =
   | "question"
   | "permission_request"
+  | "exit_plan_mode"
   | "task_complete"
   | "new_messages"
   | "new_tool_call"
