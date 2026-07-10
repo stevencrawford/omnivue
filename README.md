@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="site/images/omnivue-sessions-view.jpg" alt="Omnivue sessions view" width="700" />
+  <img src="site/images/showcase.jpg" alt="Omnivue sessions view" width="700" />
 </p>
 
 ---
