@@ -50,31 +50,60 @@ Omnivue keeps your workflow on your machine:
 - **Read-only adapters** — Agent databases are opened in read-only mode and never modified
 - **localhost UI** — The browser app runs against a local server on your machine
 
-## Quick Start
+## Getting Started
+
+### 1. Clone, build, and run (recommended)
+
+Requires Go 1.26+ and [pnpm](https://pnpm.io/). Build from source avoids Gatekeeper issues on macOS.
+
+```bash
+git clone https://github.com/stevencrawford/omnivue.git
+cd omnivue
+make build
+./omnivue init
+./omnivue --foreground --port 16275
+```
+
+### 2. Pre-built binary via curl
+
+> **macOS note:** The binary is signed ad-hoc but not notarized. Gatekeeper may block the first launch — right-click in Finder and select **Open** to bypass, or use method 1 above to avoid this entirely.
+
+**macOS (Apple Silicon)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
+```
+
+**macOS (Intel)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_amd64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
+```
+
+**Linux (amd64)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
+```
+
+**Linux (arm64)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_arm64.tar.gz | tar xz
+```
+
+**Windows (amd64)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
+```
+
+### 3. Download from GitHub Releases
+
+> ⚠️ **Not recommended for macOS** — the binary is not notarized, so Gatekeeper will likely block even after manual download. Use method 1 (clone/make/run) instead.
+
+Binaries and platform packages (.deb, .rpm) are on the [releases page](https://github.com/stevencrawford/omnivue/releases).
+
+### Post-install
 
 ```console
-$ omnivue init
-$ omnivue
-```
-
-## Installation
-
-### From source
-
-Requires Go 1.26+ and [pnpm](https://pnpm.io/).
-
-```bash
-make build
-```
-
-### Binary
-
-```bash
-# macOS (arm64)
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-
-# Linux (amd64)
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
+$ ./omnivue init
+$ ./omnivue
 ```
 
 ## Keyboard shortcuts
