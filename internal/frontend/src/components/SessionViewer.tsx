@@ -66,6 +66,7 @@ interface SessionViewerProps {
   focusMessageId?: string;
   onClearFocus?: () => void;
   searchHighlightQuery?: string | null;
+  onNavigateToMessage?: (messageIndex: number) => void;
 }
 
 const MAIN_TABS: {
@@ -101,6 +102,7 @@ export function SessionViewer({
   focusMessageId,
   onClearFocus,
   searchHighlightQuery,
+  onNavigateToMessage,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -354,6 +356,7 @@ export function SessionViewer({
                 sessionDirectory={session.directory}
                 refreshKey={refreshKey}
                 searchHighlightQuery={searchHighlightQuery}
+                onNavigateToMessage={onNavigateToMessage}
               />
             </div>
           </div>

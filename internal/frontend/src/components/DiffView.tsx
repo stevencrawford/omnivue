@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Folder, File } from "lucide-react";
+import {
+  ChevronRight,
+  Folder,
+  File,
+  PanelLeftClose,
+  PanelLeftOpen,
+  MessageSquareText,
+  ArrowRight,
+} from "lucide-react";
 import type { FileEdit } from "../hooks/useApi";
 import { fetchEdits } from "../hooks/useApi";
 import { computeDiff } from "../utils/diff";
@@ -12,6 +20,7 @@ interface DiffViewProps {
   sessionDirectory?: string;
   refreshKey: number;
   searchHighlightQuery?: string | null;
+  onNavigateToMessage?: (messageIndex: number) => void;
 }
 
 interface MergedFileDiff {
@@ -21,6 +30,7 @@ interface MergedFileDiff {
   deletions: number;
   patch: string;
   perHunkPatches: string[];
+  perHunkMessageIndices: number[];
 }
 
 interface ExtractedHunk {
@@ -29,6 +39,7 @@ interface ExtractedHunk {
   additionStart: number;
   additionCount: number;
   lines: string[];
+  messageIndex: number;
 }
 
 interface FileTreeNode {
@@ -47,9 +58,11 @@ function extractHunks(
   oldContent: string,
   newContent: string,
   _lang: string,
+  messageIndex: number,
 ): ExtractedHunk[] {
   try {
-    return computeDiff(oldContent, newContent);
+    const hunks = computeDiff(oldContent, newContent);
+    return hunks.map((h) => ({ ...h, messageIndex }));
   } catch {
     return [];
   }
@@ -61,6 +74,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   const lang = detectLanguage(filePath);
 
   for (const edit of edits) {
+    const mi = edit.messageIndex ?? -1;
     const body = edit.newStr || edit.content || "";
     if (body && !edit.oldStr) {
       isNew = true;
@@ -72,6 +86,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
           additionStart: 1,
           additionCount: 0,
           lines,
+          messageIndex: mi,
         });
       } else {
         const lines = body.split("\n");
@@ -87,6 +102,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
           additionStart: 1,
           additionCount: count,
           lines: hunkLines,
+          messageIndex: mi,
         });
       }
       continue;
@@ -96,7 +112,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
 
     const oldContent = edit.oldStr || "";
     const newContent = edit.newStr || edit.content || "";
-    const hunks = extractHunks(filePath, oldContent, newContent, lang);
+    const hunks = extractHunks(filePath, oldContent, newContent, lang, mi);
     allHunks.push(...hunks);
   }
 
@@ -115,12 +131,14 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
 
   let patch = "";
   const perHunkPatches: string[] = [];
+  const perHunkMessageIndices: number[] = [];
   if (merged.length > 0) {
     const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
     for (const hunk of merged) {
       const hunkPatch = header + hunk.lines.join("\n") + "\n";
       patch += hunk.lines.join("\n") + "\n";
       perHunkPatches.push(hunkPatch);
+      perHunkMessageIndices.push(hunk.messageIndex);
     }
     patch = header + patch;
   }
@@ -132,6 +150,7 @@ function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
     deletions: totalDeletions,
     patch,
     perHunkPatches,
+    perHunkMessageIndices,
   };
 }
 
@@ -359,15 +378,25 @@ function relativizePath(filePath: string, directory: string | undefined): string
   return filePath;
 }
 
+const DIFF_TREE_COLLAPSED_KEY = "omnivue-diff-tree-collapsed";
+
 export function DiffView({
   sessionId,
   sessionDirectory,
   refreshKey,
   searchHighlightQuery,
+  onNavigateToMessage,
 }: DiffViewProps) {
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string>("");
+  const [treeCollapsed, setTreeCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(DIFF_TREE_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [treeWidth, setTreeWidth] = useState(() => {
     try {
       const stored = localStorage.getItem(DIFF_TREE_WIDTH_KEY);
@@ -537,6 +566,24 @@ export function DiffView({
           <span className="text-green-500 font-mono">+{stats.additions}</span>
         )}
         {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
+        <button
+          type="button"
+          onClick={() => {
+            setTreeCollapsed((v) => {
+              const next = !v;
+              try {
+                localStorage.setItem(DIFF_TREE_COLLAPSED_KEY, String(next));
+              } catch {
+                /* */
+              }
+              return next;
+            });
+          }}
+          className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+          title={treeCollapsed ? "Show file tree" : "Hide file tree"}
+        >
+          {treeCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+        </button>
         <div className="ml-auto flex items-center gap-1.5 text-[11px] text-ov-text-secondary">
           <span className="flex items-center gap-1">
             <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
@@ -555,20 +602,24 @@ export function DiffView({
       {/* Two-panel layout */}
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Left: File tree */}
-        <div
-          className="overflow-y-auto overflow-x-hidden shrink-0 border-r border-ov-border"
-          style={{ width: treeWidth }}
-        >
-          <FileTree nodes={tree} selectedPath={selectedPath} onSelect={setSelectedPath} />
-        </div>
+        {!treeCollapsed && (
+          <div
+            className="overflow-y-auto overflow-x-hidden shrink-0 border-r border-ov-border"
+            style={{ width: treeWidth }}
+          >
+            <FileTree nodes={tree} selectedPath={selectedPath} onSelect={setSelectedPath} />
+          </div>
+        )}
 
         {/* Resizable divider */}
-        <div
-          className="w-1 cursor-col-resize shrink-0 bg-ov-border hover:bg-accent transition-colors relative"
-          onMouseDown={handleResizeStart}
-        >
-          <div className="absolute inset-y-0 -left-1 -right-1" />
-        </div>
+        {!treeCollapsed && (
+          <div
+            className="w-1 cursor-col-resize shrink-0 bg-ov-border hover:bg-accent transition-colors relative"
+            onMouseDown={handleResizeStart}
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1" />
+          </div>
+        )}
 
         {/* Right: Diff view */}
         <div ref={rightPanelRef} className="flex-1 overflow-y-auto min-w-0">
@@ -590,9 +641,28 @@ export function DiffView({
                   iconSize={12}
                 />
               </div>
-              {selectedDiff.perHunkPatches.map((hunkPatch, i) => (
-                <PatchRenderer key={i} patch={hunkPatch} lang={detectLanguage(selectedDiff.path)} />
-              ))}
+              {selectedDiff.perHunkPatches.map((hunkPatch, i) => {
+                const msgIdx = selectedDiff.perHunkMessageIndices[i];
+                const prevMsgIdx = i > 0 ? selectedDiff.perHunkMessageIndices[i - 1] : -2;
+                const showIndicator = msgIdx >= 0 && msgIdx !== prevMsgIdx && onNavigateToMessage;
+                return (
+                  <div key={i}>
+                    {showIndicator && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToMessage(msgIdx)}
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] text-ov-text-secondary/60 hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors w-full"
+                        title={`Jump to message #${msgIdx + 1}`}
+                      >
+                        <MessageSquareText size={10} />
+                        <span>Message #{msgIdx + 1}</span>
+                        <ArrowRight size={10} />
+                      </button>
+                    )}
+                    <PatchRenderer patch={hunkPatch} lang={detectLanguage(selectedDiff.path)} />
+                  </div>
+                );
+              })}
             </div>
           ) : selectedDiff ? (
             <div className="flex items-center justify-center h-full text-sm text-ov-text-secondary">

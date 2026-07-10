@@ -253,6 +253,12 @@ export function App() {
     [],
   );
 
+  const handleDiffNavigateToMessage = useCallback((messageIndex: number) => {
+    setFocusMessageIndex(messageIndex);
+    setFocusMessageKey((k) => k + 1);
+    setActiveTab("session");
+  }, []);
+
   const handleNotificationClick = useCallback(
     (n: AppNotification) => {
       setShowOverview(false);
@@ -390,6 +396,7 @@ export function App() {
                         focusMessageId={focusMessageId}
                         onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
+                        onNavigateToMessage={handleDiffNavigateToMessage}
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>

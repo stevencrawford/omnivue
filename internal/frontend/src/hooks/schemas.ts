@@ -144,6 +144,7 @@ const FileEditSchema = z.object({
   content: optionalString,
   viewRange: z.tuple([coerceNumber, coerceNumber]).optional(),
   timestamp: z.string(),
+  messageIndex: z.number().int().optional(),
 });
 
 export const FileEditsSchema = z.array(FileEditSchema);

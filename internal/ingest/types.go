@@ -222,13 +222,14 @@ type Plan struct {
 
 // FileEdit represents a single edit/write tool call within a session.
 type FileEdit struct {
-	FilePath  string    `json:"filePath"`
-	ToolName  string    `json:"toolName"` // "edit" or "write"
-	OldStr    string    `json:"oldStr,omitempty"`
-	NewStr    string    `json:"newStr,omitempty"`
-	Content   string    `json:"content,omitempty"`
-	ViewRange []int     `json:"viewRange,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	FilePath     string    `json:"filePath"`
+	ToolName     string    `json:"toolName"` // "edit" or "write"
+	OldStr       string    `json:"oldStr,omitempty"`
+	NewStr       string    `json:"newStr,omitempty"`
+	Content      string    `json:"content,omitempty"`
+	ViewRange    []int     `json:"viewRange,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
+	MessageIndex int       `json:"messageIndex,omitempty"`
 }
 
 // DiffFile represents a changed file in a session.

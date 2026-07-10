@@ -85,14 +85,47 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		return nil, nil
 	}
 
+	// First pass: extract edits from message tool calls.
+	msgs, err := a.Messages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var edits []ingest.FileEdit
+	patchSeen := make(map[string]bool)
+
+	for mi, m := range msgs {
+		for _, tc := range m.ToolCalls {
+			if tc.Name != "edit" && tc.Name != "write" {
+				continue
+			}
+			fp, oldContent, newContent := parseCodexEditContent(tc)
+			if fp == "" {
+				continue
+			}
+			patchSeen[fp] = true
+			edits = append(edits, ingest.FileEdit{
+				FilePath:     fp,
+				ToolName:     tc.Name,
+				OldStr:       oldContent,
+				NewStr:       newContent,
+				Content:      newContent,
+				Timestamp:    m.Timestamp,
+				MessageIndex: mi,
+			})
+		}
+	}
+
+	// Second pass: scan for patch_apply_end events that may not appear as tool calls.
 	f, err := os.Open(fpath)
 	if err != nil {
+		if len(edits) > 0 {
+			return edits, nil
+		}
 		return nil, nil
 	}
 	defer f.Close()
 
-	var edits []ingest.FileEdit
-	patchSeen := make(map[string]bool)
 	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -104,74 +137,41 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		if err := json.Unmarshal(line, &env); err != nil {
 			continue
 		}
+		if env.Type != "event_msg" {
+			continue
+		}
 
-		switch env.Type {
-		case "event_msg":
-			var pl eventMsgPayload
-			if err := json.Unmarshal(env.Payload, &pl); err != nil {
+		var pl eventMsgPayload
+		if err := json.Unmarshal(env.Payload, &pl); err != nil {
+			continue
+		}
+		if pl.Type != "patch_apply_end" || len(pl.Changes) == 0 {
+			continue
+		}
+
+		var changes map[string]changeEntry
+		if err := json.Unmarshal(pl.Changes, &changes); err != nil {
+			continue
+		}
+
+		for path, change := range changes {
+			if patchSeen[path] {
 				continue
 			}
-			if pl.Type != "patch_apply_end" || len(pl.Changes) == 0 {
-				continue
+			content := change.Content
+			if content == "" {
+				content = change.UnifiedDiff
 			}
-
-			ts := ingestkit.ParseTime(env.Timestamp)
-
-			var changes map[string]changeEntry
-			if err := json.Unmarshal(pl.Changes, &changes); err != nil {
-				continue
+			toolName := "edit"
+			if change.Type == "add" {
+				toolName = "write"
 			}
-
-			for path, change := range changes {
-				content := change.Content
-				if content == "" {
-					content = change.UnifiedDiff
-				}
-				toolName := "edit"
-				if change.Type == "add" {
-					toolName = "write"
-				}
-				edits = append(edits, ingest.FileEdit{
-					FilePath:  path,
-					ToolName:  toolName,
-					NewStr:    content,
-					Content:   content,
-					Timestamp: ts,
-				})
-				patchSeen[path] = true
-			}
-
-		case "response_item":
-			var pl responseItemPayload
-			if err := json.Unmarshal(env.Payload, &pl); err != nil {
-				continue
-			}
-			if pl.Type != "custom_tool_call" || pl.Name != "apply_patch" {
-				continue
-			}
-
-			ts := ingestkit.ParseTime(env.Timestamp)
-			patchText := pl.Input
-			if patchText == "" {
-				patchText = pl.Arguments
-			}
-
-			filePath := extractFilePathFromPatch(patchText)
-			if filePath == "" || patchSeen[filePath] {
-				continue
-			}
-
-			result := parseRawPatch(patchText)
-			editContent := result.content
-			if editContent == "" {
-				editContent = patchText
-			}
+			patchSeen[path] = true
 			edits = append(edits, ingest.FileEdit{
-				FilePath:  filePath,
-				ToolName:  "edit",
-				NewStr:    editContent,
-				Content:   patchText,
-				Timestamp: ts,
+				FilePath: path,
+				ToolName: toolName,
+				NewStr:   content,
+				Content:  content,
 			})
 		}
 	}
@@ -180,4 +180,47 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		return nil, nil
 	}
 	return edits, nil
+}
+
+// parseCodexEditContent extracts file path and old/new content from an edit or
+// write tool call, handling Codex's native and normalized formats.
+func parseCodexEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
+	var input struct {
+		FilePath   string `json:"filePath"`
+		FilePath2  string `json:"file_path"`
+		Content    string `json:"content"`
+		OldStr     string `json:"old_str"`
+		OldString  string `json:"old_string"`
+		NewStr     string `json:"new_str"`
+		NewString  string `json:"new_string"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return "", "", ""
+	}
+	filePath = input.FilePath
+	if filePath == "" {
+		filePath = input.FilePath2
+	}
+	if filePath == "" {
+		return "", "", ""
+	}
+	switch tc.Name {
+	case "write":
+		newStr = input.Content
+		return filePath, "", newStr
+	case "edit":
+		oldStr = input.OldStr
+		if oldStr == "" {
+			oldStr = input.OldString
+		}
+		newStr = input.NewStr
+		if newStr == "" {
+			newStr = input.NewString
+		}
+		if newStr == "" {
+			newStr = input.Content
+		}
+		return filePath, oldStr, newStr
+	}
+	return "", "", ""
 }
