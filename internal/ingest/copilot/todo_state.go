@@ -23,7 +23,8 @@ type todoItem struct {
 // tool calls in order. No external database required — it extracts task names
 // directly from INSERT VALUES and tracks status changes from UPDATE.
 type todoState struct {
-	items map[string]*todoItem
+	items        map[string]*todoItem
+	allCompleted bool
 }
 
 func newTodoState() *todoState {
@@ -38,11 +39,20 @@ var todoTableRe = regexp.MustCompile(
 
 // applySQL applies a single SQL statement to the todoState, extracting
 // todo items from INSERT INTO and status changes from UPDATE.
+// If all todos were completed in the previous call and a new INSERT
+// arrives, the state is cleared to start a fresh batch.
 func (ts *todoState) applySQL(query string) {
 	q := strings.TrimSpace(query)
 	norm := strings.ToUpper(q)
 	for _, quote := range []string{`"`, `'`, "`"} {
 		norm = strings.ReplaceAll(norm, quote+"TODOS"+quote, "TODOS")
+	}
+
+	// If all previous todos were done and a new batch is starting, clear
+	// so the next todowrite only shows the current batch of tasks.
+	if ts.allCompleted && strings.HasPrefix(norm, "INSERT INTO TODOS") {
+		clear(ts.items)
+		ts.allCompleted = false
 	}
 
 	switch {
@@ -52,6 +62,19 @@ func (ts *todoState) applySQL(query string) {
 		ts.parseUpdate(q)
 	case strings.HasPrefix(norm, "DELETE FROM TODOS"):
 		clear(ts.items)
+		ts.allCompleted = false
+	}
+
+	// After processing, check whether every todo is done. If so,
+	// the next sql call can collapse this batch and start fresh.
+	ts.allCompleted = len(ts.items) > 0
+	if ts.allCompleted {
+		for _, item := range ts.items {
+			if item.Status != "done" {
+				ts.allCompleted = false
+				break
+			}
+		}
 	}
 }
 
