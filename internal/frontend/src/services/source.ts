@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import * as api from "../hooks/apiClient";
-import type { Source } from "../hooks/types";
+import type { DiscoveredSource, Source } from "../hooks/types";
 import { ApiError, catchToApiError } from "./common";
 
 export class SourceService extends Effect.Service<SourceService>()("SourceService", {
@@ -37,6 +37,12 @@ export class SourceService extends Effect.Service<SourceService>()("SourceServic
         catch: catchToApiError(`/_/api/sources/${id}`),
       });
 
-    return { list, add, remove, update } as const;
+    const discover = (): Effect.Effect<DiscoveredSource[], ApiError> =>
+      Effect.tryPromise({
+        try: () => api.fetchDiscoveredSources(),
+        catch: catchToApiError("/_/api/sources/discover"),
+      });
+
+    return { list, add, remove, update, discover } as const;
   }),
 }) {}

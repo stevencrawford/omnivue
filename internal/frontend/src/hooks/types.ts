@@ -45,6 +45,13 @@ export interface Source {
   createdAt: string;
 }
 
+export interface DiscoveredSource {
+  path: string;
+  agentType: string;
+  label: string;
+  sessions: number;
+}
+
 export interface StepEvent {
   step: "start" | "finish";
   snapshot?: string;
