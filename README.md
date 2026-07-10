@@ -60,7 +60,6 @@ Requires Go 1.26+, [Node.js](https://nodejs.org/) (for the frontend build), and 
 git clone https://github.com/stevencrawford/omnivue.git
 cd omnivue
 make build
-./omnivue init
 ./omnivue --foreground --port 16275
 ```
 
