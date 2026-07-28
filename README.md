@@ -52,20 +52,7 @@ Omnivue keeps your workflow on your machine:
 
 ## Getting Started
 
-### 1. Clone, build, and run (recommended)
-
-Requires Go 1.26+, [Node.js](https://nodejs.org/) (for the frontend build), and [pnpm](https://pnpm.io/). Build from source avoids Gatekeeper issues on macOS.
-
-```bash
-git clone https://github.com/stevencrawford/omnivue.git
-cd omnivue
-make build
-./omnivue --foreground --port 16275
-```
-
-### 2. Pre-built binary via curl
-
-> **macOS note:** The binary is signed ad-hoc but not notarized. Gatekeeper may block the first launch — right-click in Finder and select **Open** to bypass, or use method 1 above to avoid this entirely.
+### 1. Pre-built binary (recommended)
 
 **macOS (Apple Silicon)**
 ```bash
@@ -92,11 +79,16 @@ curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/om
 curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
 ```
 
-### 3. Download from GitHub Releases
+### 2. Build from source
 
-> ⚠️ **Not recommended for macOS** — the binary is not notarized, so Gatekeeper will likely block even after manual download. Use method 1 (clone/make/run) instead.
+Requires Go 1.26+, [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
 
-Binaries and platform packages (.deb, .rpm) are on the [releases page](https://github.com/stevencrawford/omnivue/releases).
+```bash
+git clone https://github.com/stevencrawford/omnivue.git
+cd omnivue
+make build
+./omnivue --foreground --port 16275
+```
 
 ### Post-install
 
