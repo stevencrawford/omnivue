@@ -38,7 +38,8 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 		}
 		projectPath = parent
 	}
-	return a.parseSessionFile(fpath, projectPath)
+	index := a.loadSessionIndex(projectPath)
+	return a.parseSessionFile(fpath, projectPath, index)
 }
 
 func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
@@ -55,6 +56,7 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 			continue
 		}
 		projectPath := filepath.Join(projectsPath, ent.Name())
+		index := a.loadSessionIndex(projectPath)
 		sessionEnts, err := os.ReadDir(projectPath)
 		if err != nil {
 			continue
@@ -64,7 +66,7 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 				continue
 			}
 			fpath := filepath.Join(projectPath, se.Name())
-			session, err := a.parseSessionFile(fpath, projectPath)
+			session, err := a.parseSessionFile(fpath, projectPath, index)
 			if err != nil {
 				log.Printf("claude-code adapter: skipping %s: %v", fpath, err)
 				continue
@@ -85,7 +87,7 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 				ModTime:  modTime,
 			}
 
-			subagents := a.discoverSubagents(sessionID, projectPath)
+			subagents := a.discoverSubagents(sessionID, projectPath, index)
 			for _, sa := range subagents {
 				if sa.MessageCount == 0 {
 					continue
@@ -104,7 +106,7 @@ func (a *Adapter) loadSessions(_ context.Context) ([]ingest.Session, error) {
 	return a.cache.List(), nil
 }
 
-func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, error) {
+func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]sessionIndexEntry) (*ingest.Session, error) {
 	f, err := os.Open(fpath)
 	if err != nil {
 		return nil, err
@@ -114,20 +116,21 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	scanner := ingestkit.NewJSONLScanner(f)
 
 	var (
-		parentSID   string
-		slug        string
-		cwd         string
-		gitBranch   string
-		firstTS     time.Time
-		lastTS      time.Time
-		model       string
-		msgCount    int
-		tokensIn    int
-		tokensOut   int
-		cacheRead   int
-		cacheWrite  int
-		hasRealUser bool
-		agentID     string
+		parentSID    string
+		slug         string
+		cwd          string
+		gitBranch    string
+		firstTS      time.Time
+		lastTS       time.Time
+		model        string
+		msgCount     int
+		tokensIn     int
+		tokensOut    int
+		cacheRead    int
+		cacheWrite   int
+		hasRealUser  bool
+		agentID      string
+		firstUserMsg string
 	)
 
 	for scanner.Scan() {
@@ -191,6 +194,9 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 			msgCount++
 			if env.Type == "user" && !isMetaMsg(&env) {
 				hasRealUser = true
+				if firstUserMsg == "" && env.Message != nil {
+					firstUserMsg = extractUserContent(env.Message.Content)
+				}
 			}
 		}
 	}
@@ -216,13 +222,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 		}
 	}
 
-	title := slug
-	if title == "" {
-		title = sessionID
-		if len(title) > 8 {
-			title = title[:8]
-		}
-	}
+	title := deriveTitle(sessionID, slug, firstUserMsg, index)
 
 	repo := ingestkit.DeriveRepository(cwd, "")
 
@@ -258,7 +258,30 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string) (*ingest.Session, 
 	}, nil
 }
 
-func (a *Adapter) discoverSubagents(sessionID, projectPath string) []ingest.Session {
+func deriveTitle(sessionID, slug, firstUserMsg string, index map[string]sessionIndexEntry) string {
+	if index != nil {
+		if entry, ok := index[sessionID]; ok {
+			if entry.Summary != "" {
+				return entry.Summary
+			}
+			if entry.FirstPrompt != "" {
+				return truncateTitle(entry.FirstPrompt)
+			}
+		}
+	}
+	if slug != "" {
+		return slug
+	}
+	if firstUserMsg != "" {
+		return truncateTitle(firstUserMsg)
+	}
+	if len(sessionID) > 8 {
+		return sessionID[:8]
+	}
+	return sessionID
+}
+
+func (a *Adapter) discoverSubagents(sessionID, projectPath string, index map[string]sessionIndexEntry) []ingest.Session {
 	subagentDir := filepath.Join(projectPath, sessionID, "subagents")
 	ents, err := os.ReadDir(subagentDir)
 	if err != nil {
@@ -271,7 +294,7 @@ func (a *Adapter) discoverSubagents(sessionID, projectPath string) []ingest.Sess
 			continue
 		}
 		fpath := filepath.Join(subagentDir, ent.Name())
-		session, err := a.parseSessionFile(fpath, projectPath)
+		session, err := a.parseSessionFile(fpath, projectPath, index)
 		if err != nil {
 			log.Printf("claude-code adapter: skipping subagent %s: %v", fpath, err)
 			continue

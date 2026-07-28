@@ -281,8 +281,8 @@ func TestSessionParsing_NoSlug(t *testing.T) {
 	if len(sessions) != 1 {
 		t.Fatalf("expected 1 session, got %d", len(sessions))
 	}
-	if sessions[0].Title != "sess-002" {
-		t.Errorf("Title = %q, want %q", sessions[0].Title, "sess-002")
+	if sessions[0].Title != "hello" {
+		t.Errorf("Title = %q, want %q", sessions[0].Title, "hello")
 	}
 }
 

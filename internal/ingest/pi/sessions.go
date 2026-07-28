@@ -97,12 +97,10 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 	if header.CWD != "" {
 		repo = ingestkit.DeriveRepository(header.CWD, "")
 	}
-	title := deriveTitle(header.ID, header.CWD)
-
 	session := &ingest.Session{
 		ID:         header.ID,
 		SourceID:   a.basePath,
-		Title:      title,
+		Title:      deriveTitle(header.ID, header.CWD, ""),
 		Repository: repo,
 		Directory:  header.CWD,
 		Agent:      ingest.AgentPi,
@@ -112,7 +110,8 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 	}
 
 	var msgCount int
-	currentModel := ""
+	var currentModel string
+	var firstUserMsg string
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -136,6 +135,9 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 						session.UpdatedAt = t
 					}
 				}
+				if env.Message.Role == "user" && firstUserMsg == "" {
+					firstUserMsg = extractTextContent(env.Message.Content)
+				}
 				if env.Message.Role == "assistant" && env.Message.Usage != nil {
 					session.TokensInput += env.Message.Usage.Input
 					session.TokensOutput += env.Message.Usage.Output
@@ -152,6 +154,7 @@ func (a *Adapter) parseSessionFile(fpath string) (*ingest.Session, error) {
 
 	session.MessageCount = msgCount
 	session.Model = currentModel
+	session.Title = deriveTitle(header.ID, header.CWD, firstUserMsg)
 
 	return session, nil
 }
@@ -175,7 +178,23 @@ func extractTimestampFromFilename(filename string) time.Time {
 	return time.Now()
 }
 
-func deriveTitle(id, cwd string) string {
+const maxTitleLen = 80
+
+func truncateTitle(s string) string {
+	if idx := strings.Index(s, "\n"); idx >= 0 {
+		s = s[:idx]
+	}
+	s = strings.TrimSpace(s)
+	if len(s) > maxTitleLen {
+		s = s[:maxTitleLen] + "..."
+	}
+	return s
+}
+
+func deriveTitle(id, cwd, firstUserMsg string) string {
+	if firstUserMsg != "" {
+		return truncateTitle(firstUserMsg)
+	}
 	if len(id) >= 8 {
 		return id[:8]
 	}
