@@ -205,9 +205,9 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 					msgCount++
 				case "token_count":
 					if pl.Info != nil && pl.Info.TotalTokenUsage != nil {
-						tokensInput += pl.Info.TotalTokenUsage.InputTokens
-						tokensOutput += pl.Info.TotalTokenUsage.OutputTokens
-						cost += float64(pl.Info.TotalTokenUsage.TotalTokens) * 0.000001
+						tokensInput = pl.Info.TotalTokenUsage.InputTokens
+						tokensOutput = pl.Info.TotalTokenUsage.OutputTokens
+						cost = float64(pl.Info.TotalTokenUsage.TotalTokens) * 0.000001
 					}
 				}
 			}
