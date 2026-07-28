@@ -27,6 +27,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var subAgentStack []*subAgentState
 	var todoState = newTodoState()
 	var shutdownSnapshots []shutdownSnapshot
+	var pendingReasoning string
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
@@ -45,6 +46,10 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "user.message":
 			if msg := handleUserMessage(event); msg != nil {
+				if cleaned, ok := stripSystemReminder(msg.Content); ok {
+					msg.Content = cleaned
+					msg.Metadata = map[string]string{"type": "system_reminder_inline"}
+				}
 				if len(subAgentStack) > 0 {
 					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
 				} else {
@@ -53,7 +58,24 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 			}
 
 		case "assistant.message":
+			var asstData assistantMessageData
+			if json.Unmarshal(event.Data, &asstData) != nil {
+				break
+			}
+			if asstData.Phase == "thinking" && asstData.Content != "" {
+				if pendingReasoning == "" {
+					pendingReasoning = asstData.Content
+				}
+				break
+			}
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
+				switch {
+				case asstData.ReasoningText != "":
+					msg.Reasoning = asstData.ReasoningText
+				case pendingReasoning != "":
+					msg.Reasoning = pendingReasoning
+					pendingReasoning = ""
+				}
 				for i := range msg.ToolCalls {
 					normalizeSQLToTodoWrite(&msg.ToolCalls[i], todoState)
 				}
@@ -352,6 +374,21 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 			}
 		}
 	}
+}
+
+// stripSystemReminder detects user messages containing <system_reminder> tags
+// (e.g. injected by Copilot for MCP server configuration) and strips them,
+// returning the cleaned content. If no tags are found, ok is false.
+func stripSystemReminder(content string) (string, bool) {
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasPrefix(trimmed, "<system_reminder>") {
+		return content, false
+	}
+	cleaned := trimmed
+	cleaned = strings.TrimPrefix(cleaned, "<system_reminder>")
+	cleaned = strings.TrimSuffix(cleaned, "</system_reminder>")
+	cleaned = strings.TrimSpace(cleaned)
+	return cleaned, true
 }
 
 // extractCopilotPatchPath extracts the file path from apply_patch text.

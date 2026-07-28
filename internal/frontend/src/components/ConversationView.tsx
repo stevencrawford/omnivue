@@ -1,8 +1,16 @@
 import { useMemo, useState, useEffect } from "react";
-import { CirclePlus, ChevronDown, ChevronUp, TriangleAlert, ArrowRight } from "lucide-react";
+import {
+  CirclePlus,
+  ChevronDown,
+  ChevronUp,
+  TriangleAlert,
+  ArrowRight,
+  ChevronRight,
+} from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 
+import { MarkdownContent } from "./MarkdownContent";
 import { SystemReminderView } from "./SystemReminderView";
 import { UserTurnView } from "./UserTurnMessage";
 import { AssistantMessageView } from "./AssistantMessage";
@@ -98,6 +106,37 @@ function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function SystemReminderInline({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-1">
+        <div className="flex-1 h-px bg-amber-500/20" />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <TriangleAlert size={12} className="text-amber-400" />
+          <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider select-none">
+            SYSTEM REMINDER
+          </span>
+        </div>
+        <div className="flex-1 h-px bg-amber-500/20" />
+      </div>
+      <button
+        type="button"
+        className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer mb-3 ml-1"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <ChevronRight size={12} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+        {expanded ? "Hide details" : "Show details"}
+      </button>
+      {expanded && (
+        <div className="ml-1 mb-3 pl-2.5 border-l-2 border-amber-500/30">
+          <MarkdownContent content={content} className="markdown-body--wide" />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -339,6 +378,10 @@ function MessageBlock({
           <div className="flex-1 h-px bg-red-500/20" />
         </div>
       );
+    }
+    const isInlineReminder = message.metadata?.type === "system_reminder_inline";
+    if (isInlineReminder) {
+      return <SystemReminderInline content={message.content} />;
     }
     return (
       <UserTurnView
