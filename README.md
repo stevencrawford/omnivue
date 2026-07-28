@@ -93,7 +93,6 @@ make build
 ### Post-install
 
 ```console
-$ ./omnivue init
 $ ./omnivue
 ```
 
