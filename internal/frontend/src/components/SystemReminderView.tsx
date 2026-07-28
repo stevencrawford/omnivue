@@ -26,7 +26,7 @@ export function SystemReminderView({ content, fileName }: { content: string; fil
           <div className="flex-1 h-px bg-gray-500/20" />
         </div>
         {expanded && (
-          <div className="mt-3 pt-3 border-t border-gray-500/20">
+          <div className="mt-3 px-3 pb-3 pt-3 border-t border-gray-500/20 bg-gray-500/[0.06] rounded-b-lg">
             <MarkdownContent content={content} className="markdown-body--wide" />
           </div>
         )}
