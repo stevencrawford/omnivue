@@ -1,12 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import {
-  CirclePlus,
-  ChevronDown,
-  ChevronUp,
-  TriangleAlert,
-  ArrowRight,
-  ChevronRight,
-} from "lucide-react";
+import { CirclePlus, ChevronDown, ChevronUp, TriangleAlert, ArrowRight, Info } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 
@@ -112,31 +105,30 @@ function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
 function SystemReminderInline({ content }: { content: string }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <>
-      <div className="flex items-center gap-3 mb-1">
-        <div className="flex-1 h-px bg-amber-500/20" />
-        <div className="flex items-center gap-1.5 shrink-0">
-          <TriangleAlert size={12} className="text-amber-400" />
-          <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider select-none">
-            SYSTEM REMINDER
-          </span>
-        </div>
-        <div className="flex-1 h-px bg-amber-500/20" />
+    <div className="mb-3">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-px bg-gray-500/20" />
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap hover:text-gray-300 transition-colors cursor-pointer"
+        >
+          <Info size={12} className="text-gray-400 shrink-0" />
+          <span>SYSTEM REMINDER</span>
+          {expanded ? (
+            <ChevronUp size={10} className="text-gray-400" />
+          ) : (
+            <ChevronDown size={10} className="text-gray-400" />
+          )}
+        </button>
+        <div className="flex-1 h-px bg-gray-500/20" />
       </div>
-      <button
-        type="button"
-        className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer mb-3 ml-1"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <ChevronRight size={12} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? "Hide details" : "Show details"}
-      </button>
       {expanded && (
-        <div className="ml-1 mb-3 pl-2.5 border-l-2 border-amber-500/30">
+        <div className="mt-1 pl-1">
           <MarkdownContent content={content} className="markdown-body--wide" />
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -267,7 +259,6 @@ export function ConversationView({
                   key={msg.id}
                   content={msg.content}
                   fileName={msg.metadata?.file || "AGENTS.md"}
-                  onOpenModal={onOpenModal}
                 />
               ))}
             </div>
@@ -405,7 +396,6 @@ function MessageBlock({
         <SystemReminderView
           content={message.content}
           fileName={message.metadata?.file || "AGENTS.md"}
-          onOpenModal={onOpenModal}
         />
       );
     }
