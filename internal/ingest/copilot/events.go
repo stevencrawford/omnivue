@@ -145,7 +145,51 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 		}
 	}
 
+	messages = mergeSkillFollowUps(messages)
 	return messages, scanner.Err()
+}
+
+// mergeSkillFollowUps merges the text content of an assistant message that
+// immediately follows a message containing a skill tool call into the skill
+// tool call's Output. The follow-up message is then removed from the result.
+func mergeSkillFollowUps(messages []ingest.Message) []ingest.Message {
+	if len(messages) < 2 {
+		return messages
+	}
+	result := make([]ingest.Message, 0, len(messages))
+	skipNext := false
+	for i := range messages {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		msg := messages[i]
+		hasSkill := false
+		for j := range msg.ToolCalls {
+			if msg.ToolCalls[j].Name == "skill" {
+				hasSkill = true
+				break
+			}
+		}
+		if hasSkill && i+1 < len(messages) {
+			next := messages[i+1]
+			if next.Role == ingest.MessageRoleAssistant && len(next.ToolCalls) == 0 && next.Content != "" {
+				for j := range msg.ToolCalls {
+					if msg.ToolCalls[j].Name == "skill" {
+						if msg.ToolCalls[j].Output != "" {
+							msg.ToolCalls[j].Output += "\n\n" + next.Content
+						} else {
+							msg.ToolCalls[j].Output = next.Content
+						}
+						break
+					}
+				}
+				skipNext = true
+			}
+		}
+		result = append(result, msg)
+	}
+	return result
 }
 
 func handleModelChange(event eventEnvelope) string {

@@ -46,17 +46,6 @@ function groupMessages(messages: Message[]): Message[] {
           continue;
         }
       }
-      // Merge text-only follow-up after a skill tool call
-      if (!tools.length && msg.content) {
-        const last = result[result.length - 1];
-        if (last && last.role === "assistant") {
-          const skillTc = last.toolCalls?.find((tc) => tc.name === "skill");
-          if (skillTc) {
-            skillTc.output = skillTc.output ? skillTc.output + "\n\n" + msg.content : msg.content;
-            continue;
-          }
-        }
-      }
     }
     result.push({ ...msg, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined });
   }
