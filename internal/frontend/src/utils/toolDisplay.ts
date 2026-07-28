@@ -19,6 +19,8 @@ export function shouldShowStepContent(content: string, toolCalls?: ToolCall[]): 
 
   if (!toolCalls?.length) return true;
 
+  if (toolCalls.some((tc) => tc.name === "skill")) return false;
+
   const normalized = text
     .toLowerCase()
     .replace(/^#+\s*/, "")
