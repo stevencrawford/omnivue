@@ -388,13 +388,12 @@ export const definitions: ToolRendererDefinition[] = [
       const s = extractJSONField(tool.input, "subject") || "";
       return `memory: ${s.slice(0, 80)}`;
     },
-    display: { type: "always-open", renderSummary: true },
+    display: { type: "expandable", defaultOpen: true },
     truncateOutput: 0,
+    suppressCopy: true,
     markerColor: "#8b5cf6",
     markerLabel: "Memory",
     markerDisplayType: "memory",
     markerPriority: 15,
-    cardClassName:
-      "border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.04] mb-3",
   },
 ];

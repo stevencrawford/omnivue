@@ -128,7 +128,7 @@ export function ToolRendererWrapper({
                 <ArrowRight size={12} className="inline" /> View session
               </button>
             )}
-            <CopyOutputBtn tool={tool} />
+            {!renderer.suppressCopy && <CopyOutputBtn tool={tool} />}
             {onBookmark && (
               <BookmarkButton
                 isBookmarked={!!isBookmarked}
@@ -200,7 +200,7 @@ export function ToolRendererWrapper({
               <ArrowRight size={12} className="inline" /> View session
             </button>
           )}
-          <CopyOutputBtn tool={tool} />
+          {!renderer.suppressCopy && <CopyOutputBtn tool={tool} />}
           {onBookmark && (
             <BookmarkButton
               isBookmarked={!!isBookmarked}

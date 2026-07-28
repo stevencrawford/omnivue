@@ -44,6 +44,7 @@ interface ToolRendererDefinition {
   priority?: number; // override priority (builtin=0, vendor=10)
   truncateOutput?: number; // max output lines (default 50, 0 = no truncation)
   cardClassName?: string; // custom card CSS (primarily for always-open cards)
+  suppressCopy?: boolean; // hides the system copy button in the card header
 }
 ```
 
@@ -66,6 +67,19 @@ type ToolCardDisplay =
 | --------------- | ------------------------------------------------------------------------ | ------------------------------- | -------- |
 | `"expandable"`  | Card with chevron toggle; `defaultOpen` controls initial state           | Content renders inline          | ✅       |
 | `"always-open"` | **Bypassed** — always renders in detail mode with actions but no chevron | Full content, card with actions | ❌       |
+
+### Visual Patterns
+
+The two display types produce distinct visual patterns. These names are used throughout discussions to refer to the rendering style:
+
+| Pattern                 | Display config                              | Visual                                                                                        | Examples                                               |
+| ----------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Collapsible card**    | `{ type: "expandable" }`                    | System border, chevron toggle, compact summary line. Content expands inline below the header. | read, bash, grep, glob, webfetch                       |
+| **Initially-open card** | `{ type: "expandable", defaultOpen: true }` | Same as collapsible but starts expanded. Content visible on load.                             | write, edit, todowrite, store_memory, question         |
+| **Bordered card**       | `{ type: "always-open" }`                   | Self-contained card with custom border/chrome. No chevron. Content always visible.            | task, skill, compaction, task_complete, exit_plan_mode |
+
+- **Collapsible / Initially-open cards** rely on `ToolRendererWrapper` for the border, chevron, copy button, and bookmark button. The renderer component only provides the summary text (in the header) and the detail content (in the expandable area). Do not render your own card chrome.
+- **Bordered cards** provide their own border via `cardClassName` and render full content in both summary and detail variants. They are typically used for special visual treatments (sub-agent summaries, skill loaders, separators).
 
 ### Override Rules
 
@@ -150,6 +164,8 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | Kind                         | Component                                       | `display` type | `defaultOpen` | `truncateOutput` | `markerPriority` |
 | ---------------------------- | ----------------------------------------------- | -------------- | ------------- | ---------------- | ---------------- |
 | `task_complete`              | `TaskCompleteToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 0                |
+| `skill`                      | `SkillToolDiff`                                 | `always-open`  | N/A           | 0 (none)         | 15               |
+| `store_memory`               | `StoreMemoryToolDiff`                           | `expandable`   | `true`        | 0 (none)         | 15               |
 | `task`                       | `TaskToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 10               |
 | `edit`, `write`              | `EditToolDiff`                                  | `expandable`   | `true`        | 20               | 20               |
 | `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 30               |
@@ -162,7 +178,7 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | `delete`                     | `DeleteToolDiff`                                | `expandable`   | `false`       | 50 (default)     | 100              |
 | `compaction`                 | `CompactionToolDiff`                            | `always-open`  | N/A           | 0 (none)         | 110              |
 
-> **Note:** `task_complete` and `exit_plan_mode` and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
+> **Note:** `skill`, `task_complete`, `exit_plan_mode`, and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
 
 ### Compaction pattern
 
@@ -180,6 +196,8 @@ Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). E
 | `grep`/`glob`    | violet                        |
 | `delete`         | red                           |
 | `todowrite`      | amber                         |
+| `store_memory`   | violet                        |
+| `skill`          | sky                           |
 | `task`           | violet                        |
 | `question`       | pink                          |
 | `exit_plan_mode` | amber (self-contained card)   |

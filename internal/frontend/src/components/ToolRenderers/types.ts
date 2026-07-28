@@ -41,4 +41,5 @@ export interface ToolRendererDefinition {
   priority?: number;
   truncateOutput?: number;
   cardClassName?: string;
+  suppressCopy?: boolean;
 }
