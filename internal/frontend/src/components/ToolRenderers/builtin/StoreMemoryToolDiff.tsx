@@ -36,9 +36,9 @@ export function StoreMemoryToolDiff({ tool, variant }: ToolRendererProps) {
   if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-        <BrainCircuit size={14} className="text-violet-400 shrink-0" />
-        <span className="text-violet-400 font-semibold shrink-0">Memory:</span>
-        <span className="text-ov-text-secondary truncate min-w-0">
+        <BrainCircuit size={12} className="text-accent shrink-0" />
+        <span className="text-ov-text-secondary/70 shrink-0">memory:</span>
+        <span className="text-ov-text truncate min-w-0">
           {subject.slice(0, 80) || "store_memory"}
         </span>
         {scope && <span dangerouslySetInnerHTML={{ __html: scopeBadge(scope) }} />}
