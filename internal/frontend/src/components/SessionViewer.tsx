@@ -12,6 +12,7 @@ import {
   Copy,
   BarChart3,
   Terminal,
+  MessageSquarePlus,
 } from "lucide-react";
 import { Effect } from "effect";
 import type { Session, Message } from "../hooks/useApi";
@@ -30,6 +31,7 @@ import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
 import { ResumeButton } from "./ResumeButton";
+import { AddPromptDialog } from "./AddPromptDialog";
 
 export type Tab =
   | "session"
@@ -43,6 +45,7 @@ export type Tab =
 interface SessionViewerProps {
   session: Session;
   childSessions?: Session[];
+  sessions?: Session[];
   liveChangedIds: Set<string>;
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
@@ -67,6 +70,7 @@ interface SessionViewerProps {
   onClearFocus?: () => void;
   searchHighlightQuery?: string | null;
   onNavigateToMessage?: (messageIndex: number) => void;
+  onQueueChanged?: () => void;
 }
 
 const MAIN_TABS: {
@@ -84,6 +88,7 @@ const MAIN_TABS: {
 export function SessionViewer({
   session,
   childSessions,
+  sessions,
   liveChangedIds,
   activeTab: activeTabProp,
   onTabChange,
@@ -103,6 +108,7 @@ export function SessionViewer({
   onClearFocus,
   searchHighlightQuery,
   onNavigateToMessage,
+  onQueueChanged,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -120,6 +126,7 @@ export function SessionViewer({
   const [deleteConfirmFileId, setDeleteConfirmFileId] = useState<string | null>(null);
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [queueDialogOpen, setQueueDialogOpen] = useState(false);
 
   const cancelLoadRef = useRef<(() => void) | null>(null);
 
@@ -310,6 +317,14 @@ export function SessionViewer({
           </button>
         )}
         <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setQueueDialogOpen(true)}
+            className="size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+            title="Queue a prompt for this session"
+          >
+            <MessageSquarePlus size={14} />
+          </button>
           <ResumeButton sessionId={session.id} />
           {!session.parentId && (
             <button
@@ -346,6 +361,7 @@ export function SessionViewer({
             focusMessageId={focusMessageId}
             onClearFocus={onClearFocus}
             searchHighlightQuery={searchHighlightQuery ?? undefined}
+            onQueueChanged={onQueueChanged}
           />
         </div>
         {(diffLoaded || activeTab === "diff") && (
@@ -404,6 +420,17 @@ export function SessionViewer({
             );
           })()}
       </div>
+
+      {queueDialogOpen && sessions && (
+        <AddPromptDialog
+          sessions={sessions}
+          sessionId={session.id}
+          onClose={() => setQueueDialogOpen(false)}
+          onCreated={() => {
+            onQueueChanged?.();
+          }}
+        />
+      )}
 
       {/* Markdown modal */}
       <Modal

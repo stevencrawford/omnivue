@@ -11,6 +11,7 @@ import { OverviewScreen } from "./components/OverviewScreen";
 import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/EmptyState";
 import { PinMessageModal } from "./components/PinMessageModal";
+import { AddPromptDialog } from "./components/AddPromptDialog";
 import type { Tab } from "./components/SessionViewer";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
@@ -21,13 +22,14 @@ import { useSearchScope } from "./hooks/useSearchScope";
 import { useSearchState } from "./hooks/useSearchState";
 import { useRecentSearches } from "./hooks/useRecentSearches";
 import { useBookmarks } from "./hooks/useBookmarks";
-import { useSessions } from "./hooks/useSessions";
+import { useSessions, setOnPromptQueueChanged } from "./hooks/useSessions";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
 import type { AppNotification, NotificationSettings } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
+import { fetchPrompts } from "./hooks/apiClient";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -76,6 +78,31 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [sessionQueueCount, setSessionQueueCount] = useState<Record<string, number>>({});
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  // Wire into SSE prompt-queue-changed events
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const prompts = await fetchPrompts("queued");
+        setQueueCount(prompts.length);
+        const perSession: Record<string, number> = {};
+        for (const p of prompts) {
+          if (p.sessionId) {
+            perSession[p.sessionId] = (perSession[p.sessionId] || 0) + 1;
+          }
+        }
+        setSessionQueueCount(perSession);
+      } catch {
+        /* ignore */
+      }
+    };
+    setOnPromptQueueChanged(fetchCount);
+    fetchCount();
+    return () => setOnPromptQueueChanged(null);
+  }, []);
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -152,6 +179,7 @@ export function App() {
     setFocusMessageIndex,
     setShowOverview,
     onOpenShortcuts: () => setShortcutsOpen(true),
+    onOpenQuickAdd: () => setQuickAddOpen(true),
   };
   useAppKeyboard(keyboardConfig);
 
@@ -311,6 +339,7 @@ export function App() {
               setSearchHighlightQuery(null);
               setFocusMessageIndex(undefined);
             }}
+            onOpenQuickAdd={() => setQuickAddOpen(true)}
           />
 
           {searchOpen && (
@@ -368,6 +397,9 @@ export function App() {
                   onNotificationClick={handleNotificationClick}
                   onMarkAllNotificationsRead={markAllNotificationsRead}
                   onClearNotifications={clearAllNotifications}
+                  queueCount={queueCount}
+                  sessionQueueCount={sessionQueueCount}
+                  onQueueChanged={() => {}}
                 />
               </ErrorBoundary>
 
@@ -378,6 +410,7 @@ export function App() {
                       <SessionViewer
                         key={activeSession.id}
                         session={activeSession}
+                        sessions={sessions}
                         childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
                         liveChangedIds={liveChangedIds}
                         activeTab={activeTab}
@@ -398,6 +431,7 @@ export function App() {
                         onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
                         onNavigateToMessage={handleDiffNavigateToMessage}
+                        onQueueChanged={() => {}}
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>
@@ -439,6 +473,16 @@ export function App() {
             onCancel={handleCancelPin}
             onConfirm={() => handleConfirmPin(handlePinAsScratch)}
           />
+
+          {quickAddOpen && (
+            <AddPromptDialog
+              sessions={sessions}
+              onClose={() => setQuickAddOpen(false)}
+              onCreated={() => {
+                setQuickAddOpen(false);
+              }}
+            />
+          )}
 
           <NotificationToaster
             notifications={notifications}

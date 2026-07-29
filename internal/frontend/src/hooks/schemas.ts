@@ -297,3 +297,26 @@ export const NotificationSettingsSchema = z.object({
   excludeActiveView: z.boolean(),
   enabledAt: coerceNumber.optional(),
 });
+
+// ---------------------------------------------------------------------------
+// Prompt Queue
+// ---------------------------------------------------------------------------
+
+export const QueuedPromptSchema = z.object({
+  id: z.string(),
+  sessionId: z.string().nullable().optional(),
+  sourceId: z.string().nullable().optional(),
+  promptText: z.string(),
+  status: z.enum(["queued", "dispatched", "cancelled"]),
+  priority: z.number(),
+  tags: z.string(),
+  createdAt: z.number(),
+  dispatchedAt: z.number().nullable().optional(),
+});
+
+export const QueuedPromptsSchema = z.array(QueuedPromptSchema);
+
+export const DispatchResponseSchema = z.object({
+  status: z.string(),
+  promptText: z.string(),
+});

@@ -1324,6 +1324,12 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("POST /_/api/notifications/active-view", handleActiveView(state))
 	mux.HandleFunc("GET /_/api/notifications/settings", handleGetNotifySettings(state))
 	mux.HandleFunc("PUT /_/api/notifications/settings", handleSetNotifySettings(state))
+	mux.HandleFunc("GET /_/api/prompts", handleListPrompts(state))
+	mux.HandleFunc("POST /_/api/prompts", handleCreatePrompt(state))
+	mux.HandleFunc("PATCH /_/api/prompts/{id}", handleUpdatePrompt(state))
+	mux.HandleFunc("DELETE /_/api/prompts/{id}", handleDeletePrompt(state))
+	mux.HandleFunc("POST /_/api/prompts/{id}/dispatch", handleDispatchPrompt(state))
+	mux.HandleFunc("POST /_/api/prompts/batch", handleBatchDeletePrompts(state))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
 	mux.HandleFunc("POST /_/api/reset", handleReset(state))
@@ -2325,6 +2331,215 @@ func handleSetNotifySettings(state *State) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(settings); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+// --- Prompt Queue handlers ---
+
+func handleListPrompts(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode([]store.QueuedPrompt{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
+			return
+		}
+		status := r.URL.Query().Get("status")
+		sessionID := r.URL.Query().Get("session_id")
+		limit := 100
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+		prompts, err := state.store.ListPrompts(status, sessionID, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(prompts) == 0 {
+			prompts = []store.QueuedPrompt{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(prompts); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleCreatePrompt(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		var body struct {
+			SessionID  *string  `json:"sessionId"`
+			SourceID   *string  `json:"sourceId"`
+			PromptText string   `json:"promptText"`
+			Priority   int      `json:"priority"`
+			Tags       []string `json:"tags"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.PromptText == "" {
+			http.Error(w, "promptText is required", http.StatusBadRequest)
+			return
+		}
+		tagsJSON := "[]"
+		if len(body.Tags) > 0 {
+			data, err := json.Marshal(body.Tags)
+			if err == nil {
+				tagsJSON = string(data)
+			}
+		}
+		p := store.QueuedPrompt{
+			ID:         fmt.Sprintf("qp_%d", time.Now().UnixNano()),
+			SessionID:  body.SessionID,
+			SourceID:   body.SourceID,
+			PromptText: body.PromptText,
+			Status:     "queued",
+			Priority:   body.Priority,
+			Tags:       tagsJSON,
+			CreatedAt:  time.Now().UnixMilli(),
+		}
+		if err := state.store.CreatePrompt(p); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.sendEvent(sseEvent{Name: "prompt-queue-changed"})
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(p); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleUpdatePrompt(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		id := r.PathValue("id")
+		var body struct {
+			PromptText *string  `json:"promptText"`
+			Priority   *int     `json:"priority"`
+			Tags       []string `json:"tags"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		existing, err := state.store.Prompt(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if existing == nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		promptText := existing.PromptText
+		if body.PromptText != nil {
+			promptText = *body.PromptText
+		}
+		priority := existing.Priority
+		if body.Priority != nil {
+			priority = *body.Priority
+		}
+		tags := existing.Tags
+		if len(body.Tags) > 0 {
+			data, err := json.Marshal(body.Tags)
+			if err == nil {
+				tags = string(data)
+			}
+		}
+		if err := state.store.UpdatePromptContent(id, promptText, tags, priority); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.sendEvent(sseEvent{Name: "prompt-queue-changed"})
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleDeletePrompt(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		id := r.PathValue("id")
+		if err := state.store.DeletePrompt(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.sendEvent(sseEvent{Name: "prompt-queue-changed"})
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleDispatchPrompt(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		id := r.PathValue("id")
+		existing, err := state.store.Prompt(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if existing == nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		now := time.Now().UnixMilli()
+		if err := state.store.UpdatePromptStatus(id, "dispatched", &now); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.sendEvent(sseEvent{Name: "prompt-queue-changed"})
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{"status": "ok", "promptText": existing.PromptText}); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
+	}
+}
+
+func handleBatchDeletePrompts(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			http.Error(w, "store not available", http.StatusInternalServerError)
+			return
+		}
+		var body struct {
+			IDs []string `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := state.store.BatchDeletePrompts(body.IDs); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.sendEvent(sseEvent{Name: "prompt-queue-changed"})
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 			slog.Warn("failed to encode response", "error", err)
 		}
 	}
