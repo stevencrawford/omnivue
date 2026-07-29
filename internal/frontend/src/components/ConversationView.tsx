@@ -24,13 +24,18 @@ function groupMessages(messages: Message[]): Message[] {
       if (tools.length > 0 && !shouldShowStepContent(msg.content ?? "", tools)) {
         const last = result[result.length - 1];
         if (last && last.role === "assistant" && last.toolCalls && last.toolCalls.length > 0) {
-          last.toolCalls = [...last.toolCalls, ...tools];
-          if (msg.reasoning) {
-            last.reasoning = last.reasoning
-              ? last.reasoning + "\n\n" + msg.reasoning
-              : msg.reasoning;
+          if (last.toolCalls.some((tc) => tc.name === "question")) {
+            // Don't merge into a message with a question tool call
+            // so question + answer + follow-up remain distinct
+          } else {
+            last.toolCalls = [...last.toolCalls, ...tools];
+            if (msg.reasoning) {
+              last.reasoning = last.reasoning
+                ? last.reasoning + "\n\n" + msg.reasoning
+                : msg.reasoning;
+            }
+            continue;
           }
-          continue;
         }
         // Merge tool-call message into the preceding reasoning-only assistant message
         if (
