@@ -27,6 +27,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var subAgentStack []*subAgentState
 	var todoState = newTodoState()
 	var shutdownSnapshots []shutdownSnapshot
+	var pendingReasoning string
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
@@ -45,6 +46,10 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 
 		case "user.message":
 			if msg := handleUserMessage(event); msg != nil {
+				if cleaned, ok := stripSystemReminder(msg.Content); ok {
+					msg.Content = cleaned
+					msg.Metadata = map[string]string{"type": "system_reminder_inline"}
+				}
 				if len(subAgentStack) > 0 {
 					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
 				} else {
@@ -53,7 +58,24 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 			}
 
 		case "assistant.message":
+			var asstData assistantMessageData
+			if json.Unmarshal(event.Data, &asstData) != nil {
+				break
+			}
+			if asstData.Phase == "thinking" && asstData.Content != "" {
+				if pendingReasoning == "" {
+					pendingReasoning = asstData.Content
+				}
+				break
+			}
 			if msg := handleAssistantMessage(event, currentModel); msg != nil {
+				switch {
+				case asstData.ReasoningText != "":
+					msg.Reasoning = asstData.ReasoningText
+				case pendingReasoning != "":
+					msg.Reasoning = pendingReasoning
+					pendingReasoning = ""
+				}
 				for i := range msg.ToolCalls {
 					normalizeSQLToTodoWrite(&msg.ToolCalls[i], todoState)
 				}
@@ -123,7 +145,51 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 		}
 	}
 
+	messages = mergeSkillFollowUps(messages)
 	return messages, scanner.Err()
+}
+
+// mergeSkillFollowUps merges the text content of an assistant message that
+// immediately follows a message containing a skill tool call into the skill
+// tool call's Output. The follow-up message is then removed from the result.
+func mergeSkillFollowUps(messages []ingest.Message) []ingest.Message {
+	if len(messages) < 2 {
+		return messages
+	}
+	result := make([]ingest.Message, 0, len(messages))
+	skipNext := false
+	for i := range messages {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		msg := messages[i]
+		hasSkill := false
+		for j := range msg.ToolCalls {
+			if msg.ToolCalls[j].Name == "skill" {
+				hasSkill = true
+				break
+			}
+		}
+		if hasSkill && i+1 < len(messages) {
+			next := messages[i+1]
+			if next.Role == ingest.MessageRoleAssistant && len(next.ToolCalls) == 0 && next.Content != "" {
+				for j := range msg.ToolCalls {
+					if msg.ToolCalls[j].Name == "skill" {
+						if msg.ToolCalls[j].Output != "" {
+							msg.ToolCalls[j].Output += "\n\n" + next.Content
+						} else {
+							msg.ToolCalls[j].Output = next.Content
+						}
+						break
+					}
+				}
+				skipNext = true
+			}
+		}
+		result = append(result, msg)
+	}
+	return result
 }
 
 func handleModelChange(event eventEnvelope) string {
@@ -352,6 +418,21 @@ func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 			}
 		}
 	}
+}
+
+// stripSystemReminder detects user messages containing <system_reminder> tags
+// (e.g. injected by Copilot for MCP server configuration) and strips them,
+// returning the cleaned content. If no tags are found, ok is false.
+func stripSystemReminder(content string) (string, bool) {
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasPrefix(trimmed, "<system_reminder>") {
+		return content, false
+	}
+	cleaned := trimmed
+	cleaned = strings.TrimPrefix(cleaned, "<system_reminder>")
+	cleaned = strings.TrimSuffix(cleaned, "</system_reminder>")
+	cleaned = strings.TrimSpace(cleaned)
+	return cleaned, true
 }
 
 // extractCopilotPatchPath extracts the file path from apply_patch text.

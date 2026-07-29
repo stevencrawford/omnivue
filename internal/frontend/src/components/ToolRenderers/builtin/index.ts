@@ -20,6 +20,7 @@ import { ExitPlanModeToolDiff } from "./ExitPlanModeToolDiff";
 import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
 import { WebFetchToolDiff } from "./WebFetchToolDiff";
 import { WebSearchToolDiff } from "./WebSearchToolDiff";
+import { StoreMemoryToolDiff } from "./StoreMemoryToolDiff";
 import { DefaultToolDiff } from "./DefaultToolDiff";
 
 function fp(tool: ToolCall): string {
@@ -378,5 +379,21 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: "Permissions",
     markerDisplayType: "permission",
     markerPriority: 35,
+  },
+  {
+    kind: "store_memory",
+    names: ["store_memory"],
+    Component: StoreMemoryToolDiff,
+    summary: (tool) => {
+      const s = extractJSONField(tool.input, "subject") || "";
+      return `memory: ${s.slice(0, 80)}`;
+    },
+    display: { type: "expandable", defaultOpen: true },
+    truncateOutput: 0,
+    suppressCopy: true,
+    markerColor: "#8b5cf6",
+    markerLabel: "Memory",
+    markerDisplayType: "memory",
+    markerPriority: 15,
   },
 ];

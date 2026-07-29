@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="site/images/omnivue-sessions-view.jpg" alt="Omnivue sessions view" width="700" />
+  <img src="site/images/showcase.jpg" alt="Omnivue sessions view" width="700" />
 </p>
 
 ---
@@ -50,31 +50,50 @@ Omnivue keeps your workflow on your machine:
 - **Read-only adapters** — Agent databases are opened in read-only mode and never modified
 - **localhost UI** — The browser app runs against a local server on your machine
 
-## Quick Start
+## Getting Started
+
+### 1. Pre-built binary (recommended)
+
+**macOS (Apple Silicon)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
+```
+
+**macOS (Intel)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_amd64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
+```
+
+**Linux (amd64)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
+```
+
+**Linux (arm64)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_arm64.tar.gz | tar xz
+```
+
+**Windows (amd64)**
+```bash
+curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
+```
+
+### 2. Build from source
+
+Requires Go 1.26+, [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
+
+```bash
+git clone https://github.com/stevencrawford/omnivue.git
+cd omnivue
+make build
+./omnivue --foreground --port 16275
+```
+
+### Post-install
 
 ```console
-$ omnivue init
-$ omnivue
-```
-
-## Installation
-
-### From source
-
-Requires Go 1.26+ and [pnpm](https://pnpm.io/).
-
-```bash
-make build
-```
-
-### Binary
-
-```bash
-# macOS (arm64)
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-
-# Linux (amd64)
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
+$ ./omnivue
 ```
 
 ## Keyboard shortcuts

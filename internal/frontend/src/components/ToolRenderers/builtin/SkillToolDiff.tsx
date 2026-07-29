@@ -11,7 +11,7 @@ interface SkillInput {
 export function SkillToolDiff({
   tool,
   variant,
-  onOpenModal: _onOpenModal,
+  onOpenModal,
   onPin,
   onBookmark,
   isBookmarked,
@@ -27,13 +27,23 @@ export function SkillToolDiff({
 
   const name = input.name || input.skill || "";
   const description = input.description || "";
+  const modalContent = [description, tool.output].filter(Boolean).join("\n\n");
 
   if (variant === "summary") {
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <GraduationCap size={12} className="text-sky-400 shrink-0" />
         <span className="text-ov-text-secondary/70 shrink-0">skill:</span>
-        <span className="text-ov-text truncate min-w-0">
+        <span
+          className="text-ov-text truncate min-w-0 cursor-pointer hover:underline hover:text-sky-400"
+          title={name || description || "Loading skill"}
+          onClick={(e) => {
+            if (modalContent && onOpenModal) {
+              e.stopPropagation();
+              onOpenModal(modalContent, name || "Skill");
+            }
+          }}
+        >
           {name || description || "Loading skill"}
         </span>
       </div>

@@ -87,3 +87,25 @@ type embeddedToolResult struct {
 	Content   json.RawMessage `json:"content"`
 	IsError   *bool           `json:"is_error,omitempty"`
 }
+
+// sessionIndexEntry represents a single entry in sessions-index.json.
+// Claude Code writes this index when sessions are saved/closed.
+type sessionIndexEntry struct {
+	SessionID    string `json:"sessionId"`
+	FullPath     string `json:"fullPath"`
+	FileMtime    int64  `json:"fileMtime"`
+	FirstPrompt  string `json:"firstPrompt"`
+	Summary      string `json:"summary"`
+	MessageCount int    `json:"messageCount"`
+	Created      string `json:"created"`
+	Modified     string `json:"modified"`
+	GitBranch    string `json:"gitBranch"`
+	ProjectPath  string `json:"projectPath"`
+	IsSidechain  bool   `json:"isSidechain"`
+}
+
+type sessionIndex struct {
+	Version      int                 `json:"version"`
+	Entries      []sessionIndexEntry `json:"entries"`
+	OriginalPath string              `json:"originalPath"`
+}

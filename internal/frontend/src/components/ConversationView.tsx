@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
-import { CirclePlus, ChevronDown, ChevronUp, TriangleAlert, ArrowRight } from "lucide-react";
+import { CirclePlus, ChevronDown, ChevronUp, TriangleAlert, ArrowRight, Info } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 
+import { MarkdownContent } from "./MarkdownContent";
 import { SystemReminderView } from "./SystemReminderView";
 import { UserTurnView } from "./UserTurnMessage";
 import { AssistantMessageView } from "./AssistantMessage";
@@ -23,13 +24,18 @@ function groupMessages(messages: Message[]): Message[] {
       if (tools.length > 0 && !shouldShowStepContent(msg.content ?? "", tools)) {
         const last = result[result.length - 1];
         if (last && last.role === "assistant" && last.toolCalls && last.toolCalls.length > 0) {
-          last.toolCalls = [...last.toolCalls, ...tools];
-          if (msg.reasoning) {
-            last.reasoning = last.reasoning
-              ? last.reasoning + "\n\n" + msg.reasoning
-              : msg.reasoning;
+          if (last.toolCalls.some((tc) => tc.name === "question")) {
+            // Don't merge into a message with a question tool call
+            // so question + answer + follow-up remain distinct
+          } else {
+            last.toolCalls = [...last.toolCalls, ...tools];
+            if (msg.reasoning) {
+              last.reasoning = last.reasoning
+                ? last.reasoning + "\n\n" + msg.reasoning
+                : msg.reasoning;
+            }
+            continue;
           }
-          continue;
         }
         // Merge tool-call message into the preceding reasoning-only assistant message
         if (
@@ -97,6 +103,36 @@ function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SystemReminderInline({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="mb-3">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-px bg-gray-500/20" />
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap hover:text-gray-300 transition-colors cursor-pointer"
+        >
+          <Info size={12} className="text-gray-400 shrink-0" />
+          <span>SYSTEM REMINDER</span>
+          {expanded ? (
+            <ChevronUp size={10} className="text-gray-400" />
+          ) : (
+            <ChevronDown size={10} className="text-gray-400" />
+          )}
+        </button>
+        <div className="flex-1 h-px bg-gray-500/20" />
+      </div>
+      {expanded && (
+        <div className="mt-1 pl-1">
+          <MarkdownContent content={content} className="markdown-body--wide" />
+        </div>
+      )}
     </div>
   );
 }
@@ -228,7 +264,6 @@ export function ConversationView({
                   key={msg.id}
                   content={msg.content}
                   fileName={msg.metadata?.file || "AGENTS.md"}
-                  onOpenModal={onOpenModal}
                 />
               ))}
             </div>
@@ -340,6 +375,10 @@ function MessageBlock({
         </div>
       );
     }
+    const isInlineReminder = message.metadata?.type === "system_reminder_inline";
+    if (isInlineReminder) {
+      return <SystemReminderInline content={message.content} />;
+    }
     return (
       <UserTurnView
         content={message.content}
@@ -362,7 +401,6 @@ function MessageBlock({
         <SystemReminderView
           content={message.content}
           fileName={message.metadata?.file || "AGENTS.md"}
-          onOpenModal={onOpenModal}
         />
       );
     }

@@ -6,6 +6,7 @@ import {
   ShieldAlert,
   Wrench,
   Activity,
+  ListTodo,
 } from "lucide-react";
 import type { AppNotification } from "../hooks/types";
 
@@ -28,6 +29,8 @@ function timeAgo(ms: number): string {
 
 function kindIcon(kind: AppNotification["kind"]) {
   switch (kind) {
+    case "exit_plan_mode":
+      return <ListTodo className="size-3.5 text-amber-500" />;
     case "question":
       return <AlertCircle className="size-3.5 text-pink-400" />;
     case "permission_request":

@@ -2,18 +2,6 @@ package codex
 
 import "strings"
 
-func extractFilePathFromPatch(patch string) string {
-	for _, prefix := range []string{"*** Add File: ", "*** Modify File: ", "*** Update File: ", "--- Add File: ", "--- Modify File: ", "--- Update File: "} {
-		if _, after, found := strings.Cut(patch, prefix); found {
-			if nl := strings.IndexAny(after, "\n\r"); nl >= 0 {
-				return strings.TrimSpace(after[:nl])
-			}
-			return strings.TrimSpace(after)
-		}
-	}
-	return ""
-}
-
 func parseRawPatch(input string) rawPatchResult {
 	filePath := ""
 	var contentLines []string

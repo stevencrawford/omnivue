@@ -45,6 +45,13 @@ export interface Source {
   createdAt: string;
 }
 
+export interface DiscoveredSource {
+  path: string;
+  agentType: string;
+  label: string;
+  sessions: number;
+}
+
 export interface StepEvent {
   step: "start" | "finish";
   snapshot?: string;
@@ -125,6 +132,8 @@ export interface FileEdit {
   content?: string;
   viewRange?: [number, number];
   timestamp: string;
+  messageIndex?: number;
+  messageId?: string;
 }
 
 export interface SearchResult {
@@ -163,6 +172,7 @@ export interface Bookmark {
 export type NotificationKind =
   | "question"
   | "permission_request"
+  | "exit_plan_mode"
   | "task_complete"
   | "new_messages"
   | "new_tool_call"

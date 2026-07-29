@@ -163,6 +163,40 @@ func TestClassify_TaskComplete(t *testing.T) {
 	}
 }
 
+func TestClassify_ExitPlanMode(t *testing.T) {
+	msgs := []ingest.Message{
+		msg("m1", "plan summary", time.UnixMilli(2000), tool("exit_plan_mode", "tc-epm", `{"summary":"refactor the widget"}`)),
+	}
+	settings := enabledSettings(KindExitPlanMode)
+	cands := Classify("", "active", msgs, 0, settings)
+	if len(cands) != 1 || cands[0].Kind != KindExitPlanMode {
+		t.Fatalf("expected one exit_plan_mode candidate, got %v", cands)
+	}
+	c := cands[0]
+	if c.DedupKey != "tc-epm" {
+		t.Errorf("expected dedup tc-epm, got %s", c.DedupKey)
+	}
+	if c.Severity != SeverityAttention {
+		t.Errorf("expected attention severity, got %s", c.Severity)
+	}
+	if c.Preview != "refactor the widget" {
+		t.Errorf("expected preview 'refactor the widget', got %s", c.Preview)
+	}
+}
+
+func TestClassify_ExitPlanModeDisabled(t *testing.T) {
+	msgs := []ingest.Message{
+		msg("m1", "x", time.UnixMilli(2000), tool("exit_plan_mode", "tc-epm", "")),
+	}
+	settings := enabledSettings(KindQuestion) // exit_plan_mode not enabled
+	cands := Classify("", "active", msgs, 0, settings)
+	for _, c := range cands {
+		if c.Kind == KindExitPlanMode {
+			t.Fatalf("exit_plan_mode candidate emitted despite not being enabled")
+		}
+	}
+}
+
 func TestClassify_NewToolCallSkipsQuestionAndTask(t *testing.T) {
 	msgs := []ingest.Message{
 		msg("m1", "x", time.UnixMilli(2000),

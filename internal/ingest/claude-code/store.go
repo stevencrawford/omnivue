@@ -9,6 +9,19 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
+const maxTitleLen = 80
+
+func truncateTitle(s string) string {
+	if idx := strings.Index(s, "\n"); idx >= 0 {
+		s = s[:idx]
+	}
+	s = strings.TrimSpace(s)
+	if len(s) > maxTitleLen {
+		s = s[:maxTitleLen] + "..."
+	}
+	return s
+}
+
 func (a *Adapter) findSlugFromSession(fpath string) string {
 	f, err := os.Open(fpath)
 	if err != nil {
@@ -68,4 +81,21 @@ func resolveParentSessionID(sessionID string) string {
 		return sessionID[:idx]
 	}
 	return sessionID
+}
+
+func (a *Adapter) loadSessionIndex(projectPath string) map[string]sessionIndexEntry {
+	indexPath := filepath.Join(projectPath, "sessions-index.json")
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil
+	}
+	var idx sessionIndex
+	if err := json.Unmarshal(data, &idx); err != nil {
+		return nil
+	}
+	m := make(map[string]sessionIndexEntry, len(idx.Entries))
+	for _, e := range idx.Entries {
+		m[e.SessionID] = e
+	}
+	return m
 }

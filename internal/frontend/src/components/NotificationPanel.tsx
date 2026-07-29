@@ -21,6 +21,7 @@ const ACTIVITY_KINDS = new Set([
   "status_completed",
   "status_error",
   "task_complete",
+  "exit_plan_mode",
 ]);
 
 const FILTER_OPTIONS: { value: Filter; label: string }[] = [

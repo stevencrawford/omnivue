@@ -101,6 +101,14 @@ export const SourceSchema = z.object({
 
 export const SourcesSchema = z.array(SourceSchema);
 
+const DiscoveredSourceSchema = z.object({
+  path: z.string(),
+  agentType: z.string(),
+  label: z.string(),
+  sessions: z.number(),
+});
+export const DiscoveredSourcesSchema = z.array(DiscoveredSourceSchema);
+
 // ---------------------------------------------------------------------------
 // Plan
 // ---------------------------------------------------------------------------
@@ -136,6 +144,8 @@ const FileEditSchema = z.object({
   content: optionalString,
   viewRange: z.tuple([coerceNumber, coerceNumber]).optional(),
   timestamp: z.string(),
+  messageIndex: z.number().int().optional(),
+  messageId: z.string().optional(),
 });
 
 export const FileEditsSchema = z.array(FileEditSchema);
@@ -247,6 +257,7 @@ export const ResumeCommandSchema = z.object({
 export const NotificationKindSchema = z.enum([
   "question",
   "permission_request",
+  "exit_plan_mode",
   "task_complete",
   "new_messages",
   "new_tool_call",
