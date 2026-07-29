@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { CircleHelp, CircleCheckBig } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CircleHelp, CircleCheckBig, ChevronRight } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
@@ -119,13 +119,28 @@ export function QuestionToolDiff({
     );
   }
 
+  const [activeTab, setActiveTab] = useState(0);
+  const showTabs = questions.length > 1;
+
+  if (showTabs && activeTab >= questions.length) {
+    setActiveTab(0);
+  }
+
+  const activeIdx = showTabs ? Math.min(activeTab, questions.length - 1) : 0;
+  const activeQ = questions[activeIdx];
+  const activeAnswer = answers[activeIdx];
+  const activeSelectedLabel = activeQ.options
+    ? findSelectedOption(activeAnswer || "", activeQ.options)
+    : null;
+  const activeFreeformText = activeAnswer && !activeSelectedLabel ? activeAnswer : null;
+
   return (
     <div className="border border-pink-500/30 rounded-lg overflow-hidden bg-pink-500/[0.03] mb-3">
       <div className="px-4 py-3">
         <div className="flex items-center gap-2.5">
           <CircleHelp size={20} className="text-pink-400 shrink-0" />
           <span className="font-semibold text-[13px] text-pink-400">
-            {questions.length === 1 ? "Question" : `${questions.length} Questions`}
+            {showTabs ? "Questions" : "Question"}
           </span>
           <div className="ml-auto">
             <ToolActionsBar
@@ -138,61 +153,79 @@ export function QuestionToolDiff({
             />
           </div>
         </div>
-        <div className="mt-2 text-[13px] space-y-4">
-          {questions.map((q, qi) => {
-            const answer = answers[qi];
-            const selectedLabel = q.options ? findSelectedOption(answer || "", q.options) : null;
-            const freeformText = answer && !selectedLabel ? answer : null;
-            return (
-              <div key={qi}>
-                {q.question && (
-                  <div className="mb-2">
-                    <MarkdownContent content={q.question} className="markdown-body--wide" />
+
+        {showTabs && (
+          <div className="flex items-center gap-1 -mx-1 mt-3 mb-2 overflow-x-auto scrollbar-none">
+            {questions.map((q, qi) => {
+              const isActive = qi === activeIdx;
+              const label = q.header || q.question || `#${qi + 1}`;
+              return (
+                <button
+                  key={qi}
+                  type="button"
+                  onClick={() => setActiveTab(qi)}
+                  className={`shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                    isActive
+                      ? "bg-pink-500/15 text-pink-400 border border-pink-500/40"
+                      : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent"
+                  }`}
+                >
+                  {label}
+                  {answers[qi] && <span className="ml-1.5 text-emerald-400">&#x2713;</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-1 text-[13px]">
+          {activeQ.question && (
+            <div className={`${showTabs ? "" : "mb-3"}`}>
+              <MarkdownContent content={activeQ.question} className="markdown-body--wide" />
+            </div>
+          )}
+          {activeQ.options && activeQ.options.length > 0 && (
+            <div className="space-y-1.5">
+              {activeQ.options.map((opt, oi) => {
+                const chosen = activeSelectedLabel === opt.label;
+                return (
+                  <div
+                    key={oi}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-[13px] border ${
+                      chosen
+                        ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-400"
+                        : "border-ov-border bg-ov-bg-secondary/30 text-ov-text-secondary"
+                    }`}
+                  >
+                    {chosen ? (
+                      <CircleCheckBig size={16} className="shrink-0 text-emerald-400" />
+                    ) : (
+                      <span className="w-4 shrink-0" />
+                    )}
+                    <span className="font-medium">{opt.label}</span>
+                    {opt.description && (
+                      <span className="text-ov-text-secondary/70 ml-1">— {opt.description}</span>
+                    )}
                   </div>
-                )}
-                {q.options && q.options.length > 0 && (
-                  <div className="space-y-1.5">
-                    {q.options.map((opt, oi) => {
-                      const chosen = selectedLabel === opt.label;
-                      return (
-                        <div
-                          key={oi}
-                          className={`flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-[13px] border ${
-                            chosen
-                              ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-400"
-                              : "border-ov-border bg-ov-bg-secondary/30 text-ov-text-secondary"
-                          }`}
-                        >
-                          {chosen ? (
-                            <CircleCheckBig size={16} className="shrink-0 text-emerald-400" />
-                          ) : (
-                            <span className="w-4 shrink-0" />
-                          )}
-                          <span className="font-medium">{opt.label}</span>
-                          {opt.description && (
-                            <span className="text-ov-text-secondary/70 ml-1">
-                              — {opt.description}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {freeformText && (
-                  <div className="mt-2 pt-2 border-t border-pink-500/20">
-                    <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
-                      Response
-                    </div>
-                    <div className="text-[13px] text-ov-text pl-2 border-l-2 border-pink-400/40 whitespace-pre-wrap leading-relaxed">
-                      {freeformText}
-                    </div>
-                  </div>
-                )}
-                {qi < questions.length - 1 && <div className="h-px bg-pink-500/20 -mx-4 mt-4" />}
+                );
+              })}
+            </div>
+          )}
+          {activeFreeformText && (
+            <div className="mt-3 pt-3 border-t border-pink-500/20">
+              <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
+                Response
               </div>
-            );
-          })}
+              <div className="text-[13px] text-ov-text pl-2 border-l-2 border-pink-400/40 whitespace-pre-wrap leading-relaxed">
+                {activeFreeformText}
+              </div>
+            </div>
+          )}
+          {!showTabs && !activeQ.question && !activeQ.options?.length && tool.output && (
+            <div className="mt-2 pt-2 border-t border-pink-500/20">
+              <span className="text-[11px] text-emerald-400">→ {tool.output}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
