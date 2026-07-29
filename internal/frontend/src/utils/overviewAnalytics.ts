@@ -51,8 +51,8 @@ interface DateRange {
 export function filterSessionsByTimeRange(sessions: Session[], range: DateRange): Session[] {
   if (!range.start) return sessions;
   return sessions.filter((s) => {
-    const created = new Date(s.createdAt);
-    return created >= range.start! && created < range.end;
+    const ts = new Date(s.updatedAt);
+    return ts >= range.start! && ts < range.end;
   });
 }
 
@@ -87,7 +87,7 @@ export function aggregateByDay(sessions: Session[], range: DateRange): DayStats[
   }
 
   for (const s of sessions) {
-    const day = s.createdAt.slice(0, 10); // YYYY-MM-DD
+    const day = s.updatedAt.slice(0, 10); // YYYY-MM-DD
     let entry = byDay.get(day);
     if (!entry) {
       // Session falls outside the pre-filled range (shouldn't happen after filtering)
