@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CircleHelp, CircleCheckBig, ChevronRight } from "lucide-react";
+import { CircleHelp, CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
