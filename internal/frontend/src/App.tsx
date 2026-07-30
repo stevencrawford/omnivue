@@ -11,7 +11,6 @@ import { OverviewScreen } from "./components/OverviewScreen";
 import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/EmptyState";
 import { PinMessageModal } from "./components/PinMessageModal";
-import { AddPromptDialog } from "./components/AddPromptDialog";
 import type { Tab } from "./components/SessionViewer";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { ThemeProvider } from "./hooks/useTheme";
@@ -79,30 +78,24 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
-  const [sessionQueueCount, setSessionQueueCount] = useState<Record<string, number>>({});
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [promptVersion, setPromptVersion] = useState(0);
+  const [highlightPromptId, setHighlightPromptId] = useState<string | null>(null);
 
-  // Wire into SSE prompt-queue-changed events
-  useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const prompts = await fetchPrompts("queued");
-        setQueueCount(prompts.length);
-        const perSession: Record<string, number> = {};
-        for (const p of prompts) {
-          if (p.sessionId) {
-            perSession[p.sessionId] = (perSession[p.sessionId] || 0) + 1;
-          }
-        }
-        setSessionQueueCount(perSession);
-      } catch {
-        /* ignore */
-      }
-    };
-    setOnPromptQueueChanged(fetchCount);
-    fetchCount();
-    return () => setOnPromptQueueChanged(null);
+  const fetchQueueCount = useCallback(async () => {
+    try {
+      const prompts = await fetchPrompts("queued");
+      setQueueCount(prompts.length);
+      setPromptVersion((v) => v + 1);
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    setOnPromptQueueChanged(fetchQueueCount);
+    fetchQueueCount();
+    return () => setOnPromptQueueChanged(null);
+  }, [fetchQueueCount]);
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -179,7 +172,6 @@ export function App() {
     setFocusMessageIndex,
     setShowOverview,
     onOpenShortcuts: () => setShortcutsOpen(true),
-    onOpenQuickAdd: () => setQuickAddOpen(true),
   };
   useAppKeyboard(keyboardConfig);
 
@@ -209,6 +201,7 @@ export function App() {
   // ---- Navigation handlers ----
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
+      setHighlightPromptId(null);
       setShowOverview(false);
       setActiveSessionId(sessionId);
       setFocusStepIndex(undefined);
@@ -251,6 +244,15 @@ export function App() {
     [notifications, markNotificationRead],
   );
 
+  const handlePromptClick = useCallback(
+    (sessionId: string, promptId: string) => {
+      handleSessionSelect(sessionId);
+      setHighlightPromptId(promptId);
+      setTimeout(() => setHighlightPromptId(null), 800);
+    },
+    [handleSessionSelect],
+  );
+
   const handleClearFocus = useCallback(() => {
     setFocusMessageIndex(undefined);
     setFocusMessageId(undefined);
@@ -260,6 +262,7 @@ export function App() {
   const handleGoHome = useCallback(() => {
     setShowOverview(true);
     setActiveSessionId(null);
+    setHighlightPromptId(null);
     setFocusStepIndex(undefined);
     setFocusMessageIndex(undefined);
     setSearchHighlightQuery(null);
@@ -339,7 +342,6 @@ export function App() {
               setSearchHighlightQuery(null);
               setFocusMessageIndex(undefined);
             }}
-            onOpenQuickAdd={() => setQuickAddOpen(true)}
           />
 
           {searchOpen && (
@@ -398,8 +400,8 @@ export function App() {
                   onMarkAllNotificationsRead={markAllNotificationsRead}
                   onClearNotifications={clearAllNotifications}
                   queueCount={queueCount}
-                  sessionQueueCount={sessionQueueCount}
-                  onQueueChanged={() => {}}
+                  promptVersion={promptVersion}
+                  onPromptClick={handlePromptClick}
                 />
               </ErrorBoundary>
 
@@ -410,7 +412,6 @@ export function App() {
                       <SessionViewer
                         key={activeSession.id}
                         session={activeSession}
-                        sessions={sessions}
                         childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
                         liveChangedIds={liveChangedIds}
                         activeTab={activeTab}
@@ -431,7 +432,8 @@ export function App() {
                         onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
                         onNavigateToMessage={handleDiffNavigateToMessage}
-                        onQueueChanged={() => {}}
+                        onQueueChanged={fetchQueueCount}
+                        highlightPromptId={highlightPromptId}
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>
@@ -473,16 +475,6 @@ export function App() {
             onCancel={handleCancelPin}
             onConfirm={() => handleConfirmPin(handlePinAsScratch)}
           />
-
-          {quickAddOpen && (
-            <AddPromptDialog
-              sessions={sessions}
-              onClose={() => setQuickAddOpen(false)}
-              onCreated={() => {
-                setQuickAddOpen(false);
-              }}
-            />
-          )}
 
           <NotificationToaster
             notifications={notifications}

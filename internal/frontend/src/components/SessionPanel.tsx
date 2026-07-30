@@ -33,7 +33,6 @@ interface SessionPanelProps {
   onSessionSelect: (sessionId: string) => void;
   showToast: (msg: string) => void;
   sessionUnread?: Record<string, number>;
-  sessionQueueCount?: Record<string, number>;
 }
 
 const COLLAPSED_KEY = "omnivue-sidebar-collapsed";
@@ -86,7 +85,6 @@ export function SessionPanel({
   onSessionSelect,
   showToast,
   sessionUnread = {},
-  sessionQueueCount = {},
 }: SessionPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
   const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
@@ -359,7 +357,6 @@ export function SessionPanel({
                 onContextMenu={handleContextMenu}
                 displayMode={displayMode}
                 sessionUnread={sessionUnread}
-                sessionQueueCount={sessionQueueCount}
               />
             ))}
           </div>
@@ -489,7 +486,6 @@ function RepoNode({
   onContextMenu,
   displayMode,
   sessionUnread,
-  sessionQueueCount = {},
 }: {
   node: TreeNode;
   collapsed: Set<string>;
@@ -501,7 +497,6 @@ function RepoNode({
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   sessionUnread: Record<string, number>;
-  sessionQueueCount: Record<string, number>;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
   const [showAll, setShowAll] = useState(false);
@@ -542,7 +537,6 @@ function RepoNode({
                 onContextMenu={onContextMenu}
                 displayMode={displayMode}
                 unreadCount={sessionUnread[session.id] || 0}
-                queueCount={sessionQueueCount[session.id] || 0}
               />
             );
           })}
@@ -574,7 +568,6 @@ function SessionRow({
   onContextMenu,
   displayMode,
   unreadCount = 0,
-  queueCount = 0,
   compact = false,
 }: {
   session: Session;
@@ -587,7 +580,6 @@ function SessionRow({
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   unreadCount?: number;
-  queueCount?: number;
   compact?: boolean;
 }) {
   const subCount = childNodes.length;
@@ -689,14 +681,6 @@ function SessionRow({
           {subCount > 0 && !subsVisible && (
             <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
               {subCount}
-            </span>
-          )}
-          {queueCount > 0 && (
-            <span
-              title={`${queueCount} queued prompt${queueCount > 1 ? "s" : ""}`}
-              className="shrink-0 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-blue-500 text-white"
-            >
-              {queueCount > 9 ? "9+" : queueCount}
             </span>
           )}
           {unreadCount > 0 && (

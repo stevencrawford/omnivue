@@ -28,8 +28,8 @@ interface SidebarProps {
   onMarkAllNotificationsRead: () => void;
   onClearNotifications: () => void;
   queueCount?: number;
-  sessionQueueCount?: Record<string, number>;
-  onQueueChanged?: () => void;
+  promptVersion?: number;
+  onPromptClick?: (sessionId: string, promptId: string) => void;
 }
 
 const SIDEBAR_WIDTH_KEY = "omnivue-sidebar-width";
@@ -63,8 +63,8 @@ export function Sidebar({
   onMarkAllNotificationsRead,
   onClearNotifications,
   queueCount = 0,
-  sessionQueueCount = {},
-  onQueueChanged,
+  promptVersion = 0,
+  onPromptClick,
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -143,7 +143,6 @@ export function Sidebar({
             onSessionSelect={onSessionSelect}
             showToast={showToast}
             sessionUnread={sessionUnread}
-            sessionQueueCount={sessionQueueCount}
           />
         </div>
         <div
@@ -151,8 +150,9 @@ export function Sidebar({
         >
           <QueuePanel
             sessions={sessions}
-            onQueueChanged={onQueueChanged}
+            promptVersion={promptVersion}
             onSessionSelect={onSessionSelect}
+            onPromptClick={onPromptClick}
           />
         </div>
         <div

@@ -21,7 +21,6 @@ export interface AppKeyboardConfig {
   setFocusMessageIndex: (idx: number | undefined) => void;
   setShowOverview: (v: boolean) => void;
   onOpenShortcuts?: () => void;
-  onOpenQuickAdd?: () => void;
 }
 
 export function useAppKeyboard(config: AppKeyboardConfig) {
@@ -42,7 +41,6 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     setFocusMessageIndex,
     setShowOverview,
     onOpenShortcuts,
-    onOpenQuickAdd,
   } = config;
 
   useEffect(() => {
@@ -82,13 +80,6 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
         if (isInput) return;
         e.preventDefault();
         setSidebarOpen((v: boolean) => !v);
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
-        if (isInput) return;
-        e.preventDefault();
-        onOpenQuickAdd?.();
         return;
       }
 
@@ -158,6 +149,6 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     setActiveSessionId,
     setFocusMessageIndex,
     setShowOverview,
-    onOpenQuickAdd,
+    onOpenShortcuts,
   ]);
 }

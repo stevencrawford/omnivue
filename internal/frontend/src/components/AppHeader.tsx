@@ -1,4 +1,4 @@
-import { X, MessageSquarePlus } from "lucide-react";
+import { X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface AppHeaderProps {
@@ -7,7 +7,6 @@ interface AppHeaderProps {
   onGoHome: () => void;
   onOpenSearch: () => void;
   onClearSearchHighlight: () => void;
-  onOpenQuickAdd?: () => void;
 }
 
 export function AppHeader({
@@ -16,7 +15,6 @@ export function AppHeader({
   onGoHome,
   onOpenSearch,
   onClearSearchHighlight,
-  onOpenQuickAdd,
 }: AppHeaderProps) {
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
 
@@ -85,16 +83,6 @@ export function AppHeader({
       </button>
 
       <div className="flex items-center justify-end gap-2">
-        {onOpenQuickAdd && (
-          <button
-            type="button"
-            onClick={onOpenQuickAdd}
-            className="size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            title="Quick add prompt (⌘⇧P)"
-          >
-            <MessageSquarePlus size={16} />
-          </button>
-        )}
         <ThemeToggle />
       </div>
     </header>

@@ -8,7 +8,7 @@ import { SystemReminderView } from "./SystemReminderView";
 import { UserTurnView } from "./UserTurnMessage";
 import { AssistantMessageView } from "./AssistantMessage";
 import { ScrollMarkers } from "./ScrollMarkers";
-import { PromptQueueBar } from "./PromptQueueBar";
+import { PinnedPromptBar } from "./PinnedPromptBar";
 
 import { useConversationScroll } from "../hooks/useConversationScroll";
 import { useSearchHighlight } from "../hooks/useSearchHighlight";
@@ -153,6 +153,7 @@ export function ConversationView({
   focusMessageId,
   onClearFocus,
   onQueueChanged,
+  highlightPromptId,
 }: {
   messages: Message[];
   session: Session;
@@ -174,6 +175,7 @@ export function ConversationView({
   focusMessageId?: string;
   onClearFocus?: () => void;
   onQueueChanged?: () => void;
+  highlightPromptId?: string | null;
 }) {
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
@@ -239,7 +241,13 @@ export function ConversationView({
             <p className="text-sm text-ov-text-secondary">No messages in this session</p>
           </div>
         </div>
-        <PromptQueueBar session={session} firstMessage={firstMessage} onOpenModal={onOpenModal} onQueueChanged={onQueueChanged} />
+        <PinnedPromptBar
+          session={session}
+          firstMessage={firstMessage}
+          onOpenModal={onOpenModal}
+          onQueueChanged={onQueueChanged}
+          highlightPromptId={highlightPromptId}
+        />
       </div>
     );
   }
@@ -327,7 +335,13 @@ export function ConversationView({
         />
       </div>
 
-      <PromptQueueBar session={session} firstMessage={firstMessage} onOpenModal={onOpenModal} onQueueChanged={onQueueChanged} />
+      <PinnedPromptBar
+        session={session}
+        firstMessage={firstMessage}
+        onOpenModal={onOpenModal}
+        onQueueChanged={onQueueChanged}
+        highlightPromptId={highlightPromptId}
+      />
     </div>
   );
 }

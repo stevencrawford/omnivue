@@ -1,28 +1,28 @@
 import { useState, useEffect, useCallback } from "react";
-import { ListTodo, Plus, Copy, Trash2, ExternalLink, ChevronDown, ChevronRight, Check } from "lucide-react";
+import { Copy, Trash2, Check, MessageSquare } from "lucide-react";
 import type { QueuedPrompt, Session } from "../hooks/useApi";
-import { fetchPrompts, dispatchPrompt, deletePrompt } from "../hooks/useApi";
-import { AddPromptDialog } from "./AddPromptDialog";
+import { fetchPrompts, deletePrompt } from "../hooks/useApi";
 
 interface QueuePanelProps {
   sessions: Session[];
-  onQueueChanged?: () => void;
+  promptVersion: number;
   onSessionSelect?: (sessionId: string) => void;
+  onPromptClick?: (sessionId: string, promptId: string) => void;
 }
 
-type FilterTab = "all" | "queued" | "dispatched";
-
-export function QueuePanel({ sessions, onQueueChanged, onSessionSelect }: QueuePanelProps) {
+export function QueuePanel({
+  sessions,
+  promptVersion,
+  onSessionSelect,
+  onPromptClick,
+}: QueuePanelProps) {
   const [prompts, setPrompts] = useState<QueuedPrompt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterTab>("all");
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadPrompts = useCallback(async () => {
     try {
-      const data = await fetchPrompts("", "", 200);
+      const data = await fetchPrompts("queued", "", 200);
       setPrompts(data);
     } catch {
       /* ignore */
@@ -33,47 +33,20 @@ export function QueuePanel({ sessions, onQueueChanged, onSessionSelect }: QueueP
 
   useEffect(() => {
     loadPrompts();
-  }, [loadPrompts]);
+  }, [loadPrompts, promptVersion]);
 
-  const filtered = prompts.filter((p) => {
-    if (filter === "all") return true;
-    return p.status === filter;
-  });
+  const sessionScoped = prompts.filter((p) => p.sessionId != null);
 
-  const sessionName = (sessionId: string | null | undefined): string => {
-    if (!sessionId) return "Global";
+  const sessionName = (sessionId: string): string => {
     const s = sessions.find((s) => s.id === sessionId);
     return s?.title || s?.repository || sessionId.slice(0, 8);
   };
 
-  const groupBySession = (items: QueuedPrompt[]): Array<{ label: string; prompts: QueuedPrompt[] }> => {
-    const map = new Map<string, QueuedPrompt[]>();
-    for (const p of items) {
-      const key = p.sessionId || "__global__";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(p);
-    }
-    const groups: Array<{ label: string; prompts: QueuedPrompt[] }> = [];
-    for (const [key, list] of map) {
-      groups.push({
-        label: key === "__global__" ? "Global" : sessionName(key),
-        prompts: list,
-      });
-    }
-    groups.sort((a, b) => (a.label === "Global" ? 1 : b.label === "Global" ? -1 : a.label.localeCompare(b.label)));
-    return groups;
-  };
-
-  const handleDispatch = async (prompt: QueuedPrompt) => {
+  const handleCopy = async (prompt: QueuedPrompt) => {
     try {
-      const result = await dispatchPrompt(prompt.id);
-      await navigator.clipboard.writeText(result.promptText);
+      await navigator.clipboard.writeText(prompt.promptText);
       setCopiedId(prompt.id);
-      setTimeout(() => setCopiedId(null), 2000);
-      setPrompts((prev) =>
-        prev.map((p) => (p.id === prompt.id ? { ...p, status: "dispatched" as const } : p)),
-      );
-      onQueueChanged?.();
+      setTimeout(() => setCopiedId(null), 1500);
     } catch {
       /* ignore */
     }
@@ -83,63 +56,29 @@ export function QueuePanel({ sessions, onQueueChanged, onSessionSelect }: QueueP
     try {
       await deletePrompt(id);
       setPrompts((prev) => prev.filter((p) => p.id !== id));
-      onQueueChanged?.();
     } catch {
       /* ignore */
     }
   };
 
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "queued": return "text-blue-400";
-      case "dispatched": return "text-yellow-400";
-      case "cancelled": return "text-gray-400";
-      default: return "text-gray-400";
-    }
+  const handleClick = (prompt: QueuedPrompt) => {
+    onSessionSelect?.(prompt.sessionId!);
+    onPromptClick?.(prompt.sessionId!, prompt.id);
   };
 
-  const groups = groupBySession(filtered);
-  const queuedCount = prompts.filter((p) => p.status === "queued").length;
+  const queuedCount = sessionScoped.length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <ListTodo size={14} className="text-accent" />
-          <span className="text-xs font-semibold text-ov-text">Prompt Queue</span>
-          {queuedCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">
-              {queuedCount}
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setAddDialogOpen(true)}
-          className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-          title="Add prompt"
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-
-      <div className="px-1.5 pb-1 shrink-0">
-        <div className="flex items-center gap-1 flex-wrap">
-          {(["all", "queued", "dispatched"] as FilterTab[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`text-[11px] px-2 py-0.5 rounded-full transition-colors cursor-pointer ${
-                filter === f
-                  ? "bg-accent/20 text-accent font-medium"
-                  : "text-ov-text-secondary hover:text-ov-text"
-              }`}
-            >
-              {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
+          Queue
+        </span>
+        {queuedCount > 0 && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">
+            {queuedCount}
+          </span>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -147,97 +86,63 @@ export function QueuePanel({ sessions, onQueueChanged, onSessionSelect }: QueueP
           <div className="flex items-center justify-center py-8">
             <span className="text-xs text-ov-text-secondary">Loading...</span>
           </div>
-        ) : groups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 gap-2">
-            <ListTodo size={24} className="text-ov-text-secondary/40" />
-            <span className="text-xs text-ov-text-secondary text-center">
-              {filter === "all" ? "No prompts queued yet" : `No ${filter} prompts`}
-            </span>
+        ) : sessionScoped.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <MessageSquare size={24} className="text-ov-text-secondary/40 mb-3" />
+            <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
+              No prompts queued yet. Open a session and expand the Prompt bar to queue one.
+            </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {groups.map((group) => (
-              <div key={group.label}>
-                <div className="text-[10px] font-semibold text-ov-text-secondary uppercase tracking-wider px-1 py-1">
-                  {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.prompts.map((prompt) => (
-                    <div key={prompt.id}>
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(expandedId === prompt.id ? null : prompt.id)}
-                        className="w-full flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-ov-bg-hover transition-colors text-left cursor-pointer"
-                      >
-                        <div className={`mt-0.5 ${statusColor(prompt.status)}`}>
-                          {expandedId === prompt.id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-ov-text truncate">{prompt.promptText}</div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`text-[10px] font-medium ${statusColor(prompt.status)}`}>
-                              ● {prompt.status}
-                            </span>
-                            <span className="text-[10px] text-ov-text-secondary">{timeAgo(prompt.createdAt)}</span>
-                          </div>
-                        </div>
-                      </button>
-                      {expandedId === prompt.id && (
-                        <div className="px-4 pb-1">
-                          <div className="text-xs text-ov-text whitespace-pre-wrap break-words bg-ov-bg-hover rounded-lg p-2 mb-1">
-                            {prompt.promptText}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {prompt.status === "queued" && (
-                              <button
-                                type="button"
-                                onClick={() => handleDispatch(prompt)}
-                                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded text-ov-text-secondary hover:text-accent hover:bg-accent/10 cursor-pointer transition-colors"
-                              >
-                                {copiedId === prompt.id ? <Check size={10} /> : <Copy size={10} />}
-                                {copiedId === prompt.id ? "Copied" : "Copy"}
-                              </button>
-                            )}
-                            {prompt.sessionId && onSessionSelect && (
-                              <button
-                                type="button"
-                                onClick={() => onSessionSelect(prompt.sessionId!)}
-                                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded text-ov-text-secondary hover:text-accent hover:bg-accent/10 cursor-pointer transition-colors"
-                              >
-                                <ExternalLink size={10} />
-                                Open session
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(prompt.id)}
-                              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded text-ov-text-secondary hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
-                            >
-                              <Trash2 size={10} />
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+          <div className="space-y-0.5">
+            {sessionScoped.map((prompt) => (
+              <div key={prompt.id} className="group relative">
+                <button
+                  type="button"
+                  onClick={() => handleClick(prompt)}
+                  className="w-full flex flex-col px-2 py-1.5 pr-7 rounded-lg hover:bg-ov-bg-hover transition-colors text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-xs text-ov-text truncate flex-1">
+                      {prompt.promptText}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-ov-text-secondary tabular-nums group-hover:opacity-0 transition-opacity">
+                      {timeAgo(prompt.createdAt)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-ov-text-secondary truncate mt-0.5">
+                    {sessionName(prompt.sessionId!)}
+                  </span>
+                </button>
+                <div className="hidden group-hover:flex absolute right-1.5 top-1/2 -translate-y-1/2 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopy(prompt);
+                    }}
+                    className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-accent hover:bg-accent/10 cursor-pointer transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    {copiedId === prompt.id ? <Check size={10} /> : <Copy size={10} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(prompt.id);
+                    }}
+                    className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={10} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {addDialogOpen && (
-        <AddPromptDialog
-          sessions={sessions}
-          onClose={() => setAddDialogOpen(false)}
-          onCreated={() => {
-            loadPrompts();
-            onQueueChanged?.();
-          }}
-        />
-      )}
     </div>
   );
 }
