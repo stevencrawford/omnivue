@@ -704,10 +704,10 @@ export function SettingsModal({
               </p>
 
               <p className="text-xs text-ov-text-secondary leading-relaxed mb-4">
-                Browse, search, and manage all your AI coding sessions from one place. Omnivue reads
+                View, search, and manage all your AI coding sessions from one place. Omnivue reads
                 agent session databases in read-only mode, indexes their content for full-text
                 search, and displays conversations, plans, diffs, and tool calls in a unified
-                browser UI. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
+                interface. Supports OpenCode, GitHub Copilot, Cursor, Pi, and Codex.
               </p>
 
               <div className="text-xs text-ov-text-secondary space-y-1 mb-4">
