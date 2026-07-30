@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Trash2, Plus, Loader2, TriangleAlert } from "lucide-react";
+import { Trash2, Plus, Loader2, TriangleAlert, Cloud, Check, Eye, EyeOff } from "lucide-react";
 import { Effect } from "effect";
 import { Modal } from "./Modal";
 import type { Source, DiscoveredSource, NotificationSettings } from "../hooks/types";
@@ -94,10 +94,19 @@ export function SettingsModal({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
 
+  // GitHub Cloud state
+  const [githubToken, setGithubToken] = useState("");
+  const [savedToken, setSavedToken] = useState("");
+  const [githubStatus, setGithubStatus] = useState<"idle" | "verifying" | "connected" | "error">(
+    "idle",
+  );
+  const [githubMessage, setGithubMessage] = useState("");
+  const [showToken, setShowToken] = useState(false);
+
   const { themeName, setThemeName, theme, setTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState<
-    "agent" | "notifications" | "appearance" | "privacy" | "developer" | "about"
+    "agent" | "github" | "notifications" | "appearance" | "privacy" | "developer" | "about"
   >("agent");
 
   const [hideCostsSetting, setHideCostsSetting] = useState(() => {
@@ -152,10 +161,24 @@ export function SettingsModal({
     }
   }, []);
 
+  const loadGithubToken = useCallback(async () => {
+    try {
+      const cfg = await runPromise(ConfigService.pipe(Effect.flatMap((svc) => svc.fetch())));
+      const token = cfg["github-token"] || "";
+      setSavedToken(token);
+      setGithubToken(token);
+      setGithubStatus(token ? "connected" : "idle");
+      if (token) setGithubMessage("Connected");
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       setActiveTab("agent");
       loadSources();
+      loadGithubToken();
       setAddingPath("");
       setAddingType("opencode");
       setConfirmingDeleteId(null);
@@ -164,7 +187,7 @@ export function SettingsModal({
       setResetConfirmText("");
       setPendingSources((prev) => prev.filter((p) => p.status === "loading"));
     }
-  }, [isOpen, loadSources]);
+  }, [isOpen, loadSources, loadGithubToken]);
 
   const agentTypes = useMemo(() => {
     const types = new Set(sources.map((s) => s.agentType));
@@ -254,6 +277,54 @@ export function SettingsModal({
     setRemovingId(null);
   };
 
+  const handleGithubConnect = async () => {
+    const token = githubToken.trim();
+    if (!token) return;
+    setGithubStatus("verifying");
+    setGithubMessage("");
+    try {
+      const res = await fetch("/_/api/github/verify-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        setGithubStatus("error");
+        setGithubMessage(err || "Verification failed");
+        return;
+      }
+      // Token is valid — persist it and add the cloud source
+      await runPromise(ConfigService.pipe(Effect.flatMap((svc) => svc.set("github-token", token))));
+      // Add the cloud source if not already present
+      const existing = sources.find((s) => s.agentType === "github-cloud");
+      if (!existing) {
+        await runPromise(SourceService.pipe(Effect.flatMap((svc) => svc.add("", "github-cloud"))));
+        await loadSources();
+      }
+      setSavedToken(token);
+      setGithubStatus("connected");
+      setGithubMessage("Connected successfully");
+    } catch (err) {
+      setGithubStatus("error");
+      setGithubMessage(err instanceof Error ? err.message : "Connection failed");
+    }
+  };
+
+  const handleGithubDisconnect = async () => {
+    await runPromise(ConfigService.pipe(Effect.flatMap((svc) => svc.set("github-token", ""))));
+    setSavedToken("");
+    setGithubToken("");
+    setGithubStatus("idle");
+    setGithubMessage("");
+    // Remove the cloud source
+    const cloudSource = sources.find((s) => s.agentType === "github-cloud");
+    if (cloudSource) {
+      await runPromise(SourceService.pipe(Effect.flatMap((svc) => svc.remove(cloudSource.id))));
+      await loadSources();
+    }
+  };
+
   const handleThemeNameChange = async (name: ThemeName) => {
     setThemeName(name);
     await runPromise(
@@ -305,7 +376,15 @@ export function SettingsModal({
         <div className="w-40 shrink-0 border-r border-ov-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
           <nav className="flex flex-col gap-0.5 pr-4">
             {(
-              ["agent", "notifications", "appearance", "privacy", "developer", "about"] as const
+              [
+                "agent",
+                "github",
+                "notifications",
+                "appearance",
+                "privacy",
+                "developer",
+                "about",
+              ] as const
             ).map((tab) => (
               <button
                 key={tab}
@@ -319,15 +398,17 @@ export function SettingsModal({
               >
                 {tab === "agent"
                   ? "Agent"
-                  : tab === "notifications"
-                    ? "Notifications"
-                    : tab === "appearance"
-                      ? "Appearance"
-                      : tab === "privacy"
-                        ? "Privacy"
-                        : tab === "developer"
-                          ? "Developer"
-                          : "About"}
+                  : tab === "github"
+                    ? "GitHub"
+                    : tab === "notifications"
+                      ? "Notifications"
+                      : tab === "appearance"
+                        ? "Appearance"
+                        : tab === "privacy"
+                          ? "Privacy"
+                          : tab === "developer"
+                            ? "Developer"
+                            : "About"}
               </button>
             ))}
           </nav>
@@ -550,6 +631,118 @@ export function SettingsModal({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "github" && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
+                GitHub Cloud
+              </h3>
+              <p className="text-xs text-ov-text-secondary mb-3">
+                Connect your GitHub account to track cloud agent sessions alongside your local ones.
+                Requires a{" "}
+                <a
+                  href="https://github.com/settings/tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  fine-grained PAT
+                </a>{" "}
+                with "Agent tasks" repository read permission.
+              </p>
+
+              <div className="space-y-3">
+                {/* Token input */}
+                <div>
+                  <label className="text-[11px] font-medium text-ov-text-secondary block mb-1">
+                    Personal Access Token
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showToken ? "text" : "password"}
+                        value={githubToken}
+                        onChange={(e) => {
+                          setGithubToken(e.target.value);
+                          if (e.target.value !== savedToken) {
+                            setGithubStatus("idle");
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleGithubConnect();
+                        }}
+                        placeholder="github_pat_..."
+                        className="w-full text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 pr-8 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)] font-mono"
+                        disabled={githubStatus === "verifying"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowToken(!showToken)}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ov-text-secondary hover:text-ov-text cursor-pointer"
+                      >
+                        {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    {savedToken ? (
+                      <button
+                        type="button"
+                        onClick={handleGithubDisconnect}
+                        className="text-xs px-2.5 py-1.5 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors shrink-0"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!githubToken.trim() || githubStatus === "verifying"}
+                        onClick={handleGithubConnect}
+                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-accent-border bg-accent-muted text-accent hover:bg-accent/20 shrink-0"
+                      >
+                        {githubStatus === "verifying" ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Cloud size={14} />
+                        )}
+                        Connect
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status message */}
+                {githubStatus === "connected" && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-xs">
+                    <Check size={14} className="text-emerald-400 shrink-0" />
+                    <span className="text-emerald-400/90">{githubMessage}</span>
+                  </div>
+                )}
+                {githubStatus === "error" && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-md border border-red-500/30 bg-red-500/10 text-xs">
+                    <TriangleAlert size={14} className="text-red-400 shrink-0" />
+                    <span className="text-red-400/90">{githubMessage}</span>
+                  </div>
+                )}
+
+                {/* Source status */}
+                {savedToken && (
+                  <div className="p-3 rounded-md border border-ov-border bg-ov-bg-secondary text-xs">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Cloud size={14} className="text-accent" />
+                      <span className="text-ov-text font-medium">GitHub Cloud</span>
+                      <span className="sess-agent-badge sess-agent-badge--github-cloud">
+                        Active
+                      </span>
+                    </div>
+                    <p className="text-ov-text-secondary">
+                      Cloud agent sessions will appear in the session list with a "GitHub Cloud"
+                      badge. Session status (queued, in progress, completed, needs input) is tracked
+                      automatically.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

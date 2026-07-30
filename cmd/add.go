@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/store"
-	"github.com/spf13/cobra"
 )
 
 var addSourceType string
@@ -37,18 +37,21 @@ func init() {
 func runAdd(cmd *cobra.Command, args []string) error {
 	path := args[0]
 
-	// Expand ~ in path
-	if len(path) > 1 && path[:2] == "~/" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return err
+	// Cloud sources have no filesystem path — they use a token instead.
+	if addSourceType != string(ingest.AgentGitHubCloud) {
+		// Expand ~ in path
+		if len(path) > 1 && path[:2] == "~/" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			path = home + path[1:]
 		}
-		path = home + path[1:]
-	}
 
-	// Verify path exists
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("path does not exist: %s", path)
+		// Verify path exists
+		if _, err := os.Stat(path); err != nil {
+			return fmt.Errorf("path does not exist: %s", path)
+		}
 	}
 
 	// Detect agent type

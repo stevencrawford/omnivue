@@ -66,6 +66,15 @@ func (s *Store) Close() error {
 
 // AddSource adds a new session data source.
 func (s *Store) AddSource(src ingest.Source) error {
+	if src.Path == "" {
+		// Cloud sources with no path — upsert by id (which is agent-type derived).
+		_, err := s.db.Exec(`
+			INSERT INTO sources (id, path, agent_type, label, enabled, created_at)
+			VALUES (?, NULL, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET label=excluded.label, enabled=excluded.enabled
+		`, src.ID, string(src.AgentType), src.Label, src.Enabled, src.CreatedAt.Format(time.RFC3339))
+		return err
+	}
 	_, err := s.db.Exec(`
 		INSERT INTO sources (id, path, agent_type, label, enabled, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -88,10 +97,14 @@ func (s *Store) ListSources() ([]ingest.Source, error) {
 			src       ingest.Source
 			agentType string
 			createdAt string
+			path      sql.NullString
+			label     sql.NullString
 		)
-		if err := rows.Scan(&src.ID, &src.Path, &agentType, &src.Label, &src.Enabled, &createdAt); err != nil {
+		if err := rows.Scan(&src.ID, &path, &agentType, &label, &src.Enabled, &createdAt); err != nil {
 			return nil, err
 		}
+		src.Path = path.String
+		src.Label = label.String
 		src.AgentType = ingest.AgentType(agentType)
 		src.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 		if err != nil {
@@ -123,12 +136,16 @@ func (s *Store) Source(id string) (*ingest.Source, error) {
 	var src ingest.Source
 	var agentType string
 	var createdAt string
+	var path sql.NullString
+	var label sql.NullString
 	err := s.db.QueryRow(
 		`SELECT id, path, agent_type, label, enabled, created_at FROM sources WHERE id = ?`, id,
-	).Scan(&src.ID, &src.Path, &agentType, &src.Label, &src.Enabled, &createdAt)
+	).Scan(&src.ID, &path, &agentType, &label, &src.Enabled, &createdAt)
 	if err != nil {
 		return nil, err
 	}
+	src.Path = path.String
+	src.Label = label.String
 	src.AgentType = ingest.AgentType(agentType)
 	src.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 	if err != nil {
@@ -600,26 +617,26 @@ func (s *Store) DeleteScratchFile(id string) error {
 
 // Notification represents a single in-app notification tied to a session.
 type Notification struct {
-	ID        string  `json:"id"`
-	SessionID string  `json:"sessionId"`
-	SourceID  string  `json:"sourceId"`
-	Kind      string  `json:"kind"`
-	Title     string  `json:"title"`
-	Preview   string  `json:"preview"`
-	Severity  string  `json:"severity"`
-	Payload   string  `json:"payload,omitempty"` // JSON string
-	CreatedAt int64   `json:"createdAt"` // unix ms
-	ReadAt    *int64  `json:"readAt,omitempty"`  // unix ms, nil = unread
+	ID        string `json:"id"`
+	SessionID string `json:"sessionId"`
+	SourceID  string `json:"sourceId"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Preview   string `json:"preview"`
+	Severity  string `json:"severity"`
+	Payload   string `json:"payload,omitempty"` // JSON string
+	CreatedAt int64  `json:"createdAt"`         // unix ms
+	ReadAt    *int64 `json:"readAt,omitempty"`  // unix ms, nil = unread
 }
 
 // NotificationState tracks per-session notification bookkeeping: how many
 // messages the classifier has already seen, when the user last interacted
 // with the session, and when they first opened it (for scope filtering).
 type NotificationState struct {
-	SessionID             string
-	LastSeenMessageCount  int
-	LastSeenAt            *int64  // unix ms
-	FirstViewedAt         *int64  // unix ms
+	SessionID            string
+	LastSeenMessageCount int
+	LastSeenAt           *int64 // unix ms
+	FirstViewedAt        *int64 // unix ms
 }
 
 // InsertNotification inserts a notification row, deduplicating by

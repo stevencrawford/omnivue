@@ -30,6 +30,7 @@ export function agentLabel(agent: string): string {
   if (agent === "codex") return "Codex";
   if (agent === "claude-code") return "Claude Code";
   if (agent === "pi") return "Pi";
+  if (agent === "github-cloud") return "GitHub Cloud";
   return agent;
 }
 
