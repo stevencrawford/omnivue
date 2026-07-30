@@ -3,8 +3,42 @@ import { useCopy } from "../hooks/useCopy";
 import { fetchResumeCommand } from "../hooks/useApi";
 import { useEffect, useRef, useState } from "react";
 
+function middleTruncate(s: string, max = 60): string {
+  if (s.length <= max) return s;
+  const half = Math.floor((max - 3) / 2);
+  return s.slice(0, half) + "..." + s.slice(s.length - (max - 3 - half));
+}
+
+function OptionPreview({
+  label,
+  cmd,
+  icon,
+}: {
+  label: string;
+  cmd: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2 px-3 py-1.5 group cursor-pointer transition-colors hover:bg-ov-bg-hover">
+      <span className="size-3.5 flex items-center justify-center shrink-0 mt-0.5 text-ov-text-secondary group-hover:text-ov-text">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs text-ov-text-secondary group-hover:text-ov-text">{label}</div>
+        <div
+          className="text-[11px] text-ov-text-secondary/60 group-hover:text-ov-text-secondary/80 font-mono truncate"
+          title={cmd}
+        >
+          {middleTruncate(cmd)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ResumeButton({ sessionId }: { sessionId: string }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
   const [options, setOptions] = useState<{
     absolute: string;
     relative: string;
@@ -12,12 +46,19 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const { copied, copy } = useCopy(2000);
-  const ref = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        wrapperRef.current &&
+        !wrapperRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -33,6 +74,10 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
   }, [open]);
 
   const handleClick = async () => {
+    if (!open && wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setPos({ x: rect.right, y: rect.bottom + 4 });
+    }
     setOpen((prev) => !prev);
     if (!options && !loading) {
       setLoading(true);
@@ -48,7 +93,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={wrapperRef} className="relative inline-flex">
       <button
         type="button"
         onClick={(e) => {
@@ -61,14 +106,18 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
         {copied ? <Check size={12} className="text-emerald-400" /> : <ListRestart size={12} />}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-[100] min-w-[220px] bg-surface-elevated border border-ov-border rounded-lg shadow-xl py-1">
+        <div
+          ref={menuRef}
+          className="fixed z-[100] min-w-[300px] bg-surface-elevated border border-ov-border rounded-lg shadow-xl py-1"
+          style={{ left: pos.x, top: pos.y, transform: "translateX(-100%)" }}
+        >
           {loading ? (
             <div className="px-3 py-2 text-xs text-ov-text-secondary">Loading...</div>
           ) : options ? (
             <>
               <button
                 type="button"
-                className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                className="w-full text-left group"
                 title={options.absolute}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -76,12 +125,15 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                   setOpen(false);
                 }}
               >
-                <FolderOpen size={12} className="shrink-0" />
-                <span className="truncate">Absolute</span>
+                <OptionPreview
+                  label="Absolute"
+                  cmd={options.absolute}
+                  icon={<FolderOpen size={12} />}
+                />
               </button>
               <button
                 type="button"
-                className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                className="w-full text-left group"
                 title={options.relative}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -89,12 +141,15 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                   setOpen(false);
                 }}
               >
-                <Terminal size={12} className="shrink-0" />
-                <span className="truncate">Relative</span>
+                <OptionPreview
+                  label="Relative"
+                  cmd={options.relative}
+                  icon={<Terminal size={12} />}
+                />
               </button>
               <button
                 type="button"
-                className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                className="w-full text-left group"
                 title={options.agentCommand}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -102,8 +157,11 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                   setOpen(false);
                 }}
               >
-                <MessageSquareCode size={12} className="shrink-0" />
-                <span className="truncate">Agent command</span>
+                <OptionPreview
+                  label="Agent command"
+                  cmd={options.agentCommand}
+                  icon={<MessageSquareCode size={12} />}
+                />
               </button>
             </>
           ) : null}
