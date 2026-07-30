@@ -132,12 +132,14 @@ export async function clearSessionName(sessionId: string): Promise<void> {
   });
 }
 
-export async function fetchResumeCommand(sessionId: string): Promise<string> {
+export async function fetchResumeCommand(
+  sessionId: string,
+): Promise<{ absolute: string; relative: string; agentCommand: string }> {
   const data = await fetchJson(
     `/_/api/sessions/${encodeURIComponent(sessionId)}/resume`,
     ResumeCommandSchema,
   );
-  return data.command;
+  return data;
 }
 
 // ---------------------------------------------------------------------------

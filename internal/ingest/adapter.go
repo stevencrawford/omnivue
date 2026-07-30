@@ -16,6 +16,7 @@ type SessionSource interface {
 	Session(ctx context.Context, id string) (*Session, error)
 	Messages(ctx context.Context, sessionID string) ([]Message, error)
 	ResumeCommand(session *Session) string
+	AgentCommand(session *Session) string
 	LastModified(ctx context.Context) (int64, error)
 	Close() error
 }

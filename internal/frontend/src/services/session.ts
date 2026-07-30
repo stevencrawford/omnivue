@@ -41,7 +41,9 @@ export class SessionService extends Effect.Service<SessionService>()("SessionSer
         catch: catchToApiError(`/_/api/sessions/${id}/edits`),
       });
 
-    const getResumeCommand = (id: string): Effect.Effect<string, ApiError> =>
+    const getResumeCommand = (
+      id: string,
+    ): Effect.Effect<{ absolute: string; relative: string; agentCommand: string }, ApiError> =>
       Effect.tryPromise({
         try: () => api.fetchResumeCommand(id),
         catch: catchToApiError(`/_/api/sessions/${id}/resume`),

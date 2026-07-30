@@ -69,6 +69,10 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	return fmt.Sprintf("cd %s && codex resume %s", session.Directory, session.ID)
 }
 
+func (a *Adapter) AgentCommand(session *ingest.Session) string {
+	return fmt.Sprintf("/resume %s", session.ID)
+}
+
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	currentLastMod := a.cache.LastModified()
 

@@ -247,7 +247,9 @@ export const ConfigSchema = z.record(z.string(), z.string());
 // ---------------------------------------------------------------------------
 
 export const ResumeCommandSchema = z.object({
-  command: z.string(),
+  absolute: z.string(),
+  relative: z.string(),
+  agentCommand: z.string(),
 });
 
 // ---------------------------------------------------------------------------

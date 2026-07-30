@@ -364,8 +364,9 @@ func (s *State) Sources() []ingest.Source {
 	return sources
 }
 
-// ResumeCommand returns the CLI command to resume a session.
-func (s *State) ResumeCommand(ctx context.Context, sessionID string) (string, error) {
+// ResumeCommand returns the CLI commands to resume a session.
+// Returns absolute (cd + command), relative (command w/o cd), and agentCommand (in-harness slash).
+func (s *State) ResumeCommand(ctx context.Context, sessionID string) (absolute string, relative string, agentCommand string, err error) {
 	s.mu.RLock()
 	var sourceID string
 	var sess *ingest.Session
@@ -380,9 +381,10 @@ func (s *State) ResumeCommand(ctx context.Context, sessionID string) (string, er
 	s.mu.RUnlock()
 
 	if adapter == nil || sess == nil {
-		return "", fmt.Errorf("session not found: %s", sessionID)
+		return "", "", "", fmt.Errorf("session not found: %s", sessionID)
 	}
-	return adapter.ResumeCommand(sess), nil
+	abs := adapter.ResumeCommand(sess)
+	return abs, terminal.ExtractCmd(abs), adapter.AgentCommand(sess), nil
 }
 
 // Search performs full-text search across indexed session content.
@@ -1616,13 +1618,17 @@ func handleGetEdits(state *State) http.HandlerFunc {
 func handleGetResumeCommand(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		cmd, err := state.ResumeCommand(r.Context(), id)
+		abs, rel, agentCmd, err := state.ResumeCommand(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"command": cmd}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			"absolute":     abs,
+			"relative":     rel,
+			"agentCommand": agentCmd,
+		}); err != nil {
 			slog.Warn("failed to encode response", "error", err)
 		}
 	}

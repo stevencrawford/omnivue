@@ -56,7 +56,8 @@ func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error
 func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)         { return nil, nil }
 func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error)    { return nil, nil }
 func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error)   { return nil, nil }
-func (m *mockAdapter) ResumeCommand(*ingest.Session) string                          { return "echo resume" }
+func (m *mockAdapter) ResumeCommand(*ingest.Session) string                          { return "cd /tmp && echo resume" }
+func (m *mockAdapter) AgentCommand(*ingest.Session) string                          { return "/resume ses-1" }
 func (m *mockAdapter) LastModified(context.Context) (int64, error)                   { return 0, nil }
 func (m *mockAdapter) Close() error                                                  { return nil }
 

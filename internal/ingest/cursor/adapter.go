@@ -72,6 +72,10 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	return fmt.Sprintf("cd %s && cursor --composer %s", dir, session.ID)
 }
 
+func (a *Adapter) AgentCommand(session *ingest.Session) string {
+	return fmt.Sprintf("/resume %s", session.ID)
+}
+
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	var maxTs int64
 

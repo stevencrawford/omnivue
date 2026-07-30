@@ -106,6 +106,10 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	return fmt.Sprintf("cd %s && claude -r %s", session.Directory, session.ID)
 }
 
+func (a *Adapter) AgentCommand(session *ingest.Session) string {
+	return fmt.Sprintf("/resume %s", session.ID)
+}
+
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {
 	currentLastMod := a.cache.LastModified()
 
