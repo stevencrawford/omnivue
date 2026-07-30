@@ -11,12 +11,14 @@ export function PinnedPromptBar({
   onOpenModal,
   onQueueChanged,
   highlightPromptId,
+  onHighlightDone,
 }: {
   session: Session;
-  firstMessage: Message;
+  firstMessage?: Message | null;
   onOpenModal?: (content: string, title?: string) => void;
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
+  onHighlightDone?: () => void;
 }) {
   const [pinnedExpanded, setPinnedExpanded] = useState(false);
   const [prompts, setPrompts] = useState<QueuedPrompt[]>([]);
@@ -73,16 +75,32 @@ export function PinnedPromptBar({
     }
   }, [highlightPromptId, loadPrompts]);
 
-  // Scroll to highlighted prompt when prompts load
+  // Scroll to highlighted prompt when prompts load;
+  // signal onHighlightDone after the flash animation completes.
+  const highlightDoneRef = useRef(false);
   useEffect(() => {
     if (highlightPromptId && prompts.some((p) => p.id === highlightPromptId)) {
       const container = document.querySelector(".sess-pinned-bar");
       const el = container?.querySelector(`[data-queued-prompt-id="${highlightPromptId}"]`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
+        highlightDoneRef.current = false;
+        const onEnd = () => {
+          if (highlightDoneRef.current) return;
+          highlightDoneRef.current = true;
+          el.removeEventListener("animationend", onEnd);
+          onHighlightDone?.();
+        };
+        el.addEventListener("animationend", onEnd);
+        // Fallback: call done after 1.5s even if animationend doesn't fire
+        const fallback = setTimeout(onEnd, 1500);
+        return () => {
+          el.removeEventListener("animationend", onEnd);
+          clearTimeout(fallback);
+        };
       }
     }
-  }, [highlightPromptId, prompts]);
+  }, [highlightPromptId, prompts, onHighlightDone]);
 
   const handlePinnedResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();

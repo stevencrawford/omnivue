@@ -154,6 +154,7 @@ export function ConversationView({
   onClearFocus,
   onQueueChanged,
   highlightPromptId,
+  onHighlightDone,
 }: {
   messages: Message[];
   session: Session;
@@ -176,6 +177,7 @@ export function ConversationView({
   onClearFocus?: () => void;
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
+  onHighlightDone?: () => void;
 }) {
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
@@ -247,6 +249,7 @@ export function ConversationView({
           onOpenModal={onOpenModal}
           onQueueChanged={onQueueChanged}
           highlightPromptId={highlightPromptId}
+          onHighlightDone={onHighlightDone}
         />
       </div>
     );
@@ -341,6 +344,7 @@ export function ConversationView({
         onOpenModal={onOpenModal}
         onQueueChanged={onQueueChanged}
         highlightPromptId={highlightPromptId}
+        onHighlightDone={onHighlightDone}
       />
     </div>
   );

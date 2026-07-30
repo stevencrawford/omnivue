@@ -248,10 +248,13 @@ export function App() {
     (sessionId: string, promptId: string) => {
       handleSessionSelect(sessionId);
       setHighlightPromptId(promptId);
-      setTimeout(() => setHighlightPromptId(null), 800);
     },
     [handleSessionSelect],
   );
+
+  const handleHighlightDone = useCallback(() => {
+    setHighlightPromptId(null);
+  }, []);
 
   const handleClearFocus = useCallback(() => {
     setFocusMessageIndex(undefined);
@@ -434,6 +437,7 @@ export function App() {
                         onNavigateToMessage={handleDiffNavigateToMessage}
                         onQueueChanged={fetchQueueCount}
                         highlightPromptId={highlightPromptId}
+                        onHighlightDone={handleHighlightDone}
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>
