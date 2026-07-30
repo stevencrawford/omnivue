@@ -233,9 +233,11 @@ export function PinnedPromptBar({
         {pinnedExpanded && (
           <div className="flex-1 overflow-y-auto min-h-0 border-t border-ov-border">
             <div className="px-4 pb-2 pt-3">
-              <div className="ml-6 mt-1">
-                <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
-              </div>
+              {firstMessage && (
+                <div className="ml-6 mt-1">
+                  <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
+                </div>
+              )}
             </div>
 
             {prompts.length > 0 && (
