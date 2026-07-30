@@ -2,7 +2,7 @@
 
 ## What is Omnivue
 
-`omnivue` is a CLI tool that watches AI coding agent sessions (OpenCode, GitHub Copilot, Cursor) and presents them in a browser UI for easy browsing, searching, and management. It runs a Go HTTP server that embeds a React SPA as a single binary. The Go module is `github.com/stevencrawford/omnivue`.
+`omnivue` is a CLI tool that watches AI coding agent sessions (OpenCode, GitHub Copilot, Cursor) and presents them in a browser UI for review, searching, and management. It runs a Go HTTP server that embeds a React SPA as a single binary. The Go module is `github.com/stevencrawford/omnivue`.
 
 Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `omnivue` repurposes the architecture for AI session management.
 
