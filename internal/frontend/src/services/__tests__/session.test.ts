@@ -87,14 +87,19 @@ describe("SessionService", () => {
   });
 
   describe("getResumeCommand", () => {
-    it("returns resume command", async () => {
-      vi.mocked(api.fetchResumeCommand).mockResolvedValue("opencode ses-1");
+    it("returns resume commands", async () => {
+      const mock = {
+        absolute: "cd /tmp && opencode -s ses-1",
+        relative: "opencode -s ses-1",
+        agentCommand: "/session ses-1",
+      };
+      vi.mocked(api.fetchResumeCommand).mockResolvedValue(mock);
 
       const result = await runPromise(
         SessionService.pipe(Effect.flatMap((svc) => svc.getResumeCommand("ses-1"))),
       );
 
-      expect(result).toBe("opencode ses-1");
+      expect(result).toEqual(mock);
     });
   });
 });

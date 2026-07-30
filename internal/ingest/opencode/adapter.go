@@ -51,6 +51,10 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	return fmt.Sprintf("cd %s && opencode -s %s", session.Directory, session.ID)
 }
 
+func (a *Adapter) AgentCommand(session *ingest.Session) string {
+	return fmt.Sprintf("/session %s", session.ID)
+}
+
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	var maxTime int64
 	err := a.db.QueryRowContext(ctx, `

@@ -77,6 +77,10 @@ func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	return fmt.Sprintf("cd %s && pi --session %s", session.Directory, session.ID)
 }
 
+func (a *Adapter) AgentCommand(session *ingest.Session) string {
+	return fmt.Sprintf("/resume %s", session.ID)
+}
+
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	maxMod, err := a.cache.ScanAndRebuild(func(path string) (*ingest.Session, int64, error) {
 		session, err := a.parseSessionFile(path)
