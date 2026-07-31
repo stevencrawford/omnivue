@@ -16,7 +16,7 @@ Returns server status with schema version.
   "pid": 12345,
   "sources": 3,
   "sessions": 42,
-  "schemaVersion": 3
+  "schemaVersion": 5
 }
 ```
 
