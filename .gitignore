@@ -1,4 +1,5 @@
 .DS_Store
+.worktrees/
 internal/static/dist/**/*
 internal/frontend/CREDITS_FRONTEND
 coverage.out
