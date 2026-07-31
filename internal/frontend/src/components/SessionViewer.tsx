@@ -304,7 +304,7 @@ export function SessionViewer({
             type="button"
             onClick={() => setCreateFileOpen(true)}
             className="sess-tab-pill text-ov-text-secondary hover:text-ov-text shrink-0"
-            title="New file"
+            title="New scratch file"
           >
             <Plus size={14} />
           </button>
@@ -415,11 +415,11 @@ export function SessionViewer({
         {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
       </Modal>
 
-      {/* Create file dialog */}
+      {/* Create scratch file dialog */}
       <Modal
         isOpen={createFileOpen}
         onClose={() => setCreateFileOpen(false)}
-        title="Create new file"
+        title="Create new scratch file"
         size="md"
       >
         <div className="p-3 space-y-1">
@@ -433,8 +433,10 @@ export function SessionViewer({
           >
             <FilePlus size={20} className="shrink-0 text-accent" />
             <div className="flex flex-col">
-              <span className="font-medium">Markdown</span>
-              <span className="text-[11px] text-ov-text-secondary">.md — Rich text file</span>
+              <span className="font-medium">Scratch file</span>
+              <span className="text-[11px] text-ov-text-secondary">
+                Markdown (.md) — Rich text editor
+              </span>
             </div>
           </button>
         </div>
@@ -444,12 +446,12 @@ export function SessionViewer({
       <Modal
         isOpen={deleteConfirmFileId !== null}
         onClose={() => setDeleteConfirmFileId(null)}
-        title="Delete file"
+        title="Delete scratch file"
         size="md"
       >
         <div className="p-3 space-y-3">
           <p className="text-sm text-ov-text-secondary">
-            Are you sure you want to delete this file? This action cannot be undone.
+            Are you sure you want to delete this scratch file? This action cannot be undone.
           </p>
           <div className="flex items-center justify-end gap-2">
             <button

@@ -151,6 +151,58 @@ func TestHandleGetSession_NotFound(t *testing.T) {
 	}
 }
 
+func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{{ID: "sub-1", ParentID: "par-1", Title: "Sub Agent"}},
+		messages: []ingest.Message{{ID: "m1", Content: "hello"}},
+	}
+	state := &State{
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
+		sessions: []ingest.Session{{ID: "par-1", SourceID: "src-1"}},
+	}
+
+	ctx := context.Background()
+	sess, got, err := state.resolveSession(ctx, "sub-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.ID != "sub-1" {
+		t.Errorf("expected sub-1, got %q", sess.ID)
+	}
+	if got == nil {
+		t.Fatal("expected adapter to be resolved")
+	}
+	if sess.SourceID != "src-1" {
+		t.Errorf("expected SourceID src-1, got %q", sess.SourceID)
+	}
+
+	// The resolved session is registered into the cache for subsequent lookups.
+	state.mu.RLock()
+	found := false
+	for _, s := range state.sessions {
+		if s.ID == "sub-1" {
+			found = true
+			break
+		}
+	}
+	state.mu.RUnlock()
+	if !found {
+		t.Error("expected fallback session to be registered in state.sessions")
+	}
+
+	msgs, err := state.Messages(ctx, "sub-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].Content != "hello" {
+		t.Errorf("expected message to be returned, got %d messages", len(msgs))
+	}
+
+	if _, err := state.Session(ctx, "nonexistent"); err == nil {
+		t.Error("expected error for nonexistent session")
+	}
+}
+
 func TestHandleFolders_StoreUnavailable(t *testing.T) {
 	state := &State{store: nil}
 

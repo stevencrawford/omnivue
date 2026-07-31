@@ -174,52 +174,27 @@ func (s *State) Sessions() []ingest.Session {
 
 // Session returns a single session by ID.
 func (s *State) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, sess := range s.sessions {
-		if sess.ID == id {
-			return &sess, nil
-		}
+	sess, _, err := s.resolveSession(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("session not found: %s", id)
+	return sess, nil
 }
 
 // Messages returns messages for a session.
 func (s *State) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	s.mu.RLock()
-	// Find which adapter owns this session
-	var sourceID string
-	for _, sess := range s.sessions {
-		if sess.ID == sessionID {
-			sourceID = sess.SourceID
-			break
-		}
-	}
-	adapter := s.adapters[sourceID]
-	s.mu.RUnlock()
-
-	if adapter == nil {
-		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	_, adapter, err := s.resolveSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
 	}
 	return adapter.Messages(ctx, sessionID)
 }
 
 // Plan returns the plan for a session.
 func (s *State) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	s.mu.RLock()
-	var sourceID string
-	for _, sess := range s.sessions {
-		if sess.ID == sessionID {
-			sourceID = sess.SourceID
-			break
-		}
-	}
-	adapter := s.adapters[sourceID]
-	s.mu.RUnlock()
-
-	if adapter == nil {
-		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	_, adapter, err := s.resolveSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
 	}
 	if ps, ok := adapter.(ingest.Planner); ok {
 		return ps.Plan(ctx, sessionID)
@@ -229,19 +204,9 @@ func (s *State) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error
 
 // Diffs returns file diffs for a session.
 func (s *State) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	s.mu.RLock()
-	var sourceID string
-	for _, sess := range s.sessions {
-		if sess.ID == sessionID {
-			sourceID = sess.SourceID
-			break
-		}
-	}
-	adapter := s.adapters[sourceID]
-	s.mu.RUnlock()
-
-	if adapter == nil {
-		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	_, adapter, err := s.resolveSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
 	}
 	if ds, ok := adapter.(ingest.Differ); ok {
 		return ds.Diffs(ctx, sessionID)
@@ -251,19 +216,9 @@ func (s *State) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile,
 
 // Edits returns raw edit tool call data for a session.
 func (s *State) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	s.mu.RLock()
-	var sourceID string
-	for _, sess := range s.sessions {
-		if sess.ID == sessionID {
-			sourceID = sess.SourceID
-			break
-		}
-	}
-	adapter := s.adapters[sourceID]
-	s.mu.RUnlock()
-
-	if adapter == nil {
-		return nil, fmt.Errorf("no adapter for session: %s", sessionID)
+	_, adapter, err := s.resolveSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
 	}
 	if es, ok := adapter.(ingest.Editor); ok {
 		return es.Edits(ctx, sessionID)
@@ -367,21 +322,9 @@ func (s *State) Sources() []ingest.Source {
 // ResumeCommand returns the CLI commands to resume a session.
 // Returns absolute (cd + command), relative (command w/o cd), and agentCommand (in-harness slash).
 func (s *State) ResumeCommand(ctx context.Context, sessionID string) (absolute string, relative string, agentCommand string, err error) {
-	s.mu.RLock()
-	var sourceID string
-	var sess *ingest.Session
-	for i, se := range s.sessions {
-		if se.ID == sessionID {
-			sourceID = se.SourceID
-			sess = &s.sessions[i]
-			break
-		}
-	}
-	adapter := s.adapters[sourceID]
-	s.mu.RUnlock()
-
-	if adapter == nil || sess == nil {
-		return "", "", "", fmt.Errorf("session not found: %s", sessionID)
+	sess, adapter, err := s.resolveSession(ctx, sessionID)
+	if err != nil {
+		return "", "", "", err
 	}
 	abs := adapter.ResumeCommand(sess)
 	return abs, terminal.ExtractCmd(abs), adapter.AgentCommand(sess), nil
@@ -570,6 +513,44 @@ func isPlanTool(name string) bool {
 }
 
 // --- Unexported State methods ---
+
+// resolveSession finds a session and the adapter that owns it. It consults the
+// cached session list first, then falls back to querying each adapter directly
+// so sessions absent from the cache (e.g. freshly-created sub-agent or research
+// report sessions) can still be resolved. The lock is released before any
+// adapter call to avoid RLock→Lock deadlock.
+func (s *State) resolveSession(ctx context.Context, id string) (*ingest.Session, ingest.Adapter, error) {
+	s.mu.RLock()
+	var found *ingest.Session
+	var adapter ingest.Adapter
+	for i := range s.sessions {
+		if s.sessions[i].ID == id {
+			found = &s.sessions[i]
+			adapter = s.adapters[found.SourceID]
+			break
+		}
+	}
+	adapters := make(map[string]ingest.Adapter, len(s.adapters))
+	maps.Copy(adapters, s.adapters)
+	s.mu.RUnlock()
+
+	if found != nil && adapter != nil {
+		return found, adapter, nil
+	}
+
+	for sourceID, candidate := range adapters {
+		sess, err := candidate.Session(ctx, id)
+		if err != nil || sess == nil {
+			continue
+		}
+		sess.SourceID = sourceID
+		s.mu.Lock()
+		s.sessions = append(s.sessions, *sess)
+		s.mu.Unlock()
+		return sess, candidate, nil
+	}
+	return nil, nil, fmt.Errorf("session not found: %s", id)
+}
 
 // refreshSessions re-reads the session list from every adapter, applies the
 // liveness heuristic (sets Status="active" when UpdatedAt is within liveWindow),

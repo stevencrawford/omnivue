@@ -300,14 +300,15 @@ func (a *Adapter) handleSubAgentCompleted(sessionID string, subAgentStack *[]*su
 
 		syn := &syntheticSession{
 			session: ingest.Session{
-				ID:        synID,
-				ParentID:  sessionID,
-				Agent:     ingest.AgentCopilot,
-				SubAgent:  sa.agentName,
-				Title:     sa.agentDisplay,
-				Status:    ingest.SessionStatusCompleted,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
+				ID:           synID,
+				ParentID:     sessionID,
+				Agent:        ingest.AgentCopilot,
+				SubAgent:     sa.agentName,
+				Title:        sa.agentDisplay,
+				Status:       ingest.SessionStatusCompleted,
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
+				MessageCount: len(sa.messages),
 			},
 			messages: sa.messages,
 		}
