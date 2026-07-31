@@ -206,6 +206,14 @@ Before applying any migration to a database that already holds application data 
 | GET | `/_/api/folders/{id}/sessions` | List session IDs in a folder |
 | POST | `/_/api/folders/{id}/sessions/{sid}` | Assign a session to a folder |
 | DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
+| GET | `/_/api/tags` | List all tags |
+| POST | `/_/api/tags` | Create a new tag |
+| PATCH | `/_/api/tags/{id}` | Update a tag (name, color) |
+| DELETE | `/_/api/tags/{id}` | Delete a tag |
+| GET | `/_/api/tags/{id}/sessions` | List session IDs in a tag |
+| POST | `/_/api/tags/{id}/sessions/{sid}` | Apply a tag to a session |
+| DELETE | `/_/api/tags/{id}/sessions/{sid}` | Remove a tag from a session |
+| GET | `/_/api/sessions/{id}/tags` | Get tags applied to a session |
 | POST | `/_/api/reset` | Reset all user data (keeps agent data intact) |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |

@@ -330,6 +330,149 @@ func (s *Store) SessionFolders(sessionID string) ([]string, error) {
 	return ids, rows.Err()
 }
 
+// --- Tag CRUD ---
+
+// Tag represents a user-defined tag applied to sessions.
+type Tag struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Color     string    `json:"color,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// CreateTag creates a new tag.
+func (s *Store) CreateTag(t Tag) error {
+	_, err := s.db.Exec(`
+		INSERT INTO tags (id, name, color, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, t.ID, t.Name, t.Color, t.CreatedAt.Format(time.RFC3339), t.UpdatedAt.Format(time.RFC3339))
+	return err
+}
+
+// ListTags returns all tags ordered by name.
+func (s *Store) ListTags() ([]Tag, error) {
+	rows, err := s.db.Query(`SELECT id, name, color, created_at, updated_at FROM tags ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []Tag
+	for rows.Next() {
+		var (
+			t         Tag
+			createdAt string
+			updatedAt string
+		)
+		if err := rows.Scan(&t.ID, &t.Name, &t.Color, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		t.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			t.CreatedAt = time.Time{}
+		}
+		t.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			t.UpdatedAt = time.Time{}
+		}
+		tags = append(tags, t)
+	}
+	return tags, rows.Err()
+}
+
+// AssignTag applies a tag to a session.
+func (s *Store) AssignTag(tagID, sessionID string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO session_tags (tag_id, session_id, added_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT DO NOTHING
+	`, tagID, sessionID, time.Now().Format(time.RFC3339))
+	return err
+}
+
+// UnassignTag removes a tag from a session.
+func (s *Store) UnassignTag(tagID, sessionID string) error {
+	_, err := s.db.Exec(`DELETE FROM session_tags WHERE tag_id = ? AND session_id = ?`, tagID, sessionID)
+	return err
+}
+
+// UpdateTag updates a tag's name and color.
+func (s *Store) UpdateTag(id, name, color string) error {
+	_, err := s.db.Exec(`
+		UPDATE tags SET name = ?, color = ?, updated_at = ?
+		WHERE id = ?
+	`, name, color, time.Now().Format(time.RFC3339), id)
+	return err
+}
+
+// DeleteTag removes a tag and its session assignments.
+func (s *Store) DeleteTag(id string) error {
+	// session_tags has ON DELETE CASCADE, so just delete the tag
+	_, err := s.db.Exec(`DELETE FROM tags WHERE id = ?`, id)
+	return err
+}
+
+// TagSessions returns session IDs carrying a tag.
+func (s *Store) TagSessions(tagID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT session_id FROM session_tags WHERE tag_id = ? ORDER BY added_at`, tagID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// SessionTags returns tags applied to a session.
+func (s *Store) SessionTags(sessionID string) ([]Tag, error) {
+	rows, err := s.db.Query(`
+		SELECT t.id, t.name, t.color, t.created_at, t.updated_at
+		FROM session_tags st
+		JOIN tags t ON t.id = st.tag_id
+		WHERE st.session_id = ?
+		ORDER BY t.name
+	`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []Tag
+	for rows.Next() {
+		var (
+			t         Tag
+			createdAt string
+			updatedAt string
+		)
+		if err := rows.Scan(&t.ID, &t.Name, &t.Color, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		t.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			t.CreatedAt = time.Time{}
+		}
+		t.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+		if err != nil {
+			slog.Warn("failed to parse time", "error", err)
+			t.UpdatedAt = time.Time{}
+		}
+		tags = append(tags, t)
+	}
+	return tags, rows.Err()
+}
+
 // --- Bookmark CRUD ---
 
 // Bookmark represents a bookmarked message or tool call within a session.
@@ -1077,6 +1220,8 @@ func (s *Store) Reset() error {
 		"search_index",
 		"folder_sessions",
 		"folders",
+		"session_tags",
+		"tags",
 		"sources",
 		"config",
 	}

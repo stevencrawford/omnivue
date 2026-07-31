@@ -6,6 +6,7 @@ import { SourceService } from "../services/source";
 import { ConfigService } from "../services/config";
 import { StatusService } from "../services/status";
 import { FolderService } from "../services/folder";
+import { TagService } from "../services/tag";
 import { ScratchService } from "../services/scratch";
 import { BookmarkService } from "../services/bookmark";
 import { RecentSearchService } from "../services/recentSearch";
@@ -18,6 +19,7 @@ const MainLayer = Layer.mergeAll(
   ConfigService.Default,
   StatusService.Default,
   FolderService.Default,
+  TagService.Default,
   ScratchService.Default,
   BookmarkService.Default,
   RecentSearchService.Default,

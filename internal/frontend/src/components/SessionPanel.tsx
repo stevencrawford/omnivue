@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight, Archive } from "lucide-react";
+import { ChevronRight, Folder, Tags, Plus, Minus, ArrowUpDown, ArrowRight, Archive } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
@@ -21,6 +21,7 @@ import {
 import { useSessionListSettings } from "../hooks/useSessionListSettings";
 import { ContextMenu } from "./ContextMenu";
 import { AddToProjectDialog } from "./AddToProjectDialog";
+import { ManageTagsDialog } from "./ManageTagsDialog";
 
 function getAncestorChain(sessions: Session[], id: string): string[] {
   const chain: string[] = [];
@@ -145,6 +146,7 @@ export function SessionPanel({
     y: number;
   } | null>(null);
   const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
+  const [tagsSessionId, setTagsSessionId] = useState<string | null>(null);
 
   const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -414,6 +416,13 @@ export function SessionPanel({
                 setAddToProjectSessionId(contextMenu.sessionId);
               },
             },
+            {
+              label: "Add Tags...",
+              icon: <Tags size={14} />,
+              onClick: () => {
+                setTagsSessionId(contextMenu.sessionId);
+              },
+            },
           ]}
         />
       )}
@@ -425,6 +434,14 @@ export function SessionPanel({
           sessionTitle={sessions.find((s) => s.id === addToProjectSessionId)?.title || ""}
           onClose={() => setAddToProjectSessionId(null)}
           onAssigned={(name) => showToast(`Added to ${name}`)}
+        />
+      )}
+
+      {tagsSessionId && (
+        <ManageTagsDialog
+          isOpen={!!tagsSessionId}
+          sessionId={tagsSessionId}
+          onClose={() => setTagsSessionId(null)}
         />
       )}
     </div>

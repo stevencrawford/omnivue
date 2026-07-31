@@ -175,6 +175,91 @@ func TestStore_Folders(t *testing.T) {
 	}
 }
 
+func TestStore_Tags(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	s, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	now := time.Now()
+	err = s.CreateTag(store.Tag{
+		ID:        "tag-1",
+		Name:      "frontend",
+		Color:     "#3178c6",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tags, err := s.ListTags()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+	if tags[0].Name != "frontend" || tags[0].Color != "#3178c6" {
+		t.Errorf("unexpected tag: %+v", tags[0])
+	}
+
+	if err := s.AssignTag("tag-1", "ses-1"); err != nil {
+		t.Fatal(err)
+	}
+	// Assigning twice is idempotent.
+	if err := s.AssignTag("tag-1", "ses-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reverse lookup returns the tag for the session.
+	sessionTags, err := s.SessionTags("ses-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessionTags) != 1 || sessionTags[0].ID != "tag-1" {
+		t.Fatalf("expected 1 session tag, got %+v", sessionTags)
+	}
+
+	// Forward lookup returns the session for the tag.
+	sessionIDs, err := s.TagSessions("tag-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessionIDs) != 1 || sessionIDs[0] != "ses-1" {
+		t.Fatalf("expected 1 tagged session, got %v", sessionIDs)
+	}
+
+	if err := s.UnassignTag("tag-1", "ses-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateTag("tag-1", "web", ""); err != nil {
+		t.Fatal(err)
+	}
+	tags, err = s.ListTags()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 1 || tags[0].Name != "web" {
+		t.Fatalf("expected renamed tag, got %+v", tags)
+	}
+
+	if err := s.DeleteTag("tag-1"); err != nil {
+		t.Fatal(err)
+	}
+	tags, err = s.ListTags()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 0 {
+		t.Fatalf("expected no tags after delete, got %d", len(tags))
+	}
+}
+
 func TestStore_NotificationCRUD(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
@@ -380,6 +465,7 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if v != 4 {
 		t.Fatalf("expected schema version 4 on fresh install, got %d", v)
 	}
+	}
 }
 
 func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
@@ -427,6 +513,7 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if v != 4 {
 		t.Fatalf("expected legacy db stamped to version 4, got %d", v)
 	}
+	}
 
 	sources, err := s.ListSources()
 	if err != nil {
@@ -452,6 +539,7 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if v1 != 4 {
 		t.Fatalf("expected version 4 after first open, got %d", v1)
 	}
+	}
 	s1.Close()
 
 	s2, err := store.New()
@@ -465,5 +553,6 @@ func TestMigrate_Idempotent(t *testing.T) {
 	}
 	if v2 != 4 {
 		t.Fatalf("expected version 4 after second open, got %d", v2)
+	}
 	}
 }

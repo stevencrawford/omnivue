@@ -54,7 +54,7 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 4 {
+if v != 4 {
 		t.Fatalf("expected legacy db stamped to version 4, got %d", v)
 	}
 
@@ -101,7 +101,7 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 4 {
+if v != 4 {
 		t.Fatalf("expected version 4 on fresh install, got %d", v)
 	}
 

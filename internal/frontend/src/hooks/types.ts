@@ -160,6 +160,14 @@ export interface Folder {
   updatedAt: string;
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Bookmark {
   id: string;
   sessionId: string;

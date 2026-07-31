@@ -16,7 +16,7 @@ Returns server status with schema version.
   "pid": 12345,
   "sources": 3,
   "sessions": 42,
-  "schemaVersion": 2
+  "schemaVersion": 3
 }
 ```
 
@@ -365,6 +365,77 @@ DELETE /_/api/folders/{id}/sessions/{sessionId}
 ```
 
 Remove a session from a folder. Returns `204`.
+
+## Tags
+
+```http
+GET /_/api/tags
+```
+
+List all tags, ordered by name.
+
+```json
+[
+  {
+    "id": "tag_1234",
+    "name": "frontend",
+    "color": "#3178c6",
+    "createdAt": "2026-06-01T12:00:00Z",
+    "updatedAt": "2026-06-01T12:00:00Z"
+  }
+]
+```
+
+```http
+POST /_/api/tags
+```
+
+Create a new tag. Names must be unique.
+
+```json
+{
+  "name": "frontend",
+  "color": "#3178c6"
+}
+```
+
+Returns the created tag with `201`.
+
+```http
+PATCH /_/api/tags/{id}
+```
+
+Update a tag's name or color. Returns `204`.
+
+```http
+DELETE /_/api/tags/{id}
+```
+
+Delete a tag and its session assignments (cascade). Returns `204`.
+
+```http
+GET /_/api/tags/{id}/sessions
+```
+
+List session IDs carrying a tag.
+
+```http
+POST /_/api/tags/{id}/sessions/{sessionId}
+```
+
+Apply a tag to a session. Idempotent. Returns `204`.
+
+```http
+DELETE /_/api/tags/{id}/sessions/{sessionId}
+```
+
+Remove a tag from a session. Returns `204`.
+
+```http
+GET /_/api/sessions/{id}/tags
+```
+
+List the tags applied to a session (as `Tag` objects).
 
 ## Bookmarks
 

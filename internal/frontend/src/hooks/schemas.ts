@@ -215,6 +215,21 @@ export const FoldersSchema = z.array(FolderSchema);
 export const FolderSessionsSchema = z.array(z.string());
 
 // ---------------------------------------------------------------------------
+// Tag
+// ---------------------------------------------------------------------------
+
+export const TagSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: optionalString,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const TagsSchema = z.array(TagSchema);
+export const TagSessionsSchema = z.array(z.string());
+
+// ---------------------------------------------------------------------------
 // Bookmark
 // ---------------------------------------------------------------------------
 

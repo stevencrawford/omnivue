@@ -1,7 +1,13 @@
 import React from "react";
-import { Folder, Bookmark, Bell, Settings, ListTodo, type LucideProps } from "lucide-react";
+import { Folder, Tags, Bookmark, Bell, Settings, ListTodo, type LucideProps } from "lucide-react";
 
-export type Section = "sessions" | "queue" | "projects" | "bookmarks" | "notifications";
+export type Section =
+  | "sessions"
+  | "queue"
+  | "projects"
+  | "tags"
+  | "bookmarks"
+  | "notifications";
 
 interface IconChannelProps {
   activeSection: Section;
@@ -40,6 +46,7 @@ const sections: {
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
   { id: "queue", label: "Queue", Icon: ListTodo },
   { id: "projects", label: "Projects", Icon: Folder },
+  { id: "tags", label: "Tags", Icon: Tags },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
   { id: "notifications", label: "Notifications", Icon: Bell },
 ];

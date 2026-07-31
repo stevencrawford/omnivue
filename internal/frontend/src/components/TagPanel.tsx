@@ -4,32 +4,33 @@ import {
   Minus,
   ArrowUpDown,
   ChevronRight,
-  Folder as FolderIcon,
   Tags as TagsIcon,
+  Folder as FolderIcon,
   Pencil,
   Trash2,
   X,
 } from "lucide-react";
 import { Effect } from "effect";
-import type { Folder, Session } from "../hooks/types";
-import { FolderService } from "../services";
+import type { Session, Tag } from "../hooks/types";
+import { TagService } from "../services";
 import { runPromise } from "../lib/effect";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
+import { tagColor } from "../utils/tagColors";
+import { CreateTagModal } from "./CreateTagModal";
 import { ContextMenu } from "./ContextMenu";
 import { AddToProjectDialog } from "./AddToProjectDialog";
-import { ManageTagsDialog } from "./ManageTagsDialog";
 
-interface ProjectPanelProps {
+interface TagPanelProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
   showToast: (msg: string) => void;
 }
 
-type FolderSort = "name" | "count";
+type TagSort = "name" | "count";
 
-const EXPANDED_KEY = "omnivue-project-folders-expanded";
-const SORT_FOLDER_KEY = "omnivue-project-folder-sort";
+const EXPANDED_KEY = "omnivue-tags-expanded";
+const SORT_TAG_KEY = "omnivue-tag-sort";
 
 function getInitialExpanded(): Set<string> {
   try {
@@ -49,79 +50,72 @@ function saveExpanded(next: Set<string>) {
   }
 }
 
-function listFoldersEffect() {
-  return FolderService.pipe(
+function listTagsEffect() {
+  return TagService.pipe(
     Effect.flatMap((svc) => svc.list()),
     Effect.catchAll((err) => {
-      console.error("Failed to load folders:", err);
-      return Effect.succeed([] as Folder[]);
+      console.error("Failed to load tags:", err);
+      return Effect.succeed([] as Tag[]);
     }),
   );
 }
 
-function loadFolderSessionsEffect(id: string) {
-  return FolderService.pipe(
+function loadTagSessionsEffect(id: string) {
+  return TagService.pipe(
     Effect.flatMap((svc) => svc.listSessions(id)),
     Effect.catchAll((err) => {
-      console.error("Failed to load folder sessions:", err);
+      console.error("Failed to load tag sessions:", err);
       return Effect.succeed([] as string[]);
     }),
   );
 }
 
-export function ProjectPanel({
-  sessions,
-  activeSessionId,
-  onSessionSelect,
-  showToast,
-}: ProjectPanelProps) {
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(getInitialExpanded);
+export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast }: TagPanelProps) {
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [tagSessions, setTagSessions] = useState<Record<string, string[]>>({});
+  const [expandedTags, setExpandedTags] = useState<Set<string>>(getInitialExpanded);
   const initialExpandedRef = useRef<Set<string> | null>(null);
   if (!initialExpandedRef.current) {
     initialExpandedRef.current = getInitialExpanded();
   }
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [assigningFolder, setAssigningFolder] = useState<string | null>(null);
-  const [folderSort, setFolderSort] = useState<FolderSort>(() => {
+  const [assigningTag, setAssigningTag] = useState<string | null>(null);
+  const [tagSort, setTagSort] = useState<TagSort>(() => {
     try {
-      const stored = localStorage.getItem(SORT_FOLDER_KEY);
+      const stored = localStorage.getItem(SORT_TAG_KEY);
       if (stored === "name" || stored === "count") return stored;
     } catch {
       /* noop */
     }
     return "name";
   });
-  const [folderSortOpen, setFolderSortOpen] = useState(false);
+  const [tagSortOpen, setTagSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    saveExpanded(expandedFolders);
-  }, [expandedFolders]);
+    saveExpanded(expandedTags);
+  }, [expandedTags]);
 
   useEffect(() => {
-    if (folders.length === 0) return;
-    folders.forEach((f) => {
-      if (initialExpandedRef.current?.has(f.id)) {
-        runPromise(loadFolderSessionsEffect(f.id)).then((ids) => {
-          setFolderSessions((prev) => ({ ...prev, [f.id]: ids }));
+    if (tags.length === 0) return;
+    tags.forEach((t) => {
+      if (initialExpandedRef.current?.has(t.id)) {
+        runPromise(loadTagSessionsEffect(t.id)).then((ids) => {
+          setTagSessions((prev) => ({ ...prev, [t.id]: ids }));
         });
       }
     });
-  }, [folders]);
+  }, [tags]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(SORT_FOLDER_KEY, folderSort);
+      localStorage.setItem(SORT_TAG_KEY, tagSort);
     } catch {
       /* noop */
     }
-  }, [folderSort]);
+  }, [tagSort]);
 
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
@@ -129,7 +123,6 @@ export function ProjectPanel({
     y: number;
   } | null>(null);
   const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
-  const [tagsSessionId, setTagsSessionId] = useState<string | null>(null);
 
   const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -140,81 +133,75 @@ export function ProjectPanel({
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
-        setFolderSortOpen(false);
+        setTagSortOpen(false);
       }
     };
-    if (folderSortOpen) document.addEventListener("mousedown", handleClick);
+    if (tagSortOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [folderSortOpen]);
+  }, [tagSortOpen]);
 
-  const loadFolders = useCallback(async () => {
-    const data = await runPromise(listFoldersEffect());
-    setFolders(data);
+  const loadTags = useCallback(async () => {
+    const data = await runPromise(listTagsEffect());
+    setTags(data);
   }, []);
 
   useEffect(() => {
-    loadFolders();
-  }, [loadFolders]);
-
-  useEffect(() => {
-    if (creating) inputRef.current?.focus();
-  }, [creating]);
+    loadTags();
+  }, [loadTags]);
 
   useEffect(() => {
     if (editingId) editRef.current?.focus();
   }, [editingId]);
 
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
+  const handleCreate = async (name: string, color?: string) => {
     await runPromise(
-      FolderService.pipe(
-        Effect.flatMap((svc) => svc.create(newName.trim())),
+      TagService.pipe(
+        Effect.flatMap((svc) => svc.create(name, color)),
         Effect.catchAll((err) => {
-          console.error("Failed to create folder:", err);
+          console.error("Failed to create tag:", err);
           return Effect.void;
         }),
       ),
     );
-    setNewName("");
     setCreating(false);
-    loadFolders();
+    loadTags();
   };
 
   const handleRename = async (id: string) => {
     if (!editName.trim()) return;
     await runPromise(
-      FolderService.pipe(
+      TagService.pipe(
         Effect.flatMap((svc) => svc.update(id, editName.trim())),
         Effect.catchAll((err) => {
-          console.error("Failed to rename folder:", err);
+          console.error("Failed to rename tag:", err);
           return Effect.void;
         }),
       ),
     );
     setEditingId(null);
-    loadFolders();
+    loadTags();
   };
 
   const handleDelete = async (id: string) => {
     await runPromise(
-      FolderService.pipe(
+      TagService.pipe(
         Effect.flatMap((svc) => svc.remove(id)),
         Effect.catchAll((err) => {
-          console.error("Failed to delete folder:", err);
+          console.error("Failed to delete tag:", err);
           return Effect.void;
         }),
       ),
     );
-    setExpandedFolders((prev) => {
+    setExpandedTags((prev) => {
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
-    loadFolders();
+    loadTags();
   };
 
   const toggleExpand = async (id: string) => {
-    setExpandedFolders((prev) => {
+    setExpandedTags((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -223,64 +210,64 @@ export function ProjectPanel({
       }
       return next;
     });
-    const ids = await runPromise(loadFolderSessionsEffect(id));
-    setFolderSessions((prev) => ({ ...prev, [id]: ids }));
+    const ids = await runPromise(loadTagSessionsEffect(id));
+    setTagSessions((prev) => ({ ...prev, [id]: ids }));
   };
 
   const expandAll = useCallback(() => {
-    setExpandedFolders(new Set(folders.map((f) => f.id)));
-    folders.forEach((f) => {
-      runPromise(loadFolderSessionsEffect(f.id)).then((ids) => {
-        setFolderSessions((prev) => ({ ...prev, [f.id]: ids }));
+    setExpandedTags(new Set(tags.map((t) => t.id)));
+    tags.forEach((t) => {
+      runPromise(loadTagSessionsEffect(t.id)).then((ids) => {
+        setTagSessions((prev) => ({ ...prev, [t.id]: ids }));
       });
     });
-  }, [folders]);
+  }, [tags]);
 
   const collapseAll = useCallback(() => {
-    setExpandedFolders(new Set());
+    setExpandedTags(new Set());
   }, []);
 
-  const handleDrop = async (folderId: string, sessionId: string) => {
+  const handleDrop = async (tagId: string, sessionId: string) => {
     await runPromise(
-      FolderService.pipe(
-        Effect.flatMap((svc) => svc.assignSession(folderId, sessionId)),
+      TagService.pipe(
+        Effect.flatMap((svc) => svc.assignTag(tagId, sessionId)),
         Effect.catchAll((err) => {
-          console.error("Failed to assign session to folder:", err);
+          console.error("Failed to assign session to tag:", err);
           return Effect.void;
         }),
       ),
     );
-    const ids = await runPromise(loadFolderSessionsEffect(folderId));
-    setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
+    const ids = await runPromise(loadTagSessionsEffect(tagId));
+    setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
   };
 
-  const handleAssign = async (folderId: string, sessionId: string) => {
+  const handleAssign = async (tagId: string, sessionId: string) => {
     await runPromise(
-      FolderService.pipe(
-        Effect.flatMap((svc) => svc.assignSession(folderId, sessionId)),
+      TagService.pipe(
+        Effect.flatMap((svc) => svc.assignTag(tagId, sessionId)),
         Effect.catchAll((err) => {
-          console.error("Failed to assign session to folder:", err);
+          console.error("Failed to assign session to tag:", err);
           return Effect.void;
         }),
       ),
     );
-    const ids = await runPromise(loadFolderSessionsEffect(folderId));
-    setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
-    setAssigningFolder(null);
+    const ids = await runPromise(loadTagSessionsEffect(tagId));
+    setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
+    setAssigningTag(null);
   };
 
-  const handleUnassign = async (folderId: string, sessionId: string) => {
+  const handleUnassign = async (tagId: string, sessionId: string) => {
     await runPromise(
-      FolderService.pipe(
-        Effect.flatMap((svc) => svc.unassignSession(folderId, sessionId)),
+      TagService.pipe(
+        Effect.flatMap((svc) => svc.unassignTag(tagId, sessionId)),
         Effect.catchAll((err) => {
-          console.error("Failed to unassign session from folder:", err);
+          console.error("Failed to unassign session from tag:", err);
           return Effect.void;
         }),
       ),
     );
-    const ids = await runPromise(loadFolderSessionsEffect(folderId));
-    setFolderSessions((prev) => ({ ...prev, [folderId]: ids }));
+    const ids = await runPromise(loadTagSessionsEffect(tagId));
+    setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -290,10 +277,10 @@ export function ProjectPanel({
 
   const getSession = (id: string) => sessions.find((s) => s.id === id);
 
-  const sortedFolders = [...folders].sort((a, b) => {
-    if (folderSort === "count") {
-      const aCount = folderSessions[a.id]?.length || 0;
-      const bCount = folderSessions[b.id]?.length || 0;
+  const sortedTags = [...tags].sort((a, b) => {
+    if (tagSort === "count") {
+      const aCount = tagSessions[a.id]?.length || 0;
+      const bCount = tagSessions[b.id]?.length || 0;
       return bCount - aCount;
     }
     return a.name.localeCompare(b.name);
@@ -304,25 +291,24 @@ export function ProjectPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
-          Projects
+          Tags
         </span>
         <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={() => {
-              const allExpanded =
-                folders.length > 0 && folders.every((f) => expandedFolders.has(f.id));
+              const allExpanded = tags.length > 0 && tags.every((t) => expandedTags.has(t.id));
               if (allExpanded) collapseAll();
               else expandAll();
             }}
             className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
             title={
-              folders.length > 0 && folders.every((f) => expandedFolders.has(f.id))
+              tags.length > 0 && tags.every((t) => expandedTags.has(t.id))
                 ? "Collapse all"
                 : "Expand all"
             }
           >
-            {folders.length > 0 && folders.every((f) => expandedFolders.has(f.id)) ? (
+            {tags.length > 0 && tags.every((t) => expandedTags.has(t.id)) ? (
               <Minus size={14} />
             ) : (
               <Plus size={14} />
@@ -331,26 +317,26 @@ export function ProjectPanel({
           <div className="relative" ref={sortRef}>
             <button
               type="button"
-              onClick={() => setFolderSortOpen((v) => !v)}
+              onClick={() => setTagSortOpen((v) => !v)}
               className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
-              title="Sort folders"
+              title="Sort tags"
             >
               <ArrowUpDown size={14} />
             </button>
-            {folderSortOpen && (
+            {tagSortOpen && (
               <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
-                {(["name", "count"] as FolderSort[]).map((mode) => (
+                {(["name", "count"] as TagSort[]).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
-                      folderSort === mode
+                      tagSort === mode
                         ? "sess-session-active"
                         : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
                     }`}
                     onClick={() => {
-                      setFolderSort(mode);
-                      setFolderSortOpen(false);
+                      setTagSort(mode);
+                      setTagSortOpen(false);
                     }}
                   >
                     {mode === "name" ? "Name" : "Count"}
@@ -363,44 +349,20 @@ export function ProjectPanel({
             type="button"
             onClick={() => setCreating(true)}
             className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
-            title="New folder"
+            title="New tag"
           >
             <Plus size={14} />
           </button>
         </div>
       </div>
 
-      {/* Create new folder */}
-      {creating && (
-        <div className="px-1.5 pb-1">
-          <input
-            ref={inputRef}
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-              if (e.key === "Escape") {
-                setCreating(false);
-                setNewName("");
-              }
-            }}
-            onBlur={() => {
-              if (!newName.trim()) setCreating(false);
-            }}
-            placeholder="Folder name"
-            className="w-full text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1 text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent focus:shadow-[0_0_0_2px_var(--color-glow)]"
-          />
-        </div>
-      )}
-
-      {/* Folder list */}
+      {/* Tag list */}
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
-        {sortedFolders.length === 0 && !creating && (
+        {sortedTags.length === 0 && !creating && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <FolderIcon size={24} className="text-ov-text-secondary/40 mb-3" />
+            <TagsIcon size={24} className="text-ov-text-secondary/40 mb-3" />
             <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed mb-3">
-              Group related sessions into folders to stay organized.
+              Tag sessions to organize them across projects.
             </p>
             <button
               type="button"
@@ -412,58 +374,59 @@ export function ProjectPanel({
             </button>
           </div>
         )}
-        {sortedFolders.map((folder) => (
-          <div key={folder.id} className="group">
+        {sortedTags.map((tag) => (
+          <div key={tag.id} className="group">
             <div
               className="flex items-center gap-1 px-1 py-0.5 rounded transition-colors hover:bg-ov-bg-hover"
               onDragOver={handleDragOver}
               onDrop={(e) => {
                 e.preventDefault();
                 const sessionId = e.dataTransfer.getData("text/plain");
-                if (sessionId) handleDrop(folder.id, sessionId);
+                if (sessionId) handleDrop(tag.id, sessionId);
               }}
             >
-              {editingId === folder.id ? (
+              {editingId === tag.id ? (
                 <input
                   ref={editRef}
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRename(folder.id);
+                    if (e.key === "Enter") handleRename(tag.id);
                     if (e.key === "Escape") setEditingId(null);
                   }}
-                  onBlur={() => handleRename(folder.id)}
+                  onBlur={() => handleRename(tag.id)}
                   className="flex-1 text-xs bg-ov-bg border border-ov-border rounded-md px-1.5 py-0.5 text-ov-text outline-none focus:border-accent"
                 />
               ) : (
                 <button
                   type="button"
-                  className={`flex items-center gap-1.5 flex-1 text-xs cursor-pointer truncate transition-colors text-ov-text-secondary hover:text-ov-text`}
-                  onClick={() => toggleExpand(folder.id)}
+                  className="flex items-center gap-1.5 flex-1 text-xs cursor-pointer truncate transition-colors text-ov-text-secondary hover:text-ov-text"
+                  onClick={() => toggleExpand(tag.id)}
                 >
                   <ChevronRight
                     size={10}
                     className={`transition-transform shrink-0 ${
-                      expandedFolders.has(folder.id) ? "rotate-90" : ""
+                      expandedTags.has(tag.id) ? "rotate-90" : ""
                     }`}
                   />
-                  <FolderIcon size={12} className="shrink-0" />
-                  <span className="truncate">{folder.name}</span>
-                  {folderSessions[folder.id] && (
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: tagColor(tag.color) }}
+                  />
+                  <span className="truncate">{tag.name}</span>
+                  {tagSessions[tag.id] && (
                     <span className="text-[11px] text-ov-text-secondary ml-auto tabular-nums">
-                      {folderSessions[folder.id].length}
+                      {tagSessions[tag.id].length}
                     </span>
                   )}
                 </button>
               )}
-              {editingId !== folder.id && (
+              {editingId !== tag.id && (
                 <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
                   <button
                     type="button"
-                    onClick={() =>
-                      setAssigningFolder(assigningFolder === folder.id ? null : folder.id)
-                    }
+                    onClick={() => setAssigningTag(assigningTag === tag.id ? null : tag.id)}
                     className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
                     title="Add session"
                   >
@@ -472,8 +435,8 @@ export function ProjectPanel({
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingId(folder.id);
-                      setEditName(folder.name);
+                      setEditingId(tag.id);
+                      setEditName(tag.name);
                     }}
                     className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5"
                     title="Rename"
@@ -482,7 +445,7 @@ export function ProjectPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(folder.id)}
+                    onClick={() => handleDelete(tag.id)}
                     className="text-ov-text-secondary hover:text-red-400 cursor-pointer p-0.5"
                     title="Delete"
                   >
@@ -492,35 +455,33 @@ export function ProjectPanel({
               )}
             </div>
 
-            {assigningFolder === folder.id && (
+            {assigningTag === tag.id && (
               <AssignPicker
                 sessions={sessions}
-                assignedIds={folderSessions[folder.id] || []}
-                onAssign={(sid) => handleAssign(folder.id, sid)}
-                onClose={() => setAssigningFolder(null)}
+                assignedIds={tagSessions[tag.id] || []}
+                onAssign={(sid) => handleAssign(tag.id, sid)}
+                onClose={() => setAssigningTag(null)}
               />
             )}
 
-            {expandedFolders.has(folder.id) &&
-              folderSessions[folder.id] &&
-              folderSessions[folder.id].length > 0 && (
-                <div>
-                  {folderSessions[folder.id].map((sid) => {
-                    const sess = getSession(sid);
-                    if (!sess) return null;
-                    return (
-                      <FolderSessionRow
-                        key={sid}
-                        session={sess}
-                        isActive={sid === activeSessionId}
-                        onSelect={() => onSessionSelect(sid)}
-                        onRemove={() => handleUnassign(folder.id, sid)}
-                        onContextMenu={handleContextMenu}
-                      />
-                    );
-                  })}
-                </div>
-              )}
+            {expandedTags.has(tag.id) && tagSessions[tag.id] && tagSessions[tag.id].length > 0 && (
+              <div>
+                {tagSessions[tag.id].map((sid) => {
+                  const sess = getSession(sid);
+                  if (!sess) return null;
+                  return (
+                    <TagSessionRow
+                      key={sid}
+                      session={sess}
+                      isActive={sid === activeSessionId}
+                      onSelect={() => onSessionSelect(sid)}
+                      onRemove={() => handleUnassign(tag.id, sid)}
+                      onContextMenu={handleContextMenu}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -537,13 +498,6 @@ export function ProjectPanel({
                 setAddToProjectSessionId(contextMenu.sessionId);
               },
             },
-            {
-              label: "Add Tags...",
-              icon: <TagsIcon size={14} />,
-              onClick: () => {
-                setTagsSessionId(contextMenu.sessionId);
-              },
-            },
           ]}
         />
       )}
@@ -558,20 +512,18 @@ export function ProjectPanel({
         />
       )}
 
-      {tagsSessionId && (
-        <ManageTagsDialog
-          isOpen={!!tagsSessionId}
-          sessionId={tagsSessionId}
-          onClose={() => setTagsSessionId(null)}
-        />
-      )}
+      <CreateTagModal
+        isOpen={creating}
+        onClose={() => setCreating(false)}
+        onCreate={handleCreate}
+      />
     </div>
   );
 }
 
-// ─── Folder Session Row ──────────────────────────────────────────
+// ─── Tag Session Row ──────────────────────────────────────────────
 
-interface FolderSessionRowProps {
+interface TagSessionRowProps {
   session: Session;
   isActive: boolean;
   onSelect: () => void;
@@ -579,13 +531,13 @@ interface FolderSessionRowProps {
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
 }
 
-function FolderSessionRow({
+function TagSessionRow({
   session,
   isActive,
   onSelect,
   onRemove,
   onContextMenu,
-}: FolderSessionRowProps) {
+}: TagSessionRowProps) {
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
     e.dataTransfer.effectAllowed = "copy";
@@ -605,9 +557,7 @@ function FolderSessionRow({
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0 pr-6">
-          <span
-            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-ov-text" : "text-ov-text"}`}
-          >
+          <span className="sess-parent-session-title truncate flex-1 text-ov-text">
             {sessionTitle(session)}
           </span>
           <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
@@ -627,7 +577,7 @@ function FolderSessionRow({
           e.stopPropagation();
           onRemove();
         }}
-        title="Remove from folder"
+        title="Remove tag"
       >
         <X size={10} />
       </button>

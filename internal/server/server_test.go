@@ -229,6 +229,32 @@ func TestHandleFolders_StoreUnavailable(t *testing.T) {
 	}
 }
 
+func TestHandleTags_StoreUnavailable(t *testing.T) {
+	state := &State{store: nil}
+
+	mux := NewHandler(state)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/_/api/tags")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var tags []store.Tag
+	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("expected empty list, got %d", len(tags))
+	}
+}
+
 func TestHandleSearch_EmptyQuery(t *testing.T) {
 	state := &State{store: nil}
 

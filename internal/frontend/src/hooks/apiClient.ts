@@ -14,6 +14,7 @@ import type {
   StatusInfo,
   SearchResult,
   Folder,
+  Tag,
   Bookmark,
   AppNotification,
   NotificationSettings,
@@ -35,6 +36,9 @@ import {
   FoldersSchema,
   FolderSchema,
   FolderSessionsSchema,
+  TagsSchema,
+  TagSchema,
+  TagSessionsSchema,
   BookmarksSchema,
   BookmarkToggleSchema,
   ConfigSchema,
@@ -289,6 +293,56 @@ export async function unassignSessionFromFolder(
     `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "DELETE" },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+export async function fetchTags(): Promise<Tag[]> {
+  return fetchJson("/_/api/tags", TagsSchema);
+}
+
+export async function createTag(name: string, color?: string): Promise<Tag> {
+  return fetchJson("/_/api/tags", TagSchema, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color }),
+  });
+}
+
+export async function updateTag(id: string, name: string, color?: string): Promise<void> {
+  await fetchVoid(`/_/api/tags/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color: color || "" }),
+  });
+}
+
+export async function deleteTag(id: string): Promise<void> {
+  await fetchVoid(`/_/api/tags/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function fetchTagSessions(tagId: string): Promise<string[]> {
+  return fetchJson(`/_/api/tags/${encodeURIComponent(tagId)}/sessions`, TagSessionsSchema);
+}
+
+export async function assignTagToSession(tagId: string, sessionId: string): Promise<void> {
+  await fetchVoid(
+    `/_/api/tags/${encodeURIComponent(tagId)}/sessions/${encodeURIComponent(sessionId)}`,
+    { method: "POST" },
+  );
+}
+
+export async function unassignTagFromSession(tagId: string, sessionId: string): Promise<void> {
+  await fetchVoid(
+    `/_/api/tags/${encodeURIComponent(tagId)}/sessions/${encodeURIComponent(sessionId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function fetchSessionTags(sessionId: string): Promise<Tag[]> {
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/tags`, TagsSchema);
 }
 
 // ---------------------------------------------------------------------------
