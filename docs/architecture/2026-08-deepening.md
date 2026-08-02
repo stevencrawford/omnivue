@@ -349,6 +349,7 @@ testable without the poll machinery.
 Append one line here each time a card flips to `done` so agents can see progress without
 re-reading the whole table.
 
+- 2026-08-02 — PR review response round 3 on `refactor/state-store-split`: S1 liveness heuristic dedup (`applyLiveness`), S2 fan-out bundle (`fanout` struct, handlers + Poller share it), S3 scratch read routed through `requireStore`, S4 `util.go` dissolved into single-consumer homes, Spec(a) 200 centralized behind `writeOK` (48 sites). Kept + responded: Spec(b) frontend heartbeat (half of A2, card-tied), Spec(c) test rewrite + hub-private `SessionNameStore` (accepted D3 consequence), S5 `State` facade (reviewer called acceptable). `make test` green.
 - 2026-08-02 — PR review response round 2 on `refactor/state-store-split`: A1 typed-nil store roles (`storeRoles`/`storeRolesOf`, never box a nil `*Store`), A2 `ExcludeActiveView` wired end-to-end (+ frontend heartbeat), A3 indexer hash-dedup restored (`updateIndexState`), B1/B2 `prevStatus`+`SetNames` deleted, C1/C2 fan-out+scratch-chunk dedup (`fanoutSessions`, `indexScratchChunk`), D1/D2/D3 handler seams narrowed + status writes centralized (`writeNoContent`/`writeCreated`/`writeAccepted`/`requireStore`) + in-memory fake stores for handler tests. Resolve-changes kept and pinned by `server_test.go`; `make test` green.
 - 2026-08-02 — ATH-04 (EffectJS service layer collapse + unified `ApiError`) done on `refactor/ath04-collapse-effect-services`.
 - 2026-08-02 — ATH-03 (HTTP handler de-leak + JSON helpers) done on `refactor/state-store-split`.
