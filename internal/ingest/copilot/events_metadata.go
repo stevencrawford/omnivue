@@ -1,11 +1,12 @@
 package copilot
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 // metadataFromEvents reads a session's events.jsonl and extracts model, cost,
@@ -20,8 +21,7 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 
 	meta := &eventsMetadata{}
 	var msgCount int
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -85,15 +85,15 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 					meta.DiffFiles = n
 				}
 			}
-		if data.ModelMetrics != nil {
-			// Each shutdown event has cumulative totals; reset so only the last event's values are kept.
-			meta.Cost = 0
-			meta.TokensInput = 0
-			meta.TokensOutput = 0
-			meta.TokensReasoning = 0
-			meta.TokensCacheRead = 0
-			meta.TokensCacheWrite = 0
-			for _, m := range data.ModelMetrics {
+			if data.ModelMetrics != nil {
+				// Each shutdown event has cumulative totals; reset so only the last event's values are kept.
+				meta.Cost = 0
+				meta.TokensInput = 0
+				meta.TokensOutput = 0
+				meta.TokensReasoning = 0
+				meta.TokensCacheRead = 0
+				meta.TokensCacheWrite = 0
+				for _, m := range data.ModelMetrics {
 					if m.Requests != nil {
 						meta.Cost += m.Requests.Cost
 					}

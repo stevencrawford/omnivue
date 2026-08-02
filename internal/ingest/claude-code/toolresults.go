@@ -37,13 +37,13 @@ func readToolResultFile(toolResultsDir, toolUseID string) string {
 	return string(content)
 }
 
-// truncateToolOutput truncates content to maxContentBytes unless the tool is a task or sub-agent.
+// truncateToolOutput truncates content to ingestkit.MaxContentBytes unless the tool is a task or sub-agent.
 func truncateToolOutput(content string, toolName string) string {
 	switch toolName {
 	case "task", "Task", "Agent", "TaskOutput", "task_complete":
 		return content
 	}
-	return ingestkit.TruncateContent(content, maxContentBytes)
+	return ingestkit.TruncateContent(content, ingestkit.MaxContentBytes)
 }
 
 // setToolMetadataSessionID sets the sessionId field in a tool call's metadata JSON.
