@@ -148,18 +148,28 @@ func (h *SessionHub) Resolve(ctx context.Context, id string) (*ingest.Session, i
 // the refresh path uses, so a fallback-resolved session behaves identically to
 // one surfaced by a normal poll.
 func enrichSession(sess *ingest.Session, names store.SessionNameStore) {
-	if !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < liveWindow {
-		if sess.Status != ingest.SessionStatusActive {
-			sess.Status = ingest.SessionStatusActive
-		}
-	} else if sess.Status == ingest.SessionStatusActive {
-		sess.Status = ingest.SessionStatusCompleted
-	}
+	applyLiveness(sess)
 	if names != nil {
 		if name, err := names.SessionName(sess.ID); err == nil && name != "" {
 			sess.Title = name
 		}
 	}
+}
+
+// applyLiveness flips a session's status between active and completed based on
+// the liveWindow heuristic, returning whether the session is currently live.
+// Shared by enrichSession and refreshSessions so the two paths cannot drift.
+func applyLiveness(sess *ingest.Session) bool {
+	if !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < liveWindow {
+		if sess.Status != ingest.SessionStatusActive {
+			sess.Status = ingest.SessionStatusActive
+		}
+		return true
+	}
+	if sess.Status == ingest.SessionStatusActive {
+		sess.Status = ingest.SessionStatusCompleted
+	}
+	return false
 }
 
 // Messages returns messages for a session.
@@ -285,13 +295,8 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 			// Liveness heuristic: a session is "active" if its last update is
 			// within liveWindow. We override whatever the adapter hardcoded so
 			// the frontend gets a single source of truth.
-			if !sessions[i].UpdatedAt.IsZero() && time.Since(sessions[i].UpdatedAt) < liveWindow {
-				if sessions[i].Status != ingest.SessionStatusActive {
-					sessions[i].Status = ingest.SessionStatusActive
-				}
+			if applyLiveness(&sessions[i]) {
 				liveCount++
-			} else if sessions[i].Status == ingest.SessionStatusActive {
-				sessions[i].Status = ingest.SessionStatusCompleted
 			}
 		}
 		allSessions = append(allSessions, sessions...)
