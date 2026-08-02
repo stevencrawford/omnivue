@@ -98,7 +98,6 @@ export function SessionPanel({
   const sortRef = useRef<HTMLDivElement>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialDisplay);
   const { hideStale, staleDays, setHideStale } = useSessionListSettings();
-  const [showStale, setShowStale] = useState(false);
   const toggleDisplayMode = useCallback(() => {
     setDisplayMode((prev) => {
       const next = prev === "condensed" ? "verbose" : "condensed";
@@ -180,8 +179,7 @@ export function SessionPanel({
 
   const staleIds = useMemo(() => new Set(staleSessions.map((s) => s.id)), [staleSessions]);
 
-  const hidingStale = hideStale && !showStale;
-  const treeSessions = hidingStale ? visibleSessions : filteredSessions;
+  const treeSessions = hideStale ? visibleSessions : filteredSessions;
 
   const tree = useMemo(() => buildTree(treeSessions, sortMode), [treeSessions, sortMode]);
 
@@ -243,13 +241,8 @@ export function SessionPanel({
   }, []);
 
   const toggleHideStale = useCallback(() => {
-    setShowStale(false);
     setHideStale(!hideStale);
   }, [hideStale, setHideStale]);
-
-  const toggleShowStale = useCallback(() => {
-    setShowStale((v) => !v);
-  }, []);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -408,20 +401,6 @@ export function SessionPanel({
           </div>
         )}
       </div>
-
-      {hideStale && staleSessions.length > 0 && (
-        <div className="px-1.5 pb-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={toggleShowStale}
-            className="w-full text-center text-[11px] text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
-          >
-            {showStale
-              ? `Hide ${staleSessions.length} older session${staleSessions.length > 1 ? "s" : ""}`
-              : `Show ${staleSessions.length} older session${staleSessions.length > 1 ? "s" : ""}`}
-          </button>
-        </div>
-      )}
 
       {contextMenu && (
         <ContextMenu
