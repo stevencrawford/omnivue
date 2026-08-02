@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Effect } from "effect";
 import type { ScratchFile, Session } from "./types";
-import { ScratchService, ApiError } from "../services";
-import { runPromise } from "../lib/effect";
+import { fetchAllScratchFiles, createScratchFile, renameScratchFile } from "./apiClient";
 
 export interface ScratchFileInfo {
   title: string;
@@ -19,29 +17,6 @@ export interface ScratchFilesState {
   handleCloseScratchTab: (fileId: string) => void;
   handleRenameScratchFile: (fileId: string, newTitle: string) => Promise<void>;
   handlePinAsScratch: (title: string, content: string) => Promise<void>;
-}
-
-function listAllScratchFilesEffect() {
-  return ScratchService.pipe(
-    Effect.flatMap((svc) => svc.listAll()),
-    Effect.catchAll((err: ApiError) => {
-      console.error("[scratch] failed to load:", err.message);
-      return Effect.succeed([] as ScratchFile[]);
-    }),
-  );
-}
-
-function createScratchFileEffect(
-  sessionId: string,
-  title: string,
-  content?: string,
-  mode?: "writable" | "readonly",
-) {
-  return ScratchService.pipe(Effect.flatMap((svc) => svc.create(sessionId, title, content, mode)));
-}
-
-function renameScratchFileEffect(sessionId: string, fileId: string, newTitle: string) {
-  return ScratchService.pipe(Effect.flatMap((svc) => svc.rename(sessionId, fileId, newTitle)));
 }
 
 export function useScratchFiles(
@@ -70,8 +45,13 @@ export function useScratchFiles(
   }, [validScratchFiles]);
 
   const loadScratchFiles = useCallback(async () => {
-    const data = await runPromise(listAllScratchFilesEffect());
-    setScratchFiles(data ?? []);
+    try {
+      const data = await fetchAllScratchFiles();
+      setScratchFiles(data ?? []);
+    } catch (err) {
+      console.error("[scratch] failed to load:", err instanceof Error ? err.message : err);
+      setScratchFiles([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -93,9 +73,7 @@ export function useScratchFiles(
   const handleNewScratchFile = useCallback(async () => {
     if (!activeSessionId) return;
     try {
-      const f = await runPromise(
-        createScratchFileEffect(activeSessionId, "Untitled", "# Untitled"),
-      );
+      const f = await createScratchFile(activeSessionId, "Untitled", "# Untitled");
       setScratchFiles((prev) => [f, ...prev]);
       setOpenScratchTabs((prev) => [...prev, f.id]);
       setActiveTab(`scratch:${f.id}`);
@@ -120,7 +98,7 @@ export function useScratchFiles(
       const info = scratchFileMap[fileId];
       if (!info) return;
       try {
-        await runPromise(renameScratchFileEffect(info.sessionId, fileId, newTitle));
+        await renameScratchFile(info.sessionId, fileId, newTitle);
         setScratchFiles((prev) =>
           prev.map((f) => (f.id === fileId ? { ...f, title: newTitle } : f)),
         );
@@ -135,9 +113,7 @@ export function useScratchFiles(
     async (title: string, content: string) => {
       if (!activeSessionId) return;
       try {
-        const f = await runPromise(
-          createScratchFileEffect(activeSessionId, title, content, "readonly"),
-        );
+        const f = await createScratchFile(activeSessionId, title, content, "readonly");
         setScratchFiles((prev) => [f, ...prev]);
         setOpenScratchTabs((prev) => (prev.includes(f.id) ? prev : [...prev, f.id]));
         setActiveTab(`scratch:${f.id}`);

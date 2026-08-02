@@ -1,9 +1,7 @@
-import { useCallback, useRef, useState } from "react";
-import { Effect } from "effect";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SearchResult } from "./useApi";
 import type { Tab } from "../components/SessionViewer";
-import { runFork } from "../lib/effect";
-import { SearchService } from "../services";
+import { fetchSearch } from "./apiClient";
 
 export function useSearchState(
   addSearch: (q: string) => void,
@@ -20,29 +18,28 @@ export function useSearchState(
   const [drawerQuery, setDrawerQuery] = useState("");
   const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
 
-  const cancelSearch = useRef<(() => void) | null>(null);
+  const cancelSearch = useRef<AbortController | null>(null);
 
   function runSearch(query: string, limit: number, scope: string | undefined): void {
-    cancelSearch.current?.();
+    cancelSearch.current?.abort();
+    const controller = new AbortController();
+    cancelSearch.current = controller;
 
-    const cancel = runFork(
-      SearchService.pipe(
-        Effect.flatMap((svc) => svc.search(query, limit, scope)),
-        Effect.map((results) => {
-          setDrawerQuery(query);
-          setDrawerResults(results || []);
-          setDrawerOpen(true);
-        }),
-        Effect.catchAll(() =>
-          Effect.sync(() => {
-            setDrawerResults([]);
-          }),
-        ),
-      ),
-    );
-
-    cancelSearch.current = cancel;
+    fetchSearch(query, limit, scope, controller.signal)
+      .then((results) => {
+        setDrawerQuery(query);
+        setDrawerResults(results || []);
+        setDrawerOpen(true);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setDrawerResults([]);
+      });
   }
+
+  useEffect(() => {
+    return () => cancelSearch.current?.abort();
+  }, []);
 
   const handleSearchSelect = useCallback(
     (

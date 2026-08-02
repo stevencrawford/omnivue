@@ -13,11 +13,8 @@ import {
   BarChart3,
   Terminal,
 } from "lucide-react";
-import { Effect } from "effect";
 import type { Session, Message } from "../hooks/useApi";
-import { deleteScratchFile } from "../hooks/useApi";
-import { runFork } from "../lib/effect";
-import { SessionService } from "../services";
+import { deleteScratchFile, fetchMessages } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 import { useCopy } from "../hooks/useCopy";
@@ -127,27 +124,25 @@ export function SessionViewer({
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const cancelLoadRef = useRef<(() => void) | null>(null);
+  const cancelLoadRef = useRef<AbortController | null>(null);
 
   const loadMessages = useCallback(() => {
-    cancelLoadRef.current?.();
+    cancelLoadRef.current?.abort();
+    const controller = new AbortController();
+    cancelLoadRef.current = controller;
     setLoading(true);
-    const cancel = runFork(
-      SessionService.pipe(
-        Effect.flatMap((svc) => svc.getMessages(session.id)),
-        Effect.map((data) => {
-          setMessages(data || []);
-        }),
-        Effect.catchAll((err) =>
-          Effect.sync(() => {
-            console.error("Failed to load messages:", err.message);
-            setMessages([]);
-          }),
-        ),
-        Effect.ensuring(Effect.sync(() => setLoading(false))),
-      ),
-    );
-    cancelLoadRef.current = cancel;
+    fetchMessages(session.id, controller.signal)
+      .then((data) => {
+        setMessages(data || []);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("Failed to load messages:", err instanceof Error ? err.message : err);
+        setMessages([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
   }, [session.id]);
 
   useEffect(() => {
