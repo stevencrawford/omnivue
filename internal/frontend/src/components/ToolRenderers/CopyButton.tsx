@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Copy, Check, ChevronDown } from "lucide-react";
 
@@ -58,24 +58,33 @@ function CopyButton({
     };
   }, [menuOpen]);
 
-  const doCopy = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    const text = effectiveMode === "input" && inputText ? inputText : outputText;
-    navigator.clipboard.writeText(text || "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const doCopy = useCallback(
+    (m: CopyMode, e?: ReactMouseEvent<HTMLButtonElement>) => {
+      e?.stopPropagation();
+      const text = m === "input" && inputText ? inputText : outputText;
+      navigator.clipboard.writeText(text || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    },
+    [inputText, outputText],
+  );
+
+  const persistMode = (m: CopyMode) => {
+    if (!kind) return;
+    try {
+      localStorage.setItem(COPY_MODE_KEY + kind, m);
+    } catch {
+      /* ignore */
+    }
   };
 
   const selectMode = (m: CopyMode) => {
     setMode(m);
     setMenuOpen(false);
-    if (kind) {
-      try {
-        localStorage.setItem(COPY_MODE_KEY + kind, m);
-      } catch {
-        /* ignore */
-      }
-    }
+    // Copy immediately AND update the persisted default so every tool call of
+    // this kind uses the newly chosen mode going forward.
+    persistMode(m);
+    doCopy(m);
   };
 
   return (
@@ -83,7 +92,7 @@ function CopyButton({
       <div className="flex items-center">
         <button
           type="button"
-          onClick={doCopy}
+          onClick={(e) => doCopy(effectiveMode, e)}
           className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
           title={effectiveMode === "input" ? "Copy input" : "Copy output"}
         >
