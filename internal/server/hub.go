@@ -189,32 +189,16 @@ func (h *SessionHub) Edits(ctx context.Context, sessionID string) ([]ingest.File
 	return []ingest.FileEdit{}, nil
 }
 
-// ResumeCommand returns the CLI commands to resume a session: absolute (with
-// cd), relative (without cd), and the in-harness agent slash command.
-func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (absolute, relative, agentCommand string, err error) {
+// ResumeCommand returns the CLI commands to resume a session: the working
+// directory, the absolute command (with cd), the relative command (without cd),
+// and the in-harness agent slash command.
+func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (dir, absolute, relative, agentCommand string, err error) {
 	sess, adapter, err := h.Resolve(ctx, sessionID)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	abs := adapter.ResumeCommand(sess)
-	return abs, terminal.ExtractCmd(abs), adapter.AgentCommand(sess), nil
-}
-
-// TerminalTarget returns the working directory and resume command for a
-// session, used when starting a terminal websocket.
-func (h *SessionHub) TerminalTarget(sessionID string) (dir, initCmd string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	for _, se := range h.sessions {
-		if se.ID == sessionID {
-			dir = se.Directory
-			if adapter, ok := h.adapters[se.SourceID]; ok {
-				initCmd = terminal.ExtractCmd(adapter.ResumeCommand(&se))
-			}
-			return dir, initCmd
-		}
-	}
-	return "", ""
+	return sess.Directory, abs, terminal.ExtractCmd(abs), adapter.AgentCommand(sess), nil
 }
 
 // SetName applies a display-name override and updates the cached session list

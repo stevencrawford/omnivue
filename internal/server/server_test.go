@@ -1,12 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -100,27 +101,45 @@ func newState(t *testing.T, adapters map[string]ingest.Adapter, sessions []inges
 	return s
 }
 
+// doJSON performs a JSON request against the handler and decodes the response
+// body into out, asserting the expected status. A nil body sends an empty
+// request; out may be nil to skip decoding.
+func doJSON(t *testing.T, mux http.Handler, method, path string, body any, wantStatus int, out any) {
+	t.Helper()
+	var rdr io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rdr = bytes.NewReader(data)
+	}
+	req, err := http.NewRequest(method, path, rdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != wantStatus {
+		t.Fatalf("expected status %d, got %d (body: %s)", wantStatus, rec.Code, rec.Body.String())
+	}
+	if out != nil {
+		if err := json.Unmarshal(rec.Body.Bytes(), out); err != nil {
+			t.Fatalf("failed to decode response: %v (body: %s)", err, rec.Body.String())
+		}
+	}
+}
+
 func TestHandleStatus(t *testing.T) {
 	state := newState(t, map[string]ingest.Adapter{
 		"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1"}}},
 	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1"}}, true)
 
-	mux := NewHandler(state.Deps())
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/_/api/status")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
 	var body map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatal(err)
-	}
+	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/status", nil, http.StatusOK, &body)
 	if body["version"] != version.Version {
 		t.Errorf("expected version %q, got %v", version.Version, body["version"])
 	}
@@ -135,22 +154,8 @@ func TestHandleSessions(t *testing.T) {
 		"src-1": &mockAdapter{sessions: sess},
 	}, sess, true)
 
-	mux := NewHandler(state.Deps())
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/_/api/sessions")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
 	var sessions []ingest.Session
-	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
-		t.Fatal(err)
-	}
+	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/sessions", nil, http.StatusOK, &sessions)
 	if len(sessions) != 1 || sessions[0].Title != "Test Session" {
 		t.Fatalf("unexpected sessions: %+v", sessions)
 	}
@@ -158,18 +163,7 @@ func TestHandleSessions(t *testing.T) {
 
 func TestHandleGetSession_NotFound(t *testing.T) {
 	state := newState(t, nil, nil, true)
-	mux := NewHandler(state.Deps())
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/_/api/sessions/nonexistent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", resp.StatusCode)
-	}
+	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/sessions/nonexistent", nil, http.StatusNotFound, nil)
 }
 
 func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
@@ -213,22 +207,8 @@ func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
 
 func TestHandleTags_StoreUnavailable(t *testing.T) {
 	state := newState(t, nil, nil, true)
-	mux := NewHandler(state.Deps())
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/_/api/tags")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
 	var tags []store.Tag
-	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
-		t.Fatal(err)
-	}
+	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/tags", nil, http.StatusOK, &tags)
 	if len(tags) != 0 {
 		t.Errorf("expected empty list, got %d", len(tags))
 	}
@@ -237,18 +217,7 @@ func TestHandleTags_StoreUnavailable(t *testing.T) {
 func TestHandleSearch_EmptyQuery(t *testing.T) {
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
 	dep := Dep{Hub: hub}
-	mux := NewHandler(dep)
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/_/api/search")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/search", nil, http.StatusOK, nil)
 }
 
 func TestRefreshSessions_ConcurrencySafe(t *testing.T) {
@@ -504,22 +473,9 @@ func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
 	dep := newDep(hub, NewIndexer(hub, st, st), NewNotifier(hub, st, st, st, bus), bus, st)
-	mux := NewHandler(dep)
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/_/api/notifications")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
 	var list []store.Notification
-	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
-		t.Fatal(err)
-	}
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/notifications", nil, http.StatusOK, &list)
 	if len(list) != 0 {
 		t.Errorf("expected empty list, got %d", len(list))
 	}
@@ -539,51 +495,44 @@ func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 	notif := NewNotifier(hub, st, st, st, bus)
 	dep := newDep(hub, NewIndexer(hub, nil, nil), notif, bus, st)
 
-	mux := NewHandler(dep)
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
 	// GET defaults.
-	resp, err := http.Get(ts.URL + "/_/api/notifications/settings")
-	if err != nil {
-		t.Fatal(err)
-	}
 	var defaults notify.Settings
-	if err := json.NewDecoder(resp.Body).Decode(&defaults); err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/notifications/settings", nil, http.StatusOK, &defaults)
 	if defaults.Enabled {
 		t.Error("expected disabled by default")
 	}
 
 	// PUT enabled.
-	body, err := json.Marshal(notify.Settings{
+	var saved notify.Settings
+	doJSON(t, NewHandler(dep), http.MethodPut, "/_/api/notifications/settings", notify.Settings{
 		Enabled: true, Kinds: []notify.Kind{notify.KindQuestion}, Scope: "all",
 		InAppToast: true, SidebarBadge: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req, err := http.NewRequest(http.MethodPut, ts.URL+"/_/api/notifications/settings", strings.NewReader(string(body)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var saved notify.Settings
-	if err := json.NewDecoder(putResp.Body).Decode(&saved); err != nil {
-		t.Fatal(err)
-	}
-	putResp.Body.Close()
+	}, http.StatusOK, &saved)
 	if !saved.Enabled {
 		t.Error("expected saved settings to be enabled")
 	}
 	if saved.EnabledAt == 0 {
 		t.Error("expected EnabledAt to be stamped on first enable")
+	}
+}
+
+func TestHandleGetResumeCommand(t *testing.T) {
+	state := newState(t, map[string]ingest.Adapter{
+		"src-1": &mockAdapter{
+			sessions: []ingest.Session{{ID: "ses-1", Directory: "/tmp/proj"}},
+		},
+	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1", Directory: "/tmp/proj"}}, true)
+
+	var resp map[string]string
+	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/sessions/ses-1/resume", nil, http.StatusOK, &resp)
+	if resp["directory"] != "/tmp/proj" {
+		t.Errorf("expected directory /tmp/proj, got %q", resp["directory"])
+	}
+	if resp["relative"] != "echo resume" {
+		t.Errorf("expected relative echo resume, got %q", resp["relative"])
+	}
+	if resp["agentCommand"] != "/resume ses-1" {
+		t.Errorf("expected agentCommand /resume ses-1, got %q", resp["agentCommand"])
 	}
 }
 
@@ -620,31 +569,8 @@ func (f *fakeTagStore) SessionTags(sessionID string) ([]store.Tag, error) {
 
 func TestHandleCreateTag_FakeStore(t *testing.T) {
 	dep := newTestDep(t, &fakeTagStore{})
-	mux := NewHandler(dep)
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	body, err := json.Marshal(map[string]string{"name": "backend"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req, err := http.NewRequest(http.MethodPost, ts.URL+"/_/api/tags", strings.NewReader(string(body)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", resp.StatusCode)
-	}
 	var tag store.Tag
-	if err := json.NewDecoder(resp.Body).Decode(&tag); err != nil {
-		t.Fatal(err)
-	}
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/tags", map[string]string{"name": "backend"}, http.StatusCreated, &tag)
 	if tag.Name != "backend" {
 		t.Errorf("expected name backend, got %q", tag.Name)
 	}

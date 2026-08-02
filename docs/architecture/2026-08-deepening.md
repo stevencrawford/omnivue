@@ -40,7 +40,7 @@ id and its own Goals / Files / Seam / Acceptance / Tests card.
 |----|------|------|------|--------|
 | ATH-01 | Split the `State` god-object | H | 0 | done |
 | ATH-02 | Split `store.Store` into role interfaces | H | 0 | done |
-| ATH-03 | De-leak & normalize the HTTP handler layer | H | 0 | open |
+| ATH-03 | De-leak & normalize the HTTP handler layer | H | 0 | done |
 | ATH-04 | Collapse EffectJS service layer / unify `ApiError` | H | 1 | open |
 | ATH-05 | Centralize ingest tool-call canonicalization | H | 2 | open |
 | ATH-06 | Shrink the `ingest` Adapter interface + fix doc drift | H | 2 | open |
@@ -342,5 +342,6 @@ testable without the poll machinery.
 Append one line here each time a card flips to `done` so agents can see progress without
 re-reading the whole table.
 
+- 2026-08-02 — ATH-03 (HTTP handler de-leak + JSON helpers) done on `refactor/state-store-split`.
 - 2026-08-02 — ATH-01 (State god-object split) and ATH-02 (store role interfaces) done on `refactor/state-store-split`.
 - 2026-08-02 — Spec created; all tasks `open`.

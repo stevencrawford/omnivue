@@ -108,17 +108,13 @@ func handleStatus(dep Dep) http.HandlerFunc {
 				sources = len(all)
 			}
 		}
-		resp := map[string]any{
+		writeJSON(w, http.StatusOK, map[string]any{
 			"version":       version.Version,
 			"pid":           os.Getpid(),
 			"sources":       sources,
 			"sessions":      len(dep.Hub.Sessions()),
 			"schemaVersion": schemaVersion,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		})
 	}
 }
 
@@ -126,20 +122,14 @@ func handleSources(sources store.SourceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var out []ingest.Source
 		if sources != nil {
-			list, err := sources.ListSources()
-			if err != nil {
-				slog.Warn("failed to list sources", "error", err)
-			} else {
+			if list, err := sources.ListSources(); err == nil {
 				out = list
 			}
 		}
 		if len(out) == 0 {
 			out = []ingest.Source{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(out); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
 
@@ -151,12 +141,12 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 			Label     string `json:"label"`
 			Enabled   bool   `json:"enabled"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.Path == "" {
-			http.Error(w, "path is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "path is required")
 			return
 		}
 		if len(body.Path) > 1 && body.Path[:2] == "~/" {
@@ -189,7 +179,7 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 		}
 		if dep.Sources != nil {
 			if err := dep.Sources.AddSource(src); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 		}
@@ -201,11 +191,7 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 			}
 		}
 		go refreshAndIndex(context.WithoutCancel(r.Context()), dep.Hub, dep.Indexer, dep.Notifier, dep.Bus)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(src); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusCreated, src)
 	}
 }
 
@@ -215,7 +201,7 @@ func handleRemoveSource(dep Dep) http.HandlerFunc {
 		dep.Hub.RemoveAdapter(id)
 		if dep.Sources != nil {
 			if err := dep.Sources.RemoveSource(id); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 		}
@@ -234,18 +220,18 @@ func handleUpdateSource(dep Dep) http.HandlerFunc {
 			Label     string `json:"label"`
 			Enabled   bool   `json:"enabled"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.Path == "" {
-			http.Error(w, "path is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "path is required")
 			return
 		}
 		dep.Hub.RemoveAdapter(id)
 		if dep.Sources != nil {
 			if err := dep.Sources.UpdateSource(id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
 			if body.Enabled {
@@ -269,31 +255,25 @@ func handleDiscoverSources() http.HandlerFunc {
 		if len(discovered) == 0 {
 			discovered = []ingest.DiscoveredSource{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(discovered); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, discovered)
 	}
 }
 
 func handleGetConfig(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		config, err := cfg.AllConfig()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if config == nil {
 			config = make(map[string]string)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(config); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, config)
 	}
 }
 
@@ -303,207 +283,164 @@ func handleSetConfig(cfg store.ConfigStore) http.HandlerFunc {
 			Key   string `json:"key"`
 			Value string `json:"value"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.Key == "" {
-			http.Error(w, "key is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "key is required")
 			return
 		}
 		if cfg == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		if err := cfg.SetConfig(body.Key, body.Value); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleSessions(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessions := hub.Sessions()
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(sessions); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, hub.Sessions())
 	}
 }
 
 func handleGetSession(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		session, err := hub.Session(r.Context(), id)
+		session, err := hub.Session(r.Context(), r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(session); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, session)
 	}
 }
 
 func handleGetMessages(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		messages, err := hub.Messages(r.Context(), id)
+		messages, err := hub.Messages(r.Context(), r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(messages); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, messages)
 	}
 }
 
 func handleGetPlan(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		plan, err := hub.Plan(r.Context(), id)
+		plan, err := hub.Plan(r.Context(), r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(plan); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, plan)
 	}
 }
 
 func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		diffs, err := hub.Diffs(r.Context(), id)
+		diffs, err := hub.Diffs(r.Context(), r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		if len(diffs) == 0 {
 			diffs = []ingest.DiffFile{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(diffs); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, diffs)
 	}
 }
 
 func handleGetEdits(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		edits, err := hub.Edits(r.Context(), id)
+		edits, err := hub.Edits(r.Context(), r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		if len(edits) == 0 {
 			edits = []ingest.FileEdit{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(edits); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, edits)
 	}
 }
 
 func handleGetResumeCommand(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		abs, rel, agentCmd, err := hub.ResumeCommand(r.Context(), id)
+		dir, abs, rel, agentCmd, err := hub.ResumeCommand(r.Context(), r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, http.StatusOK, map[string]string{
+			"directory":    dir,
 			"absolute":     abs,
 			"relative":     rel,
 			"agentCommand": agentCmd,
-		}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		})
 	}
 }
 
 func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
 		var body struct {
 			DisplayName string `json:"displayName"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.DisplayName == "" {
-			http.Error(w, "displayName is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "displayName is required")
 			return
 		}
-		if err := hub.SetName(id, body.DisplayName); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := hub.SetName(r.PathValue("id"), body.DisplayName); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleClearSessionName(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		if err := hub.ClearName(id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := hub.ClearName(r.PathValue("id")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleListScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
 		var files []store.ScratchFile
 		if scratch != nil {
-			if f, err := scratch.ListScratchFiles(id); err == nil {
+			if f, err := scratch.ListScratchFiles(r.PathValue("id")); err == nil {
 				files = f
 			}
 		}
 		if len(files) == 0 {
 			files = []store.ScratchFile{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(files); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, files)
 	}
 }
 
 func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessionID := r.PathValue("id")
 		var body struct {
 			Title   string `json:"title"`
 			Content string `json:"content"`
 			Mode    string `json:"mode"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.Title == "" {
@@ -513,13 +450,13 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 			body.Mode = "writable"
 		}
 		if dep.Scratch == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		now := time.Now()
 		f := store.ScratchFile{
 			ID:        fmt.Sprintf("scratch_%d", now.UnixNano()),
-			SessionID: sessionID,
+			SessionID: r.PathValue("id"),
 			Title:     body.Title,
 			Content:   body.Content,
 			Mode:      body.Mode,
@@ -527,115 +464,93 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 			UpdatedAt: now,
 		}
 		if err := dep.Scratch.CreateScratchFile(f); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(sessionID)
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(f); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		dep.Indexer.ReindexSessionScratch(f.SessionID)
+		writeJSON(w, http.StatusOK, f)
 	}
 }
 
 func handleGetScratchFile(scratch store.ScratchStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fileID := r.PathValue("fileId")
 		if scratch == nil {
-			http.Error(w, "not found", http.StatusNotFound)
+			writeError(w, http.StatusNotFound, "not found")
 			return
 		}
-		f, err := scratch.ScratchFile(fileID)
+		f, err := scratch.ScratchFile(r.PathValue("fileId"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(f); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, f)
 	}
 }
 
 func handleUpdateScratchFile(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fileID := r.PathValue("fileId")
 		var body struct {
 			Title   string `json:"title"`
 			Content string `json:"content"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.Title == "" {
 			body.Title = "Untitled"
 		}
-		sessionID := r.PathValue("id")
 		if dep.Scratch == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		if err := dep.Scratch.UpdateScratchFile(fileID, body.Title, body.Content); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := dep.Scratch.UpdateScratchFile(r.PathValue("fileId"), body.Title, body.Content); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(sessionID)
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleRenameScratchFile(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fileID := r.PathValue("fileId")
 		var body struct {
 			Title string `json:"title"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.Title == "" {
-			http.Error(w, "title is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "title is required")
 			return
 		}
-		sessionID := r.PathValue("id")
 		if dep.Scratch == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		if err := dep.Scratch.RenameScratchFile(fileID, body.Title); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := dep.Scratch.RenameScratchFile(r.PathValue("fileId"), body.Title); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(sessionID)
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleDeleteScratchFile(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fileID := r.PathValue("fileId")
-		sessionID := r.PathValue("id")
 		if dep.Scratch == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		if err := dep.Scratch.DeleteScratchFile(fileID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := dep.Scratch.DeleteScratchFile(r.PathValue("fileId")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(sessionID)
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -650,53 +565,44 @@ func handleListAllScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 		if len(files) == 0 {
 			files = []store.ScratchFile{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(files); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, files)
 	}
 }
 
 func handleGetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		searches, err := cfg.RecentSearches()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(searches) == 0 {
 			searches = []string{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(searches); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, searches)
 	}
 }
 
 func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var searches []string
-		if err := json.NewDecoder(r.Body).Decode(&searches); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &searches); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if cfg == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		if err := cfg.SetRecentSearches(searches); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -704,10 +610,7 @@ func handleSearch(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		if q == "" {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.SearchResult{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []store.SearchResult{})
 			return
 		}
 		limit := 50
@@ -735,10 +638,7 @@ func handleSearch(dep Dep) http.HandlerFunc {
 		if len(results) == 0 {
 			results = []store.SearchResult{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(results); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, results)
 	}
 }
 
@@ -747,24 +647,18 @@ func handleSearch(dep Dep) http.HandlerFunc {
 func handleListTags(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.Tag{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []store.Tag{})
 			return
 		}
 		list, err := tags.ListTags()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(list) == 0 {
 			list = []store.Tag{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(list); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, list)
 	}
 }
 
@@ -776,16 +670,16 @@ type createTagRequest struct {
 func handleCreateTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		var req createTagRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if req.Name == "" {
-			http.Error(w, "name is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "name is required")
 			return
 		}
 		now := time.Now()
@@ -797,14 +691,10 @@ func handleCreateTag(tags store.TagStore) http.HandlerFunc {
 			UpdatedAt: now,
 		}
 		if err := tags.CreateTag(t); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(t); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusCreated, t)
 	}
 }
 
@@ -816,21 +706,20 @@ type updateTagRequest struct {
 func handleUpdateTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		id := r.PathValue("id")
 		var req updateTagRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if req.Name == "" {
-			http.Error(w, "name is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "name is required")
 			return
 		}
-		if err := tags.UpdateTag(id, req.Name, req.Color); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := tags.UpdateTag(r.PathValue("id"), req.Name, req.Color); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -840,12 +729,11 @@ func handleUpdateTag(tags store.TagStore) http.HandlerFunc {
 func handleDeleteTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		id := r.PathValue("id")
-		if err := tags.DeleteTag(id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := tags.DeleteTag(r.PathValue("id")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -855,38 +743,29 @@ func handleDeleteTag(tags store.TagStore) http.HandlerFunc {
 func handleGetTagSessions(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]string{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []string{})
 			return
 		}
-		id := r.PathValue("id")
-		sessionIDs, err := tags.TagSessions(id)
+		sessionIDs, err := tags.TagSessions(r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(sessionIDs) == 0 {
 			sessionIDs = []string{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(sessionIDs); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, sessionIDs)
 	}
 }
 
 func handleAssignTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		tagID := r.PathValue("id")
-		sessionID := r.PathValue("sessionId")
-		if err := tags.AssignTag(tagID, sessionID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := tags.AssignTag(r.PathValue("id"), r.PathValue("sessionId")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -896,13 +775,11 @@ func handleAssignTag(tags store.TagStore) http.HandlerFunc {
 func handleUnassignTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		tagID := r.PathValue("id")
-		sessionID := r.PathValue("sessionId")
-		if err := tags.UnassignTag(tagID, sessionID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := tags.UnassignTag(r.PathValue("id"), r.PathValue("sessionId")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -912,25 +789,18 @@ func handleUnassignTag(tags store.TagStore) http.HandlerFunc {
 func handleGetSessionTags(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.Tag{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []store.Tag{})
 			return
 		}
-		sessionID := r.PathValue("id")
-		list, err := tags.SessionTags(sessionID)
+		list, err := tags.SessionTags(r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(list) == 0 {
 			list = []store.Tag{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(list); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, list)
 	}
 }
 
@@ -939,24 +809,18 @@ func handleGetSessionTags(tags store.TagStore) http.HandlerFunc {
 func handleListBookmarks(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if bookmarks == nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.Bookmark{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []store.Bookmark{})
 			return
 		}
 		list, err := bookmarks.ListBookmarks()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(list) == 0 {
 			list = []store.Bookmark{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(list); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, list)
 	}
 }
 
@@ -970,28 +834,25 @@ type createBookmarkRequest struct {
 func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if bookmarks == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		var req createBookmarkRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if req.SessionID == "" {
-			http.Error(w, "sessionId is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "sessionId is required")
 			return
 		}
 		// Toggle: if a bookmark exists at this reference, remove it.
 		if existing, err := bookmarks.BookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID); err == nil && existing != nil {
 			if err := bookmarks.DeleteBookmark(existing.ID); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(map[string]any{"deleted": true, "id": existing.ID}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": existing.ID})
 			return
 		}
 		b := store.Bookmark{
@@ -1003,26 +864,21 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			CreatedAt:    time.Now(),
 		}
 		if err := bookmarks.CreateBookmark(b); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(b); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusCreated, b)
 	}
 }
 
 func handleDeleteBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if bookmarks == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		id := r.PathValue("id")
-		if err := bookmarks.DeleteBookmark(id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := bookmarks.DeleteBookmark(r.PathValue("id")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -1034,10 +890,7 @@ func handleDeleteBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 func handleListNotifications(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Notifs == nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.Notification{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []store.Notification{})
 			return
 		}
 		limit := 50
@@ -1049,34 +902,31 @@ func handleListNotifications(dep Dep) http.HandlerFunc {
 		unread := r.URL.Query().Get("unreadOnly") == "true" || r.URL.Query().Get("unreadOnly") == "1"
 		list, err := dep.Notifs.ListNotifications(limit, unread)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(list) == 0 {
 			list = []store.Notification{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(list); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, list)
 	}
 }
 
 func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Notifs == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		var body struct {
 			IDs []string `json:"ids"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if err := dep.Notifs.MarkAllNotificationsRead(body.IDs); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		// Broadcast read-state sync so other tabs update without refetching.
@@ -1086,28 +936,22 @@ func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
 		} else {
 			dep.Bus.Send(sseEvent{Name: "notifications-read", Data: string(data)})
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleClearNotifications(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Notifs == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		if err := dep.Notifs.ClearNotifications(time.Time{}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "notifications-read", Data: "{\"all\":true}"})
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1116,12 +960,12 @@ func handleActiveView(dep Dep) http.HandlerFunc {
 		var body struct {
 			SessionID string `json:"sessionId"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.SessionID == "" {
-			http.Error(w, "sessionId is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "sessionId is required")
 			return
 		}
 		dep.Notifier.ReportActiveView(body.SessionID)
@@ -1130,28 +974,21 @@ func handleActiveView(dep Dep) http.HandlerFunc {
 				slog.Warn("failed to mark session viewed", "session", body.SessionID, "error", err)
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleGetNotifySettings(notifier *Notifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		settings := notifier.LoadSettings()
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(settings); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, notifier.LoadSettings())
 	}
 }
 
 func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var settings notify.Settings
-		if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &settings); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		// If the user is enabling notifications for the first time (or after
@@ -1166,13 +1003,10 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 			settings.EnabledAt = prev.EnabledAt
 		}
 		if err := notifier.SaveSettings(settings); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(settings); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, settings)
 	}
 }
 
@@ -1181,10 +1015,7 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if prompts == nil {
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.QueuedPrompt{}); err != nil {
-				slog.Warn("failed to encode response", "error", err)
-			}
+			writeJSON(w, http.StatusOK, []store.QueuedPrompt{})
 			return
 		}
 		status := r.URL.Query().Get("status")
@@ -1197,23 +1028,20 @@ func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 		}
 		list, err := prompts.ListPrompts(status, sessionID, limit)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if len(list) == 0 {
 			list = []store.QueuedPrompt{}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(list); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, list)
 	}
 }
 
 func handleCreatePrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		var body struct {
@@ -1223,12 +1051,12 @@ func handleCreatePrompt(dep Dep) http.HandlerFunc {
 			Priority   int      `json:"priority"`
 			Tags       []string `json:"tags"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if body.PromptText == "" {
-			http.Error(w, "promptText is required", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "promptText is required")
 			return
 		}
 		tagsJSON := "[]"
@@ -1248,41 +1076,36 @@ func handleCreatePrompt(dep Dep) http.HandlerFunc {
 			CreatedAt:  time.Now().UnixMilli(),
 		}
 		if err := dep.Prompts.CreatePrompt(p); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(p); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusCreated, p)
 	}
 }
 
 func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		id := r.PathValue("id")
 		var body struct {
 			PromptText *string  `json:"promptText"`
 			Priority   *int     `json:"priority"`
 			Tags       []string `json:"tags"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
-		existing, err := dep.Prompts.Prompt(id)
+		existing, err := dep.Prompts.Prompt(r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if existing == nil {
-			http.Error(w, "not found", http.StatusNotFound)
+			writeError(w, http.StatusNotFound, "not found")
 			return
 		}
 		promptText := existing.PromptText
@@ -1299,88 +1122,74 @@ func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 				tags = string(data)
 			}
 		}
-		if err := dep.Prompts.UpdatePromptContent(id, promptText, tags, priority); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := dep.Prompts.UpdatePromptContent(r.PathValue("id"), promptText, tags, priority); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleDeletePrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		id := r.PathValue("id")
-		if err := dep.Prompts.DeletePrompt(id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := dep.Prompts.DeletePrompt(r.PathValue("id")); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
 func handleDispatchPrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
-		id := r.PathValue("id")
-		existing, err := dep.Prompts.Prompt(id)
+		existing, err := dep.Prompts.Prompt(r.PathValue("id"))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if existing == nil {
-			http.Error(w, "not found", http.StatusNotFound)
+			writeError(w, http.StatusNotFound, "not found")
 			return
 		}
 		now := time.Now().UnixMilli()
-		if err := dep.Prompts.UpdatePromptStatus(id, "dispatched", &now); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := dep.Prompts.UpdatePromptStatus(r.PathValue("id"), "dispatched", &now); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"status": "ok", "promptText": existing.PromptText}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "promptText": existing.PromptText})
 	}
 }
 
 func handleBatchDeletePrompts(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		var body struct {
 			IDs []string `json:"ids"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
 		if err := dep.Prompts.BatchDeletePrompts(body.IDs); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1417,22 +1226,19 @@ func handleRestart(dep Dep) http.HandlerFunc {
 func handleReset(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Reset == nil {
-			http.Error(w, "store not available", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "store not available")
 			return
 		}
 		if err := dep.Reset.Reset(); err != nil {
 			slog.Error("reset failed", "error", err)
-			http.Error(w, "reset failed", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "reset failed")
 			return
 		}
 		// Close all adapters and clear the cache.
 		dep.Hub.CloseAdapters()
 		// Notify frontend to reload.
 		dep.Bus.Send(sseEvent{Name: "reset"})
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			slog.Warn("failed to encode response", "error", err)
-		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1481,13 +1287,13 @@ func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessionID := r.URL.Query().Get("session_id")
 		if sessionID == "" {
-			http.Error(w, "missing session_id", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "missing session_id")
 			return
 		}
 
-		dir, initCmd := hub.TerminalTarget(sessionID)
-		if initCmd == "" {
-			http.Error(w, "session not found", http.StatusNotFound)
+		dir, _, initCmd, _, err := hub.ResumeCommand(r.Context(), sessionID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "session not found")
 			return
 		}
 		if dir == "" {
