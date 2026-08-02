@@ -11,7 +11,7 @@ import {
   unassignTagFromSession,
 } from "../hooks/useApi";
 import { agentLabel } from "../utils/sessionUtils";
-import { tagColor } from "../utils/tagColors";
+import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 
@@ -221,7 +221,9 @@ export function SessionHeader({
                 onClick={() => openTag(tag.name)}
                 title={`Show tag ${tag.name}`}
               >
-                <span className="sess-tag-dot" style={{ backgroundColor: tagColor(tag.color) }} />
+                {hasTagColor(tag.color) && (
+                  <span className="sess-tag-dot" style={{ backgroundColor: tagColor(tag.color) }} />
+                )}
                 <span className="sess-tag-name">{tag.name}</span>
               </button>
               <button
@@ -250,10 +252,12 @@ export function SessionHeader({
                       className="sess-tag-body"
                       onClick={() => openTag(tag.name)}
                     >
-                      <span
-                        className="sess-tag-dot"
-                        style={{ backgroundColor: tagColor(tag.color) }}
-                      />
+                      {hasTagColor(tag.color) && (
+                        <span
+                          className="sess-tag-dot"
+                          style={{ backgroundColor: tagColor(tag.color) }}
+                        />
+                      )}
                       <span className="sess-tag-name">{tag.name}</span>
                     </button>
                     <button
@@ -312,10 +316,14 @@ export function SessionHeader({
                           }}
                           className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
                         >
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: tagColor(tag.color) }}
-                          />
+                          {hasTagColor(tag.color) ? (
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: tagColor(tag.color) }}
+                            />
+                          ) : (
+                            <span className="w-2 h-2 shrink-0" />
+                          )}
                           <span className="truncate flex-1">{tag.name}</span>
                           {assigned && <Check size={12} className="shrink-0 text-accent" />}
                         </button>

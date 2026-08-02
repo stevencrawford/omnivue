@@ -12,7 +12,12 @@ export const TAG_COLORS = [
 ];
 
 export const TAG_DEFAULT_COLOR = "#8b949e";
+export const TAG_NO_COLOR = "";
+
+export function hasTagColor(color?: string): boolean {
+  return !!color && color.trim().length > 0;
+}
 
 export function tagColor(color?: string): string {
-  return color && color.trim() ? color : TAG_DEFAULT_COLOR;
+  return hasTagColor(color) ? color! : TAG_DEFAULT_COLOR;
 }

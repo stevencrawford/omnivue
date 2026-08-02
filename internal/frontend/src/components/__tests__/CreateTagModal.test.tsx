@@ -16,4 +16,9 @@ describe("CreateTagModal", () => {
     const input = screen.getByPlaceholderText("Tag name") as HTMLInputElement;
     expect(input.value).toBe("feature");
   });
+
+  it("defaults to no colour", () => {
+    render(<CreateTagModal isOpen onClose={noop} onCreate={noop} />);
+    expect(screen.getByTitle("No colour")).toBeDefined();
+  });
 });

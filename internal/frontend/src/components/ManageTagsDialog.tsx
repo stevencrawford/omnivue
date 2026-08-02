@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Plus, Loader } from "lucide-react";
+import { Check, Plus, Loader, Slash } from "lucide-react";
 import { Modal } from "./Modal";
 import type { Tag } from "../hooks/types";
-import { tagColor, TAG_COLORS } from "../utils/tagColors";
+import { tagColor, hasTagColor, TAG_COLORS, TAG_NO_COLOR } from "../utils/tagColors";
 import {
   fetchTags,
   fetchSessionTags,
@@ -25,7 +25,7 @@ export function ManageTagsDialog({ isOpen, sessionId, onClose, onChanged }: Mana
   const [filter, setFilter] = useState("");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState<string>(TAG_COLORS[0]);
+  const [newColor, setNewColor] = useState<string>(TAG_NO_COLOR);
   const [busyId, setBusyId] = useState<string | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
 
@@ -72,7 +72,7 @@ export function ManageTagsDialog({ isOpen, sessionId, onClose, onChanged }: Mana
     const name = newName.trim();
     if (!name) return;
     try {
-      const tag = await createTag(name, newColor);
+      const tag = await createTag(name, newColor || undefined);
       await assignTagToSession(tag.id, sessionId);
       await loadTags();
       onChanged?.();
@@ -117,10 +117,14 @@ export function ManageTagsDialog({ isOpen, sessionId, onClose, onChanged }: Mana
                   onClick={() => toggleTag(tag)}
                   className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer disabled:opacity-40 rounded transition-colors"
                 >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: tagColor(tag.color) }}
-                  />
+                  {hasTagColor(tag.color) ? (
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: tagColor(tag.color) }}
+                    />
+                  ) : (
+                    <span className="w-2 h-2 shrink-0" />
+                  )}
                   <span className="truncate flex-1">{tag.name}</span>
                   {busyId === tag.id ? (
                     <Loader size={12} className="animate-spin shrink-0" />
@@ -169,7 +173,19 @@ export function ManageTagsDialog({ isOpen, sessionId, onClose, onChanged }: Mana
                 Create
               </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <button
+                type="button"
+                onClick={() => setNewColor(TAG_NO_COLOR)}
+                className={`w-5 h-5 rounded-full cursor-pointer transition-transform hover:scale-110 flex items-center justify-center border border-ov-border bg-ov-bg ${
+                  newColor === TAG_NO_COLOR
+                    ? "ring-2 ring-accent/60 ring-offset-1 ring-offset-surface"
+                    : ""
+                }`}
+                title="No colour"
+              >
+                <Slash size={10} className="text-ov-text-secondary" />
+              </button>
               {TAG_COLORS.map((c) => (
                 <button
                   key={c}

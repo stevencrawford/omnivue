@@ -17,7 +17,7 @@ import { TagService } from "../services";
 import { runPromise } from "../lib/effect";
 import { useTagsContext } from "../hooks/useTags";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
-import { tagColor } from "../utils/tagColors";
+import { tagColor, hasTagColor } from "../utils/tagColors";
 import { CreateTagModal } from "./CreateTagModal";
 import { ContextMenu } from "./ContextMenu";
 import { AddToProjectDialog } from "./AddToProjectDialog";
@@ -393,14 +393,16 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
                   className="flex items-center gap-1 text-xs text-ov-text truncate flex-1"
                   title={`Showing tag "${filterTag}"`}
                 >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: tags.find((t) => t.name === filterTag)?.color
-                        ? tagColor(tags.find((t) => t.name === filterTag)!.color)
-                        : "#8b949e",
-                    }}
-                  />
+                  {hasTagColor(tags.find((t) => t.name === filterTag)?.color) ? (
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: tagColor(tags.find((t) => t.name === filterTag)!.color),
+                      }}
+                    />
+                  ) : (
+                    <span className="w-2 h-2 shrink-0" />
+                  )}
                   <span className="truncate">{filterTag}</span>
                 </span>
                 <button
@@ -508,10 +510,14 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
                       expandedTags.has(tag.id) ? "rotate-90" : ""
                     }`}
                   />
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: tagColor(tag.color) }}
-                  />
+                  {hasTagColor(tag.color) ? (
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: tagColor(tag.color) }}
+                    />
+                  ) : (
+                    <span className="w-2 h-2 shrink-0" />
+                  )}
                   <span className="truncate">{tag.name}</span>
                   {tagSessions[tag.id] && (
                     <span className="text-[11px] text-ov-text-secondary ml-auto tabular-nums">
