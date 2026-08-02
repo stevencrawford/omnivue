@@ -187,13 +187,13 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 // write tool call, handling Codex's native and normalized formats.
 func parseCodexEditContent(tc ingest.ToolCall) (filePath, oldStr, newStr string) {
 	var input struct {
-		FilePath   string `json:"filePath"`
-		FilePath2  string `json:"file_path"`
-		Content    string `json:"content"`
-		OldStr     string `json:"old_str"`
-		OldString  string `json:"old_string"`
-		NewStr     string `json:"new_str"`
-		NewString  string `json:"new_string"`
+		FilePath  string `json:"filePath"`
+		FilePath2 string `json:"file_path"`
+		Content   string `json:"content"`
+		OldStr    string `json:"old_str"`
+		OldString string `json:"old_string"`
+		NewStr    string `json:"new_str"`
+		NewString string `json:"new_string"`
 	}
 	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
 		return "", "", ""

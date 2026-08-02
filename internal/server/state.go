@@ -1,0 +1,172 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+
+	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/store"
+)
+
+// Dep bundles the collaborators and narrowed role interfaces an HTTP handler
+// may need. It is the wiring seam between the server lifecycle and the handler
+// set; individual handlers read only the slices they serve. Store-backed
+// endpoints operate on distinct role interfaces (ATH-02), so no handler ever
+// reaches for a monolithic store.
+type Dep struct {
+	Hub      *SessionHub
+	Indexer  *Indexer
+	Notifier *Notifier
+	Bus      *EventBus
+
+	Sources   store.SourceStore
+	Tags      store.TagStore
+	Bookmarks store.BookmarkStore
+	Scratch   store.ScratchStore
+	Config    store.ConfigStore
+	Notifs    store.NotificationStore
+	Prompts   store.PromptStore
+	Search    store.SearchStore
+	Meta      store.SchemaVersioner
+	Reset     store.Resetter
+
+	// Shutdown and Restart signal the parent process to act on these events.
+	Shutdown func()
+	Restart  func(string)
+}
+
+// State is the thin process-level facade returned by NewState. It owns the
+// collaborators and the lifecycle signals, starts the poller, and holds the
+// Dep used to wire handlers. It is intentionally not the object handlers
+// execute against.
+type State struct {
+	dep     Dep
+	stop    context.CancelFunc
+	stateCh *lifecycle
+}
+
+// lifecycle carries the process-level signal channels shared between State and
+// the shutdown/restart handlers.
+type lifecycle struct {
+	shutdownCh chan struct{}
+	restartCh  chan string
+}
+
+// NewState builds the SessionHub, Indexer, Notifier, Poller, and EventBus,
+// loads configured sources, and begins background polling.
+func NewState(ctx context.Context) *State {
+	st, err := store.New()
+	if err != nil {
+		slog.Error("failed to open store", "error", err)
+		st = nil
+	}
+
+	bus := NewEventBus()
+	hub := NewSessionHub(st)
+	index := NewIndexer(hub, st, st)
+	notif := NewNotifier(hub, st, st, st, bus)
+	poller := NewPoller(hub, index, notif, bus)
+
+	// Load configured sources and create adapters.
+	if st != nil {
+		sources, lerr := st.ListSources()
+		if lerr != nil {
+			slog.Error("failed to list sources", "error", lerr)
+		} else {
+			for _, src := range sources {
+				if !src.Enabled {
+					continue
+				}
+				adapter, aerr := ingest.CreateAdapter(src)
+				if aerr != nil {
+					slog.Warn("failed to create adapter", "source", src.Path, "error", aerr)
+					continue
+				}
+				hub.AddAdapter(src.ID, adapter)
+				slog.Info("loaded source", "type", src.AgentType, "path", src.Path)
+			}
+		}
+	}
+
+	shutdownCh := make(chan struct{}, 1)
+	restartCh := make(chan string, 1)
+
+	dep := newDep(hub, index, notif, bus, st)
+	dep.Shutdown = func() {
+		select {
+		case shutdownCh <- struct{}{}:
+		default:
+		}
+	}
+	dep.Restart = func(restoreFile string) { restartCh <- restoreFile }
+
+	s := &State{
+		dep:     dep,
+		stateCh: &lifecycle{shutdownCh: shutdownCh, restartCh: restartCh},
+	}
+
+	// Initial session load and indexing (background, non-blocking).
+	go refreshAndIndex(ctx, hub, index, notif, bus)
+
+	// Start poller.
+	pollCtx, pollCancel := context.WithCancel(ctx)
+	s.stop = pollCancel
+	go poller.Run(pollCtx)
+
+	return s
+}
+
+// Deps returns the handler wiring for this State.
+func (s *State) Deps() Dep { return s.dep }
+
+func newDep(hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus, st *store.Store) Dep {
+	return Dep{
+		Hub:       hub,
+		Indexer:   index,
+		Notifier:  notif,
+		Bus:       bus,
+		Sources:   st,
+		Tags:      st,
+		Bookmarks: st,
+		Scratch:   st,
+		Config:    st,
+		Notifs:    st,
+		Prompts:   st,
+		Search:    st,
+		Meta:      st,
+		Reset:     st,
+	}
+}
+
+// ShutdownCh returns the shutdown signal channel.
+func (s *State) ShutdownCh() <-chan struct{} { return s.stateCh.shutdownCh }
+
+// RestartCh returns the restart signal channel.
+func (s *State) RestartCh() <-chan string { return s.stateCh.restartCh }
+
+// CloseAllSubscribers stops the poller and closes every SSE subscriber channel.
+func (s *State) CloseAllSubscribers() {
+	if s.stop != nil {
+		s.stop()
+	}
+	s.dep.Bus.CloseAll()
+}
+
+// refreshAndIndex runs a session refresh followed by background indexing and
+// emits the SSE events the frontend expects. It is used when a source is added
+// or updated so the HTTP handler is never blocked by adapter I/O.
+func refreshAndIndex(ctx context.Context, hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus) {
+	ids, _, transitions := hub.refreshSessions(ctx)
+	go index.IndexSessions(ctx)
+	bus.Send(sseEvent{Name: "update"})
+	if len(ids) > 0 {
+		data, err := json.Marshal(map[string]any{"ids": ids})
+		if err != nil {
+			slog.Warn("failed to marshal session change event", "error", err)
+			return
+		}
+		bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
+		go notif.ClassifyChanges(ctx, ids, transitions)
+	}
+}

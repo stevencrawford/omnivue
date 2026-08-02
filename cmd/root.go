@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/k1LoW/donegroup"
+	"github.com/pkg/browser"
+	"github.com/spf13/cobra"
 	"github.com/stevencrawford/omnivue/internal/logfile"
 	"github.com/stevencrawford/omnivue/internal/server"
 	"github.com/stevencrawford/omnivue/version"
-	"github.com/pkg/browser"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -149,7 +149,7 @@ func startServer(ctx context.Context, addr string) error {
 	defer cleanup()
 
 	state := server.NewState(ctx)
-	handler := server.NewHandler(state)
+	handler := server.NewHandler(state.Deps())
 
 	srv := &http.Server{
 		Addr:              addr,

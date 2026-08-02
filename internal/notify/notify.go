@@ -25,15 +25,15 @@ import (
 type Kind string
 
 const (
-	KindQuestion           Kind = "question"
-	KindPermissionRequest  Kind = "permission_request"
-	KindExitPlanMode       Kind = "exit_plan_mode"
-	KindTaskComplete       Kind = "task_complete"
-	KindNewMessages        Kind = "new_messages"
-	KindNewToolCall        Kind = "new_tool_call"
-	KindStatusActive       Kind = "status_active"
-	KindStatusDone         Kind = "status_completed"
-	KindStatusError        Kind = "status_error"
+	KindQuestion          Kind = "question"
+	KindPermissionRequest Kind = "permission_request"
+	KindExitPlanMode      Kind = "exit_plan_mode"
+	KindTaskComplete      Kind = "task_complete"
+	KindNewMessages       Kind = "new_messages"
+	KindNewToolCall       Kind = "new_tool_call"
+	KindStatusActive      Kind = "status_active"
+	KindStatusDone        Kind = "status_completed"
+	KindStatusError       Kind = "status_error"
 )
 
 // Severity indicates how prominently a notification should be surfaced.
@@ -47,18 +47,18 @@ const (
 // Settings mirrors the frontend notification settings form. It is persisted as a
 // JSON blob in the config table under key "notifications.settings".
 type Settings struct {
-	Enabled           bool     `json:"enabled"`
-	Kinds             []Kind   `json:"kinds"`
-	Scope             string   `json:"scope"` // "all" | "opened" | "pinned"
-	InAppToast        bool     `json:"inAppToast"`
-	SidebarBadge      bool     `json:"sidebarBadge"`
-	BrowserNotify     bool     `json:"browserNotify"`
-	QuietHoursEnabled bool     `json:"quietHoursEnabled"`
-	QuietHoursStart   string   `json:"quietHoursStart"` // "22:00"
-	QuietHoursEnd     string   `json:"quietHoursEnd"`   // "08:00"
-	AutoDismissSec    int      `json:"autoDismissSec"`
-	ExcludeActiveView bool     `json:"excludeActiveView"`
-	EnabledAt         int64    `json:"enabledAt"` // unix ms when notifications were enabled
+	Enabled           bool   `json:"enabled"`
+	Kinds             []Kind `json:"kinds"`
+	Scope             string `json:"scope"` // "all" | "opened" | "pinned"
+	InAppToast        bool   `json:"inAppToast"`
+	SidebarBadge      bool   `json:"sidebarBadge"`
+	BrowserNotify     bool   `json:"browserNotify"`
+	QuietHoursEnabled bool   `json:"quietHoursEnabled"`
+	QuietHoursStart   string `json:"quietHoursStart"` // "22:00"
+	QuietHoursEnd     string `json:"quietHoursEnd"`   // "08:00"
+	AutoDismissSec    int    `json:"autoDismissSec"`
+	ExcludeActiveView bool   `json:"excludeActiveView"`
+	EnabledAt         int64  `json:"enabledAt"` // unix ms when notifications were enabled
 }
 
 // DefaultSettings returns the default settings: everything off (opt-in). The
@@ -102,9 +102,9 @@ var PermissionToolNames = map[string]struct{}{
 // TaskCompleteToolNames is the set of tool-call names signaling task
 // completion.
 var TaskCompleteToolNames = map[string]struct{}{
-	"task_complete":  {},
-	"task-complete":  {},
-	"taskcomplete":   {},
+	"task_complete": {},
+	"task-complete": {},
+	"taskcomplete":  {},
 }
 
 // Candidate is a classification result. The caller persists one notification
@@ -386,7 +386,7 @@ func previewForPermission(content, input string) string {
 // request — a question-like tool call whose choices contain "Allow"/"Deny".
 func isPermissionInput(input string) bool {
 	var raw struct {
-		Choices  []string `json:"choices"`
+		Choices   []string `json:"choices"`
 		Questions []struct {
 			Question string `json:"question"`
 			Options  []struct {

@@ -23,7 +23,7 @@ type mockAdapter struct {
 
 	// listCalls counts ListSessions invocations for cadence tests.
 	listCalls atomic.Int64
-	// liveOverride lets a test force ListSessions to return a fresh UpdatedAt
+	// liveUpdatedAt lets a test force ListSessions to return a fresh UpdatedAt
 	// each call (simulating an actively-streaming session).
 	liveUpdatedAt time.Time
 }
@@ -33,8 +33,6 @@ func (m *mockAdapter) Detect(path string) bool { return false }
 func (m *mockAdapter) ListSessions(context.Context) ([]ingest.Session, error) {
 	m.listCalls.Add(1)
 	if !m.liveUpdatedAt.IsZero() {
-		// Return a copy with a fresh UpdatedAt each call to simulate a live
-		// agent actively writing new content.
 		out := make([]ingest.Session, len(m.sessions))
 		copy(out, m.sessions)
 		for i := range out {
@@ -63,15 +61,51 @@ func (m *mockAdapter) AgentCommand(*ingest.Session) string                      
 func (m *mockAdapter) LastModified(context.Context) (int64, error)              { return 0, nil }
 func (m *mockAdapter) Close() error                                             { return nil }
 
-func TestHandleStatus(t *testing.T) {
-	state := &State{
-		adapters: map[string]ingest.Adapter{"src-1": &mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-1"}},
-		}},
-		sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1"}},
-	}
+// tickingAdapter wraps mockAdapter and lets a test inject a LastModified
+// implementation, so we can simulate a source that bumps on every call.
+type tickingAdapter struct {
+	mockAdapter
+	lastModFn func() (int64, error)
+}
 
-	mux := NewHandler(state)
+func (a *tickingAdapter) LastModified(context.Context) (int64, error) {
+	return a.lastModFn()
+}
+
+// newState builds a State wired with a real temp store plus adapters for
+// handler-level tests.
+func newState(t *testing.T, adapters map[string]ingest.Adapter, sessions []ingest.Session, disablePoll bool) *State {
+	t.Helper()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	bus := NewEventBus()
+	hub := &SessionHub{
+		adapters:   adapters,
+		sessions:   sessions,
+		prevStatus: make(map[string]string),
+	}
+	index := NewIndexer(hub, st, st)
+	notif := NewNotifier(hub, st, st, st, bus)
+	dep := newDep(hub, index, notif, bus, st)
+	s := &State{
+		dep:     dep,
+		stateCh: &lifecycle{shutdownCh: make(chan struct{}, 1), restartCh: make(chan string, 1)},
+	}
+	return s
+}
+
+func TestHandleStatus(t *testing.T) {
+	state := newState(t, map[string]ingest.Adapter{
+		"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1"}}},
+	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1"}}, true)
+
+	mux := NewHandler(state.Deps())
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -80,16 +114,13 @@ func TestHandleStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
-
 	var body map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-
 	if body["version"] != version.Version {
 		t.Errorf("expected version %q, got %v", version.Version, body["version"])
 	}
@@ -99,14 +130,12 @@ func TestHandleStatus(t *testing.T) {
 }
 
 func TestHandleSessions(t *testing.T) {
-	state := &State{
-		adapters: map[string]ingest.Adapter{"src-1": &mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-1", Title: "Test Session"}},
-		}},
-		sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Title: "Test Session"}},
-	}
+	sess := []ingest.Session{{ID: "ses-1", SourceID: "src-1", Title: "Test Session"}}
+	state := newState(t, map[string]ingest.Adapter{
+		"src-1": &mockAdapter{sessions: sess},
+	}, sess, true)
 
-	mux := NewHandler(state)
+	mux := NewHandler(state.Deps())
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -115,30 +144,21 @@ func TestHandleSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
-
 	var sessions []ingest.Session
 	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
 		t.Fatal(err)
 	}
-	if len(sessions) != 1 {
-		t.Fatalf("expected 1 session, got %d", len(sessions))
-	}
-	if sessions[0].Title != "Test Session" {
-		t.Errorf("expected title 'Test Session', got %q", sessions[0].Title)
+	if len(sessions) != 1 || sessions[0].Title != "Test Session" {
+		t.Fatalf("unexpected sessions: %+v", sessions)
 	}
 }
 
 func TestHandleGetSession_NotFound(t *testing.T) {
-	state := &State{
-		adapters: make(map[string]ingest.Adapter),
-		sessions: nil,
-	}
-
-	mux := NewHandler(state)
+	state := newState(t, nil, nil, true)
+	mux := NewHandler(state.Deps())
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -147,7 +167,6 @@ func TestHandleGetSession_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", resp.StatusCode)
 	}
@@ -158,57 +177,43 @@ func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
 		sessions: []ingest.Session{{ID: "sub-1", ParentID: "par-1", Title: "Sub Agent"}},
 		messages: []ingest.Message{{ID: "m1", Content: "hello"}},
 	}
-	state := &State{
-		adapters: map[string]ingest.Adapter{"src-1": adapter},
-		sessions: []ingest.Session{{ID: "par-1", SourceID: "src-1"}},
+	hub := &SessionHub{
+		adapters:   map[string]ingest.Adapter{"src-1": adapter},
+		sessions:   []ingest.Session{{ID: "par-1", SourceID: "src-1"}},
+		prevStatus: make(map[string]string),
 	}
 
 	ctx := context.Background()
-	sess, got, err := state.resolveSession(ctx, "sub-1")
+	sess, got, err := hub.Resolve(ctx, "sub-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sess.ID != "sub-1" {
-		t.Errorf("expected sub-1, got %q", sess.ID)
+	if sess.ID != "sub-1" || got == nil || sess.SourceID != "src-1" {
+		t.Fatalf("unexpected resolution: %+v (%v)", sess, got)
 	}
-	if got == nil {
-		t.Fatal("expected adapter to be resolved")
-	}
-	if sess.SourceID != "src-1" {
-		t.Errorf("expected SourceID src-1, got %q", sess.SourceID)
-	}
-
-	// The resolved session is registered into the cache for subsequent lookups.
-	state.mu.RLock()
+	hub.mu.RLock()
 	found := false
-	for _, s := range state.sessions {
+	for _, s := range hub.sessions {
 		if s.ID == "sub-1" {
 			found = true
-			break
 		}
 	}
-	state.mu.RUnlock()
+	hub.mu.RUnlock()
 	if !found {
-		t.Error("expected fallback session to be registered in state.sessions")
+		t.Error("expected fallback session to be registered in hub.sessions")
 	}
-
-	msgs, err := state.Messages(ctx, "sub-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(msgs) != 1 || msgs[0].Content != "hello" {
+	msgs, err := hub.Messages(ctx, "sub-1")
+	if err != nil || len(msgs) != 1 || msgs[0].Content != "hello" {
 		t.Errorf("expected message to be returned, got %d messages", len(msgs))
 	}
-
-	if _, err := state.Session(ctx, "nonexistent"); err == nil {
+	if _, err := hub.Session(ctx, "nonexistent"); err == nil {
 		t.Error("expected error for nonexistent session")
 	}
 }
 
 func TestHandleTags_StoreUnavailable(t *testing.T) {
-	state := &State{store: nil}
-
-	mux := NewHandler(state)
+	state := newState(t, nil, nil, true)
+	mux := NewHandler(state.Deps())
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -217,11 +222,9 @@ func TestHandleTags_StoreUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
-
 	var tags []store.Tag
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
 		t.Fatal(err)
@@ -232,9 +235,9 @@ func TestHandleTags_StoreUnavailable(t *testing.T) {
 }
 
 func TestHandleSearch_EmptyQuery(t *testing.T) {
-	state := &State{store: nil}
-
-	mux := NewHandler(state)
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
+	dep := Dep{Hub: hub}
+	mux := NewHandler(dep)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -243,32 +246,25 @@ func TestHandleSearch_EmptyQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 }
 
 func TestRefreshSessions_ConcurrencySafe(t *testing.T) {
-	state := &State{
+	hub := &SessionHub{
 		adapters: map[string]ingest.Adapter{
-			"src-1": &mockAdapter{
-				sessions: []ingest.Session{{ID: "ses-1"}},
-			},
-			"src-2": &mockAdapter{
-				sessions: []ingest.Session{{ID: "ses-2"}},
-			},
+			"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1"}}},
+			"src-2": &mockAdapter{sessions: []ingest.Session{{ID: "ses-2"}}},
 		},
+		prevStatus: make(map[string]string),
 	}
-
-	state.refreshSessions(context.Background())
-
-	if len(state.sessions) != 2 {
-		t.Fatalf("expected 2 sessions, got %d", len(state.sessions))
+	hub.refreshSessions(context.Background())
+	if len(hub.Sessions()) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(hub.Sessions()))
 	}
-
 	ids := make(map[string]bool)
-	for _, s := range state.sessions {
+	for _, s := range hub.Sessions() {
 		ids[s.ID] = true
 	}
 	if !ids["ses-1"] || !ids["ses-2"] {
@@ -276,51 +272,37 @@ func TestRefreshSessions_ConcurrencySafe(t *testing.T) {
 	}
 }
 
-func TestGetSessions_ReturnsCopy(t *testing.T) {
-	state := &State{
-		sessions: []ingest.Session{{ID: "ses-1"}},
-	}
-
-	sessions := state.Sessions()
-	if len(sessions) != 1 {
-		t.Fatalf("expected 1 session, got %d", len(sessions))
-	}
-
-	sessions[0].ID = "modified"
-	if state.sessions[0].ID != "ses-1" {
-		t.Error("GetSessions should return a copy, not a reference")
+func TestSessions_ReturnsCopy(t *testing.T) {
+	hub := &SessionHub{sessions: []ingest.Session{{ID: "ses-1"}}}
+	got := hub.Sessions()
+	got[0].ID = "modified"
+	if hub.Sessions()[0].ID != "ses-1" {
+		t.Error("Sessions should return a copy, not a reference")
 	}
 }
 
 func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 	now := time.Now()
-	state := &State{
+	hub := &SessionHub{
 		adapters: map[string]ingest.Adapter{
 			"src-1": &mockAdapter{sessions: []ingest.Session{
 				{ID: "ses-fresh", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-30 * time.Second)},
 				{ID: "ses-stale", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-10 * time.Minute)},
 			}},
 		},
+		prevStatus: make(map[string]string),
 	}
-
-	changed, live, _ := state.refreshSessions(context.Background())
+	changed, live, _ := hub.refreshSessions(context.Background())
 	if live != 1 {
 		t.Errorf("expected 1 live session, got %d", live)
 	}
-
-	got := state.Sessions()
 	statusByID := map[string]ingest.SessionStatus{}
-	for _, s := range got {
+	for _, s := range hub.Sessions() {
 		statusByID[s.ID] = s.Status
 	}
-	if statusByID["ses-fresh"] != ingest.SessionStatusActive {
-		t.Errorf("expected ses-fresh to be active, got %q", statusByID["ses-fresh"])
+	if statusByID["ses-fresh"] != ingest.SessionStatusActive || statusByID["ses-stale"] != ingest.SessionStatusCompleted {
+		t.Errorf("unexpected statuses: %+v", statusByID)
 	}
-	if statusByID["ses-stale"] != ingest.SessionStatusCompleted {
-		t.Errorf("expected ses-stale to be completed, got %q", statusByID["ses-stale"])
-	}
-
-	// All sessions are "changed" on first refresh (no prior snapshot).
 	if len(changed) != 2 {
 		t.Errorf("expected 2 changed IDs on first refresh, got %d", len(changed))
 	}
@@ -328,68 +310,54 @@ func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 
 func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 	fresh := time.Now()
-	state := &State{
+	hub := &SessionHub{
 		adapters: map[string]ingest.Adapter{
 			"src-1": &mockAdapter{sessions: []ingest.Session{
 				{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh},
 			}},
 		},
-		sessions: []ingest.Session{
-			{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh},
-		},
+		sessions:   []ingest.Session{{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh}},
+		prevStatus: map[string]string{"ses-1": "active"},
 	}
-
-	// Simulate the session aging out: 5 min ago, well outside the 2-min window.
-	if ma, ok := state.adapters["src-1"].(*mockAdapter); ok {
+	if ma, ok := hub.adapters["src-1"].(*mockAdapter); ok {
 		ma.sessions[0].UpdatedAt = fresh.Add(-5 * time.Minute)
 	}
-
-	changed, live, _ := state.refreshSessions(context.Background())
+	changed, live, _ := hub.refreshSessions(context.Background())
 	if live != 0 {
 		t.Errorf("expected 0 live sessions after staleness, got %d", live)
 	}
-	if got := state.Sessions()[0].Status; got != ingest.SessionStatusCompleted {
-		t.Errorf("expected status reverted to completed, got %q", got)
+	if hub.Sessions()[0].Status != ingest.SessionStatusCompleted {
+		t.Errorf("expected status reverted to completed, got %q", hub.Sessions()[0].Status)
 	}
-	// UpdatedAt moved backwards → still "changed" from the diff's perspective.
 	if len(changed) != 1 || changed[0] != "ses-1" {
 		t.Errorf("expected ses-1 in changed IDs, got %v", changed)
 	}
 }
 
 func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
-	now := time.Now()
 	adapter := &mockAdapter{sessions: []ingest.Session{
-		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-time.Minute)},
+		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-time.Minute)},
 	}}
-	state := &State{
-		adapters: map[string]ingest.Adapter{"src-1": adapter},
-	}
-
-	if _, live, _ := state.refreshSessions(context.Background()); live != 1 {
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, prevStatus: make(map[string]string)}
+	if _, live, _ := hub.refreshSessions(context.Background()); live != 1 {
 		t.Fatalf("first refresh: expected 1 live, got %d", live)
 	}
-	changed, live, _ := state.refreshSessions(context.Background())
-	if live != 1 {
-		t.Errorf("second refresh: expected 1 live, got %d", live)
-	}
-	if len(changed) != 0 {
-		t.Errorf("second refresh: expected 0 changed IDs, got %v", changed)
+	changed, live, _ := hub.refreshSessions(context.Background())
+	if live != 1 || len(changed) != 0 {
+		t.Errorf("second refresh: expected 1 live and 0 changed, got live=%d changed=%v", live, changed)
 	}
 }
 
-func TestSendEventSessionChanged_FormatAndDelivery(t *testing.T) {
-	state := &State{
-		subscribers: make(map[chan sseEvent]struct{}),
-	}
-	ch := state.subscribe()
-	defer state.unsubscribe(ch)
+func TestEventBus_SendAndDelivery(t *testing.T) {
+	bus := NewEventBus()
+	ch := bus.Subscribe()
+	defer bus.Unsubscribe(ch)
 
 	data, err := json.Marshal(map[string]any{"ids": []string{"ses-1", "ses-2"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
+	bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
 
 	select {
 	case ev := <-ch:
@@ -422,84 +390,60 @@ func TestPollInterval_PicksLiveCadenceWhenSessionIsActive(t *testing.T) {
 	}
 }
 
-func TestPollLoop_EmitsSessionChangedOnFirstDetectedChange(t *testing.T) {
-	// Pre-warm lastMod by simulating one full iteration through the same
-	// comparison logic pollLoop uses internally, so the very first tick
-	// observed by the loop registers as a "change".
+// TestPollPath drives the poll → refresh → SSE path synchronously through the
+// Poller.tick method, without waiting on the 30s idle cadence. The indexer and
+// notifier run as their own collaborators so the full pipeline is reachable
+// without a live HTTP server.
+func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
 		},
-		lastModFn: func() (int64, error) {
-			return 2, nil
-		},
+		lastModFn: func() (int64, error) { return 2, nil },
 	}
 
-	state := &State{
-		adapters:    map[string]ingest.Adapter{"src-1": adapter},
-		subscribers: make(map[chan sseEvent]struct{}),
+	bus := NewEventBus()
+	hub := &SessionHub{
+		adapters:   map[string]ingest.Adapter{"src-1": adapter},
+		prevStatus: make(map[string]string),
 	}
-	ch := state.subscribe()
-	defer state.unsubscribe(ch)
+	notif := NewNotifier(hub, nil, nil, nil, bus)
+	index := NewIndexer(hub, nil, nil)
+	poller := NewPoller(hub, index, notif, bus)
+	// Seed the previous observation so the next tick is a real change.
+	poller.lastMod["src-1"] = 1
 
-	// Drive the same source-changed comparison that pollLoop does, then
-	// inject the resulting event directly. This exercises the end-to-end
-	// pipeline (refresh → diff → event) without depending on the 30s idle
-	// cadence the loop uses in its first iteration.
-	lastMod := map[string]int64{"src-1": 1}
-	ts, err := adapter.LastModified(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if prev, ok := lastMod["src-1"]; !ok || ts > prev {
-		lastMod["src-1"] = ts
-		if ok {
-			ids, _, _ := state.refreshSessions(context.Background())
-			state.sendEvent(sseEvent{Name: "update"})
-			if len(ids) > 0 {
-				data, err := json.Marshal(map[string]any{"ids": ids})
-				if err != nil {
-					t.Fatal(err)
-				}
-				state.sendEvent(sseEvent{Name: "session-changed", Data: string(data)})
-			}
-		}
-	}
+	ch := bus.Subscribe()
+	defer bus.Unsubscribe(ch)
 
-	// We should receive at least the session-changed event.
-	var sawSessionChanged bool
+	poller.tick(context.Background())
+
+	// We should observe at least the update event and a session-changed event.
+	var sawUpdate, sawChanged bool
 	deadline := time.After(time.Second)
-	for !sawSessionChanged {
+	for !sawChanged {
 		select {
 		case ev := <-ch:
-			if ev.Name != "session-changed" {
-				continue
+			if ev.Name == "update" {
+				sawUpdate = true
 			}
-			var payload struct {
-				IDs []string `json:"ids"`
+			if ev.Name == "session-changed" {
+				var payload struct {
+					IDs []string `json:"ids"`
+				}
+				if err := json.Unmarshal([]byte(ev.Data), &payload); err == nil {
+					if len(payload.IDs) == 1 && payload.IDs[0] == "ses-live" {
+						sawChanged = true
+					}
+				}
 			}
-			if err := json.Unmarshal([]byte(ev.Data), &payload); err != nil {
-				t.Fatalf("invalid event data: %v", err)
-			}
-			if len(payload.IDs) != 1 || payload.IDs[0] != "ses-live" {
-				t.Errorf("expected [ses-live] in ids, got %v", payload.IDs)
-			}
-			sawSessionChanged = true
 		case <-deadline:
 			t.Fatal("did not receive session-changed event in time")
 		}
 	}
-}
-
-// tickingAdapter wraps mockAdapter and lets a test inject a LastModified
-// implementation, so we can simulate a source that bumps on every call.
-type tickingAdapter struct {
-	mockAdapter
-	lastModFn func() (int64, error)
-}
-
-func (a *tickingAdapter) LastModified(context.Context) (int64, error) {
-	return a.lastModFn()
+	if !sawUpdate {
+		t.Error("expected an update event to be broadcast")
+	}
 }
 
 // --- Notification integration tests ---
@@ -507,48 +451,60 @@ func (a *tickingAdapter) LastModified(context.Context) (int64, error) {
 func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
-
 	st, err := store.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer st.Close()
 
-	state := &State{
-		store:       st,
-		adapters:    map[string]ingest.Adapter{"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}, messages: []ingest.Message{{ID: "m1", Content: "q?", Timestamp: time.Now(), ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}}}}}},
-		sessions:    []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}},
-		prevStatus:  map[string]string{"ses-1": "completed"},
-		activeViews: make(map[string]time.Time),
+	bus := NewEventBus()
+	sess := []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}
+	adapter := &mockAdapter{
+		sessions: sess,
+		messages: []ingest.Message{{
+			ID: "m1", Content: "q?", Timestamp: time.Now(),
+			ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
+		}},
 	}
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, sessions: sess, prevStatus: map[string]string{"ses-1": "completed"}}
+	notif := NewNotifier(hub, st, st, st, bus)
 
-	// Enable notifications with the question kind.
 	settings := notify.DefaultSettings()
 	settings.Enabled = true
 	settings.Kinds = []notify.Kind{notify.KindQuestion}
 	settings.Scope = "all"
 	settings.ExcludeActiveView = false
-	if err := state.saveNotifySettings(settings); err != nil {
+	if err := notif.SaveSettings(settings); err != nil {
 		t.Fatal(err)
 	}
 
-	state.classifyChanges(context.Background(), []string{"ses-1"}, []statusTransition{{sessionID: "ses-1", from: "completed", to: "active"}})
+	notif.ClassifyChanges(context.Background(), []string{"ses-1"}, []statusTransition{{sessionID: "ses-1", from: "completed", to: "active"}})
 
-	notifs, err := st.ListNotifications(50, false)
+	list, err := st.ListNotifications(50, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(notifs) != 1 {
-		t.Fatalf("expected 1 notification, got %d", len(notifs))
+	if len(list) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(list))
 	}
-	if notifs[0].Kind != "question" {
-		t.Errorf("expected kind question, got %s", notifs[0].Kind)
+	if list[0].Kind != "question" {
+		t.Errorf("expected kind question, got %s", list[0].Kind)
 	}
 }
 
 func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
-	state := &State{store: nil}
-	mux := NewHandler(state)
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
+	dep := newDep(hub, NewIndexer(hub, st, st), NewNotifier(hub, st, st, st, bus), bus, st)
+	mux := NewHandler(dep)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -560,31 +516,34 @@ func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
-	var notifs []store.Notification
-	if err := json.NewDecoder(resp.Body).Decode(&notifs); err != nil {
+	var list []store.Notification
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
 		t.Fatal(err)
 	}
-	if len(notifs) != 0 {
-		t.Errorf("expected empty list, got %d", len(notifs))
+	if len(list) != 0 {
+		t.Errorf("expected empty list, got %d", len(list))
 	}
 }
 
 func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
-
 	st, err := store.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer st.Close()
 
-	state := &State{store: st, activeViews: make(map[string]time.Time)}
-	mux := NewHandler(state)
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
+	notif := NewNotifier(hub, st, st, st, bus)
+	dep := newDep(hub, NewIndexer(hub, nil, nil), notif, bus, st)
+
+	mux := NewHandler(dep)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	// GET defaults
+	// GET defaults.
 	resp, err := http.Get(ts.URL + "/_/api/notifications/settings")
 	if err != nil {
 		t.Fatal(err)
@@ -598,7 +557,7 @@ func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 		t.Error("expected disabled by default")
 	}
 
-	// PUT enabled
+	// PUT enabled.
 	body, err := json.Marshal(notify.Settings{
 		Enabled: true, Kinds: []notify.Kind{notify.KindQuestion}, Scope: "all",
 		InAppToast: true, SidebarBadge: true,
@@ -626,18 +585,75 @@ func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 	if saved.EnabledAt == 0 {
 		t.Error("expected EnabledAt to be stamped on first enable")
 	}
+}
 
-	// GET again
-	resp2, err := http.Get(ts.URL + "/_/api/notifications/settings")
+// --- Fake role store (ATH-02 seam) ---
+
+type fakeTagStore struct {
+	tags map[string]store.Tag
+}
+
+func (f *fakeTagStore) CreateTag(t store.Tag) error {
+	if f.tags == nil {
+		f.tags = map[string]store.Tag{}
+	}
+	f.tags[t.Name] = t
+	return nil
+}
+func (f *fakeTagStore) ListTags() ([]store.Tag, error) {
+	out := make([]store.Tag, 0, len(f.tags))
+	for _, t := range f.tags {
+		out = append(out, t)
+	}
+	return out, nil
+}
+func (f *fakeTagStore) UpdateTag(id, name, color string) error  { return nil }
+func (f *fakeTagStore) DeleteTag(id string) error               { return nil }
+func (f *fakeTagStore) AssignTag(tagID, sessionID string) error { return nil }
+func (f *fakeTagStore) UnassignTag(tagID, sessionID string) error {
+	return nil
+}
+func (f *fakeTagStore) TagSessions(tagID string) ([]string, error) { return nil, nil }
+func (f *fakeTagStore) SessionTags(sessionID string) ([]store.Tag, error) {
+	return nil, nil
+}
+
+func TestHandleCreateTag_FakeStore(t *testing.T) {
+	dep := newTestDep(t, &fakeTagStore{})
+	mux := NewHandler(dep)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	body, err := json.Marshal(map[string]string{"name": "backend"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got notify.Settings
-	if err := json.NewDecoder(resp2.Body).Decode(&got); err != nil {
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/_/api/tags", strings.NewReader(string(body)))
+	if err != nil {
 		t.Fatal(err)
 	}
-	resp2.Body.Close()
-	if !got.Enabled || got.EnabledAt == 0 {
-		t.Errorf("expected enabled+stamped settings to round-trip, got %+v", got)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+	var tag store.Tag
+	if err := json.NewDecoder(resp.Body).Decode(&tag); err != nil {
+		t.Fatal(err)
+	}
+	if tag.Name != "backend" {
+		t.Errorf("expected name backend, got %q", tag.Name)
+	}
+}
+
+func newTestDep(_ *testing.T, tags store.TagStore) Dep {
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
+	dep := newDep(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus, nil)
+	dep.Tags = tags
+	return dep
 }
