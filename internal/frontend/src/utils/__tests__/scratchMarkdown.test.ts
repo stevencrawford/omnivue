@@ -36,4 +36,28 @@ describe("scratchMarkdown", () => {
     expect(back).toContain("`npm run dev`");
     expect(back).toContain("[docs](https://example.com)");
   });
+
+  it("does not emit block-level escapes for table cells", () => {
+    const tipTapHtml = `<table><tbody><tr><th colspan="1" rowspan="1"><p># per session</p></th><th colspan="1" rowspan="1"><p>Tags</p></th></tr><tr><td colspan="1" rowspan="1"><p>---</p></td><td colspan="1" rowspan="1"><p>one primary (nominally)</p></td></tr></tbody></table>`;
+    const back = htmlToMarkdown(tipTapHtml);
+    expect(back).toContain("| # per session | Tags |");
+    expect(back).toContain("| --- | one primary (nominally) |");
+    expect(back).not.toMatch(/\\[#-]/);
+  });
+
+  it("stays a GFM table after round-trip", () => {
+    const tipTapHtml = `<table><tbody><tr><th colspan="1" rowspan="1"><p># per session</p></th><th colspan="1" rowspan="1"><p>Tags</p></th></tr><tr><td colspan="1" rowspan="1"><p>one primary (nominally)</p></td><td colspan="1" rowspan="1"><p><strong>bold</strong></p></td></tr></tbody></table>`;
+    const back = htmlToMarkdown(tipTapHtml);
+    expect(back).not.toMatch(/\\[#-]/);
+    const html = markdownToHtml(back);
+    expect(html).toContain("<table>");
+    expect(html).toContain("<strong>bold</strong>");
+  });
+
+  it("preserves inline markdown and literal special chars in table cells", () => {
+    const tipTapTable = `<table><tbody><tr><td><p><em>x</em> and <strong>b</strong></p></td><td><p><a href="https://x.dev">link</a></p></td></tr><tr><td><p>*literal*</p></td><td><p>_underscore_</p></td></tr></tbody></table>`;
+    const back = htmlToMarkdown(tipTapTable);
+    expect(back).toContain("_x_ and **b** | [link](https://x.dev)");
+    expect(back).toContain("*literal* | _underscore_");
+  });
 });
