@@ -3,7 +3,7 @@ import type { ToolCall } from "../../../hooks/useApi";
 import { extractJSONField } from "../../../utils/jsonField";
 
 import { BashToolDiff } from "./BashToolDiff";
-import { EditToolDiff } from "./EditToolDiff";
+import { EditToolDiff, editInputFromTool } from "./EditToolDiff";
 import { ReadToolDiff } from "./ReadToolDiff";
 import { GrepToolDiff } from "./GrepToolDiff";
 import { GlobToolDiff } from "./GlobToolDiff";
@@ -89,6 +89,10 @@ export const definitions: ToolRendererDefinition[] = [
     markerDisplayType: "edit",
     markerPriority: 20,
     truncateOutput: 0,
+    copyInput: (tool) => {
+      const { newStr, content } = editInputFromTool(tool);
+      return newStr || content || "";
+    },
   },
   {
     kind: "write",
@@ -101,6 +105,8 @@ export const definitions: ToolRendererDefinition[] = [
     markerDisplayType: "edit",
     markerPriority: 20,
     truncateOutput: 0,
+    copyInput: (tool) => editInputFromTool(tool).content,
+    defaultCopyMode: "input",
   },
   {
     kind: "read",

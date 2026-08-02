@@ -126,7 +126,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                 }}
               >
                 <OptionPreview
-                  label="Absolute"
+                  label="Filesystem"
                   cmd={options.absolute}
                   icon={<FolderOpen size={12} />}
                 />
@@ -142,7 +142,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                 }}
               >
                 <OptionPreview
-                  label="Relative"
+                  label="Command"
                   cmd={options.relative}
                   icon={<Terminal size={12} />}
                 />
@@ -158,7 +158,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                 }}
               >
                 <OptionPreview
-                  label="Agent command"
+                  label="Agent"
                   cmd={options.agentCommand}
                   icon={<MessageSquareCode size={12} />}
                 />
