@@ -199,15 +199,24 @@ func (s *State) CloseAllSubscribers() {
 // or updated so the HTTP handler is never blocked by adapter I/O.
 func refreshAndIndex(ctx context.Context, hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus) {
 	ids, _, transitions := hub.refreshSessions(ctx)
+	fanoutSessions(ctx, hub, index, notif, bus, ids, transitions)
+}
+
+// fanoutSessions broadcasts the result of a session refresh: a background
+// re-index, an SSE "update" pulse, a "session-changed" event carrying the
+// changed IDs, and a notification classification pass. Shared by refreshAndIndex
+// and the Poller's changed tick so the two paths cannot drift.
+func fanoutSessions(ctx context.Context, hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus, ids []string, transitions []statusTransition) {
 	go index.IndexSessions(ctx)
 	bus.Send(sseEvent{Name: "update"})
-	if len(ids) > 0 {
-		data, err := json.Marshal(map[string]any{"ids": ids})
-		if err != nil {
-			slog.Warn("failed to marshal session change event", "error", err)
-			return
-		}
-		bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
-		go notif.ClassifyChanges(ctx, ids, transitions)
+	if len(ids) == 0 {
+		return
 	}
+	data, err := json.Marshal(map[string]any{"ids": ids})
+	if err != nil {
+		slog.Warn("failed to marshal session change event", "error", err)
+	} else {
+		bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
+	}
+	go notif.ClassifyChanges(ctx, ids, transitions)
 }

@@ -87,9 +87,8 @@ func newState(t *testing.T, adapters map[string]ingest.Adapter, sessions []inges
 
 	bus := NewEventBus()
 	hub := &SessionHub{
-		adapters:   adapters,
-		sessions:   sessions,
-		prevStatus: make(map[string]string),
+		adapters: adapters,
+		sessions: sessions,
 	}
 	index := NewIndexer(hub, st, st)
 	notif := NewNotifier(hub, st, st, st, bus)
@@ -172,9 +171,8 @@ func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
 		messages: []ingest.Message{{ID: "m1", Content: "hello"}},
 	}
 	hub := &SessionHub{
-		adapters:   map[string]ingest.Adapter{"src-1": adapter},
-		sessions:   []ingest.Session{{ID: "par-1", SourceID: "src-1"}},
-		prevStatus: make(map[string]string),
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
+		sessions: []ingest.Session{{ID: "par-1", SourceID: "src-1"}},
 	}
 
 	ctx := context.Background()
@@ -221,9 +219,8 @@ func TestResolveSession_FallbackEnrichesLivenessAndName(t *testing.T) {
 		sessions: []ingest.Session{{ID: "sub-2", Title: "Raw Title", UpdatedAt: time.Now(), Status: ingest.SessionStatusCompleted}},
 	}
 	hub := &SessionHub{
-		adapters:   map[string]ingest.Adapter{"src-1": adapter},
-		prevStatus: make(map[string]string),
-		names:      st,
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
+		names:    st,
 	}
 
 	sess, _, err := hub.Resolve(context.Background(), "sub-2")
@@ -243,9 +240,8 @@ func TestResolveSession_CachedWithoutAdapterNotDuplicated(t *testing.T) {
 		sessions: []ingest.Session{{ID: "cached-1", SourceID: "src-1", Title: "Cached"}},
 	}
 	hub := &SessionHub{
-		adapters:   map[string]ingest.Adapter{"src-1": adapter},
-		sessions:   []ingest.Session{{ID: "cached-1", SourceID: "gone"}},
-		prevStatus: make(map[string]string),
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
+		sessions: []ingest.Session{{ID: "cached-1", SourceID: "gone"}},
 	}
 
 	sess, _, err := hub.Resolve(context.Background(), "cached-1")
@@ -289,7 +285,6 @@ func TestRefreshSessions_ConcurrencySafe(t *testing.T) {
 			"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1"}}},
 			"src-2": &mockAdapter{sessions: []ingest.Session{{ID: "ses-2"}}},
 		},
-		prevStatus: make(map[string]string),
 	}
 	hub.refreshSessions(context.Background())
 	if len(hub.Sessions()) != 2 {
@@ -322,7 +317,6 @@ func TestRefreshSessions_MarksLiveWithinWindow(t *testing.T) {
 				{ID: "ses-stale", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-10 * time.Minute)},
 			}},
 		},
-		prevStatus: make(map[string]string),
 	}
 	changed, live, _ := hub.refreshSessions(context.Background())
 	if live != 1 {
@@ -348,8 +342,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 				{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh},
 			}},
 		},
-		sessions:   []ingest.Session{{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh}},
-		prevStatus: map[string]string{"ses-1": "active"},
+		sessions: []ingest.Session{{ID: "ses-1", Status: ingest.SessionStatusActive, UpdatedAt: fresh}},
 	}
 	if ma, ok := hub.adapters["src-1"].(*mockAdapter); ok {
 		ma.sessions[0].UpdatedAt = fresh.Add(-5 * time.Minute)
@@ -370,7 +363,7 @@ func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	adapter := &mockAdapter{sessions: []ingest.Session{
 		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-time.Minute)},
 	}}
-	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, prevStatus: make(map[string]string)}
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	if _, live, _ := hub.refreshSessions(context.Background()); live != 1 {
 		t.Fatalf("first refresh: expected 1 live, got %d", live)
 	}
@@ -436,8 +429,7 @@ func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 
 	bus := NewEventBus()
 	hub := &SessionHub{
-		adapters:   map[string]ingest.Adapter{"src-1": adapter},
-		prevStatus: make(map[string]string),
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
 	notif := NewNotifier(hub, nil, nil, nil, bus)
 	index := NewIndexer(hub, nil, nil)
@@ -506,8 +498,7 @@ func TestPollerTick_DrivesIndexAndClassify(t *testing.T) {
 
 	bus := NewEventBus()
 	hub := &SessionHub{
-		adapters:   map[string]ingest.Adapter{"src-1": adapter},
-		prevStatus: make(map[string]string),
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
 	index := NewIndexer(hub, st, st)
 	notif := NewNotifier(hub, st, st, st, bus)
@@ -593,7 +584,7 @@ func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
 			ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
 		}},
 	}
-	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, sessions: sess, prevStatus: map[string]string{"ses-1": "completed"}}
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, sessions: sess}
 	notif := NewNotifier(hub, st, st, st, bus)
 
 	settings := notify.DefaultSettings()
@@ -671,7 +662,7 @@ func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
 	defer st.Close()
 
 	bus := NewEventBus()
-	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
 	dep := newDep(hub, NewIndexer(hub, st, st), NewNotifier(hub, st, st, st, bus), bus, storeRolesOf(st))
 
 	var list []store.Notification
@@ -691,7 +682,7 @@ func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 	defer st.Close()
 
 	bus := NewEventBus()
-	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
 	notif := NewNotifier(hub, st, st, st, bus)
 	dep := newDep(hub, NewIndexer(hub, nil, nil), notif, bus, storeRolesOf(st))
 
@@ -778,7 +769,7 @@ func TestHandleCreateTag_FakeStore(t *testing.T) {
 
 func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	bus := NewEventBus()
-	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
+	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
 	dep := newDep(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus, storeRolesOf(nil))
 	dep.Tags = tags
 	return dep

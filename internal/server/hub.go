@@ -17,10 +17,9 @@ import (
 // Query methods that call into an adapter release the lock before the call to
 // avoid RLock → Lock deadlocks.
 type SessionHub struct {
-	mu         sync.RWMutex
-	sessions   []ingest.Session
-	adapters   map[string]ingest.Adapter
-	prevStatus map[string]string
+	mu       sync.RWMutex
+	sessions []ingest.Session
+	adapters map[string]ingest.Adapter
 
 	// names persists session display-name overrides used during refresh.
 	names store.SessionNameStore
@@ -28,15 +27,9 @@ type SessionHub struct {
 
 func NewSessionHub(names store.SessionNameStore) *SessionHub {
 	return &SessionHub{
-		adapters:   make(map[string]ingest.Adapter),
-		prevStatus: make(map[string]string),
-		names:      names,
+		adapters: make(map[string]ingest.Adapter),
+		names:    names,
 	}
-}
-
-// ResetNames sets the session-name store, used when wiring role interfaces.
-func (h *SessionHub) SetNames(names store.SessionNameStore) {
-	h.names = names
 }
 
 // Adapters returns a copy of the adapter map.
@@ -74,7 +67,6 @@ func (h *SessionHub) CloseAdapters() {
 		delete(h.adapters, id)
 	}
 	h.sessions = nil
-	h.prevStatus = make(map[string]string)
 }
 
 // Sessions returns a copy of the cached session list.
@@ -361,11 +353,6 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 
 	h.mu.Lock()
 	h.sessions = allSessions
-	// Rebuild prevStatus snapshot for the next poll.
-	h.prevStatus = make(map[string]string, len(allSessions))
-	for _, sess := range allSessions {
-		h.prevStatus[sess.ID] = string(sess.Status)
-	}
 	h.mu.Unlock()
 	return changedIDs, liveCount, transitions
 }

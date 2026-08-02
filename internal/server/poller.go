@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
-	"log/slog"
 	"time"
 )
 
@@ -90,18 +88,7 @@ func (p *Poller) tick(ctx context.Context) {
 	if changed {
 		ids, lc, transitions := p.hub.refreshSessions(ctx)
 		p.liveCount = lc
-
-		go p.indexer.IndexSessions(ctx)
-		p.bus.Send(sseEvent{Name: "update"})
-		if len(ids) > 0 {
-			data, err := json.Marshal(map[string]any{"ids": ids})
-			if err != nil {
-				slog.Warn("failed to marshal session change event", "error", err)
-			} else {
-				p.bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
-			}
-			go p.notif.ClassifyChanges(ctx, ids, transitions)
-		}
+		fanoutSessions(ctx, p.hub, p.indexer, p.notif, p.bus, ids, transitions)
 		return
 	}
 
