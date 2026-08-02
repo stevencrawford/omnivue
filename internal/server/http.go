@@ -62,6 +62,12 @@ func writeCreated(w http.ResponseWriter, v any) {
 	writeJSON(w, http.StatusCreated, v)
 }
 
+// writeOK writes v as a JSON 200 response. The status literal lives here so
+// handlers never hand-pick one.
+func writeOK(w http.ResponseWriter, v any) {
+	writeJSON(w, http.StatusOK, v)
+}
+
 // writeAccepted writes an empty 202 response for async work that continues
 // after the request returns.
 func writeAccepted(w http.ResponseWriter) {

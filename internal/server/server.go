@@ -108,7 +108,7 @@ func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, hub *Se
 				sourceCount = len(all)
 			}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
+		writeOK(w, map[string]any{
 			"version":       version.Version,
 			"pid":           os.Getpid(),
 			"sources":       sourceCount,
@@ -129,7 +129,7 @@ func handleSources(sources store.SourceStore) http.HandlerFunc {
 		if len(out) == 0 {
 			out = []ingest.Source{}
 		}
-		writeJSON(w, http.StatusOK, out)
+		writeOK(w, out)
 	}
 }
 
@@ -255,7 +255,7 @@ func handleDiscoverSources() http.HandlerFunc {
 		if len(discovered) == 0 {
 			discovered = []ingest.DiscoveredSource{}
 		}
-		writeJSON(w, http.StatusOK, discovered)
+		writeOK(w, discovered)
 	}
 }
 
@@ -272,7 +272,7 @@ func handleGetConfig(cfg store.ConfigStore) http.HandlerFunc {
 		if config == nil {
 			config = make(map[string]string)
 		}
-		writeJSON(w, http.StatusOK, config)
+		writeOK(w, config)
 	}
 }
 
@@ -297,13 +297,13 @@ func handleSetConfig(cfg store.ConfigStore) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
 func handleSessions(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, hub.Sessions())
+		writeOK(w, hub.Sessions())
 	}
 }
 
@@ -314,7 +314,7 @@ func handleGetSession(hub *SessionHub) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, session)
+		writeOK(w, session)
 	}
 }
 
@@ -325,7 +325,7 @@ func handleGetMessages(hub *SessionHub) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, messages)
+		writeOK(w, messages)
 	}
 }
 
@@ -336,7 +336,7 @@ func handleGetPlan(hub *SessionHub) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, plan)
+		writeOK(w, plan)
 	}
 }
 
@@ -350,7 +350,7 @@ func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
 		if len(diffs) == 0 {
 			diffs = []ingest.DiffFile{}
 		}
-		writeJSON(w, http.StatusOK, diffs)
+		writeOK(w, diffs)
 	}
 }
 
@@ -364,7 +364,7 @@ func handleGetEdits(hub *SessionHub) http.HandlerFunc {
 		if len(edits) == 0 {
 			edits = []ingest.FileEdit{}
 		}
-		writeJSON(w, http.StatusOK, edits)
+		writeOK(w, edits)
 	}
 }
 
@@ -375,7 +375,7 @@ func handleGetResumeCommand(hub *SessionHub) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{
+		writeOK(w, map[string]string{
 			"directory":    dir,
 			"absolute":     abs,
 			"relative":     rel,
@@ -401,7 +401,7 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -411,7 +411,7 @@ func handleClearSessionName(hub *SessionHub) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -426,7 +426,7 @@ func handleListScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 		if len(files) == 0 {
 			files = []store.ScratchFile{}
 		}
-		writeJSON(w, http.StatusOK, files)
+		writeOK(w, files)
 	}
 }
 
@@ -465,7 +465,7 @@ func handleCreateScratchFile(scratch store.ScratchStore, index *Indexer) http.Ha
 			return
 		}
 		index.ReindexSessionScratch(f.SessionID)
-		writeJSON(w, http.StatusOK, f)
+		writeOK(w, f)
 	}
 }
 
@@ -479,7 +479,7 @@ func handleGetScratchFile(scratch store.ScratchStore) http.HandlerFunc {
 			writeError(w, notFound(err.Error()))
 			return
 		}
-		writeJSON(w, http.StatusOK, f)
+		writeOK(w, f)
 	}
 }
 
@@ -504,7 +504,7 @@ func handleUpdateScratchFile(scratch store.ScratchStore, index *Indexer) http.Ha
 			return
 		}
 		index.ReindexSessionScratch(r.PathValue("id"))
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -529,7 +529,7 @@ func handleRenameScratchFile(scratch store.ScratchStore, index *Indexer) http.Ha
 			return
 		}
 		index.ReindexSessionScratch(r.PathValue("id"))
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -543,7 +543,7 @@ func handleDeleteScratchFile(scratch store.ScratchStore, index *Indexer) http.Ha
 			return
 		}
 		index.ReindexSessionScratch(r.PathValue("id"))
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -558,7 +558,7 @@ func handleListAllScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 		if len(files) == 0 {
 			files = []store.ScratchFile{}
 		}
-		writeJSON(w, http.StatusOK, files)
+		writeOK(w, files)
 	}
 }
 
@@ -575,7 +575,7 @@ func handleGetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 		if len(searches) == 0 {
 			searches = []string{}
 		}
-		writeJSON(w, http.StatusOK, searches)
+		writeOK(w, searches)
 	}
 }
 
@@ -593,7 +593,7 @@ func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -601,7 +601,7 @@ func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		if q == "" {
-			writeJSON(w, http.StatusOK, []store.SearchResult{})
+			writeOK(w, []store.SearchResult{})
 			return
 		}
 		limit := 50
@@ -629,7 +629,7 @@ func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
 		if len(results) == 0 {
 			results = []store.SearchResult{}
 		}
-		writeJSON(w, http.StatusOK, results)
+		writeOK(w, results)
 	}
 }
 
@@ -638,7 +638,7 @@ func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
 func handleListTags(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeJSON(w, http.StatusOK, []store.Tag{})
+			writeOK(w, []store.Tag{})
 			return
 		}
 		list, err := tags.ListTags()
@@ -649,7 +649,7 @@ func handleListTags(tags store.TagStore) http.HandlerFunc {
 		if len(list) == 0 {
 			list = []store.Tag{}
 		}
-		writeJSON(w, http.StatusOK, list)
+		writeOK(w, list)
 	}
 }
 
@@ -731,7 +731,7 @@ func handleDeleteTag(tags store.TagStore) http.HandlerFunc {
 func handleGetTagSessions(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeJSON(w, http.StatusOK, []string{})
+			writeOK(w, []string{})
 			return
 		}
 		sessionIDs, err := tags.TagSessions(r.PathValue("id"))
@@ -742,7 +742,7 @@ func handleGetTagSessions(tags store.TagStore) http.HandlerFunc {
 		if len(sessionIDs) == 0 {
 			sessionIDs = []string{}
 		}
-		writeJSON(w, http.StatusOK, sessionIDs)
+		writeOK(w, sessionIDs)
 	}
 }
 
@@ -775,7 +775,7 @@ func handleUnassignTag(tags store.TagStore) http.HandlerFunc {
 func handleGetSessionTags(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeJSON(w, http.StatusOK, []store.Tag{})
+			writeOK(w, []store.Tag{})
 			return
 		}
 		list, err := tags.SessionTags(r.PathValue("id"))
@@ -786,7 +786,7 @@ func handleGetSessionTags(tags store.TagStore) http.HandlerFunc {
 		if len(list) == 0 {
 			list = []store.Tag{}
 		}
-		writeJSON(w, http.StatusOK, list)
+		writeOK(w, list)
 	}
 }
 
@@ -795,7 +795,7 @@ func handleGetSessionTags(tags store.TagStore) http.HandlerFunc {
 func handleListBookmarks(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if bookmarks == nil {
-			writeJSON(w, http.StatusOK, []store.Bookmark{})
+			writeOK(w, []store.Bookmark{})
 			return
 		}
 		list, err := bookmarks.ListBookmarks()
@@ -806,7 +806,7 @@ func handleListBookmarks(bookmarks store.BookmarkStore) http.HandlerFunc {
 		if len(list) == 0 {
 			list = []store.Bookmark{}
 		}
-		writeJSON(w, http.StatusOK, list)
+		writeOK(w, list)
 	}
 }
 
@@ -837,7 +837,7 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 				writeError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": existing.ID})
+			writeOK(w, map[string]any{"deleted": true, "id": existing.ID})
 			return
 		}
 		b := store.Bookmark{
@@ -874,7 +874,7 @@ func handleDeleteBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 func handleListNotifications(notifs store.NotificationStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if notifs == nil {
-			writeJSON(w, http.StatusOK, []store.Notification{})
+			writeOK(w, []store.Notification{})
 			return
 		}
 		limit := 50
@@ -892,7 +892,7 @@ func handleListNotifications(notifs store.NotificationStore) http.HandlerFunc {
 		if len(list) == 0 {
 			list = []store.Notification{}
 		}
-		writeJSON(w, http.StatusOK, list)
+		writeOK(w, list)
 	}
 }
 
@@ -919,7 +919,7 @@ func handleMarkNotificationsRead(notifs store.NotificationStore, bus *EventBus) 
 		} else {
 			bus.Send(sseEvent{Name: "notifications-read", Data: string(data)})
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -933,7 +933,7 @@ func handleClearNotifications(notifs store.NotificationStore, bus *EventBus) htt
 			return
 		}
 		bus.Send(sseEvent{Name: "notifications-read", Data: "{\"all\":true}"})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -956,13 +956,13 @@ func handleActiveView(notifier *Notifier, notifs store.NotificationStore) http.H
 				slog.Warn("failed to mark session viewed", "session", body.SessionID, "error", err)
 			}
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
 func handleGetNotifySettings(notifier *Notifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, notifier.LoadSettings())
+		writeOK(w, notifier.LoadSettings())
 	}
 }
 
@@ -988,7 +988,7 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, settings)
+		writeOK(w, settings)
 	}
 }
 
@@ -997,7 +997,7 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if prompts == nil {
-			writeJSON(w, http.StatusOK, []store.QueuedPrompt{})
+			writeOK(w, []store.QueuedPrompt{})
 			return
 		}
 		status := r.URL.Query().Get("status")
@@ -1016,7 +1016,7 @@ func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 		if len(list) == 0 {
 			list = []store.QueuedPrompt{}
 		}
-		writeJSON(w, http.StatusOK, list)
+		writeOK(w, list)
 	}
 }
 
@@ -1107,7 +1107,7 @@ func handleUpdatePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFu
 			return
 		}
 		bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1121,7 +1121,7 @@ func handleDeletePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFu
 			return
 		}
 		bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1145,7 +1145,7 @@ func handleDispatchPrompt(prompts store.PromptStore, bus *EventBus) http.Handler
 			return
 		}
 		bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "promptText": existing.PromptText})
+		writeOK(w, map[string]any{"status": "ok", "promptText": existing.PromptText})
 	}
 }
 
@@ -1166,7 +1166,7 @@ func handleBatchDeletePrompts(prompts store.PromptStore, bus *EventBus) http.Han
 			return
 		}
 		bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1214,7 +1214,7 @@ func handleReset(reset store.Resetter, hub *SessionHub, bus *EventBus) http.Hand
 		hub.CloseAdapters()
 		// Notify frontend to reload.
 		bus.Send(sseEvent{Name: "reset"})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
