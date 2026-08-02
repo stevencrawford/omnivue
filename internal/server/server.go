@@ -471,8 +471,7 @@ func handleCreateScratchFile(scratch store.ScratchStore, index *Indexer) http.Ha
 
 func handleGetScratchFile(scratch store.ScratchStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if scratch == nil {
-			writeError(w, notFound("not found"))
+		if !requireStore(w, scratch) {
 			return
 		}
 		f, err := scratch.ScratchFile(r.PathValue("fileId"))
