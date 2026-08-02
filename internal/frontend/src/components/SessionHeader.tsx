@@ -31,6 +31,7 @@ export function SessionHeader({
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [tagFilter, setTagFilter] = useState("");
+  const [tagInitialName, setTagInitialName] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const tagMenuRef = useRef<HTMLDivElement>(null);
@@ -131,6 +132,17 @@ export function SessionHeader({
     }
   };
 
+  const removeTag = async (tagId: string) => {
+    setSessionTags((prev) => prev.filter((t) => t.id !== tagId));
+    try {
+      await unassignTagFromSession(tagId, session.id);
+      await loadSessionTags();
+      bump();
+    } catch {
+      await loadSessionTags();
+    }
+  };
+
   const handleCreateTag = async (name: string, color?: string) => {
     try {
       const tag = await createTag(name, color);
@@ -215,7 +227,7 @@ export function SessionHeader({
               <button
                 type="button"
                 className="sess-tag-remove"
-                onClick={() => toggleTag(tag)}
+                onClick={() => removeTag(tag.id)}
                 title={`Remove tag ${tag.name}`}
               >
                 <X size={10} />
@@ -247,7 +259,7 @@ export function SessionHeader({
                     <button
                       type="button"
                       className="sess-tag-remove"
-                      onClick={() => toggleTag(tag)}
+                      onClick={() => removeTag(tag.id)}
                       title={`Remove tag ${tag.name}`}
                     >
                       <X size={10} />
@@ -294,7 +306,10 @@ export function SessionHeader({
                         <button
                           key={tag.id}
                           type="button"
-                          onClick={() => toggleTag(tag)}
+                          onClick={() => {
+                            toggleTag(tag);
+                            setTagMenuOpen(false);
+                          }}
                           className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 text-xs text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
                         >
                           <span
@@ -311,6 +326,7 @@ export function SessionHeader({
                 <button
                   type="button"
                   onClick={() => {
+                    setTagInitialName(tagFilter.trim());
                     setTagMenuOpen(false);
                     setShowCreateModal(true);
                   }}
@@ -334,6 +350,7 @@ export function SessionHeader({
 
       <CreateTagModal
         isOpen={showCreateModal}
+        initialName={showCreateModal ? tagInitialName : undefined}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateTag}
       />

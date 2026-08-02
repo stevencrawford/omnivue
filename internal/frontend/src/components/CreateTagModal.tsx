@@ -7,9 +7,10 @@ interface CreateTagModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (name: string, color?: string) => void | Promise<void>;
+  initialName?: string;
 }
 
-export function CreateTagModal({ isOpen, onClose, onCreate }: CreateTagModalProps) {
+export function CreateTagModal({ isOpen, onClose, onCreate, initialName }: CreateTagModalProps) {
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>(TAG_COLORS[0]);
   const [saving, setSaving] = useState(false);
@@ -17,12 +18,12 @@ export function CreateTagModal({ isOpen, onClose, onCreate }: CreateTagModalProp
 
   useEffect(() => {
     if (isOpen) {
-      setName("");
+      setName(initialName || "");
       setColor(TAG_COLORS[0]);
       setSaving(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isOpen]);
+  }, [isOpen, initialName]);
 
   const handleCreate = async () => {
     const trimmed = name.trim();
