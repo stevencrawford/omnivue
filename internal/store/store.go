@@ -743,26 +743,26 @@ func (s *Store) DeleteScratchFile(id string) error {
 
 // Notification represents a single in-app notification tied to a session.
 type Notification struct {
-	ID        string  `json:"id"`
-	SessionID string  `json:"sessionId"`
-	SourceID  string  `json:"sourceId"`
-	Kind      string  `json:"kind"`
-	Title     string  `json:"title"`
-	Preview   string  `json:"preview"`
-	Severity  string  `json:"severity"`
-	Payload   string  `json:"payload,omitempty"` // JSON string
-	CreatedAt int64   `json:"createdAt"` // unix ms
-	ReadAt    *int64  `json:"readAt,omitempty"`  // unix ms, nil = unread
+	ID        string `json:"id"`
+	SessionID string `json:"sessionId"`
+	SourceID  string `json:"sourceId"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Preview   string `json:"preview"`
+	Severity  string `json:"severity"`
+	Payload   string `json:"payload,omitempty"` // JSON string
+	CreatedAt int64  `json:"createdAt"`         // unix ms
+	ReadAt    *int64 `json:"readAt,omitempty"`  // unix ms, nil = unread
 }
 
 // NotificationState tracks per-session notification bookkeeping: how many
 // messages the classifier has already seen, when the user last interacted
 // with the session, and when they first opened it (for scope filtering).
 type NotificationState struct {
-	SessionID             string
-	LastSeenMessageCount  int
-	LastSeenAt            *int64  // unix ms
-	FirstViewedAt         *int64  // unix ms
+	SessionID            string
+	LastSeenMessageCount int
+	LastSeenAt           *int64 // unix ms
+	FirstViewedAt        *int64 // unix ms
 }
 
 // InsertNotification inserts a notification row, deduplicating by
@@ -933,8 +933,8 @@ type QueuedPrompt struct {
 	PromptText   string  `json:"promptText"`
 	Status       string  `json:"status"`
 	Priority     int     `json:"priority"`
-	Tags         string  `json:"tags"` // JSON array
-	CreatedAt    int64   `json:"createdAt"` // unix ms
+	Tags         string  `json:"tags"`                   // JSON array
+	CreatedAt    int64   `json:"createdAt"`              // unix ms
 	DispatchedAt *int64  `json:"dispatchedAt,omitempty"` // unix ms
 }
 

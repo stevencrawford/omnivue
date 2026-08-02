@@ -817,6 +817,53 @@ body {
   flex-shrink: 0;
 }
 
+.sess-tag-body {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sess-tag-chip {
+  max-width: 12rem;
+  flex-shrink: 0;
+}
+
+.sess-tag-more {
+  position: relative;
+  cursor: default;
+}
+
+.sess-tag-popover {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 0.375rem;
+  z-index: 30;
+  min-width: 10rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  border: 1px solid var(--color-ov-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface-elevated);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.sess-tag-more:hover .sess-tag-popover {
+  display: flex;
+}
+
+.sess-tag-pop-item {
+  justify-content: space-between;
+}
+
 .sess-tag-name {
   max-width: 10rem;
   overflow: hidden;

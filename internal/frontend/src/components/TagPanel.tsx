@@ -9,11 +9,13 @@ import {
   Pencil,
   Trash2,
   X,
+  Search,
 } from "lucide-react";
 import { Effect } from "effect";
 import type { Session, Tag } from "../hooks/types";
 import { TagService } from "../services";
 import { runPromise } from "../lib/effect";
+import { useTagsContext } from "../hooks/useTags";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 import { tagColor } from "../utils/tagColors";
 import { CreateTagModal } from "./CreateTagModal";
@@ -71,6 +73,9 @@ function loadTagSessionsEffect(id: string) {
 }
 
 export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast }: TagPanelProps) {
+  const { version, filterTag, bump, clearFilter } = useTagsContext();
+  const [search, setSearch] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagSessions, setTagSessions] = useState<Record<string, string[]>>({});
   const [expandedTags, setExpandedTags] = useState<Set<string>>(getInitialExpanded);
@@ -147,7 +152,17 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
 
   useEffect(() => {
     loadTags();
-  }, [loadTags]);
+  }, [loadTags, version]);
+
+  useEffect(() => {
+    if (!filterTag) return;
+    const matched = tags.find((t) => t.name === filterTag);
+    if (!matched) return;
+    setExpandedTags((prev) => new Set(prev).add(matched.id));
+    runPromise(loadTagSessionsEffect(matched.id)).then((ids) => {
+      setTagSessions((prev) => ({ ...prev, [matched.id]: ids }));
+    });
+  }, [filterTag, tags]);
 
   useEffect(() => {
     if (editingId) editRef.current?.focus();
@@ -165,6 +180,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
     );
     setCreating(false);
     loadTags();
+    bump();
   };
 
   const handleRename = async (id: string) => {
@@ -180,6 +196,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
     );
     setEditingId(null);
     loadTags();
+    bump();
   };
 
   const handleDelete = async (id: string) => {
@@ -198,6 +215,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
       return next;
     });
     loadTags();
+    bump();
   };
 
   const toggleExpand = async (id: string) => {
@@ -239,6 +257,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
     );
     const ids = await runPromise(loadTagSessionsEffect(tagId));
     setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
+    bump();
   };
 
   const handleAssign = async (tagId: string, sessionId: string) => {
@@ -254,6 +273,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
     const ids = await runPromise(loadTagSessionsEffect(tagId));
     setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
     setAssigningTag(null);
+    bump();
   };
 
   const handleUnassign = async (tagId: string, sessionId: string) => {
@@ -268,6 +288,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
     );
     const ids = await runPromise(loadTagSessionsEffect(tagId));
     setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
+    bump();
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -277,14 +298,20 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
 
   const getSession = (id: string) => sessions.find((s) => s.id === id);
 
-  const sortedTags = [...tags].sort((a, b) => {
-    if (tagSort === "count") {
-      const aCount = tagSessions[a.id]?.length || 0;
-      const bCount = tagSessions[b.id]?.length || 0;
-      return bCount - aCount;
-    }
-    return a.name.localeCompare(b.name);
-  });
+  const sortedTags = [...tags]
+    .filter((t) =>
+      filterTag
+        ? t.name === filterTag
+        : !search || t.name.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a, b) => {
+      if (tagSort === "count") {
+        const aCount = tagSessions[a.id]?.length || 0;
+        const bCount = tagSessions[b.id]?.length || 0;
+        return bCount - aCount;
+      }
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -354,6 +381,77 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
             <Plus size={14} />
           </button>
         </div>
+      </div>
+
+      {/* Search / filter */}
+      <div className="px-1.5 pb-1 shrink-0">
+        {searchActive || filterTag ? (
+          <div className="flex items-center gap-1 border border-ov-border rounded bg-surface-elevated px-1.5 py-1">
+            {filterTag ? (
+              <>
+                <span
+                  className="flex items-center gap-1 text-xs text-ov-text truncate flex-1"
+                  title={`Showing tag "${filterTag}"`}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: tags.find((t) => t.name === filterTag)?.color
+                        ? tagColor(tags.find((t) => t.name === filterTag)!.color)
+                        : "#8b949e",
+                    }}
+                  />
+                  <span className="truncate">{filterTag}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => clearFilter()}
+                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer shrink-0 p-0.5"
+                  title="Clear tag filter"
+                >
+                  <X size={12} />
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setSearch("");
+                      setSearchActive(false);
+                    }
+                  }}
+                  placeholder="Filter tags..."
+                  className="flex-1 text-xs bg-transparent text-ov-text placeholder:text-ov-text-secondary outline-none min-w-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setSearchActive(false);
+                  }}
+                  className="text-ov-text-secondary hover:text-ov-text cursor-pointer shrink-0 p-0.5"
+                  title="Close search"
+                >
+                  <X size={12} />
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSearchActive(true)}
+            className="flex items-center gap-1 text-[11px] text-ov-text-secondary hover:text-ov-text cursor-pointer w-full px-1 py-0.5 transition-colors"
+          >
+            <Search size={12} />
+            <span>{filterTag ? `Filtered: ${filterTag}` : "Filter tags..."}</span>
+          </button>
+        )}
       </div>
 
       {/* Tag list */}

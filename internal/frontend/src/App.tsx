@@ -14,6 +14,7 @@ import { PinMessageModal } from "./components/PinMessageModal";
 import type { Tab } from "./components/SessionViewer";
 import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
 import { SessionListSettingsProvider } from "./hooks/useSessionListSettings";
+import { TagsContext } from "./hooks/useTags";
 import { ThemeProvider } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
 import { type AppKeyboardConfig, useAppKeyboard } from "./hooks/useAppKeyboard";
@@ -78,7 +79,7 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [queueCount, setQueueCount] = useState(0);
+const [queueCount, setQueueCount] = useState(0);
   const [promptVersion, setPromptVersion] = useState(0);
   const [highlightPromptId, setHighlightPromptId] = useState<string | null>(null);
 
@@ -97,6 +98,17 @@ export function App() {
     fetchQueueCount();
     return () => setOnPromptQueueChanged(null);
   }, [fetchQueueCount]);
+
+  const [tagsVersion, setTagsVersion] = useState(0);
+  const [filterTag, setFilterTag] = useState<string | null>(null);
+
+  const bumpTags = useCallback(() => setTagsVersion((v) => v + 1), []);
+  const openTag = useCallback((name: string) => {
+    setFilterTag(name);
+    setActiveSection("tags");
+    setSidebarOpen(true);
+  }, []);
+  const clearFilterTag = useCallback(() => setFilterTag(null), []);
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -384,86 +396,95 @@ export function App() {
                 saveScrollPosition,
               }}
             >
-              <div className="flex flex-1 overflow-hidden">
-                <ErrorBoundary>
-                  <Sidebar
-                    sessions={sessions}
-                    activeSessionId={activeSessionId}
-                    onSessionSelect={handleSessionSelect}
-                    activeSection={activeSection}
-                    onSectionChange={setActiveSection}
-                    onSettingsOpen={() => setSettingsOpen(true)}
-                    sidebarOpen={sidebarOpen}
-                    onSidebarToggle={() => setSidebarOpen((v) => !v)}
-                    bookmarks={bookmarks}
-                    onBookmarkSelect={handleBookmarkSelect}
-                    onBookmarkDelete={handleBookmarkDelete}
-                    notifications={notifications}
-                    notificationUnreadCount={notificationUnreadCount}
-                    sessionUnread={notificationSessionUnread}
-                    onNotificationClick={handleNotificationClick}
-                    onMarkAllNotificationsRead={markAllNotificationsRead}
-                    onClearNotifications={clearAllNotifications}
-                    queueCount={queueCount}
-                    promptVersion={promptVersion}
-                    onPromptClick={handlePromptClick}
-                  />
-                </ErrorBoundary>
-
-                <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
-                  {activeSession && !showOverview ? (
-                    <ErrorBoundary>
-                      <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
-                        <SessionViewer
-                          key={activeSession.id}
-                          session={activeSession}
-                          childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
-                          liveChangedIds={liveChangedIds}
-                          activeTab={activeTab}
-                          onTabChange={setActiveTab}
-                          onNameChanged={loadSessions}
-                          openScratchTabs={openScratchTabs}
-                          scratchFileMap={scratchFileMap}
-                          onCloseScratchTab={handleCloseScratchTab}
-                          onNewScratchFile={handleNewScratchFile}
-                          onRenameScratchFile={handleRenameScratchFile}
-                          onPinMessage={handlePinMessage}
-                          onBookmark={handleBookmark}
-                          bookmarkIdByRef={bookmarkIdByRef}
-                          focusStepIndex={focusStepIndex}
-                          focusMessageIndex={focusMessageIndex}
-                          focusMessageKey={focusMessageKey}
-                          focusMessageId={focusMessageId}
-                          onClearFocus={handleClearFocus}
-                          searchHighlightQuery={searchHighlightQuery}
-                          onNavigateToMessage={handleDiffNavigateToMessage}
-                          onQueueChanged={fetchQueueCount}
-                          highlightPromptId={highlightPromptId}
-                          onHighlightDone={handleHighlightDone}
-                        />
-                      </SearchHighlightContext.Provider>
-                    </ErrorBoundary>
-                  ) : sessionsLoading && sessions.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
-                        <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                        Loading sessions...
-                      </div>
-                    </div>
-                  ) : sessions.length > 0 && showOverview ? (
-                    <OverviewScreen
+              <TagsContext.Provider
+                value={{
+                  version: tagsVersion,
+                  bump: bumpTags,
+                  filterTag,
+                  openTag,
+                  clearFilter: clearFilterTag,
+                }}
+              >
+                <div className="flex flex-1 overflow-hidden">
+                  <ErrorBoundary>
+                    <Sidebar
                       sessions={sessions}
+                      activeSessionId={activeSessionId}
                       onSessionSelect={handleSessionSelect}
-                      onOpenProjects={() => setActiveSection("projects")}
+                      activeSection={activeSection}
+                      onSectionChange={setActiveSection}
+                      onSettingsOpen={() => setSettingsOpen(true)}
+                      sidebarOpen={sidebarOpen}
+                      onSidebarToggle={() => setSidebarOpen((v) => !v)}
+                      bookmarks={bookmarks}
+                      onBookmarkSelect={handleBookmarkSelect}
+                      onBookmarkDelete={handleBookmarkDelete}
+                      notifications={notifications}
+                      notificationUnreadCount={notificationUnreadCount}
+                      sessionUnread={notificationSessionUnread}
+                      onNotificationClick={handleNotificationClick}
+                      onMarkAllNotificationsRead={markAllNotificationsRead}
+                      onClearNotifications={clearAllNotifications}
+                      queueCount={queueCount}
+                      promptVersion={promptVersion}
+                      onPromptClick={handlePromptClick}
                     />
-                  ) : (
-                    <EmptyState
-                      sessionsCount={sessions.length}
-                      onOpenSettings={() => setSettingsOpen(true)}
-                    />
-                  )}
-                </main>
-              </div>
+                  </ErrorBoundary>
+                  <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
+                    {activeSession && !showOverview ? (
+                      <ErrorBoundary>
+                        <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
+                          <SessionViewer
+                            key={activeSession.id}
+                            session={activeSession}
+                            childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
+                            liveChangedIds={liveChangedIds}
+                            activeTab={activeTab}
+                            onTabChange={setActiveTab}
+                            onNameChanged={loadSessions}
+                            openScratchTabs={openScratchTabs}
+                            scratchFileMap={scratchFileMap}
+                            onCloseScratchTab={handleCloseScratchTab}
+                            onNewScratchFile={handleNewScratchFile}
+                            onRenameScratchFile={handleRenameScratchFile}
+                            onPinMessage={handlePinMessage}
+                            onBookmark={handleBookmark}
+                            bookmarkIdByRef={bookmarkIdByRef}
+                            focusStepIndex={focusStepIndex}
+                            focusMessageIndex={focusMessageIndex}
+                            focusMessageKey={focusMessageKey}
+                            focusMessageId={focusMessageId}
+                            onClearFocus={handleClearFocus}
+                            searchHighlightQuery={searchHighlightQuery}
+                            onNavigateToMessage={handleDiffNavigateToMessage}
+                            onQueueChanged={fetchQueueCount}
+                            highlightPromptId={highlightPromptId}
+                            onHighlightDone={handleHighlightDone}
+                          />
+                        </SearchHighlightContext.Provider>
+                      </ErrorBoundary>
+                    ) : sessionsLoading && sessions.length === 0 ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
+                          <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                          Loading sessions...
+                        </div>
+                      </div>
+                    ) : sessions.length > 0 && showOverview ? (
+                      <OverviewScreen
+                        sessions={sessions}
+                        onSessionSelect={handleSessionSelect}
+                        onOpenProjects={() => setActiveSection("projects")}
+                      />
+                    ) : (
+                      <EmptyState
+                        sessionsCount={sessions.length}
+                        onOpenSettings={() => setSettingsOpen(true)}
+                      />
+                    )}
+                  </main>
+                </div>
+              </TagsContext.Provider>
             </SessionNavContext.Provider>
 
             <SettingsModal
