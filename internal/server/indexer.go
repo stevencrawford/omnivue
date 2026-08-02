@@ -26,6 +26,33 @@ func NewIndexer(hub *SessionHub, search store.SearchStore, scratch store.Scratch
 	return &Indexer{hub: hub, search: search, scratch: scratch}
 }
 
+// isSQLiteBusy reports whether an error is a transient SQLITE_BUSY failure.
+func isSQLiteBusy(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "SQLITE_BUSY")
+}
+
+// retryOnBusy retries fn up to 3 times while the database reports a busy lock.
+func retryOnBusy(fn func() error) error {
+	var err error
+	for range 3 {
+		err = fn()
+		if err == nil || !isSQLiteBusy(err) {
+			return err
+		}
+	}
+	return err
+}
+
+// isPlanTool returns true for tool call names whose Input should be included
+// in the search index.
+func isPlanTool(name string) bool {
+	switch name {
+	case "todowrite", "task", "task_complete", "task-complete":
+		return true
+	}
+	return false
+}
+
 // IndexSessions indexes session content into the FTS5 search index. It runs
 // incrementally: sessions are only re-indexed if their content hash changes.
 func (ix *Indexer) IndexSessions(ctx context.Context) {

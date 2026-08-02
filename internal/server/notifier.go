@@ -297,3 +297,12 @@ func (n *Notifier) isActiveView(sessionID string) bool {
 	}
 	return true
 }
+
+// shortID returns a short suffix of a key, used to derive a stable suffix for
+// generated notification IDs.
+func shortID(key string) string {
+	if len(key) <= 12 {
+		return key
+	}
+	return key[len(key)-12:]
+}
