@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight } from "lucide-react";
+import { ChevronRight, Folder, Plus, Minus, ArrowUpDown, ArrowRight, Archive } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
@@ -12,7 +12,13 @@ import {
   shortDir,
   shortModel,
 } from "../utils/sessionUtils";
-import { getDistinctValues, filterSessions, type SessionFilters } from "../utils/sessionFilters";
+import {
+  getDistinctValues,
+  filterSessions,
+  splitStaleSessions,
+  type SessionFilters,
+} from "../utils/sessionFilters";
+import { useSessionListSettings } from "../hooks/useSessionListSettings";
 import { ContextMenu } from "./ContextMenu";
 import { AddToProjectDialog } from "./AddToProjectDialog";
 
@@ -91,6 +97,7 @@ export function SessionPanel({
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialDisplay);
+  const { hideStale, staleDays, setHideStale } = useSessionListSettings();
   const toggleDisplayMode = useCallback(() => {
     setDisplayMode((prev) => {
       const next = prev === "condensed" ? "verbose" : "condensed";
@@ -154,7 +161,27 @@ export function SessionPanel({
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
 
-  const tree = useMemo(() => buildTree(filteredSessions, sortMode), [filteredSessions, sortMode]);
+  // Sessions that must remain visible even when stale: the selected session
+  // and any session with unread notifications (live "inbox" reminders).
+  const keepIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (activeSessionId) ids.add(activeSessionId);
+    for (const [id, count] of Object.entries(sessionUnread)) {
+      if (count > 0) ids.add(id);
+    }
+    return ids;
+  }, [activeSessionId, sessionUnread]);
+
+  const { visible: visibleSessions, stale: staleSessions } = useMemo(
+    () => splitStaleSessions(filteredSessions, Date.now(), staleDays, keepIds),
+    [filteredSessions, staleDays, keepIds],
+  );
+
+  const staleIds = useMemo(() => new Set(staleSessions.map((s) => s.id)), [staleSessions]);
+
+  const treeSessions = hideStale ? visibleSessions : filteredSessions;
+
+  const tree = useMemo(() => buildTree(treeSessions, sortMode), [treeSessions, sortMode]);
 
   const agents = useMemo(() => getDistinctValues(sessions, "agent"), [sessions]);
   const projects = useMemo(() => getDistinctValues(sessions, "directory"), [sessions]);
@@ -212,6 +239,10 @@ export function SessionPanel({
       /* noop */
     }
   }, []);
+
+  const toggleHideStale = useCallback(() => {
+    setHideStale(!hideStale);
+  }, [hideStale, setHideStale]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -275,6 +306,13 @@ export function SessionPanel({
                 <path d="M1.5 2.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z" />
               </svg>
             )}
+          </IconBtn>
+          <IconBtn
+            title={hideStale ? "Show all sessions" : "Hide completed sessions"}
+            onClick={toggleHideStale}
+            active={hideStale}
+          >
+            <Archive size={14} />
           </IconBtn>
         </div>
       </div>
@@ -357,6 +395,7 @@ export function SessionPanel({
                 onContextMenu={handleContextMenu}
                 displayMode={displayMode}
                 sessionUnread={sessionUnread}
+                staleIds={staleIds}
               />
             ))}
           </div>
@@ -486,6 +525,7 @@ function RepoNode({
   onContextMenu,
   displayMode,
   sessionUnread,
+  staleIds,
 }: {
   node: TreeNode;
   collapsed: Set<string>;
@@ -497,6 +537,7 @@ function RepoNode({
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   sessionUnread: Record<string, number>;
+  staleIds: Set<string>;
 }) {
   const isCollapsed = collapsed.has(node.fullPath);
   const [showAll, setShowAll] = useState(false);
@@ -537,6 +578,7 @@ function RepoNode({
                 onContextMenu={onContextMenu}
                 displayMode={displayMode}
                 unreadCount={sessionUnread[session.id] || 0}
+                staleIds={staleIds}
               />
             );
           })}
@@ -569,6 +611,7 @@ function SessionRow({
   displayMode,
   unreadCount = 0,
   compact = false,
+  staleIds,
 }: {
   session: Session;
   childNodes: TreeNode[];
@@ -581,9 +624,11 @@ function SessionRow({
   displayMode: DisplayMode;
   unreadCount?: number;
   compact?: boolean;
+  staleIds?: Set<string>;
 }) {
   const subCount = childNodes.length;
   const subsVisible = expandedIds.has(session.id);
+  const isStale = staleIds ? staleIds.has(session.id) : false;
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
@@ -616,6 +661,7 @@ function SessionRow({
             onContextMenu={onContextMenu}
             displayMode={displayMode}
             compact={true}
+            staleIds={staleIds}
           />
         );
       })}
@@ -634,7 +680,7 @@ function SessionRow({
           title={session.directory || session.repository}
           className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
             isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-          }`}
+          } ${isStale && !isActive ? "sess-session-stale" : ""}`}
         >
           {subCount > 0 ? (
             <ChevronRight
@@ -670,7 +716,7 @@ function SessionRow({
         title={session.directory || session.repository}
         className={`session-draggable sess-parent-session w-full text-left transition-all ${
           isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-        }`}
+        } ${isStale && !isActive ? "sess-session-stale" : ""}`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <span
@@ -774,17 +820,21 @@ function IconBtn({
   children,
   onClick,
   title,
+  active = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   title: string;
+  active?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
-      className="text-ov-text-secondary hover:text-ov-text cursor-pointer p-0.5 rounded"
+      className={`cursor-pointer p-0.5 rounded ${
+        active ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"
+      }`}
     >
       {children}
     </button>

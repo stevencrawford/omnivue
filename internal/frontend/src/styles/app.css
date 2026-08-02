@@ -572,6 +572,14 @@ body {
   color: var(--color-ov-text) !important;
 }
 
+.sess-session-stale {
+  opacity: 0.45;
+}
+
+.sess-session-stale:hover {
+  opacity: 1;
+}
+
 .sess-empty-state {
   display: flex;
   flex-direction: column;

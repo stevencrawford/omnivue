@@ -8,6 +8,11 @@ import { runPromise } from "../lib/effect";
 import { useTheme, THEMES } from "../hooks/useTheme";
 import type { ThemeName, ThemeMode } from "../hooks/useTheme";
 import { NotificationsSettingsTab } from "./NotificationsSettingsTab";
+import {
+  useSessionListSettings,
+  STALE_DAYS_MIN,
+  STALE_DAYS_MAX,
+} from "../hooks/useSessionListSettings";
 
 const AGENT_TYPES = [
   { value: "opencode", label: "OpenCode", disabled: false, defaultPath: "~/.local/share/opencode" },
@@ -96,8 +101,10 @@ export function SettingsModal({
 
   const { themeName, setThemeName, theme, setTheme } = useTheme();
 
+  const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();
+
   const [activeTab, setActiveTab] = useState<
-    "agent" | "notifications" | "appearance" | "privacy" | "developer" | "about"
+    "agent" | "sessions" | "notifications" | "appearance" | "privacy" | "developer" | "about"
   >("agent");
 
   const [hideCostsSetting, setHideCostsSetting] = useState(() => {
@@ -305,7 +312,15 @@ export function SettingsModal({
         <div className="w-40 shrink-0 border-r border-ov-border -ml-5 -my-5 pl-5 pt-5 sticky top-0 self-start">
           <nav className="flex flex-col gap-0.5 pr-4">
             {(
-              ["agent", "notifications", "appearance", "privacy", "developer", "about"] as const
+              [
+                "agent",
+                "sessions",
+                "notifications",
+                "appearance",
+                "privacy",
+                "developer",
+                "about",
+              ] as const
             ).map((tab) => (
               <button
                 key={tab}
@@ -319,15 +334,17 @@ export function SettingsModal({
               >
                 {tab === "agent"
                   ? "Agent"
-                  : tab === "notifications"
-                    ? "Notifications"
-                    : tab === "appearance"
-                      ? "Appearance"
-                      : tab === "privacy"
-                        ? "Privacy"
-                        : tab === "developer"
-                          ? "Developer"
-                          : "About"}
+                  : tab === "sessions"
+                    ? "Sessions"
+                    : tab === "notifications"
+                      ? "Notifications"
+                      : tab === "appearance"
+                        ? "Appearance"
+                        : tab === "privacy"
+                          ? "Privacy"
+                          : tab === "developer"
+                            ? "Developer"
+                            : "About"}
               </button>
             ))}
           </nav>
@@ -550,6 +567,56 @@ export function SettingsModal({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "sessions" && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
+                Sessions
+              </h3>
+              <p className="text-xs text-ov-text-secondary mb-3">
+                Control how the session list is displayed.
+              </p>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hideStale}
+                  onChange={(e) => setHideStale(e.target.checked)}
+                  className="accent-accent"
+                />
+                <span className="text-xs text-ov-text">Hide completed sessions</span>
+              </label>
+              <p className="text-[11px] text-ov-text-secondary mt-1 ml-5">
+                Keep the list focused on active and recent work. Older completed sessions are tucked
+                away and can be revealed from the sidebar.
+              </p>
+
+              <div className={`mt-4 ${hideStale ? "" : "opacity-50 pointer-events-none"}`}>
+                <label
+                  htmlFor="stale-days"
+                  className="block text-[11px] font-medium text-ov-text-secondary mb-1"
+                >
+                  Hide sessions idle for more than N days
+                </label>
+                <input
+                  id="stale-days"
+                  type="number"
+                  min={STALE_DAYS_MIN}
+                  max={STALE_DAYS_MAX}
+                  value={staleDays}
+                  disabled={!hideStale}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setStaleDays(v);
+                  }}
+                  className="w-24 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text outline-none focus:border-accent disabled:opacity-50"
+                />
+                <p className="text-[11px] text-ov-text-secondary mt-1.5">
+                  Hidden sessions remain searchable with ⌘K.
+                </p>
+              </div>
             </div>
           )}
 
