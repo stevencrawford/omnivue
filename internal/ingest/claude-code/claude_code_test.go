@@ -26,8 +26,8 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 
 	ctx := context.Background()
 
-	if !a.Detect(basePath) {
-		t.Fatal("Detect() returned false on expected directory")
+	if detectPath(basePath) == nil {
+		t.Fatal("detectPath() returned nil on expected directory")
 	}
 
 	sessions, err := a.ListSessions(ctx)
@@ -193,15 +193,10 @@ func TestDetect(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			tc.setup(t, dir)
-			a, err := New(dir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer a.Close()
 
-			got := a.Detect(dir)
+			got := detectPath(dir) != nil
 			if got != tc.want {
-				t.Errorf("Detect() = %v, want %v", got, tc.want)
+				t.Errorf("detectPath() = %v, want %v", got, tc.want)
 			}
 		})
 	}

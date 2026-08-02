@@ -14,20 +14,13 @@ func testdataPath() string {
 	return filepath.Join("testdata")
 }
 
-func TestAdapter_Detect(t *testing.T) {
-	adapter, err := codex.New(testdataPath())
-	if err != nil {
-		t.Fatalf("New() failed: %v", err)
-	}
-	defer adapter.Close()
-
-	if !adapter.Detect(testdataPath()) {
-		t.Error("Detect() should return true for testdata directory")
+func TestAdapter_New_ValidatesIndex(t *testing.T) {
+	if _, err := codex.New(testdataPath()); err != nil {
+		t.Fatalf("New(testdataPath()) failed: %v", err)
 	}
 
-	tmpDir := t.TempDir()
-	if adapter.Detect(tmpDir) {
-		t.Error("Detect() should return false for empty directory")
+	if _, err := codex.New(t.TempDir()); err == nil {
+		t.Error("New() should error for a directory without session_index.jsonl")
 	}
 }
 

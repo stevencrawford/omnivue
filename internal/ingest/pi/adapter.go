@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
@@ -51,26 +50,6 @@ func New(basePath string) (*Adapter, error) {
 		basePath: basePath,
 		cache:    ingest.NewSessionCache(basePath, ".jsonl"),
 	}, nil
-}
-
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentPi }
-
-func (a *Adapter) Detect(path string) bool {
-	fi, err := os.Stat(path)
-	if err != nil || !fi.IsDir() {
-		return false
-	}
-	var found bool
-	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
-		if err != nil || found {
-			return err
-		}
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
-			found = true
-		}
-		return nil
-	})
-	return found
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {

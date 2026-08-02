@@ -57,14 +57,6 @@ func New(basePath string) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentCodex }
-
-func (a *Adapter) Detect(path string) bool {
-	indexPath := filepath.Join(path, "session_index.jsonl")
-	_, err := os.Stat(indexPath)
-	return err == nil
-}
-
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	return fmt.Sprintf("cd %s && codex resume %s", session.Directory, session.ID)
 }

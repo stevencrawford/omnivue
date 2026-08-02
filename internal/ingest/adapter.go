@@ -9,9 +9,10 @@ import (
 
 // SessionSource is the core interface that every session source adapter
 // must implement. It provides session listing, message retrieval, and lifecycle.
+// Path detection is not part of the interface: it lives on the registry's
+// Detector closures (see registry.go / AutoDiscover), which the CLI uses to
+// discover sources before any adapter is constructed.
 type SessionSource interface {
-	Type() AgentType
-	Detect(path string) bool
 	ListSessions(ctx context.Context) ([]Session, error)
 	Session(ctx context.Context, id string) (*Session, error)
 	Messages(ctx context.Context, sessionID string) ([]Message, error)
