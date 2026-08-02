@@ -21,13 +21,14 @@ import { useSearchScope } from "./hooks/useSearchScope";
 import { useSearchState } from "./hooks/useSearchState";
 import { useRecentSearches } from "./hooks/useRecentSearches";
 import { useBookmarks } from "./hooks/useBookmarks";
-import { useSessions } from "./hooks/useSessions";
+import { useSessions, setOnPromptQueueChanged } from "./hooks/useSessions";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
 import type { AppNotification, NotificationSettings } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
+import { fetchPrompts } from "./hooks/apiClient";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -76,6 +77,25 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [promptVersion, setPromptVersion] = useState(0);
+  const [highlightPromptId, setHighlightPromptId] = useState<string | null>(null);
+
+  const fetchQueueCount = useCallback(async () => {
+    try {
+      const prompts = await fetchPrompts("queued");
+      setQueueCount(prompts.length);
+      setPromptVersion((v) => v + 1);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    setOnPromptQueueChanged(fetchQueueCount);
+    fetchQueueCount();
+    return () => setOnPromptQueueChanged(null);
+  }, [fetchQueueCount]);
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -181,6 +201,7 @@ export function App() {
   // ---- Navigation handlers ----
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
+      setHighlightPromptId(null);
       setShowOverview(false);
       setActiveSessionId(sessionId);
       setFocusStepIndex(undefined);
@@ -223,6 +244,18 @@ export function App() {
     [notifications, markNotificationRead],
   );
 
+  const handlePromptClick = useCallback(
+    (sessionId: string, promptId: string) => {
+      handleSessionSelect(sessionId);
+      setHighlightPromptId(promptId);
+    },
+    [handleSessionSelect],
+  );
+
+  const handleHighlightDone = useCallback(() => {
+    setHighlightPromptId(null);
+  }, []);
+
   const handleClearFocus = useCallback(() => {
     setFocusMessageIndex(undefined);
     setFocusMessageId(undefined);
@@ -232,6 +265,7 @@ export function App() {
   const handleGoHome = useCallback(() => {
     setShowOverview(true);
     setActiveSessionId(null);
+    setHighlightPromptId(null);
     setFocusStepIndex(undefined);
     setFocusMessageIndex(undefined);
     setSearchHighlightQuery(null);
@@ -368,6 +402,9 @@ export function App() {
                   onNotificationClick={handleNotificationClick}
                   onMarkAllNotificationsRead={markAllNotificationsRead}
                   onClearNotifications={clearAllNotifications}
+                  queueCount={queueCount}
+                  promptVersion={promptVersion}
+                  onPromptClick={handlePromptClick}
                 />
               </ErrorBoundary>
 
@@ -398,6 +435,9 @@ export function App() {
                         onClearFocus={handleClearFocus}
                         searchHighlightQuery={searchHighlightQuery}
                         onNavigateToMessage={handleDiffNavigateToMessage}
+                        onQueueChanged={fetchQueueCount}
+                        highlightPromptId={highlightPromptId}
+                        onHighlightDone={handleHighlightDone}
                       />
                     </SearchHighlightContext.Provider>
                   </ErrorBoundary>

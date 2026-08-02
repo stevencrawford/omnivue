@@ -1,7 +1,7 @@
 import React from "react";
-import { Folder, Bookmark, Bell, Settings, type LucideProps } from "lucide-react";
+import { Folder, Bookmark, Bell, Settings, ListTodo, type LucideProps } from "lucide-react";
 
-export type Section = "sessions" | "projects" | "bookmarks" | "notifications";
+export type Section = "sessions" | "queue" | "projects" | "bookmarks" | "notifications";
 
 interface IconChannelProps {
   activeSection: Section;
@@ -10,6 +10,7 @@ interface IconChannelProps {
   sidebarOpen: boolean;
   onSidebarToggle: () => void;
   notificationUnreadCount?: number;
+  queueCount?: number;
 }
 
 export function SessionsIcon({ size = 24, ...props }: LucideProps) {
@@ -37,6 +38,7 @@ const sections: {
   Icon: React.ComponentType<LucideProps>;
 }[] = [
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
+  { id: "queue", label: "Queue", Icon: ListTodo },
   { id: "projects", label: "Projects", Icon: Folder },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
   { id: "notifications", label: "Notifications", Icon: Bell },
@@ -49,6 +51,7 @@ export function IconChannel({
   sidebarOpen,
   onSidebarToggle,
   notificationUnreadCount = 0,
+  queueCount = 0,
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
@@ -75,6 +78,11 @@ export function IconChannel({
             <div className="absolute left-0 w-0.5 h-5 rounded-r-full bg-accent" />
           )}
           <Icon className="size-5" strokeWidth={1.5} />
+          {id === "queue" && queueCount > 0 && (
+            <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-blue-500 text-white">
+              {queueCount > 99 ? "99+" : queueCount}
+            </span>
+          )}
           {id === "notifications" && notificationUnreadCount > 0 && (
             <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white">
               {notificationUnreadCount > 99 ? "99+" : notificationUnreadCount}

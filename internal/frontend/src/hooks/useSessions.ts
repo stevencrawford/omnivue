@@ -25,6 +25,13 @@ function listSessionsEffect() {
   );
 }
 
+// Global callback for prompt-queue-changed SSE events.
+// Components can register by calling setOnPromptQueueChanged.
+let onPromptQueueChanged: (() => void) | null = null;
+export function setOnPromptQueueChanged(cb: (() => void) | null) {
+  onPromptQueueChanged = cb;
+}
+
 export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -50,6 +57,9 @@ export function useSessions(): SessionsState {
       if (ids.length > 0) {
         setLiveChangedIds(new Set(ids));
       }
+    },
+    onPromptQueueChanged: () => {
+      onPromptQueueChanged?.();
     },
   });
 

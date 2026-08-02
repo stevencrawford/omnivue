@@ -67,6 +67,9 @@ interface SessionViewerProps {
   onClearFocus?: () => void;
   searchHighlightQuery?: string | null;
   onNavigateToMessage?: (messageIndex: number) => void;
+  onQueueChanged?: () => void;
+  highlightPromptId?: string | null;
+  onHighlightDone?: () => void;
 }
 
 const MAIN_TABS: {
@@ -103,6 +106,9 @@ export function SessionViewer({
   onClearFocus,
   searchHighlightQuery,
   onNavigateToMessage,
+  onQueueChanged,
+  highlightPromptId,
+  onHighlightDone,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -346,6 +352,9 @@ export function SessionViewer({
             focusMessageId={focusMessageId}
             onClearFocus={onClearFocus}
             searchHighlightQuery={searchHighlightQuery ?? undefined}
+            onQueueChanged={onQueueChanged}
+            highlightPromptId={highlightPromptId}
+            onHighlightDone={onHighlightDone}
           />
         </div>
         {(diffLoaded || activeTab === "diff") && (

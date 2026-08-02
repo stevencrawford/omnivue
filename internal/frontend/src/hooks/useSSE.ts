@@ -7,6 +7,7 @@ interface SSECallbacks {
   onSessionChanged?: (sessionIds: string[]) => void;
   onNotification?: () => void;
   onNotificationsRead?: (ids: string[] | null) => void;
+  onPromptQueueChanged?: () => void;
   onStarted?: () => void;
 }
 
@@ -15,6 +16,7 @@ type SSEEvent =
   | { type: "session-changed"; ids: string[] }
   | { type: "notification" }
   | { type: "notifications-read"; ids: string[] | null }
+  | { type: "prompt-queue-changed" }
   | { type: "started"; pid: number }
   | { type: "reset" };
 
@@ -54,6 +56,10 @@ function makeSSEStream() {
 
     es.addEventListener("notification", () => {
       emit.single({ type: "notification" });
+    });
+
+    es.addEventListener("prompt-queue-changed", () => {
+      emit.single({ type: "prompt-queue-changed" });
     });
 
     es.addEventListener("notifications-read", (e) => {
@@ -110,6 +116,9 @@ export function useSSE(callbacks: SSECallbacks) {
                 break;
               case "notification":
                 cb.onNotification?.();
+                break;
+              case "prompt-queue-changed":
+                cb.onPromptQueueChanged?.();
                 break;
               case "notifications-read":
                 cb.onNotificationsRead?.(event.ids);

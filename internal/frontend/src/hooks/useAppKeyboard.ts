@@ -149,5 +149,6 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     setActiveSessionId,
     setFocusMessageIndex,
     setShowOverview,
+    onOpenShortcuts,
   ]);
 }

@@ -23,6 +23,7 @@ export type {
   NotificationPayload,
   NotificationSettings,
   NotificationScope,
+  QueuedPrompt,
 } from "./types";
 
 export {
@@ -69,4 +70,10 @@ export {
   setNotificationActiveView,
   fetchNotificationSettings,
   setNotificationSettings,
+  fetchPrompts,
+  createPrompt,
+  updatePrompt,
+  deletePrompt,
+  dispatchPrompt,
+  batchDeletePrompts,
 } from "./apiClient";

@@ -152,6 +152,9 @@ export function ConversationView({
   focusMessageKey,
   focusMessageId,
   onClearFocus,
+  onQueueChanged,
+  highlightPromptId,
+  onHighlightDone,
 }: {
   messages: Message[];
   session: Session;
@@ -172,6 +175,9 @@ export function ConversationView({
   focusMessageKey?: number;
   focusMessageId?: string;
   onClearFocus?: () => void;
+  onQueueChanged?: () => void;
+  highlightPromptId?: string | null;
+  onHighlightDone?: () => void;
 }) {
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
@@ -237,7 +243,14 @@ export function ConversationView({
             <p className="text-sm text-ov-text-secondary">No messages in this session</p>
           </div>
         </div>
-        <PinnedPromptBar session={session} firstMessage={firstMessage} onOpenModal={onOpenModal} />
+        <PinnedPromptBar
+          session={session}
+          firstMessage={firstMessage}
+          onOpenModal={onOpenModal}
+          onQueueChanged={onQueueChanged}
+          highlightPromptId={highlightPromptId}
+          onHighlightDone={onHighlightDone}
+        />
       </div>
     );
   }
@@ -325,7 +338,14 @@ export function ConversationView({
         />
       </div>
 
-      <PinnedPromptBar session={session} firstMessage={firstMessage} onOpenModal={onOpenModal} />
+      <PinnedPromptBar
+        session={session}
+        firstMessage={firstMessage}
+        onOpenModal={onOpenModal}
+        onQueueChanged={onQueueChanged}
+        highlightPromptId={highlightPromptId}
+        onHighlightDone={onHighlightDone}
+      />
     </div>
   );
 }

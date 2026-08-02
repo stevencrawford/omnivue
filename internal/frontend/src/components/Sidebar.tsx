@@ -6,6 +6,7 @@ import { SessionPanel } from "./SessionPanel";
 import { ProjectPanel } from "./ProjectPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
+import { QueuePanel } from "./QueuePanel";
 import { useToast } from "../hooks/useToast";
 
 interface SidebarProps {
@@ -26,6 +27,9 @@ interface SidebarProps {
   onNotificationClick: (n: AppNotification) => void;
   onMarkAllNotificationsRead: () => void;
   onClearNotifications: () => void;
+  queueCount?: number;
+  promptVersion?: number;
+  onPromptClick?: (sessionId: string, promptId: string) => void;
 }
 
 const SIDEBAR_WIDTH_KEY = "omnivue-sidebar-width";
@@ -58,6 +62,9 @@ export function Sidebar({
   onNotificationClick,
   onMarkAllNotificationsRead,
   onClearNotifications,
+  queueCount = 0,
+  promptVersion = 0,
+  onPromptClick,
 }: SidebarProps) {
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -121,6 +128,7 @@ export function Sidebar({
         sidebarOpen={sidebarOpen}
         onSidebarToggle={onSidebarToggle}
         notificationUnreadCount={notificationUnreadCount}
+        queueCount={queueCount}
       />
       <div
         className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
@@ -135,6 +143,16 @@ export function Sidebar({
             onSessionSelect={onSessionSelect}
             showToast={showToast}
             sessionUnread={sessionUnread}
+          />
+        </div>
+        <div
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "queue" ? "hidden" : ""}`}
+        >
+          <QueuePanel
+            sessions={sessions}
+            promptVersion={promptVersion}
+            onSessionSelect={onSessionSelect}
+            onPromptClick={onPromptClick}
           />
         </div>
         <div

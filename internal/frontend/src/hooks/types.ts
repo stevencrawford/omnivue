@@ -205,6 +205,18 @@ export interface AppNotification {
   readAt?: number | null; // unix ms, undefined/null = unread
 }
 
+export interface QueuedPrompt {
+  id: string;
+  sessionId?: string | null;
+  sourceId?: string | null;
+  promptText: string;
+  status: "queued" | "dispatched" | "cancelled";
+  priority: number;
+  tags: string; // JSON array
+  createdAt: number; // unix ms
+  dispatchedAt?: number | null;
+}
+
 export type NotificationScope = "all" | "opened" | "pinned";
 
 export interface NotificationSettings {

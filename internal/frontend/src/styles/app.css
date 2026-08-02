@@ -840,6 +840,22 @@ body {
   }
 }
 
+/* Brief flash when navigating to a queued prompt from the Queue panel */
+.queued-prompt-flash {
+  animation: queued-prompt-flash 800ms ease-out forwards;
+}
+
+@keyframes queued-prompt-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-color: var(--color-accent);
+  }
+  100% {
+    background-color: transparent;
+    border-color: transparent;
+  }
+}
+
 /* Inline <mark> tags from search highlighting in rendered markdown */
 .search-highlight mark,
 .markdown-body mark.search-highlight {

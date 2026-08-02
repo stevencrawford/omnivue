@@ -780,6 +780,153 @@ func (s *Store) MarkSessionViewed(sessionID string) error {
 	return err
 }
 
+// --- Prompt Queue CRUD ---
+
+// QueuedPrompt represents a single prompt queued for deferred dispatch.
+type QueuedPrompt struct {
+	ID           string  `json:"id"`
+	SessionID    *string `json:"sessionId,omitempty"`
+	SourceID     *string `json:"sourceId,omitempty"`
+	PromptText   string  `json:"promptText"`
+	Status       string  `json:"status"`
+	Priority     int     `json:"priority"`
+	Tags         string  `json:"tags"` // JSON array
+	CreatedAt    int64   `json:"createdAt"` // unix ms
+	DispatchedAt *int64  `json:"dispatchedAt,omitempty"` // unix ms
+}
+
+// CreatePrompt inserts a new queued prompt.
+func (s *Store) CreatePrompt(p QueuedPrompt) error {
+	_, err := s.db.Exec(`
+		INSERT INTO prompt_queue (id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.ID, p.SessionID, p.SourceID, p.PromptText, p.Status, p.Priority, p.Tags, p.CreatedAt, p.DispatchedAt)
+	return err
+}
+
+// Prompt returns a single queued prompt by ID.
+func (s *Store) Prompt(id string) (*QueuedPrompt, error) {
+	var p QueuedPrompt
+	var sessionID, sourceID sql.NullString
+	var dispatchedAt sql.NullInt64
+	err := s.db.QueryRow(`
+		SELECT id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at
+		FROM prompt_queue WHERE id = ?
+	`, id).Scan(&p.ID, &sessionID, &sourceID, &p.PromptText, &p.Status, &p.Priority, &p.Tags, &p.CreatedAt, &dispatchedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if sessionID.Valid {
+		p.SessionID = &sessionID.String
+	}
+	if sourceID.Valid {
+		p.SourceID = &sourceID.String
+	}
+	if dispatchedAt.Valid {
+		v := dispatchedAt.Int64
+		p.DispatchedAt = &v
+	}
+	return &p, nil
+}
+
+// ListPrompts returns prompts ordered by created_at DESC. Filters: status,
+// sessionID (empty = all), limit (default 100, max 500).
+func (s *Store) ListPrompts(status, sessionID string, limit int) ([]QueuedPrompt, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	var where []string
+	var args []any
+	if status != "" {
+		where = append(where, "status = ?")
+		args = append(args, status)
+	}
+	if sessionID != "" {
+		where = append(where, "session_id = ?")
+		args = append(args, sessionID)
+	}
+	q := "SELECT id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at FROM prompt_queue"
+	if len(where) > 0 {
+		q += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // where is built from placeholders, not user input
+	}
+	q += " ORDER BY created_at DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []QueuedPrompt
+	for rows.Next() {
+		var p QueuedPrompt
+		var sessionID, sourceID sql.NullString
+		var dispatchedAt sql.NullInt64
+		if err := rows.Scan(&p.ID, &sessionID, &sourceID, &p.PromptText, &p.Status, &p.Priority, &p.Tags, &p.CreatedAt, &dispatchedAt); err != nil {
+			return nil, err
+		}
+		if sessionID.Valid {
+			p.SessionID = &sessionID.String
+		}
+		if sourceID.Valid {
+			p.SourceID = &sourceID.String
+		}
+		if dispatchedAt.Valid {
+			v := dispatchedAt.Int64
+			p.DispatchedAt = &v
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// UpdatePromptStatus sets the status and optionally dispatched_at for a prompt.
+func (s *Store) UpdatePromptStatus(id, status string, dispatchedAt *int64) error {
+	_, err := s.db.Exec(`
+		UPDATE prompt_queue SET status = ?, dispatched_at = COALESCE(?, dispatched_at)
+		WHERE id = ?
+	`, status, dispatchedAt, id)
+	return err
+}
+
+// UpdatePromptContent updates the prompt text, priority, and tags.
+func (s *Store) UpdatePromptContent(id, promptText, tags string, priority int) error {
+	_, err := s.db.Exec(`
+		UPDATE prompt_queue SET prompt_text = ?, priority = ?, tags = ?
+		WHERE id = ?
+	`, promptText, priority, tags, id)
+	return err
+}
+
+// DeletePrompt removes a queued prompt.
+func (s *Store) DeletePrompt(id string) error {
+	_, err := s.db.Exec(`DELETE FROM prompt_queue WHERE id = ?`, id)
+	return err
+}
+
+// BatchDeletePrompts removes multiple prompts by ID.
+func (s *Store) BatchDeletePrompts(ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = strings.TrimSuffix(placeholders, ",")
+	query := "DELETE FROM prompt_queue WHERE id IN (" + placeholders + ")" //nolint:gosec
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	_, err := s.db.Exec(query, args...)
+	return err
+}
+
 // --- Search Index ---
 
 // ClearSessionIndex removes all FTS entries for a session (before re-indexing).
@@ -920,6 +1067,7 @@ type SearchResult struct {
 // session names, scratch files, config, bookmarks). Agent data is unaffected.
 func (s *Store) Reset() error {
 	tables := []string{
+		"prompt_queue",
 		"bookmarks",
 		"notifications",
 		"notification_state",
