@@ -400,7 +400,7 @@ func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	}
 	notif := NewNotifier(hub, nil, nil, nil, bus)
 	index := NewIndexer(hub, nil, nil)
-	poller := NewPoller(hub, index, notif, bus)
+	poller := NewPoller(newFanout(hub, index, notif, bus))
 	// Seed the previous observation so the next tick is a real change.
 	poller.lastMod["src-1"] = 1
 
@@ -478,7 +478,7 @@ func TestPollerTick_DrivesIndexAndClassify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	poller := NewPoller(hub, index, notif, bus)
+	poller := NewPoller(newFanout(hub, index, notif, bus))
 	poller.lastMod["src-1"] = 1
 
 	ch := bus.Subscribe()
@@ -716,7 +716,7 @@ func TestHandleCreateTag_FakeStore(t *testing.T) {
 func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
-	dep := newDep(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus, storeRolesOf(nil))
+	dep := newDep(newFanout(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus), storeRolesOf(nil))
 	dep.Tags = tags
 	return dep
 }
@@ -725,7 +725,7 @@ func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 // into the role interfaces: an interface wrapping a nil pointer is non-nil, so
 // every `!= nil` guard would pass and the call would panic on the nil receiver.
 func TestStoreRoles_NilStoreStaysNil(t *testing.T) {
-	dep := newDep(nil, nil, nil, NewEventBus(), storeRolesOf(nil))
+	dep := newDep(newFanout(nil, nil, nil, NewEventBus()), storeRolesOf(nil))
 	for name, v := range map[string]any{
 		"Sources":   dep.Sources,
 		"Tags":      dep.Tags,
@@ -748,7 +748,7 @@ func TestStoreRoles_NilStoreStaysNil(t *testing.T) {
 // genuinely-nil store role: it must return 500 "store not available" instead of
 // panicking on the nil receiver.
 func TestHandleSetConfig_StoreUnavailable_NoPanic(t *testing.T) {
-	dep := newDep(nil, nil, nil, NewEventBus(), storeRolesOf(nil))
+	dep := newDep(newFanout(nil, nil, nil, NewEventBus()), storeRolesOf(nil))
 	doJSON(t, NewHandler(dep), http.MethodPut, "/_/api/config",
 		map[string]string{"key": "k", "value": "v"}, http.StatusInternalServerError, nil)
 }

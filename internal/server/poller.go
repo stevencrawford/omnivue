@@ -29,11 +29,10 @@ func pollInterval(liveCount int) time.Duration {
 
 // Poller drives the adaptive polling loop that watches for source changes,
 // refreshes the SessionHub, re-indexes content, and notifies via the Notifier.
+// It embeds the fanout bundle so the refresh→broadcast path is exactly the one
+// the HTTP add/update-source handlers use.
 type Poller struct {
-	hub     *SessionHub
-	indexer *Indexer
-	notif   *Notifier
-	bus     *EventBus
+	*fanout
 
 	// lastMod tracks the last known modification timestamp per source so a
 	// change is only acted on once. liveCount adapts the poll cadence.
@@ -41,12 +40,9 @@ type Poller struct {
 	liveCount int
 }
 
-func NewPoller(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventBus) *Poller {
+func NewPoller(f *fanout) *Poller {
 	return &Poller{
-		hub:     hub,
-		indexer: indexer,
-		notif:   notif,
-		bus:     bus,
+		fanout:  f,
 		lastMod: make(map[string]int64),
 	}
 }
@@ -88,7 +84,7 @@ func (p *Poller) tick(ctx context.Context) {
 	if changed {
 		ids, lc, transitions := p.hub.refreshSessions(ctx)
 		p.liveCount = lc
-		fanoutSessions(ctx, p.hub, p.indexer, p.notif, p.bus, ids, transitions)
+		p.fanoutSessions(ctx, ids, transitions)
 		return
 	}
 

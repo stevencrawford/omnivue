@@ -67,7 +67,8 @@ func NewState(ctx context.Context) *State {
 	hub := NewSessionHub(roles.names)
 	index := NewIndexer(hub, roles.search, roles.scratch)
 	notif := NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus)
-	poller := NewPoller(hub, index, notif, bus)
+	f := newFanout(hub, index, notif, bus)
+	poller := NewPoller(f)
 
 	// Load configured sources and create adapters.
 	if st != nil {
@@ -93,7 +94,7 @@ func NewState(ctx context.Context) *State {
 	shutdownCh := make(chan struct{}, 1)
 	restartCh := make(chan string, 1)
 
-	dep := newDep(hub, index, notif, bus, roles)
+	dep := newDep(f, roles)
 	dep.Shutdown = func() {
 		select {
 		case shutdownCh <- struct{}{}:
@@ -108,7 +109,7 @@ func NewState(ctx context.Context) *State {
 	}
 
 	// Initial session load and indexing (background, non-blocking).
-	go refreshAndIndex(ctx, hub, index, notif, bus)
+	go f.refreshAndIndex(ctx)
 
 	// Start poller.
 	pollCtx, pollCancel := context.WithCancel(ctx)
@@ -161,12 +162,55 @@ func storeRolesOf(st *store.Store) storeRoles {
 	}
 }
 
-func newDep(hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus, roles storeRoles) Dep {
+// fanout bundles the collaborators that turn a session refresh into a
+// re-index, an SSE broadcast, and a notification pass. The Poller embeds it
+// and the HTTP add/update-source handlers use it, so the two paths share the
+// exact same fan-out instead of passing the same four collaborators around.
+type fanout struct {
+	hub     *SessionHub
+	indexer *Indexer
+	notif   *Notifier
+	bus     *EventBus
+}
+
+// newFanout builds the session fan-out bundle.
+func newFanout(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventBus) *fanout {
+	return &fanout{hub: hub, indexer: indexer, notif: notif, bus: bus}
+}
+
+// refreshAndIndex runs a session refresh followed by background indexing and
+// emits the SSE events the frontend expects. It is used when a source is added
+// or updated so the HTTP handler is never blocked by adapter I/O.
+func (f *fanout) refreshAndIndex(ctx context.Context) {
+	ids, _, transitions := f.hub.refreshSessions(ctx)
+	f.fanoutSessions(ctx, ids, transitions)
+}
+
+// fanoutSessions broadcasts the result of a session refresh: a background
+// re-index, an SSE "update" pulse, a "session-changed" event carrying the
+// changed IDs, and a notification classification pass. Shared by refreshAndIndex
+// and the Poller's changed tick so the two paths cannot drift.
+func (f *fanout) fanoutSessions(ctx context.Context, ids []string, transitions []statusTransition) {
+	go f.indexer.IndexSessions(ctx)
+	f.bus.Send(sseEvent{Name: "update"})
+	if len(ids) == 0 {
+		return
+	}
+	data, err := json.Marshal(map[string]any{"ids": ids})
+	if err != nil {
+		slog.Warn("failed to marshal session change event", "error", err)
+	} else {
+		f.bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
+	}
+	go f.notif.ClassifyChanges(ctx, ids, transitions)
+}
+
+func newDep(f *fanout, roles storeRoles) Dep {
 	return Dep{
-		Hub:       hub,
-		Indexer:   index,
-		Notifier:  notif,
-		Bus:       bus,
+		Hub:       f.hub,
+		Indexer:   f.indexer,
+		Notifier:  f.notif,
+		Bus:       f.bus,
 		Sources:   roles.sources,
 		Tags:      roles.tags,
 		Bookmarks: roles.bookmarks,
@@ -192,31 +236,4 @@ func (s *State) CloseAllSubscribers() {
 		s.stop()
 	}
 	s.dep.Bus.CloseAll()
-}
-
-// refreshAndIndex runs a session refresh followed by background indexing and
-// emits the SSE events the frontend expects. It is used when a source is added
-// or updated so the HTTP handler is never blocked by adapter I/O.
-func refreshAndIndex(ctx context.Context, hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus) {
-	ids, _, transitions := hub.refreshSessions(ctx)
-	fanoutSessions(ctx, hub, index, notif, bus, ids, transitions)
-}
-
-// fanoutSessions broadcasts the result of a session refresh: a background
-// re-index, an SSE "update" pulse, a "session-changed" event carrying the
-// changed IDs, and a notification classification pass. Shared by refreshAndIndex
-// and the Poller's changed tick so the two paths cannot drift.
-func fanoutSessions(ctx context.Context, hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus, ids []string, transitions []statusTransition) {
-	go index.IndexSessions(ctx)
-	bus.Send(sseEvent{Name: "update"})
-	if len(ids) == 0 {
-		return
-	}
-	data, err := json.Marshal(map[string]any{"ids": ids})
-	if err != nil {
-		slog.Warn("failed to marshal session change event", "error", err)
-	} else {
-		bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
-	}
-	go notif.ClassifyChanges(ctx, ids, transitions)
 }

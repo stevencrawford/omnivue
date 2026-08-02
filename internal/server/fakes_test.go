@@ -465,5 +465,5 @@ func newFakeDep(adapters map[string]ingest.Adapter, sessions []ingest.Session) D
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: adapters, sessions: sessions}
 	roles := fakeRoles()
-	return newDep(hub, NewIndexer(hub, roles.search, roles.scratch), NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus), bus, roles)
+	return newDep(newFanout(hub, NewIndexer(hub, roles.search, roles.scratch), NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus), bus), roles)
 }
