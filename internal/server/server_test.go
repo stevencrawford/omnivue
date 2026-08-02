@@ -73,33 +73,6 @@ func (a *tickingAdapter) LastModified(context.Context) (int64, error) {
 	return a.lastModFn()
 }
 
-// newState builds a State wired with a real temp store plus adapters for
-// handler-level tests.
-func newState(t *testing.T, adapters map[string]ingest.Adapter, sessions []ingest.Session, disablePoll bool) *State {
-	t.Helper()
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_STATE_HOME", tmpDir)
-	st, err := store.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
-
-	bus := NewEventBus()
-	hub := &SessionHub{
-		adapters: adapters,
-		sessions: sessions,
-	}
-	index := NewIndexer(hub, st, st)
-	notif := NewNotifier(hub, st, st, st, bus)
-	dep := newDep(hub, index, notif, bus, storeRolesOf(st))
-	s := &State{
-		dep:     dep,
-		stateCh: &lifecycle{shutdownCh: make(chan struct{}, 1), restartCh: make(chan string, 1)},
-	}
-	return s
-}
-
 // doJSON performs a JSON request against the handler and decodes the response
 // body into out, asserting the expected status. A nil body sends an empty
 // request; out may be nil to skip decoding.
@@ -133,12 +106,12 @@ func doJSON(t *testing.T, mux http.Handler, method, path string, body any, wantS
 }
 
 func TestHandleStatus(t *testing.T) {
-	state := newState(t, map[string]ingest.Adapter{
+	dep := newFakeDep(map[string]ingest.Adapter{
 		"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1"}}},
-	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1"}}, true)
+	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1"}})
 
 	var body map[string]any
-	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/status", nil, http.StatusOK, &body)
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/status", nil, http.StatusOK, &body)
 	if body["version"] != version.Version {
 		t.Errorf("expected version %q, got %v", version.Version, body["version"])
 	}
@@ -149,20 +122,20 @@ func TestHandleStatus(t *testing.T) {
 
 func TestHandleSessions(t *testing.T) {
 	sess := []ingest.Session{{ID: "ses-1", SourceID: "src-1", Title: "Test Session"}}
-	state := newState(t, map[string]ingest.Adapter{
+	dep := newFakeDep(map[string]ingest.Adapter{
 		"src-1": &mockAdapter{sessions: sess},
-	}, sess, true)
+	}, sess)
 
 	var sessions []ingest.Session
-	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/sessions", nil, http.StatusOK, &sessions)
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/sessions", nil, http.StatusOK, &sessions)
 	if len(sessions) != 1 || sessions[0].Title != "Test Session" {
 		t.Fatalf("unexpected sessions: %+v", sessions)
 	}
 }
 
 func TestHandleGetSession_NotFound(t *testing.T) {
-	state := newState(t, nil, nil, true)
-	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/sessions/nonexistent", nil, http.StatusNotFound, nil)
+	dep := newFakeDep(nil, nil)
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/sessions/nonexistent", nil, http.StatusNotFound, nil)
 }
 
 func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
@@ -204,14 +177,8 @@ func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
 }
 
 func TestResolveSession_FallbackEnrichesLivenessAndName(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_STATE_HOME", tmpDir)
-	st, err := store.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	if err := st.SetSessionName("sub-2", "Overridden Title"); err != nil {
+	names := newFakeNameStore()
+	if err := names.SetSessionName("sub-2", "Overridden Title"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -220,7 +187,7 @@ func TestResolveSession_FallbackEnrichesLivenessAndName(t *testing.T) {
 	}
 	hub := &SessionHub{
 		adapters: map[string]ingest.Adapter{"src-1": adapter},
-		names:    st,
+		names:    names,
 	}
 
 	sess, _, err := hub.Resolve(context.Background(), "sub-2")
@@ -265,9 +232,9 @@ func TestResolveSession_CachedWithoutAdapterNotDuplicated(t *testing.T) {
 }
 
 func TestHandleTags_StoreUnavailable(t *testing.T) {
-	state := newState(t, nil, nil, true)
+	dep := newFakeDep(nil, nil)
 	var tags []store.Tag
-	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/tags", nil, http.StatusOK, &tags)
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/tags", nil, http.StatusOK, &tags)
 	if len(tags) != 0 {
 		t.Errorf("expected empty list, got %d", len(tags))
 	}
@@ -653,17 +620,7 @@ func TestClassifyChanges_ExcludeActiveView(t *testing.T) {
 }
 
 func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_STATE_HOME", tmpDir)
-	st, err := store.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-
-	bus := NewEventBus()
-	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
-	dep := newDep(hub, NewIndexer(hub, st, st), NewNotifier(hub, st, st, st, bus), bus, storeRolesOf(st))
+	dep := newFakeDep(nil, nil)
 
 	var list []store.Notification
 	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/notifications", nil, http.StatusOK, &list)
@@ -673,18 +630,7 @@ func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
 }
 
 func TestHandleNotifySettings_RoundTrip(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_STATE_HOME", tmpDir)
-	st, err := store.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-
-	bus := NewEventBus()
-	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
-	notif := NewNotifier(hub, st, st, st, bus)
-	dep := newDep(hub, NewIndexer(hub, nil, nil), notif, bus, storeRolesOf(st))
+	dep := newFakeDep(nil, nil)
 
 	// GET defaults.
 	var defaults notify.Settings
@@ -708,14 +654,14 @@ func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 }
 
 func TestHandleGetResumeCommand(t *testing.T) {
-	state := newState(t, map[string]ingest.Adapter{
+	dep := newFakeDep(map[string]ingest.Adapter{
 		"src-1": &mockAdapter{
 			sessions: []ingest.Session{{ID: "ses-1", Directory: "/tmp/proj"}},
 		},
-	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1", Directory: "/tmp/proj"}}, true)
+	}, []ingest.Session{{ID: "ses-1", SourceID: "src-1", Directory: "/tmp/proj"}})
 
 	var resp map[string]string
-	doJSON(t, NewHandler(state.Deps()), http.MethodGet, "/_/api/sessions/ses-1/resume", nil, http.StatusOK, &resp)
+	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/sessions/ses-1/resume", nil, http.StatusOK, &resp)
 	if resp["directory"] != "/tmp/proj" {
 		t.Errorf("expected directory /tmp/proj, got %q", resp["directory"])
 	}
