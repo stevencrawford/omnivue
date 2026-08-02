@@ -51,6 +51,34 @@ func errorStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
+// writeNoContent writes an empty 204 response. The status literal lives here so
+// handlers never hand-pick one.
+func writeNoContent(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// writeCreated writes v as a JSON 201 response.
+func writeCreated(w http.ResponseWriter, v any) {
+	writeJSON(w, http.StatusCreated, v)
+}
+
+// writeAccepted writes an empty 202 response for async work that continues
+// after the request returns.
+func writeAccepted(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// requireStore reports whether a store-backed role is available, writing a 500
+// "store not available" response when it is not. Collapses the per-handler
+// nil-guard + status-literal repetition.
+func requireStore(w http.ResponseWriter, v any) bool {
+	if v == nil {
+		writeError(w, internalError("store not available"))
+		return false
+	}
+	return true
+}
+
 // decodeJSON decodes the JSON request body into v. Callers respond with 400 on
 // error; the concrete decode error is surfaced as-is.
 func decodeJSON(r *http.Request, v any) error {

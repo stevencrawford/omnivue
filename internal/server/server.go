@@ -24,17 +24,17 @@ import (
 )
 
 // NewHandler builds the HTTP handler set from the wiring Dep. Each handler is
-// constructed with access only to the collaborators and role interfaces it
-// serves.
+// constructed with only the collaborators and role interfaces it serves, so a
+// handler never reaches for the whole wiring bundle.
 func NewHandler(dep Dep) http.Handler {
 	mux := http.NewServeMux()
 
 	// API routes
-	mux.HandleFunc("GET /_/api/status", handleStatus(dep))
+	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub))
 	mux.HandleFunc("GET /_/api/sources", handleSources(dep.Sources))
-	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep))
-	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep))
-	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(dep))
+	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, dep.Hub, dep.Indexer, dep.Notifier, dep.Bus))
+	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Hub, dep.Sources, dep.Bus))
+	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(dep.Hub, dep.Sources, dep.Indexer, dep.Notifier, dep.Bus))
 	mux.HandleFunc("GET /_/api/sources/discover", handleDiscoverSources())
 	mux.HandleFunc("GET /_/api/config", handleGetConfig(dep.Config))
 	mux.HandleFunc("PUT /_/api/config", handleSetConfig(dep.Config))
@@ -47,16 +47,16 @@ func NewHandler(dep Dep) http.Handler {
 	mux.HandleFunc("PUT /_/api/sessions/{id}/name", handleSetSessionName(dep.Hub))
 	mux.HandleFunc("DELETE /_/api/sessions/{id}/name", handleClearSessionName(dep.Hub))
 	mux.HandleFunc("GET /_/api/sessions/{id}/scratch", handleListScratchFiles(dep.Scratch))
-	mux.HandleFunc("POST /_/api/sessions/{id}/scratch", handleCreateScratchFile(dep))
+	mux.HandleFunc("POST /_/api/sessions/{id}/scratch", handleCreateScratchFile(dep.Scratch, dep.Indexer))
 	mux.HandleFunc("GET /_/api/sessions/{id}/scratch/{fileId}", handleGetScratchFile(dep.Scratch))
-	mux.HandleFunc("PUT /_/api/sessions/{id}/scratch/{fileId}", handleUpdateScratchFile(dep))
-	mux.HandleFunc("PATCH /_/api/sessions/{id}/scratch/{fileId}", handleRenameScratchFile(dep))
-	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(dep))
+	mux.HandleFunc("PUT /_/api/sessions/{id}/scratch/{fileId}", handleUpdateScratchFile(dep.Scratch, dep.Indexer))
+	mux.HandleFunc("PATCH /_/api/sessions/{id}/scratch/{fileId}", handleRenameScratchFile(dep.Scratch, dep.Indexer))
+	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(dep.Scratch, dep.Indexer))
 	mux.HandleFunc("GET /_/api/scratch", handleListAllScratchFiles(dep.Scratch))
 	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(dep.Hub))
 	mux.HandleFunc("GET /_/api/recent-searches", handleGetRecentSearches(dep.Config))
 	mux.HandleFunc("POST /_/api/recent-searches", handleSetRecentSearches(dep.Config))
-	mux.HandleFunc("GET /_/api/search", handleSearch(dep))
+	mux.HandleFunc("GET /_/api/search", handleSearch(dep.Search, dep.Hub))
 	mux.HandleFunc("GET /_/api/tags", handleListTags(dep.Tags))
 	mux.HandleFunc("POST /_/api/tags", handleCreateTag(dep.Tags))
 	mux.HandleFunc("PATCH /_/api/tags/{id}", handleUpdateTag(dep.Tags))
@@ -68,21 +68,21 @@ func NewHandler(dep Dep) http.Handler {
 	mux.HandleFunc("GET /_/api/bookmarks", handleListBookmarks(dep.Bookmarks))
 	mux.HandleFunc("POST /_/api/bookmarks", handleCreateBookmark(dep.Bookmarks))
 	mux.HandleFunc("DELETE /_/api/bookmarks/{id}", handleDeleteBookmark(dep.Bookmarks))
-	mux.HandleFunc("GET /_/api/notifications", handleListNotifications(dep))
-	mux.HandleFunc("DELETE /_/api/notifications", handleClearNotifications(dep))
-	mux.HandleFunc("POST /_/api/notifications/read", handleMarkNotificationsRead(dep))
-	mux.HandleFunc("POST /_/api/notifications/active-view", handleActiveView(dep))
+	mux.HandleFunc("GET /_/api/notifications", handleListNotifications(dep.Notifs))
+	mux.HandleFunc("DELETE /_/api/notifications", handleClearNotifications(dep.Notifs, dep.Bus))
+	mux.HandleFunc("POST /_/api/notifications/read", handleMarkNotificationsRead(dep.Notifs, dep.Bus))
+	mux.HandleFunc("POST /_/api/notifications/active-view", handleActiveView(dep.Notifier, dep.Notifs))
 	mux.HandleFunc("GET /_/api/notifications/settings", handleGetNotifySettings(dep.Notifier))
 	mux.HandleFunc("PUT /_/api/notifications/settings", handleSetNotifySettings(dep.Notifier))
 	mux.HandleFunc("GET /_/api/prompts", handleListPrompts(dep.Prompts))
-	mux.HandleFunc("POST /_/api/prompts", handleCreatePrompt(dep))
-	mux.HandleFunc("PATCH /_/api/prompts/{id}", handleUpdatePrompt(dep))
-	mux.HandleFunc("DELETE /_/api/prompts/{id}", handleDeletePrompt(dep))
-	mux.HandleFunc("POST /_/api/prompts/{id}/dispatch", handleDispatchPrompt(dep))
-	mux.HandleFunc("POST /_/api/prompts/batch", handleBatchDeletePrompts(dep))
-	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(dep))
-	mux.HandleFunc("POST /_/api/restart", handleRestart(dep))
-	mux.HandleFunc("POST /_/api/reset", handleReset(dep))
+	mux.HandleFunc("POST /_/api/prompts", handleCreatePrompt(dep.Prompts, dep.Bus))
+	mux.HandleFunc("PATCH /_/api/prompts/{id}", handleUpdatePrompt(dep.Prompts, dep.Bus))
+	mux.HandleFunc("DELETE /_/api/prompts/{id}", handleDeletePrompt(dep.Prompts, dep.Bus))
+	mux.HandleFunc("POST /_/api/prompts/{id}/dispatch", handleDispatchPrompt(dep.Prompts, dep.Bus))
+	mux.HandleFunc("POST /_/api/prompts/batch", handleBatchDeletePrompts(dep.Prompts, dep.Bus))
+	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(dep.Shutdown))
+	mux.HandleFunc("POST /_/api/restart", handleRestart(dep.Restart))
+	mux.HandleFunc("POST /_/api/reset", handleReset(dep.Reset, dep.Hub, dep.Bus))
 	mux.HandleFunc("GET /_/events", handleSSE(dep.Bus))
 	mux.HandleFunc("GET /_/ws/terminal", handleTerminalWS(dep.Hub))
 
@@ -92,27 +92,27 @@ func NewHandler(dep Dep) http.Handler {
 	return mux
 }
 
-func handleStatus(dep Dep) http.HandlerFunc {
+func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var schemaVersion int
-		if dep.Meta != nil {
-			if v, err := dep.Meta.SchemaVersion(); err != nil {
+		if meta != nil {
+			if v, err := meta.SchemaVersion(); err != nil {
 				slog.Warn("failed to read schema version", "error", err)
 			} else {
 				schemaVersion = v
 			}
 		}
-		sources := 0
-		if dep.Sources != nil {
-			if all, err := dep.Sources.ListSources(); err == nil {
-				sources = len(all)
+		sourceCount := 0
+		if sources != nil {
+			if all, err := sources.ListSources(); err == nil {
+				sourceCount = len(all)
 			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"version":       version.Version,
 			"pid":           os.Getpid(),
-			"sources":       sources,
-			"sessions":      len(dep.Hub.Sessions()),
+			"sources":       sourceCount,
+			"sessions":      len(hub.Sessions()),
 			"schemaVersion": schemaVersion,
 		})
 	}
@@ -133,7 +133,7 @@ func handleSources(sources store.SourceStore) http.HandlerFunc {
 	}
 }
 
-func handleAddSource(dep Dep) http.HandlerFunc {
+func handleAddSource(sources store.SourceStore, hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Path      string `json:"path"`
@@ -177,8 +177,8 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 			Enabled:   body.Enabled,
 			CreatedAt: time.Now(),
 		}
-		if dep.Sources != nil {
-			if err := dep.Sources.AddSource(src); err != nil {
+		if sources != nil {
+			if err := sources.AddSource(src); err != nil {
 				writeError(w, err)
 				return
 			}
@@ -187,31 +187,31 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 			if adapter, err := ingest.CreateAdapter(src); err != nil {
 				slog.Warn("failed to create adapter for new source", "source", src.Path, "error", err)
 			} else {
-				dep.Hub.AddAdapter(src.ID, adapter)
+				hub.AddAdapter(src.ID, adapter)
 			}
 		}
-		go refreshAndIndex(context.WithoutCancel(r.Context()), dep.Hub, dep.Indexer, dep.Notifier, dep.Bus)
-		writeJSON(w, http.StatusCreated, src)
+		go refreshAndIndex(context.WithoutCancel(r.Context()), hub, index, notif, bus)
+		writeCreated(w, src)
 	}
 }
 
-func handleRemoveSource(dep Dep) http.HandlerFunc {
+func handleRemoveSource(hub *SessionHub, sources store.SourceStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		dep.Hub.RemoveAdapter(id)
-		if dep.Sources != nil {
-			if err := dep.Sources.RemoveSource(id); err != nil {
+		hub.RemoveAdapter(id)
+		if sources != nil {
+			if err := sources.RemoveSource(id); err != nil {
 				writeError(w, err)
 				return
 			}
 		}
-		dep.Hub.refreshSessions(r.Context())
-		dep.Bus.Send(sseEvent{Name: "update"})
-		w.WriteHeader(http.StatusNoContent)
+		hub.refreshSessions(r.Context())
+		bus.Send(sseEvent{Name: "update"})
+		writeNoContent(w)
 	}
 }
 
-func handleUpdateSource(dep Dep) http.HandlerFunc {
+func handleUpdateSource(hub *SessionHub, sources store.SourceStore, index *Indexer, notif *Notifier, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		var body struct {
@@ -228,24 +228,24 @@ func handleUpdateSource(dep Dep) http.HandlerFunc {
 			writeError(w, badRequest("path is required"))
 			return
 		}
-		dep.Hub.RemoveAdapter(id)
-		if dep.Sources != nil {
-			if err := dep.Sources.UpdateSource(id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
+		hub.RemoveAdapter(id)
+		if sources != nil {
+			if err := sources.UpdateSource(id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
 				writeError(w, err)
 				return
 			}
 			if body.Enabled {
-				if src, err := dep.Sources.Source(id); err == nil && src != nil {
+				if src, err := sources.Source(id); err == nil && src != nil {
 					if adapter, err := ingest.CreateAdapter(*src); err != nil {
 						slog.Warn("failed to create adapter for updated source", "source", src.Path, "error", err)
 					} else {
-						dep.Hub.AddAdapter(id, adapter)
+						hub.AddAdapter(id, adapter)
 					}
 				}
 			}
 		}
-		go refreshAndIndex(context.WithoutCancel(r.Context()), dep.Hub, dep.Indexer, dep.Notifier, dep.Bus)
-		w.WriteHeader(http.StatusNoContent)
+		go refreshAndIndex(context.WithoutCancel(r.Context()), hub, index, notif, bus)
+		writeNoContent(w)
 	}
 }
 
@@ -261,8 +261,7 @@ func handleDiscoverSources() http.HandlerFunc {
 
 func handleGetConfig(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if cfg == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, cfg) {
 			return
 		}
 		config, err := cfg.AllConfig()
@@ -291,8 +290,7 @@ func handleSetConfig(cfg store.ConfigStore) http.HandlerFunc {
 			writeError(w, badRequest("key is required"))
 			return
 		}
-		if cfg == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, cfg) {
 			return
 		}
 		if err := cfg.SetConfig(body.Key, body.Value); err != nil {
@@ -432,7 +430,7 @@ func handleListScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 	}
 }
 
-func handleCreateScratchFile(dep Dep) http.HandlerFunc {
+func handleCreateScratchFile(scratch store.ScratchStore, index *Indexer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Title   string `json:"title"`
@@ -449,8 +447,7 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 		if body.Mode == "" {
 			body.Mode = "writable"
 		}
-		if dep.Scratch == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, scratch) {
 			return
 		}
 		now := time.Now()
@@ -463,11 +460,11 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
-		if err := dep.Scratch.CreateScratchFile(f); err != nil {
+		if err := scratch.CreateScratchFile(f); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(f.SessionID)
+		index.ReindexSessionScratch(f.SessionID)
 		writeJSON(w, http.StatusOK, f)
 	}
 }
@@ -487,7 +484,7 @@ func handleGetScratchFile(scratch store.ScratchStore) http.HandlerFunc {
 	}
 }
 
-func handleUpdateScratchFile(dep Dep) http.HandlerFunc {
+func handleUpdateScratchFile(scratch store.ScratchStore, index *Indexer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Title   string `json:"title"`
@@ -500,20 +497,19 @@ func handleUpdateScratchFile(dep Dep) http.HandlerFunc {
 		if body.Title == "" {
 			body.Title = "Untitled"
 		}
-		if dep.Scratch == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, scratch) {
 			return
 		}
-		if err := dep.Scratch.UpdateScratchFile(r.PathValue("fileId"), body.Title, body.Content); err != nil {
+		if err := scratch.UpdateScratchFile(r.PathValue("fileId"), body.Title, body.Content); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
+		index.ReindexSessionScratch(r.PathValue("id"))
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleRenameScratchFile(dep Dep) http.HandlerFunc {
+func handleRenameScratchFile(scratch store.ScratchStore, index *Indexer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Title string `json:"title"`
@@ -526,30 +522,28 @@ func handleRenameScratchFile(dep Dep) http.HandlerFunc {
 			writeError(w, badRequest("title is required"))
 			return
 		}
-		if dep.Scratch == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, scratch) {
 			return
 		}
-		if err := dep.Scratch.RenameScratchFile(r.PathValue("fileId"), body.Title); err != nil {
+		if err := scratch.RenameScratchFile(r.PathValue("fileId"), body.Title); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
+		index.ReindexSessionScratch(r.PathValue("id"))
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleDeleteScratchFile(dep Dep) http.HandlerFunc {
+func handleDeleteScratchFile(scratch store.ScratchStore, index *Indexer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Scratch == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, scratch) {
 			return
 		}
-		if err := dep.Scratch.DeleteScratchFile(r.PathValue("fileId")); err != nil {
+		if err := scratch.DeleteScratchFile(r.PathValue("fileId")); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
+		index.ReindexSessionScratch(r.PathValue("id"))
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
@@ -571,8 +565,7 @@ func handleListAllScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 
 func handleGetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if cfg == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, cfg) {
 			return
 		}
 		searches, err := cfg.RecentSearches()
@@ -594,8 +587,7 @@ func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 			writeError(w, badRequest("invalid request body"))
 			return
 		}
-		if cfg == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, cfg) {
 			return
 		}
 		if err := cfg.SetRecentSearches(searches); err != nil {
@@ -606,7 +598,7 @@ func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleSearch(dep Dep) http.HandlerFunc {
+func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		if q == "" {
@@ -621,15 +613,15 @@ func handleSearch(dep Dep) http.HandlerFunc {
 		}
 		sessionID := r.URL.Query().Get("session_id")
 		var results []store.SearchResult
-		if dep.Search != nil {
-			if res, err := dep.Search.Search(q, limit, sessionID); err == nil {
+		if search != nil {
+			if res, err := search.Search(q, limit, sessionID); err == nil {
 				results = res
 			} else {
 				slog.Warn("search error", "query", q, "error", err)
 			}
 		}
 		// Enrich results with session title.
-		titles := dep.Hub.TitleMap()
+		titles := hub.TitleMap()
 		for i := range results {
 			if title, ok := titles[results[i].SessionID]; ok {
 				results[i].SessionName = title
@@ -669,8 +661,7 @@ type createTagRequest struct {
 
 func handleCreateTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if tags == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, tags) {
 			return
 		}
 		var req createTagRequest
@@ -694,7 +685,7 @@ func handleCreateTag(tags store.TagStore) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, t)
+		writeCreated(w, t)
 	}
 }
 
@@ -705,8 +696,7 @@ type updateTagRequest struct {
 
 func handleUpdateTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if tags == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, tags) {
 			return
 		}
 		var req updateTagRequest
@@ -722,21 +712,20 @@ func handleUpdateTag(tags store.TagStore) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeNoContent(w)
 	}
 }
 
 func handleDeleteTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if tags == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, tags) {
 			return
 		}
 		if err := tags.DeleteTag(r.PathValue("id")); err != nil {
 			writeError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeNoContent(w)
 	}
 }
 
@@ -760,29 +749,27 @@ func handleGetTagSessions(tags store.TagStore) http.HandlerFunc {
 
 func handleAssignTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if tags == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, tags) {
 			return
 		}
 		if err := tags.AssignTag(r.PathValue("id"), r.PathValue("sessionId")); err != nil {
 			writeError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeNoContent(w)
 	}
 }
 
 func handleUnassignTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if tags == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, tags) {
 			return
 		}
 		if err := tags.UnassignTag(r.PathValue("id"), r.PathValue("sessionId")); err != nil {
 			writeError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeNoContent(w)
 	}
 }
 
@@ -833,8 +820,7 @@ type createBookmarkRequest struct {
 
 func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if bookmarks == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, bookmarks) {
 			return
 		}
 		var req createBookmarkRequest
@@ -867,29 +853,28 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, b)
+		writeCreated(w, b)
 	}
 }
 
 func handleDeleteBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if bookmarks == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, bookmarks) {
 			return
 		}
 		if err := bookmarks.DeleteBookmark(r.PathValue("id")); err != nil {
 			writeError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeNoContent(w)
 	}
 }
 
 // --- Notification handlers ---
 
-func handleListNotifications(dep Dep) http.HandlerFunc {
+func handleListNotifications(notifs store.NotificationStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Notifs == nil {
+		if notifs == nil {
 			writeJSON(w, http.StatusOK, []store.Notification{})
 			return
 		}
@@ -900,7 +885,7 @@ func handleListNotifications(dep Dep) http.HandlerFunc {
 			}
 		}
 		unread := r.URL.Query().Get("unreadOnly") == "true" || r.URL.Query().Get("unreadOnly") == "1"
-		list, err := dep.Notifs.ListNotifications(limit, unread)
+		list, err := notifs.ListNotifications(limit, unread)
 		if err != nil {
 			writeError(w, err)
 			return
@@ -912,10 +897,9 @@ func handleListNotifications(dep Dep) http.HandlerFunc {
 	}
 }
 
-func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
+func handleMarkNotificationsRead(notifs store.NotificationStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Notifs == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, notifs) {
 			return
 		}
 		var body struct {
@@ -925,7 +909,7 @@ func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
 			writeError(w, badRequest("invalid request body"))
 			return
 		}
-		if err := dep.Notifs.MarkAllNotificationsRead(body.IDs); err != nil {
+		if err := notifs.MarkAllNotificationsRead(body.IDs); err != nil {
 			writeError(w, err)
 			return
 		}
@@ -934,28 +918,27 @@ func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
 		if err != nil {
 			slog.Warn("failed to marshal notifications-read event", "error", err)
 		} else {
-			dep.Bus.Send(sseEvent{Name: "notifications-read", Data: string(data)})
+			bus.Send(sseEvent{Name: "notifications-read", Data: string(data)})
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleClearNotifications(dep Dep) http.HandlerFunc {
+func handleClearNotifications(notifs store.NotificationStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Notifs == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, notifs) {
 			return
 		}
-		if err := dep.Notifs.ClearNotifications(time.Time{}); err != nil {
+		if err := notifs.ClearNotifications(time.Time{}); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Bus.Send(sseEvent{Name: "notifications-read", Data: "{\"all\":true}"})
+		bus.Send(sseEvent{Name: "notifications-read", Data: "{\"all\":true}"})
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleActiveView(dep Dep) http.HandlerFunc {
+func handleActiveView(notifier *Notifier, notifs store.NotificationStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			SessionID string `json:"sessionId"`
@@ -968,9 +951,9 @@ func handleActiveView(dep Dep) http.HandlerFunc {
 			writeError(w, badRequest("sessionId is required"))
 			return
 		}
-		dep.Notifier.ReportActiveView(body.SessionID)
-		if dep.Notifs != nil {
-			if err := dep.Notifs.MarkSessionViewed(body.SessionID); err != nil {
+		notifier.ReportActiveView(body.SessionID)
+		if notifs != nil {
+			if err := notifs.MarkSessionViewed(body.SessionID); err != nil {
 				slog.Warn("failed to mark session viewed", "session", body.SessionID, "error", err)
 			}
 		}
@@ -1038,10 +1021,9 @@ func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 	}
 }
 
-func handleCreatePrompt(dep Dep) http.HandlerFunc {
+func handleCreatePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Prompts == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, prompts) {
 			return
 		}
 		var body struct {
@@ -1075,19 +1057,18 @@ func handleCreatePrompt(dep Dep) http.HandlerFunc {
 			Tags:       tagsJSON,
 			CreatedAt:  time.Now().UnixMilli(),
 		}
-		if err := dep.Prompts.CreatePrompt(p); err != nil {
+		if err := prompts.CreatePrompt(p); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		writeJSON(w, http.StatusCreated, p)
+		bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		writeCreated(w, p)
 	}
 }
 
-func handleUpdatePrompt(dep Dep) http.HandlerFunc {
+func handleUpdatePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Prompts == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, prompts) {
 			return
 		}
 		var body struct {
@@ -1099,7 +1080,7 @@ func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 			writeError(w, badRequest("invalid request body"))
 			return
 		}
-		existing, err := dep.Prompts.Prompt(r.PathValue("id"))
+		existing, err := prompts.Prompt(r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -1122,37 +1103,35 @@ func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 				tags = string(data)
 			}
 		}
-		if err := dep.Prompts.UpdatePromptContent(r.PathValue("id"), promptText, tags, priority); err != nil {
+		if err := prompts.UpdatePromptContent(r.PathValue("id"), promptText, tags, priority); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompt-queue-changed"})
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleDeletePrompt(dep Dep) http.HandlerFunc {
+func handleDeletePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Prompts == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, prompts) {
 			return
 		}
-		if err := dep.Prompts.DeletePrompt(r.PathValue("id")); err != nil {
+		if err := prompts.DeletePrompt(r.PathValue("id")); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompt-queue-changed"})
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleDispatchPrompt(dep Dep) http.HandlerFunc {
+func handleDispatchPrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Prompts == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, prompts) {
 			return
 		}
-		existing, err := dep.Prompts.Prompt(r.PathValue("id"))
+		existing, err := prompts.Prompt(r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -1162,19 +1141,18 @@ func handleDispatchPrompt(dep Dep) http.HandlerFunc {
 			return
 		}
 		now := time.Now().UnixMilli()
-		if err := dep.Prompts.UpdatePromptStatus(r.PathValue("id"), "dispatched", &now); err != nil {
+		if err := prompts.UpdatePromptStatus(r.PathValue("id"), "dispatched", &now); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompt-queue-changed"})
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "promptText": existing.PromptText})
 	}
 }
 
-func handleBatchDeletePrompts(dep Dep) http.HandlerFunc {
+func handleBatchDeletePrompts(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Prompts == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, prompts) {
 			return
 		}
 		var body struct {
@@ -1184,18 +1162,18 @@ func handleBatchDeletePrompts(dep Dep) http.HandlerFunc {
 			writeError(w, badRequest("invalid request body"))
 			return
 		}
-		if err := dep.Prompts.BatchDeletePrompts(body.IDs); err != nil {
+		if err := prompts.BatchDeletePrompts(body.IDs); err != nil {
 			writeError(w, err)
 			return
 		}
-		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompt-queue-changed"})
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 
-func handleShutdown(dep Dep) http.HandlerFunc {
+func handleShutdown(shutdown func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
+		writeAccepted(w)
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -1203,14 +1181,14 @@ func handleShutdown(dep Dep) http.HandlerFunc {
 				}
 			}()
 			time.Sleep(100 * time.Millisecond)
-			dep.Shutdown()
+			shutdown()
 		}()
 	}
 }
 
-func handleRestart(dep Dep) http.HandlerFunc {
+func handleRestart(restart func(string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
+		writeAccepted(w)
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -1218,26 +1196,25 @@ func handleRestart(dep Dep) http.HandlerFunc {
 				}
 			}()
 			time.Sleep(100 * time.Millisecond)
-			dep.Restart("")
+			restart("")
 		}()
 	}
 }
 
-func handleReset(dep Dep) http.HandlerFunc {
+func handleReset(reset store.Resetter, hub *SessionHub, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if dep.Reset == nil {
-			writeError(w, internalError("store not available"))
+		if !requireStore(w, reset) {
 			return
 		}
-		if err := dep.Reset.Reset(); err != nil {
+		if err := reset.Reset(); err != nil {
 			slog.Error("reset failed", "error", err)
 			writeError(w, internalError("reset failed"))
 			return
 		}
 		// Close all adapters and clear the cache.
-		dep.Hub.CloseAdapters()
+		hub.CloseAdapters()
 		// Notify frontend to reload.
-		dep.Bus.Send(sseEvent{Name: "reset"})
+		bus.Send(sseEvent{Name: "reset"})
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
@@ -1246,7 +1223,7 @@ func handleSSE(bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			writeError(w, internalError("streaming unsupported"))
 			return
 		}
 
