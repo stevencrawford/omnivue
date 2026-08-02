@@ -3,11 +3,10 @@ import type { Session, Bookmark, AppNotification } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
-import { ProjectPanel } from "./ProjectPanel";
+import { TagPanel } from "./TagPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
 import { QueuePanel } from "./QueuePanel";
-import { useToast } from "../hooks/useToast";
 
 interface SidebarProps {
   sessions: Session[];
@@ -69,7 +68,6 @@ export function Sidebar({
   const [width, setWidth] = useState(getInitialWidth);
   const [isResizing, setIsResizing] = useState(false);
   const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
-  const { showToast } = useToast();
 
   useEffect(() => {
     return () => {
@@ -141,7 +139,6 @@ export function Sidebar({
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
-            showToast={showToast}
             sessionUnread={sessionUnread}
           />
         </div>
@@ -156,13 +153,12 @@ export function Sidebar({
           />
         </div>
         <div
-          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "projects" ? "hidden" : ""}`}
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "tags" ? "hidden" : ""}`}
         >
-          <ProjectPanel
+          <TagPanel
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSessionSelect={onSessionSelect}
-            showToast={showToast}
           />
         </div>
         <div

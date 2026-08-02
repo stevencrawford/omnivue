@@ -790,6 +790,121 @@ body {
   background: rgba(161, 98, 7, 0.08);
 }
 
+.sess-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(139, 148, 158, 0.35);
+  background: rgba(139, 148, 158, 0.12);
+  color: #c9d1d9;
+}
+
+[data-mode="light"] .sess-tag {
+  border-color: rgba(110, 118, 129, 0.35);
+  background: rgba(110, 118, 129, 0.1);
+  color: #24292f;
+}
+
+.sess-tag-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.sess-tag-body {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sess-tag-chip {
+  max-width: 12rem;
+  flex-shrink: 0;
+}
+
+.sess-tag-more {
+  position: relative;
+  cursor: default;
+}
+
+.sess-tag-popover {
+  display: flex;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 0.375rem;
+  z-index: 30;
+  min-width: 10rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  border: 1px solid var(--color-ov-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface-elevated);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.sess-tag-pop-item {
+  justify-content: space-between;
+}
+
+.sess-tag-name {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sess-tag-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.sess-tag-remove:hover {
+  opacity: 1;
+}
+
+.sess-tag-add {
+  cursor: pointer;
+  color: #8b949e;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.sess-tag-add:hover {
+  color: #c9d1d9;
+  border-color: rgba(88, 166, 255, 0.4);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+[data-mode="light"] .sess-tag-add {
+  color: #57606a;
+}
+
+[data-mode="light"] .sess-tag-add:hover {
+  color: #24292f;
+}
+
 .sess-parent-session {
   padding: 0.375rem 0.5rem 0.4375rem;
   border-radius: 0.375rem;

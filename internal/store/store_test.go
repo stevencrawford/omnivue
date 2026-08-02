@@ -129,7 +129,7 @@ func TestStore_SearchIndex(t *testing.T) {
 	}
 }
 
-func TestStore_Folders(t *testing.T) {
+func TestStore_Tags(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
 
@@ -140,10 +140,10 @@ func TestStore_Folders(t *testing.T) {
 	defer s.Close()
 
 	now := time.Now()
-	err = s.CreateFolder(store.Folder{
-		ID:        "f-1",
-		Name:      "Project Alpha",
-		SortOrder: 0,
+	err = s.CreateTag(store.Tag{
+		ID:        "tag-1",
+		Name:      "frontend",
+		Color:     "#3178c6",
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
@@ -151,27 +151,66 @@ func TestStore_Folders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	folders, err := s.ListFolders()
+	tags, err := s.ListTags()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(folders) != 1 {
-		t.Fatalf("expected 1 folder, got %d", len(folders))
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
 	}
-	if folders[0].Name != "Project Alpha" {
-		t.Errorf("expected name 'Project Alpha', got %q", folders[0].Name)
+	if tags[0].Name != "frontend" || tags[0].Color != "#3178c6" {
+		t.Errorf("unexpected tag: %+v", tags[0])
 	}
 
-	// Assign a session
-	err = s.AssignSession("f-1", "ses-1")
-	if err != nil {
+	if err := s.AssignTag("tag-1", "ses-1"); err != nil {
+		t.Fatal(err)
+	}
+	// Assigning twice is idempotent.
+	if err := s.AssignTag("tag-1", "ses-1"); err != nil {
 		t.Fatal(err)
 	}
 
-	// Unassign
-	err = s.UnassignSession("f-1", "ses-1")
+	// Reverse lookup returns the tag for the session.
+	sessionTags, err := s.SessionTags("ses-1")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(sessionTags) != 1 || sessionTags[0].ID != "tag-1" {
+		t.Fatalf("expected 1 session tag, got %+v", sessionTags)
+	}
+
+	// Forward lookup returns the session for the tag.
+	sessionIDs, err := s.TagSessions("tag-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessionIDs) != 1 || sessionIDs[0] != "ses-1" {
+		t.Fatalf("expected 1 tagged session, got %v", sessionIDs)
+	}
+
+	if err := s.UnassignTag("tag-1", "ses-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateTag("tag-1", "web", ""); err != nil {
+		t.Fatal(err)
+	}
+	tags, err = s.ListTags()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 1 || tags[0].Name != "web" {
+		t.Fatalf("expected renamed tag, got %+v", tags)
+	}
+
+	if err := s.DeleteTag("tag-1"); err != nil {
+		t.Fatal(err)
+	}
+	tags, err = s.ListTags()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 0 {
+		t.Fatalf("expected no tags after delete, got %d", len(tags))
 	}
 }
 
@@ -377,8 +416,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 4 {
-		t.Fatalf("expected schema version 4 on fresh install, got %d", v)
+	if v != 6 {
+		t.Fatalf("expected schema version 6 on fresh install, got %d", v)
 	}
 }
 
@@ -424,8 +463,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 4 {
-		t.Fatalf("expected legacy db stamped to version 4, got %d", v)
+	if v != 6 {
+		t.Fatalf("expected legacy db stamped to version 6, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -449,8 +488,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 4 {
-		t.Fatalf("expected version 4 after first open, got %d", v1)
+	if v1 != 6 {
+		t.Fatalf("expected version 6 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -463,7 +502,7 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 4 {
-		t.Fatalf("expected version 4 after second open, got %d", v2)
+	if v2 != 6 {
+		t.Fatalf("expected version 6 after second open, got %d", v2)
 	}
 }

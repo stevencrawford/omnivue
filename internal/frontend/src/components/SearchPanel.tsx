@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Folder, X, Clock } from "lucide-react";
+import { Search, Folder, X, Clock, Tag } from "lucide-react";
 import type { SearchResult } from "../hooks/useApi";
 import { fetchSearch } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
@@ -14,6 +14,7 @@ interface SearchPanelProps {
     query: string,
     fileId?: string,
     messageIndex?: number,
+    tagName?: string,
   ) => void;
   onOpenDrawer: (query: string) => void;
   onClose: () => void;
@@ -25,6 +26,10 @@ interface SearchPanelProps {
 }
 
 const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
+  tag: {
+    label: "Tags",
+    badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  },
   name: { label: "Session Name", badge: "bg-accent-muted text-accent border-accent-border" },
   plan: {
     label: "Plan Content",
@@ -81,7 +86,7 @@ export function SearchPanel({
       if (!groups.has(ct)) groups.set(ct, []);
       groups.get(ct)!.push(r);
     }
-    const order = ["name", "plan", "message", "scratch"];
+    const order = ["tag", "name", "plan", "message", "scratch"];
     const out: Section[] = [];
     let globalIdx = 0;
     for (const ct of order) {
@@ -187,6 +192,7 @@ export function SearchPanel({
           query,
           r.chunkType === "scratch" ? r.fileId : undefined,
           r.messageIndex,
+          r.tagName,
         );
         onClose();
       } else if (results.length > 0) {
@@ -317,7 +323,7 @@ export function SearchPanel({
                     const globalIdx = section.globalStartIndex + i;
                     return (
                       <button
-                        key={`${r.sessionId}-${section.chunkType}-${i}`}
+                        key={`${r.sessionId}-${section.chunkType}-${r.tagName ?? r.snippet}-${i}`}
                         type="button"
                         className={`w-full text-left px-4 py-3 border-b border-ov-border cursor-pointer transition-colors ${
                           globalIdx === selectedIndex
@@ -331,13 +337,20 @@ export function SearchPanel({
                             query,
                             r.chunkType === "scratch" ? r.fileId : undefined,
                             r.messageIndex,
+                            r.tagName,
                           );
                           onClose();
                         }}
                       >
                         <div className="mb-1">
                           <div className="flex items-center gap-2">
-                            {r.repository && (
+                            {r.chunkType === "tag" && (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent">
+                                <Tag size={12} />
+                                {r.tagName || r.snippet}
+                              </span>
+                            )}
+                            {r.chunkType !== "tag" && r.repository && (
                               <span className="text-[11px] font-mono text-ov-text-secondary truncate">
                                 {r.repository}
                               </span>
@@ -348,7 +361,7 @@ export function SearchPanel({
                               </span>
                             )}
                           </div>
-                          {r.sessionName && (
+                          {r.chunkType !== "tag" && r.sessionName && (
                             <div className="text-[11px] font-semibold text-ov-text truncate leading-snug mt-0.5">
                               {r.sessionName}
                             </div>
@@ -359,9 +372,15 @@ export function SearchPanel({
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-ov-text line-clamp-2 search-result">
-                          {renderSnippet(r.snippet)}
-                        </div>
+                        {r.chunkType === "tag" ? (
+                          <div className="text-xs text-ov-text-secondary">
+                            Show all sessions with this tag
+                          </div>
+                        ) : (
+                          <div className="text-xs text-ov-text line-clamp-2 search-result">
+                            {renderSnippet(r.snippet)}
+                          </div>
+                        )}
                       </button>
                     );
                   })}

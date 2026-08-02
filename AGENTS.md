@@ -116,7 +116,7 @@ Key gostyle rules that commonly trigger:
   - `cursor/cursor.go` — Cursor adapter: reads `state.vscdb` (SQLite KV) + `agent-transcripts` JSONL + `ai-code-tracking.db` (read-only)
   - `pi/pi.go` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
   - `claude-code/claude_code.go` — Claude Code adapter: reads `~/.claude/projects/*/*.jsonl` (JSONL, read-only)
-- `internal/store/store.go` — Manages `$XDG_STATE_HOME/omnivue/omnivue.db`: sources, folders, FTS5 search index, scratch files, config, session name overrides
+- `internal/store/store.go` — Manages `$XDG_STATE_HOME/omnivue/omnivue.db`: sources, tags, FTS5 search index, scratch files, config, session name overrides
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, adaptive polling (5s live / 30s idle)
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
 - `internal/frontend/` — Vite + React 19 + TypeScript + Tailwind CSS v4 SPA
@@ -134,13 +134,13 @@ Key gostyle rules that commonly trigger:
 - **Auto-discovery**: `omnivue init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`, `~/.claude`, `~/.codex`).
 - **Live-reload via SSE**: Adaptive polling (5s when active sessions, 30s when idle) detects new/changed sessions, sends `update` events to frontend.
 - **Persistent search**: FTS5 in `omnivue.db` indexes all session content incrementally (content-hash dedup).
-- **User folders**: Stored in `omnivue.db` (not filesystem) — virtual organization of sessions (nested, color-coded).
+- **User tags**: Stored in `omnivue.db` (not filesystem) — virtual organization of sessions (unique-named, optional color), indexed in full-text search.
 - **Scratch notes**: Per-session markdown notes stored in `omnivue.db`, rendered with rich text (TipTap) or code editor (Monaco).
 - **Session renaming**: Display name overrides stored in `omnivue.db`, persisted across restarts.
 
 ## Database Schema Migrations
 
-The application's own persistent state lives in `$XDG_STATE_HOME/omnivue/omnivue.db` (sources, folders, FTS5 search index, scratch files, config, bookmarks, session name overrides). This is the **only** surface where a new binary version can break against state from an older binary — the frontend ships inside the binary and agent data is always read-only, so neither is a breaking-change surface.
+The application's own persistent state lives in `$XDG_STATE_HOME/omnivue/omnivue.db` (sources, tags, FTS5 search index, scratch files, config, bookmarks, session name overrides). This is the **only** surface where a new binary version can break against state from an older binary — the frontend ships inside the binary and agent data is always read-only, so neither is a breaking-change surface.
 
 Schema changes are managed by **forward-only, version-tracked migrations** powered by [goose](https://github.com/pressly/goose) (embedded, no runtime filesystem access needed). Migration files live in `internal/store/migrations/` as numbered `.sql` files (`0001_baseline.sql`, `0002_*.sql`, …) embedded into the binary via `//go:embed`. goose records the applied version in its `goose_db_version` table; `store.New()` runs migrations automatically on every startup, so **no special command is needed** — a user who downloads a newer binary gets migrated on the next launch. There is intentionally **no auto-downgrade**; downgrading the binary is unsupported (restore a backup if required).
 
@@ -198,14 +198,15 @@ Before applying any migration to a database that already holds application data 
 | PATCH | `/_/api/sessions/{id}/scratch/{fileId}` | Rename a scratch file (title only) |
 | DELETE | `/_/api/sessions/{id}/scratch/{fileId}` | Delete a scratch file |
 | GET | `/_/api/scratch` | List all scratch files across sessions |
-| GET | `/_/api/search?q=&limit=&session_id=` | Full-text search (optionally scoped to session) |
-| GET | `/_/api/folders` | List all folders |
-| POST | `/_/api/folders` | Create a new folder |
-| PATCH | `/_/api/folders/{id}` | Update folder (name, color, icon) |
-| DELETE | `/_/api/folders/{id}` | Delete a folder |
-| GET | `/_/api/folders/{id}/sessions` | List session IDs in a folder |
-| POST | `/_/api/folders/{id}/sessions/{sid}` | Assign a session to a folder |
-| DELETE | `/_/api/folders/{id}/sessions/{sid}` | Remove a session from a folder |
+| GET | `/_/api/search?q=&limit=&session_id=` | Full-text search (optionally scoped to session, tags ranked first) |
+| GET | `/_/api/tags` | List all tags |
+| POST | `/_/api/tags` | Create a new tag |
+| PATCH | `/_/api/tags/{id}` | Update a tag (name, color) |
+| DELETE | `/_/api/tags/{id}` | Delete a tag |
+| GET | `/_/api/tags/{id}/sessions` | List session IDs in a tag |
+| POST | `/_/api/tags/{id}/sessions/{sid}` | Apply a tag to a session |
+| DELETE | `/_/api/tags/{id}/sessions/{sid}` | Remove a tag from a session |
+| GET | `/_/api/sessions/{id}/tags` | Get tags applied to a session |
 | POST | `/_/api/reset` | Reset all user data (keeps agent data intact) |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
@@ -237,8 +238,8 @@ Before applying any migration to a database that already holds application data 
   - `SearchResultsDrawer.tsx` — Full-screen search results
   - `SettingsModal.tsx` — Manage sources, theme
   - `ThemeToggle.tsx` — Light/dark theme toggle
-  - `FolderPanel.tsx` — Folder CRUD
-  - `AddToProjectDialog.tsx` — Assign sessions to folders
+  - `TagPanel.tsx` — Tag search/list + session assignment
+  - `CreateTagModal.tsx` — Create/edit tag name and color
   - `ErrorBoundary.tsx` — Graceful error recovery
   - `IconChannel.tsx` — Section navigation toggle
   - `SessionPanel.tsx` — Session list by repo
@@ -278,7 +279,7 @@ Before applying any migration to a database that already holds application data 
 - [x] Phase 2: Session conversation view (messages rendering) (COMPLETE)
 - [x] Phase 3: Plan & diff tabs (COMPLETE)
 - [x] Phase 4: Persistent search (FTS5 indexing) (COMPLETE)
-- [x] Phase 5: User folders (COMPLETE)
+- [x] Phase 5: User folders (COMPLETE, replaced by tags)
 - [x] Phase 6: Resume session (COMPLETE)
 - [x] Phase 7: Cursor adapter (COMPLETE)
 - [x] Phase 8: Scratch notes + session rename (COMPLETE)

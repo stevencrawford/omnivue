@@ -192,27 +192,25 @@ const SearchResultSchema = z.object({
   fileTitle: optionalString,
   fileId: optionalString,
   messageIndex: coerceNumber.optional(),
+  tagName: optionalString,
 });
 
 export const SearchResultsSchema = z.array(SearchResultSchema);
 
 // ---------------------------------------------------------------------------
-// Folder
+// Tag
 // ---------------------------------------------------------------------------
 
-export const FolderSchema = z.object({
+export const TagSchema = z.object({
   id: z.string(),
   name: z.string(),
-  parentId: optionalString,
-  sortOrder: coerceNumber,
   color: optionalString,
-  icon: optionalString,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-export const FoldersSchema = z.array(FolderSchema);
-export const FolderSessionsSchema = z.array(z.string());
+export const TagsSchema = z.array(TagSchema);
+export const TagSessionsSchema = z.array(z.string());
 
 // ---------------------------------------------------------------------------
 // Bookmark

@@ -14,6 +14,7 @@ export function useSearchState(
   setFocusStepIndex: (idx: number | undefined) => void,
   setFocusMessageIndex: (idx: number | undefined) => void,
   setShowOverview: (v: boolean) => void,
+  onOpenTag: (name: string) => void,
 ) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerQuery, setDrawerQuery] = useState("");
@@ -50,8 +51,14 @@ export function useSearchState(
       query: string,
       fileId?: string,
       messageIndex?: number,
+      tagName?: string,
     ) => {
       if (query.trim()) addSearch(query);
+      if (chunkType === "tag") {
+        onOpenTag((tagName || query).trim());
+        setDrawerOpen(false);
+        return;
+      }
       setShowOverview(false);
       setActiveSessionId(sessionId);
       const tabMap: Record<string, Tab> = {
@@ -78,6 +85,7 @@ export function useSearchState(
       setFocusStepIndex,
       setFocusMessageIndex,
       setShowOverview,
+      onOpenTag,
     ],
   );
 

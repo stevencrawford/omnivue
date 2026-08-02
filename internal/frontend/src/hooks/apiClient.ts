@@ -13,7 +13,7 @@ import type {
   ScratchFile,
   StatusInfo,
   SearchResult,
-  Folder,
+  Tag,
   Bookmark,
   AppNotification,
   NotificationSettings,
@@ -32,9 +32,9 @@ import {
   SourcesSchema,
   SourceSchema,
   DiscoveredSourcesSchema,
-  FoldersSchema,
-  FolderSchema,
-  FolderSessionsSchema,
+  TagsSchema,
+  TagSchema,
+  TagSessionsSchema,
   BookmarksSchema,
   BookmarkToggleSchema,
   ConfigSchema,
@@ -238,57 +238,53 @@ export async function fetchSearch(
 }
 
 // ---------------------------------------------------------------------------
-// Folders
+// Tags
 // ---------------------------------------------------------------------------
 
-export async function fetchFolders(): Promise<Folder[]> {
-  return fetchJson("/_/api/folders", FoldersSchema);
+export async function fetchTags(): Promise<Tag[]> {
+  return fetchJson("/_/api/tags", TagsSchema);
 }
 
-export async function createFolder(name: string, color?: string, icon?: string): Promise<Folder> {
-  return fetchJson("/_/api/folders", FolderSchema, {
+export async function createTag(name: string, color?: string): Promise<Tag> {
+  return fetchJson("/_/api/tags", TagSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color, icon }),
+    body: JSON.stringify({ name, color }),
   });
 }
 
-export async function updateFolder(
-  id: string,
-  name: string,
-  color?: string,
-  icon?: string,
-): Promise<void> {
-  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, {
+export async function updateTag(id: string, name: string, color?: string): Promise<void> {
+  await fetchVoid(`/_/api/tags/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color: color || "", icon: icon || "" }),
+    body: JSON.stringify({ name, color: color || "" }),
   });
 }
 
-export async function deleteFolder(id: string): Promise<void> {
-  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
+export async function deleteTag(id: string): Promise<void> {
+  await fetchVoid(`/_/api/tags/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function fetchFolderSessions(folderId: string): Promise<string[]> {
-  return fetchJson(`/_/api/folders/${encodeURIComponent(folderId)}/sessions`, FolderSessionsSchema);
+export async function fetchTagSessions(tagId: string): Promise<string[]> {
+  return fetchJson(`/_/api/tags/${encodeURIComponent(tagId)}/sessions`, TagSessionsSchema);
 }
 
-export async function assignSessionToFolder(folderId: string, sessionId: string): Promise<void> {
+export async function assignTagToSession(tagId: string, sessionId: string): Promise<void> {
   await fetchVoid(
-    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
+    `/_/api/tags/${encodeURIComponent(tagId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "POST" },
   );
 }
 
-export async function unassignSessionFromFolder(
-  folderId: string,
-  sessionId: string,
-): Promise<void> {
+export async function unassignTagFromSession(tagId: string, sessionId: string): Promise<void> {
   await fetchVoid(
-    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
+    `/_/api/tags/${encodeURIComponent(tagId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "DELETE" },
   );
+}
+
+export async function fetchSessionTags(sessionId: string): Promise<Tag[]> {
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/tags`, TagsSchema);
 }
 
 // ---------------------------------------------------------------------------

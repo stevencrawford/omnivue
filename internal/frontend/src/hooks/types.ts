@@ -147,15 +147,13 @@ export interface SearchResult {
   fileTitle?: string;
   fileId?: string;
   messageIndex?: number;
+  tagName?: string;
 }
 
-export interface Folder {
+export interface Tag {
   id: string;
   name: string;
-  parentId?: string;
-  sortOrder: number;
   color?: string;
-  icon?: string;
   createdAt: string;
   updatedAt: string;
 }

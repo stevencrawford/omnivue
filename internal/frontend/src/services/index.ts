@@ -4,7 +4,7 @@ export { SearchService } from "./search";
 export { SourceService } from "./source";
 export { ConfigService } from "./config";
 export { StatusService } from "./status";
-export { FolderService } from "./folder";
+export { TagService } from "./tag";
 export { ScratchService } from "./scratch";
 export { BookmarkService } from "./bookmark";
 export { RecentSearchService } from "./recentSearch";

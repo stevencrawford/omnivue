@@ -1163,8 +1163,7 @@ func (s *State) advanceSeenCursor(ctx context.Context, sess *ingest.Session) {
 
 // sessionInScope reports whether the session passes the configured scope
 // filter. "all" passes everything; "opened" requires the user to have opened
-// the session at least once; "pinned" requires the session to be assigned to a
-// folder.
+// the session at least once; "pinned" requires the session to have a tag.
 func (s *State) sessionInScope(ctx context.Context, sessionID, scope string) bool {
 	switch scope {
 	case "opened":
@@ -1174,11 +1173,11 @@ func (s *State) sessionInScope(ctx context.Context, sessionID, scope string) boo
 		}
 		return true
 	case "pinned":
-		folders, err := s.store.SessionFolders(sessionID)
+		tags, err := s.store.SessionTags(sessionID)
 		if err != nil {
 			return false
 		}
-		return len(folders) > 0
+		return len(tags) > 0
 	default: // "all"
 		return true
 	}
@@ -1289,13 +1288,14 @@ func NewHandler(state *State) http.Handler {
 	mux.HandleFunc("GET /_/api/recent-searches", handleGetRecentSearches(state))
 	mux.HandleFunc("POST /_/api/recent-searches", handleSetRecentSearches(state))
 	mux.HandleFunc("GET /_/api/search", handleSearch(state))
-	mux.HandleFunc("GET /_/api/folders", handleListFolders(state))
-	mux.HandleFunc("POST /_/api/folders", handleCreateFolder(state))
-	mux.HandleFunc("PATCH /_/api/folders/{id}", handleUpdateFolder(state))
-	mux.HandleFunc("DELETE /_/api/folders/{id}", handleDeleteFolder(state))
-	mux.HandleFunc("GET /_/api/folders/{id}/sessions", handleGetFolderSessions(state))
-	mux.HandleFunc("POST /_/api/folders/{id}/sessions/{sessionId}", handleAssignSession(state))
-	mux.HandleFunc("DELETE /_/api/folders/{id}/sessions/{sessionId}", handleUnassignSession(state))
+	mux.HandleFunc("GET /_/api/tags", handleListTags(state))
+	mux.HandleFunc("POST /_/api/tags", handleCreateTag(state))
+	mux.HandleFunc("PATCH /_/api/tags/{id}", handleUpdateTag(state))
+	mux.HandleFunc("DELETE /_/api/tags/{id}", handleDeleteTag(state))
+	mux.HandleFunc("GET /_/api/tags/{id}/sessions", handleGetTagSessions(state))
+	mux.HandleFunc("POST /_/api/tags/{id}/sessions/{sessionId}", handleAssignTag(state))
+	mux.HandleFunc("DELETE /_/api/tags/{id}/sessions/{sessionId}", handleUnassignTag(state))
+	mux.HandleFunc("GET /_/api/sessions/{id}/tags", handleGetSessionTags(state))
 	mux.HandleFunc("GET /_/api/bookmarks", handleListBookmarks(state))
 	mux.HandleFunc("POST /_/api/bookmarks", handleCreateBookmark(state))
 	mux.HandleFunc("DELETE /_/api/bookmarks/{id}", handleDeleteBookmark(state))
@@ -1892,45 +1892,44 @@ func handleSearch(state *State) http.HandlerFunc {
 	}
 }
 
-// --- Folder handlers ---
+// --- Tag handlers ---
 
-func handleListFolders(state *State) http.HandlerFunc {
+func handleListTags(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]store.Folder{}); err != nil {
+			if err := json.NewEncoder(w).Encode([]store.Tag{}); err != nil {
 				slog.Warn("failed to encode response", "error", err)
 			}
 			return
 		}
-		folders, err := state.store.ListFolders()
+		tags, err := state.store.ListTags()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(folders) == 0 {
-			folders = []store.Folder{}
+		if len(tags) == 0 {
+			tags = []store.Tag{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(folders); err != nil {
+		if err := json.NewEncoder(w).Encode(tags); err != nil {
 			slog.Warn("failed to encode response", "error", err)
 		}
 	}
 }
 
-type createFolderRequest struct {
+type createTagRequest struct {
 	Name  string `json:"name"`
 	Color string `json:"color,omitempty"`
-	Icon  string `json:"icon,omitempty"`
 }
 
-func handleCreateFolder(state *State) http.HandlerFunc {
+func handleCreateTag(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			http.Error(w, "store not available", http.StatusInternalServerError)
 			return
 		}
-		var req createFolderRequest
+		var req createTagRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
@@ -1941,40 +1940,38 @@ func handleCreateFolder(state *State) http.HandlerFunc {
 		}
 
 		now := time.Now()
-		f := store.Folder{
-			ID:        fmt.Sprintf("folder_%d", now.UnixNano()),
+		t := store.Tag{
+			ID:        fmt.Sprintf("tag_%d", now.UnixNano()),
 			Name:      req.Name,
 			Color:     req.Color,
-			Icon:      req.Icon,
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
-		if err := state.store.CreateFolder(f); err != nil {
+		if err := state.store.CreateTag(t); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(f); err != nil {
+		if err := json.NewEncoder(w).Encode(t); err != nil {
 			slog.Warn("failed to encode response", "error", err)
 		}
 	}
 }
 
-type updateFolderRequest struct {
+type updateTagRequest struct {
 	Name  string `json:"name"`
 	Color string `json:"color"`
-	Icon  string `json:"icon"`
 }
 
-func handleUpdateFolder(state *State) http.HandlerFunc {
+func handleUpdateTag(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			http.Error(w, "store not available", http.StatusInternalServerError)
 			return
 		}
 		id := r.PathValue("id")
-		var req updateFolderRequest
+		var req updateTagRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
@@ -1983,7 +1980,7 @@ func handleUpdateFolder(state *State) http.HandlerFunc {
 			http.Error(w, "name is required", http.StatusBadRequest)
 			return
 		}
-		if err := state.store.UpdateFolder(id, req.Name, req.Color, req.Icon); err != nil {
+		if err := state.store.UpdateTag(id, req.Name, req.Color); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1991,14 +1988,14 @@ func handleUpdateFolder(state *State) http.HandlerFunc {
 	}
 }
 
-func handleDeleteFolder(state *State) http.HandlerFunc {
+func handleDeleteTag(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			http.Error(w, "store not available", http.StatusInternalServerError)
 			return
 		}
 		id := r.PathValue("id")
-		if err := state.store.DeleteFolder(id); err != nil {
+		if err := state.store.DeleteTag(id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -2006,7 +2003,7 @@ func handleDeleteFolder(state *State) http.HandlerFunc {
 	}
 }
 
-func handleGetFolderSessions(state *State) http.HandlerFunc {
+func handleGetTagSessions(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -2016,7 +2013,7 @@ func handleGetFolderSessions(state *State) http.HandlerFunc {
 			return
 		}
 		id := r.PathValue("id")
-		sessionIDs, err := state.store.FolderSessions(id)
+		sessionIDs, err := state.store.TagSessions(id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -2031,15 +2028,15 @@ func handleGetFolderSessions(state *State) http.HandlerFunc {
 	}
 }
 
-func handleAssignSession(state *State) http.HandlerFunc {
+func handleAssignTag(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			http.Error(w, "store not available", http.StatusInternalServerError)
 			return
 		}
-		folderID := r.PathValue("id")
+		tagID := r.PathValue("id")
 		sessionID := r.PathValue("sessionId")
-		if err := state.store.AssignSession(folderID, sessionID); err != nil {
+		if err := state.store.AssignTag(tagID, sessionID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -2047,19 +2044,44 @@ func handleAssignSession(state *State) http.HandlerFunc {
 	}
 }
 
-func handleUnassignSession(state *State) http.HandlerFunc {
+func handleUnassignTag(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if state.store == nil {
 			http.Error(w, "store not available", http.StatusInternalServerError)
 			return
 		}
-		folderID := r.PathValue("id")
+		tagID := r.PathValue("id")
 		sessionID := r.PathValue("sessionId")
-		if err := state.store.UnassignSession(folderID, sessionID); err != nil {
+		if err := state.store.UnassignTag(tagID, sessionID); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handleGetSessionTags(state *State) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if state.store == nil {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode([]store.Tag{}); err != nil {
+				slog.Warn("failed to encode response", "error", err)
+			}
+			return
+		}
+		sessionID := r.PathValue("id")
+		tags, err := state.store.SessionTags(sessionID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(tags) == 0 {
+			tags = []store.Tag{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(tags); err != nil {
+			slog.Warn("failed to encode response", "error", err)
+		}
 	}
 }
 
