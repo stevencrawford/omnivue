@@ -85,15 +85,15 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 					meta.DiffFiles = n
 				}
 			}
-			if data.ModelMetrics != nil {
-				// Each shutdown event has cumulative totals; reset so only the last event's values are kept.
-				meta.Cost = 0
-				meta.TokensInput = 0
-				meta.TokensOutput = 0
-				meta.TokensReasoning = 0
-				meta.TokensCacheRead = 0
-				meta.TokensCacheWrite = 0
-				for _, m := range data.ModelMetrics {
+		if data.ModelMetrics != nil {
+			// Each shutdown event has cumulative totals; reset so only the last event's values are kept.
+			meta.Cost = 0
+			meta.TokensInput = 0
+			meta.TokensOutput = 0
+			meta.TokensReasoning = 0
+			meta.TokensCacheRead = 0
+			meta.TokensCacheWrite = 0
+			for _, m := range data.ModelMetrics {
 					if m.Requests != nil {
 						meta.Cost += m.Requests.Cost
 					}

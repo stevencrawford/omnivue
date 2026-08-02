@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/store"
+	"github.com/spf13/cobra"
 )
 
 var addSourceType string

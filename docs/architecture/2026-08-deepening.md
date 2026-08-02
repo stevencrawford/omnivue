@@ -90,9 +90,13 @@ testable without the poll machinery.
   - `SessionHub` — cached sessions + adapters, query, mutation
   - `Poller` — `pollLoop`, adaptive scheduling
   - `Indexer` — `indexSessions`, `reindexSessionScratch`
-  - `Notifier` — `classifyChanges`, `advanceSeenCursors`, `subscribe`/`unsubscribe`/`sendEvent`
+  - `Notifier` — `classifyChanges`, `advanceSeenCursors`; pub/sub (`subscribe`/`unsubscribe`/
+    `sendEvent`) lives on the separate `EventBus` (`internal/server/events.go`) — a tighter seam
+    than pinning pub/sub onto the Notifier.
 - **Seam:** each collaborator exposes a narrow interface; callers depend on the slice they
-  need, never the whole type.
+  need, never the whole type. In practice the collaborators are concrete types with narrow
+  method sets (the store side gets true Go interfaces via ATH-02); the seam is the method set,
+  not a Go interface.
 - **Acceptance / Done:** `server_test.go` composes small fixtures instead of hand-rolling a
   15-field struct; a test drives the poll → index → classify → SSE path through the Poller /
   Notifier rather than a live HTTP spin-up; existing tests pass unchanged in behaviour.
@@ -109,8 +113,10 @@ testable without the poll machinery.
   tags-UI change drags in the whole surface, and tests must choose between real SQLite
   and `nil`.
 - **Goals:** Split the one implementation across role interfaces — `SourceStore`,
-  `TagStore`, `GroupStore`, `ScratchStore`, `SearchStore`, `NotificationStore`,
-  `ConfigStore`, `PromptStore`. Inject only the family each consumer needs.
+  `TagStore`, `ScratchStore`, `SearchStore`, `NotificationStore`, `ConfigStore`,
+  `PromptStore`, `SessionNameStore`, `BookmarkStore`. (`GroupStore` appeared in the
+  original draft but never existed upstream: folders were replaced by tags in migration
+  `0006`, and tags own that role.) Inject only the family each consumer needs.
 - **Seam:** two adapters justify it: real SQLite in prod, a fake in tests. Keep the concrete
   type as the single impl; hands the pieces consumers only know the role.
 - **Acceptance / Done:** handlers reference only the interfaces; `state.store` no longer
@@ -128,7 +134,8 @@ testable without the poll machinery.
   `handleTerminalWS` re-derives the resume command that `ResumeCommand` already knows.
 - **Goals:** a generic JSON decode + error-map + encode wrapper; handlers depend only on the
   narrow roles they serve (from ATH-02); fold terminal command lookup back onto
-  `ResumeCommand`.
+  `ResumeCommand`. The error-map is `apiError` (`badRequest`/`notFound`/`internalError`) with
+  `errorStatus`, so handlers never pick a status literal.
 - **Acceptance / Done:** the `failed to encode` tail is no longer copy-pasted; no handler
   touches `state.store` directly. A test helper wraps JSON round-trips + status propagation;
   handlers test against fake repositories.
@@ -344,4 +351,5 @@ re-reading the whole table.
 
 - 2026-08-02 — ATH-03 (HTTP handler de-leak + JSON helpers) done on `refactor/state-store-split`.
 - 2026-08-02 — ATH-01 (State god-object split) and ATH-02 (store role interfaces) done on `refactor/state-store-split`.
+- 2026-08-02 — PR review response on `refactor/state-store-split`: ATH-03 error-map (`apiError` + `errorStatus`), real-store poll→index→classify→SSE test, `Resolve` fallback enrichment, gofmt churn reverted, spec cards annotated.
 - 2026-08-02 — Spec created; all tasks `open`.

@@ -205,6 +205,69 @@ func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
 	}
 }
 
+func TestResolveSession_FallbackEnrichesLivenessAndName(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.SetSessionName("sub-2", "Overridden Title"); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{{ID: "sub-2", Title: "Raw Title", UpdatedAt: time.Now(), Status: ingest.SessionStatusCompleted}},
+	}
+	hub := &SessionHub{
+		adapters:   map[string]ingest.Adapter{"src-1": adapter},
+		prevStatus: make(map[string]string),
+		names:      st,
+	}
+
+	sess, _, err := hub.Resolve(context.Background(), "sub-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Title != "Overridden Title" {
+		t.Errorf("expected name override on fallback resolution, got %q", sess.Title)
+	}
+	if sess.Status != ingest.SessionStatusActive {
+		t.Errorf("expected liveness heuristic to set status active, got %q", sess.Status)
+	}
+}
+
+func TestResolveSession_CachedWithoutAdapterNotDuplicated(t *testing.T) {
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{{ID: "cached-1", SourceID: "src-1", Title: "Cached"}},
+	}
+	hub := &SessionHub{
+		adapters:   map[string]ingest.Adapter{"src-1": adapter},
+		sessions:   []ingest.Session{{ID: "cached-1", SourceID: "gone"}},
+		prevStatus: make(map[string]string),
+	}
+
+	sess, _, err := hub.Resolve(context.Background(), "cached-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.SourceID != "src-1" {
+		t.Errorf("expected fallback source, got %q", sess.SourceID)
+	}
+	hub.mu.RLock()
+	count := 0
+	for _, s := range hub.sessions {
+		if s.ID == "cached-1" {
+			count++
+		}
+	}
+	hub.mu.RUnlock()
+	if count != 1 {
+		t.Errorf("expected session not to be duplicated, found %d entries", count)
+	}
+}
+
 func TestHandleTags_StoreUnavailable(t *testing.T) {
 	state := newState(t, nil, nil, true)
 	var tags []store.Tag
@@ -412,6 +475,101 @@ func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	}
 	if !sawUpdate {
 		t.Error("expected an update event to be broadcast")
+	}
+}
+
+// TestPollerTick_DrivesIndexAndClassify drives the full poll → refresh → index →
+// classify → SSE path with a real store backing the Indexer and Notifier. It
+// asserts the indexed content is searchable and the classified notification is
+// both persisted and broadcast, closing the ATH-01 acceptance gap that the
+// existing tick test (nil stores) leaves untested.
+func TestPollerTick_DrivesIndexAndClassify(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	adapter := &tickingAdapter{
+		mockAdapter: mockAdapter{
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", Title: "poll path", UpdatedAt: now}},
+			messages: []ingest.Message{{
+				ID: "m1", Content: "zephyr poll path marker", Timestamp: now,
+				ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
+			}},
+		},
+		lastModFn: func() (int64, error) { return 2, nil },
+	}
+
+	bus := NewEventBus()
+	hub := &SessionHub{
+		adapters:   map[string]ingest.Adapter{"src-1": adapter},
+		prevStatus: make(map[string]string),
+	}
+	index := NewIndexer(hub, st, st)
+	notif := NewNotifier(hub, st, st, st, bus)
+
+	settings := notify.DefaultSettings()
+	settings.Enabled = true
+	settings.Kinds = []notify.Kind{notify.KindQuestion}
+	settings.Scope = "all"
+	if err := notif.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+
+	poller := NewPoller(hub, index, notif, bus)
+	poller.lastMod["src-1"] = 1
+
+	ch := bus.Subscribe()
+	defer bus.Unsubscribe(ch)
+
+	poller.tick(context.Background())
+
+	deadline := time.Now().Add(3 * time.Second)
+
+	// 1) A notification reaches the SSE bus (classify ran through the poll path).
+	var sawNotification bool
+	for time.Now().Before(deadline) && !sawNotification {
+		select {
+		case ev := <-ch:
+			if ev.Name == "notification" {
+				sawNotification = true
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	if !sawNotification {
+		t.Fatal("expected a notification SSE event from the poll path")
+	}
+
+	// 2) The indexed message content is searchable in the real FTS store.
+	var results []store.SearchResult
+	for time.Now().Before(deadline) && len(results) == 0 {
+		results, err = st.Search("zephyr", 10, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(results) == 0 {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	if len(results) == 0 {
+		t.Fatal("expected indexed search results after poll tick")
+	}
+
+	// 3) The notification was persisted in the real store.
+	list, err := st.ListNotifications(50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 persisted notification, got %d", len(list))
+	}
+	if list[0].Kind != "question" {
+		t.Errorf("expected kind question, got %s", list[0].Kind)
 	}
 }
 

@@ -168,8 +168,8 @@ func normalizePermissionInput(input string) string {
 		options[i] = map[string]string{"label": c}
 	}
 	transformed := map[string]any{
-		"command": raw.Question,
-		"options": options,
+		"command":  raw.Question,
+		"options":  options,
 	}
 	out, err := json.Marshal(transformed)
 	if err != nil {

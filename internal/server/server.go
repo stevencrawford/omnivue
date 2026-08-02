@@ -142,11 +142,11 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 			Enabled   bool   `json:"enabled"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.Path == "" {
-			writeError(w, http.StatusBadRequest, "path is required")
+			writeError(w, badRequest("path is required"))
 			return
 		}
 		if len(body.Path) > 1 && body.Path[:2] == "~/" {
@@ -179,7 +179,7 @@ func handleAddSource(dep Dep) http.HandlerFunc {
 		}
 		if dep.Sources != nil {
 			if err := dep.Sources.AddSource(src); err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
+				writeError(w, err)
 				return
 			}
 		}
@@ -201,7 +201,7 @@ func handleRemoveSource(dep Dep) http.HandlerFunc {
 		dep.Hub.RemoveAdapter(id)
 		if dep.Sources != nil {
 			if err := dep.Sources.RemoveSource(id); err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
+				writeError(w, err)
 				return
 			}
 		}
@@ -221,17 +221,17 @@ func handleUpdateSource(dep Dep) http.HandlerFunc {
 			Enabled   bool   `json:"enabled"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.Path == "" {
-			writeError(w, http.StatusBadRequest, "path is required")
+			writeError(w, badRequest("path is required"))
 			return
 		}
 		dep.Hub.RemoveAdapter(id)
 		if dep.Sources != nil {
 			if err := dep.Sources.UpdateSource(id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
+				writeError(w, err)
 				return
 			}
 			if body.Enabled {
@@ -262,12 +262,12 @@ func handleDiscoverSources() http.HandlerFunc {
 func handleGetConfig(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		config, err := cfg.AllConfig()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if config == nil {
@@ -284,19 +284,19 @@ func handleSetConfig(cfg store.ConfigStore) http.HandlerFunc {
 			Value string `json:"value"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.Key == "" {
-			writeError(w, http.StatusBadRequest, "key is required")
+			writeError(w, badRequest("key is required"))
 			return
 		}
 		if cfg == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := cfg.SetConfig(body.Key, body.Value); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -313,7 +313,7 @@ func handleGetSession(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, err := hub.Session(r.Context(), r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, session)
@@ -324,7 +324,7 @@ func handleGetMessages(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		messages, err := hub.Messages(r.Context(), r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, messages)
@@ -335,7 +335,7 @@ func handleGetPlan(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		plan, err := hub.Plan(r.Context(), r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, plan)
@@ -346,7 +346,7 @@ func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		diffs, err := hub.Diffs(r.Context(), r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(diffs) == 0 {
@@ -360,7 +360,7 @@ func handleGetEdits(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		edits, err := hub.Edits(r.Context(), r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(edits) == 0 {
@@ -374,7 +374,7 @@ func handleGetResumeCommand(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		dir, abs, rel, agentCmd, err := hub.ResumeCommand(r.Context(), r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{
@@ -392,15 +392,15 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 			DisplayName string `json:"displayName"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.DisplayName == "" {
-			writeError(w, http.StatusBadRequest, "displayName is required")
+			writeError(w, badRequest("displayName is required"))
 			return
 		}
 		if err := hub.SetName(r.PathValue("id"), body.DisplayName); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -410,7 +410,7 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 func handleClearSessionName(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := hub.ClearName(r.PathValue("id")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -440,7 +440,7 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 			Mode    string `json:"mode"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.Title == "" {
@@ -450,7 +450,7 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 			body.Mode = "writable"
 		}
 		if dep.Scratch == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		now := time.Now()
@@ -464,7 +464,7 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 			UpdatedAt: now,
 		}
 		if err := dep.Scratch.CreateScratchFile(f); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Indexer.ReindexSessionScratch(f.SessionID)
@@ -475,12 +475,12 @@ func handleCreateScratchFile(dep Dep) http.HandlerFunc {
 func handleGetScratchFile(scratch store.ScratchStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if scratch == nil {
-			writeError(w, http.StatusNotFound, "not found")
+			writeError(w, notFound("not found"))
 			return
 		}
 		f, err := scratch.ScratchFile(r.PathValue("fileId"))
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, notFound(err.Error()))
 			return
 		}
 		writeJSON(w, http.StatusOK, f)
@@ -494,18 +494,18 @@ func handleUpdateScratchFile(dep Dep) http.HandlerFunc {
 			Content string `json:"content"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.Title == "" {
 			body.Title = "Untitled"
 		}
 		if dep.Scratch == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := dep.Scratch.UpdateScratchFile(r.PathValue("fileId"), body.Title, body.Content); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
@@ -519,19 +519,19 @@ func handleRenameScratchFile(dep Dep) http.HandlerFunc {
 			Title string `json:"title"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.Title == "" {
-			writeError(w, http.StatusBadRequest, "title is required")
+			writeError(w, badRequest("title is required"))
 			return
 		}
 		if dep.Scratch == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := dep.Scratch.RenameScratchFile(r.PathValue("fileId"), body.Title); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
@@ -542,11 +542,11 @@ func handleRenameScratchFile(dep Dep) http.HandlerFunc {
 func handleDeleteScratchFile(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Scratch == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := dep.Scratch.DeleteScratchFile(r.PathValue("fileId")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Indexer.ReindexSessionScratch(r.PathValue("id"))
@@ -572,12 +572,12 @@ func handleListAllScratchFiles(scratch store.ScratchStore) http.HandlerFunc {
 func handleGetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		searches, err := cfg.RecentSearches()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(searches) == 0 {
@@ -591,15 +591,15 @@ func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var searches []string
 		if err := decodeJSON(r, &searches); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if cfg == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := cfg.SetRecentSearches(searches); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -652,7 +652,7 @@ func handleListTags(tags store.TagStore) http.HandlerFunc {
 		}
 		list, err := tags.ListTags()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(list) == 0 {
@@ -670,16 +670,16 @@ type createTagRequest struct {
 func handleCreateTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var req createTagRequest
 		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if req.Name == "" {
-			writeError(w, http.StatusBadRequest, "name is required")
+			writeError(w, badRequest("name is required"))
 			return
 		}
 		now := time.Now()
@@ -691,7 +691,7 @@ func handleCreateTag(tags store.TagStore) http.HandlerFunc {
 			UpdatedAt: now,
 		}
 		if err := tags.CreateTag(t); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, t)
@@ -706,20 +706,20 @@ type updateTagRequest struct {
 func handleUpdateTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var req updateTagRequest
 		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if req.Name == "" {
-			writeError(w, http.StatusBadRequest, "name is required")
+			writeError(w, badRequest("name is required"))
 			return
 		}
 		if err := tags.UpdateTag(r.PathValue("id"), req.Name, req.Color); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -729,11 +729,11 @@ func handleUpdateTag(tags store.TagStore) http.HandlerFunc {
 func handleDeleteTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := tags.DeleteTag(r.PathValue("id")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -748,7 +748,7 @@ func handleGetTagSessions(tags store.TagStore) http.HandlerFunc {
 		}
 		sessionIDs, err := tags.TagSessions(r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(sessionIDs) == 0 {
@@ -761,11 +761,11 @@ func handleGetTagSessions(tags store.TagStore) http.HandlerFunc {
 func handleAssignTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := tags.AssignTag(r.PathValue("id"), r.PathValue("sessionId")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -775,11 +775,11 @@ func handleAssignTag(tags store.TagStore) http.HandlerFunc {
 func handleUnassignTag(tags store.TagStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := tags.UnassignTag(r.PathValue("id"), r.PathValue("sessionId")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -794,7 +794,7 @@ func handleGetSessionTags(tags store.TagStore) http.HandlerFunc {
 		}
 		list, err := tags.SessionTags(r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(list) == 0 {
@@ -814,7 +814,7 @@ func handleListBookmarks(bookmarks store.BookmarkStore) http.HandlerFunc {
 		}
 		list, err := bookmarks.ListBookmarks()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(list) == 0 {
@@ -834,22 +834,22 @@ type createBookmarkRequest struct {
 func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if bookmarks == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var req createBookmarkRequest
 		if err := decodeJSON(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if req.SessionID == "" {
-			writeError(w, http.StatusBadRequest, "sessionId is required")
+			writeError(w, badRequest("sessionId is required"))
 			return
 		}
 		// Toggle: if a bookmark exists at this reference, remove it.
 		if existing, err := bookmarks.BookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID); err == nil && existing != nil {
 			if err := bookmarks.DeleteBookmark(existing.ID); err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
+				writeError(w, err)
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": existing.ID})
@@ -864,7 +864,7 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			CreatedAt:    time.Now(),
 		}
 		if err := bookmarks.CreateBookmark(b); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, b)
@@ -874,11 +874,11 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 func handleDeleteBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if bookmarks == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := bookmarks.DeleteBookmark(r.PathValue("id")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -902,7 +902,7 @@ func handleListNotifications(dep Dep) http.HandlerFunc {
 		unread := r.URL.Query().Get("unreadOnly") == "true" || r.URL.Query().Get("unreadOnly") == "1"
 		list, err := dep.Notifs.ListNotifications(limit, unread)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(list) == 0 {
@@ -915,18 +915,18 @@ func handleListNotifications(dep Dep) http.HandlerFunc {
 func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Notifs == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var body struct {
 			IDs []string `json:"ids"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if err := dep.Notifs.MarkAllNotificationsRead(body.IDs); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		// Broadcast read-state sync so other tabs update without refetching.
@@ -943,11 +943,11 @@ func handleMarkNotificationsRead(dep Dep) http.HandlerFunc {
 func handleClearNotifications(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Notifs == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := dep.Notifs.ClearNotifications(time.Time{}); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "notifications-read", Data: "{\"all\":true}"})
@@ -961,11 +961,11 @@ func handleActiveView(dep Dep) http.HandlerFunc {
 			SessionID string `json:"sessionId"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.SessionID == "" {
-			writeError(w, http.StatusBadRequest, "sessionId is required")
+			writeError(w, badRequest("sessionId is required"))
 			return
 		}
 		dep.Notifier.ReportActiveView(body.SessionID)
@@ -988,7 +988,7 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var settings notify.Settings
 		if err := decodeJSON(r, &settings); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		// If the user is enabling notifications for the first time (or after
@@ -1003,7 +1003,7 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 			settings.EnabledAt = prev.EnabledAt
 		}
 		if err := notifier.SaveSettings(settings); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, settings)
@@ -1028,7 +1028,7 @@ func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 		}
 		list, err := prompts.ListPrompts(status, sessionID, limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if len(list) == 0 {
@@ -1041,7 +1041,7 @@ func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 func handleCreatePrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var body struct {
@@ -1052,11 +1052,11 @@ func handleCreatePrompt(dep Dep) http.HandlerFunc {
 			Tags       []string `json:"tags"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if body.PromptText == "" {
-			writeError(w, http.StatusBadRequest, "promptText is required")
+			writeError(w, badRequest("promptText is required"))
 			return
 		}
 		tagsJSON := "[]"
@@ -1076,7 +1076,7 @@ func handleCreatePrompt(dep Dep) http.HandlerFunc {
 			CreatedAt:  time.Now().UnixMilli(),
 		}
 		if err := dep.Prompts.CreatePrompt(p); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
@@ -1087,7 +1087,7 @@ func handleCreatePrompt(dep Dep) http.HandlerFunc {
 func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var body struct {
@@ -1096,16 +1096,16 @@ func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 			Tags       []string `json:"tags"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		existing, err := dep.Prompts.Prompt(r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if existing == nil {
-			writeError(w, http.StatusNotFound, "not found")
+			writeError(w, notFound("not found"))
 			return
 		}
 		promptText := existing.PromptText
@@ -1123,7 +1123,7 @@ func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 			}
 		}
 		if err := dep.Prompts.UpdatePromptContent(r.PathValue("id"), promptText, tags, priority); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
@@ -1134,11 +1134,11 @@ func handleUpdatePrompt(dep Dep) http.HandlerFunc {
 func handleDeletePrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := dep.Prompts.DeletePrompt(r.PathValue("id")); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
@@ -1149,21 +1149,21 @@ func handleDeletePrompt(dep Dep) http.HandlerFunc {
 func handleDispatchPrompt(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		existing, err := dep.Prompts.Prompt(r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		if existing == nil {
-			writeError(w, http.StatusNotFound, "not found")
+			writeError(w, notFound("not found"))
 			return
 		}
 		now := time.Now().UnixMilli()
 		if err := dep.Prompts.UpdatePromptStatus(r.PathValue("id"), "dispatched", &now); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
@@ -1174,18 +1174,18 @@ func handleDispatchPrompt(dep Dep) http.HandlerFunc {
 func handleBatchDeletePrompts(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Prompts == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		var body struct {
 			IDs []string `json:"ids"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid request body")
+			writeError(w, badRequest("invalid request body"))
 			return
 		}
 		if err := dep.Prompts.BatchDeletePrompts(body.IDs); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, err)
 			return
 		}
 		dep.Bus.Send(sseEvent{Name: "prompt-queue-changed"})
@@ -1226,12 +1226,12 @@ func handleRestart(dep Dep) http.HandlerFunc {
 func handleReset(dep Dep) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dep.Reset == nil {
-			writeError(w, http.StatusInternalServerError, "store not available")
+			writeError(w, internalError("store not available"))
 			return
 		}
 		if err := dep.Reset.Reset(); err != nil {
 			slog.Error("reset failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "reset failed")
+			writeError(w, internalError("reset failed"))
 			return
 		}
 		// Close all adapters and clear the cache.
@@ -1287,13 +1287,13 @@ func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessionID := r.URL.Query().Get("session_id")
 		if sessionID == "" {
-			writeError(w, http.StatusBadRequest, "missing session_id")
+			writeError(w, badRequest("missing session_id"))
 			return
 		}
 
 		dir, _, initCmd, _, err := hub.ResumeCommand(r.Context(), sessionID)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "session not found")
+			writeError(w, notFound("session not found"))
 			return
 		}
 		if dir == "" {

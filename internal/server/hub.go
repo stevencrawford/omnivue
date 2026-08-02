@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"maps"
 	"sync"
@@ -132,16 +131,43 @@ func (h *SessionHub) Resolve(ctx context.Context, id string) (*ingest.Session, i
 
 	for sourceID, candidate := range adapters {
 		sess, err := candidate.Session(ctx, id)
-		if err != nil || sess == nil {
+		if err != nil {
+			slog.Debug("adapter failed to resolve session", "source", sourceID, "session_id", id, "error", err)
+			continue
+		}
+		if sess == nil {
 			continue
 		}
 		sess.SourceID = sourceID
-		h.mu.Lock()
-		h.sessions = append(h.sessions, *sess)
-		h.mu.Unlock()
+		enrichSession(sess, h.names)
+		// Only append to the cache when the session was genuinely absent; a
+		// cached-but-adapter-less session must not be duplicated.
+		if found == nil {
+			h.mu.Lock()
+			h.sessions = append(h.sessions, *sess)
+			h.mu.Unlock()
+		}
 		return sess, candidate, nil
 	}
-	return nil, nil, fmt.Errorf("session not found: %s", id)
+	return nil, nil, notFound("session not found: " + id)
+}
+
+// enrichSession applies the liveness heuristic and display-name override that
+// the refresh path uses, so a fallback-resolved session behaves identically to
+// one surfaced by a normal poll.
+func enrichSession(sess *ingest.Session, names store.SessionNameStore) {
+	if !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < liveWindow {
+		if sess.Status != ingest.SessionStatusActive {
+			sess.Status = ingest.SessionStatusActive
+		}
+	} else if sess.Status == ingest.SessionStatusActive {
+		sess.Status = ingest.SessionStatusCompleted
+	}
+	if names != nil {
+		if name, err := names.SessionName(sess.ID); err == nil && name != "" {
+			sess.Title = name
+		}
+	}
 }
 
 // Messages returns messages for a session.

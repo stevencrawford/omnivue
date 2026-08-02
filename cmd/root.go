@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/k1LoW/donegroup"
-	"github.com/pkg/browser"
-	"github.com/spf13/cobra"
 	"github.com/stevencrawford/omnivue/internal/logfile"
 	"github.com/stevencrawford/omnivue/internal/server"
 	"github.com/stevencrawford/omnivue/version"
+	"github.com/pkg/browser"
+	"github.com/spf13/cobra"
 )
 
 const (
