@@ -7,8 +7,6 @@ export const STORAGE_KEYS = {
   SIDEBAR_SORT: "omnivue-sidebar-sort",
   SIDEBAR_DISPLAY: "omnivue-sidebar-display",
   PINNED_HEIGHT: "omnivue-pinned-height",
-  PROJECT_FOLDERS_EXPANDED: "omnivue-project-folders-expanded",
-  PROJECT_FOLDER_SORT: "omnivue-project-folder-sort",
   DIFF_TREE_WIDTH: "omnivue-diff-tree-width",
   DISABLE_CUSTOM_RENDERERS: "omnivue-disable-custom-renderers",
   OVERVIEW_TIME_RANGE: "omnivue-overview-timerange",

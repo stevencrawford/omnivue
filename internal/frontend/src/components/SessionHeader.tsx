@@ -33,9 +33,11 @@ export function SessionHeader({
   const [tagFilter, setTagFilter] = useState("");
   const [tagInitialName, setTagInitialName] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const tagMenuRef = useRef<HTMLDivElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const overflowRef = useRef<HTMLDivElement>(null);
   const { version, bump, openTag } = useTagsContext();
 
   useEffect(() => {
@@ -81,6 +83,16 @@ export function SessionHeader({
     if (tagMenuOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [tagMenuOpen]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOverflowOpen(false);
+      }
+    };
+    if (overflowOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [overflowOpen]);
 
   const startEdit = () => {
     setEditValue(displayTitle);
@@ -238,39 +250,51 @@ export function SessionHeader({
           ))}
 
           {extraTags.length > 0 && (
-            <span className="sess-tag sess-tag-more" title="Show more tags">
-              <span className="sess-tag-body">+{extraTags.length}</span>
-              <div className="sess-tag-popover">
-                {extraTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="sess-tag sess-tag-pop-item"
-                    title={`Open tag ${tag.name}`}
-                  >
-                    <button
-                      type="button"
-                      className="sess-tag-body"
-                      onClick={() => openTag(tag.name)}
+            <span className="sess-tag sess-tag-more" ref={overflowRef}>
+              <button
+                type="button"
+                className="sess-tag-body"
+                title="Show more tags"
+                onClick={() => setOverflowOpen((v) => !v)}
+              >
+                +{extraTags.length}
+              </button>
+              {overflowOpen && (
+                <div className="sess-tag-popover">
+                  {extraTags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="sess-tag sess-tag-pop-item"
+                      title={`Open tag ${tag.name}`}
                     >
-                      {hasTagColor(tag.color) && (
-                        <span
-                          className="sess-tag-dot"
-                          style={{ backgroundColor: tagColor(tag.color) }}
-                        />
-                      )}
-                      <span className="sess-tag-name">{tag.name}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="sess-tag-remove"
-                      onClick={() => removeTag(tag.id)}
-                      title={`Remove tag ${tag.name}`}
-                    >
-                      <X size={10} />
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      <button
+                        type="button"
+                        className="sess-tag-body"
+                        onClick={() => {
+                          setOverflowOpen(false);
+                          openTag(tag.name);
+                        }}
+                      >
+                        {hasTagColor(tag.color) && (
+                          <span
+                            className="sess-tag-dot"
+                            style={{ backgroundColor: tagColor(tag.color) }}
+                          />
+                        )}
+                        <span className="sess-tag-name">{tag.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="sess-tag-remove"
+                        onClick={() => removeTag(tag.id)}
+                        title={`Remove tag ${tag.name}`}
+                      >
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </span>
           )}
 

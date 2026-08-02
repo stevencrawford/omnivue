@@ -129,52 +129,6 @@ func TestStore_SearchIndex(t *testing.T) {
 	}
 }
 
-func TestStore_Folders(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_STATE_HOME", tmpDir)
-
-	s, err := store.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-
-	now := time.Now()
-	err = s.CreateFolder(store.Folder{
-		ID:        "f-1",
-		Name:      "Project Alpha",
-		SortOrder: 0,
-		CreatedAt: now,
-		UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	folders, err := s.ListFolders()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(folders) != 1 {
-		t.Fatalf("expected 1 folder, got %d", len(folders))
-	}
-	if folders[0].Name != "Project Alpha" {
-		t.Errorf("expected name 'Project Alpha', got %q", folders[0].Name)
-	}
-
-	// Assign a session
-	err = s.AssignSession("f-1", "ses-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Unassign
-	err = s.UnassignSession("f-1", "ses-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestStore_Tags(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
@@ -462,8 +416,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 5 {
-		t.Fatalf("expected schema version 5 on fresh install, got %d", v)
+	if v != 6 {
+		t.Fatalf("expected schema version 6 on fresh install, got %d", v)
 	}
 }
 
@@ -509,8 +463,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 5 {
-		t.Fatalf("expected legacy db stamped to version 5, got %d", v)
+	if v != 6 {
+		t.Fatalf("expected legacy db stamped to version 6, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -534,8 +488,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 5 {
-		t.Fatalf("expected version 5 after first open, got %d", v1)
+	if v1 != 6 {
+		t.Fatalf("expected version 6 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -548,7 +502,7 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 5 {
-		t.Fatalf("expected version 5 after second open, got %d", v2)
+	if v2 != 6 {
+		t.Fatalf("expected version 6 after second open, got %d", v2)
 	}
 }

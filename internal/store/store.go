@@ -203,133 +203,6 @@ func (s *Store) AllConfig() (map[string]string, error) {
 	return cfg, rows.Err()
 }
 
-// --- Folder CRUD ---
-
-// Folder represents a user-defined folder.
-type Folder struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	ParentID  *string   `json:"parentId,omitempty"`
-	SortOrder int       `json:"sortOrder"`
-	Color     string    `json:"color,omitempty"`
-	Icon      string    `json:"icon,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-// CreateFolder creates a new folder.
-func (s *Store) CreateFolder(f Folder) error {
-	_, err := s.db.Exec(`
-		INSERT INTO folders (id, name, parent_id, sort_order, color, icon, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, f.ID, f.Name, f.ParentID, f.SortOrder, f.Color, f.Icon,
-		f.CreatedAt.Format(time.RFC3339), f.UpdatedAt.Format(time.RFC3339))
-	return err
-}
-
-// ListFolders returns all folders.
-func (s *Store) ListFolders() ([]Folder, error) {
-	rows, err := s.db.Query(`SELECT id, name, parent_id, sort_order, color, icon, created_at, updated_at FROM folders ORDER BY sort_order`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var folders []Folder
-	for rows.Next() {
-		var (
-			f         Folder
-			createdAt string
-			updatedAt string
-		)
-		if err := rows.Scan(&f.ID, &f.Name, &f.ParentID, &f.SortOrder, &f.Color, &f.Icon, &createdAt, &updatedAt); err != nil {
-			return nil, err
-		}
-		f.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
-		if err != nil {
-			slog.Warn("failed to parse time", "error", err)
-			f.CreatedAt = time.Time{}
-		}
-		f.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
-		if err != nil {
-			slog.Warn("failed to parse time", "error", err)
-			f.UpdatedAt = time.Time{}
-		}
-		folders = append(folders, f)
-	}
-	return folders, rows.Err()
-}
-
-// AssignSession assigns a session to a folder.
-func (s *Store) AssignSession(folderID, sessionID string) error {
-	_, err := s.db.Exec(`
-		INSERT INTO folder_sessions (folder_id, session_id, sort_order, added_at)
-		VALUES (?, ?, 0, ?)
-		ON CONFLICT DO NOTHING
-	`, folderID, sessionID, time.Now().Format(time.RFC3339))
-	return err
-}
-
-// UnassignSession removes a session from a folder.
-func (s *Store) UnassignSession(folderID, sessionID string) error {
-	_, err := s.db.Exec(`DELETE FROM folder_sessions WHERE folder_id = ? AND session_id = ?`, folderID, sessionID)
-	return err
-}
-
-// UpdateFolder updates a folder's name, color, and icon.
-func (s *Store) UpdateFolder(id, name, color, icon string) error {
-	_, err := s.db.Exec(`
-		UPDATE folders SET name = ?, color = ?, icon = ?, updated_at = ?
-		WHERE id = ?
-	`, name, color, icon, time.Now().Format(time.RFC3339), id)
-	return err
-}
-
-// DeleteFolder removes a folder and its session assignments.
-func (s *Store) DeleteFolder(id string) error {
-	// folder_sessions has ON DELETE CASCADE, so just delete the folder
-	_, err := s.db.Exec(`DELETE FROM folders WHERE id = ?`, id)
-	return err
-}
-
-// FolderSessions returns session IDs assigned to a folder.
-func (s *Store) FolderSessions(folderID string) ([]string, error) {
-	rows, err := s.db.Query(`SELECT session_id FROM folder_sessions WHERE folder_id = ? ORDER BY sort_order, added_at`, folderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
-
-// SessionFolders returns folder IDs that a session belongs to.
-func (s *Store) SessionFolders(sessionID string) ([]string, error) {
-	rows, err := s.db.Query(`SELECT folder_id FROM folder_sessions WHERE session_id = ?`, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
-
 // --- Tag CRUD ---
 
 // Tag represents a user-defined tag applied to sessions.
@@ -1134,12 +1007,18 @@ func sanitizeFTS5Query(q string) string {
 	return strings.Join(quoted, " ")
 }
 
-// Search performs a full-text search across indexed session content.
+// Search performs a full-text search across indexed session content. When not
+// scoped to a single session, tag-name matches are returned first (prioritized
+// above session hits).
 func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResult, error) {
-	query = sanitizeFTS5Query(query)
 	if limit <= 0 {
 		limit = 50
 	}
+	var tagResults []SearchResult
+	if sessionID == "" {
+		tagResults = s.SearchTags(query, limit)
+	}
+	query = sanitizeFTS5Query(query)
 	var rows *sql.Rows
 	var err error
 	if sessionID != "" {
@@ -1189,7 +1068,44 @@ func (s *Store) Search(query string, limit int, sessionID string) ([]SearchResul
 		}
 		results = append(results, r)
 	}
-	return results, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Tag matches take priority over session content hits.
+	return append(tagResults, results...), nil
+}
+
+// SearchTags matches tag names against the query (case-insensitive substring)
+// and returns them as search hits with ChunkType set to "tag", prioritized
+// ahead of session content results.
+func (s *Store) SearchTags(query string, limit int) []SearchResult {
+	if query == "" {
+		return nil
+	}
+	var results []SearchResult
+	like := "%" + query + "%"
+	rows, err := s.db.Query(`SELECT id, name, color, created_at FROM tags WHERE name LIKE ? ORDER BY name LIMIT ?`, like, limit)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			id, name, color, createdAt string
+		)
+		if err := rows.Scan(&id, &name, &color, &createdAt); err != nil {
+			continue
+		}
+		results = append(results, SearchResult{
+			ChunkType:  "tag",
+			SessionID:  "",
+			SourceID:   "",
+			Repository: "",
+			Snippet:    name,
+			TagName:    name,
+		})
+	}
+	return results
 }
 
 // SearchResult represents a search hit.
@@ -1204,9 +1120,10 @@ type SearchResult struct {
 	FileTitle    string `json:"fileTitle,omitempty"`
 	FileID       string `json:"fileId,omitempty"`
 	MessageIndex int    `json:"messageIndex,omitempty"`
+	TagName      string `json:"tagName,omitempty"`
 }
 
-// Reset removes all user data from the store (sources, folders, search index,
+// Reset removes all user data from the store (sources, tags, search index,
 // session names, scratch files, config, bookmarks). Agent data is unaffected.
 func (s *Store) Reset() error {
 	tables := []string{
@@ -1218,8 +1135,6 @@ func (s *Store) Reset() error {
 		"session_names",
 		"index_state",
 		"search_index",
-		"folder_sessions",
-		"folders",
 		"session_tags",
 		"tags",
 		"sources",

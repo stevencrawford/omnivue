@@ -297,75 +297,6 @@ POST /_/api/recent-searches
 
 Save recent search queries. Accepts `[]string` body.
 
-## Folders
-
-```http
-GET /_/api/folders
-```
-
-List all folders.
-
-```json
-[
-  {
-    "id": "folder_1234",
-    "name": "Frontend bugs",
-    "parentId": null,
-    "sortOrder": 0,
-    "color": "#ff0000",
-    "icon": "bug",
-    "createdAt": "2026-06-01T12:00:00Z",
-    "updatedAt": "2026-06-01T12:00:00Z"
-  }
-]
-```
-
-```http
-POST /_/api/folders
-```
-
-Create a new folder.
-
-```json
-{
-  "name": "Frontend bugs",
-  "color": "#ff0000",
-  "icon": "bug"
-}
-```
-
-Returns the created folder with `201`.
-
-```http
-PATCH /_/api/folders/{id}
-```
-
-Update folder name, color, or icon. Returns `204`.
-
-```http
-DELETE /_/api/folders/{id}
-```
-
-Delete a folder and its session assignments (cascade). Returns `204`.
-
-```http
-GET /_/api/folders/{id}/sessions
-```
-
-List session IDs assigned to a folder.
-
-```http
-POST /_/api/folders/{id}/sessions/{sessionId}
-```
-
-Assign a session to a folder. Returns `204`.
-
-```http
-DELETE /_/api/folders/{id}/sessions/{sessionId}
-```
-
-Remove a session from a folder. Returns `204`.
-
 ## Tags
 
 ```http
@@ -622,7 +553,7 @@ Restart the server. The server spawns a new process before shutting down. Return
 POST /_/api/reset
 ```
 
-Reset all user data: sources, folders, search index, session names, scratch files, config, bookmarks, and notifications. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
+Reset all user data: sources, tags, search index, session names, scratch files, config, bookmarks, and notifications. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
 
 ```json
 {"status": "ok"}

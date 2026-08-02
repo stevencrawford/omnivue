@@ -192,27 +192,10 @@ const SearchResultSchema = z.object({
   fileTitle: optionalString,
   fileId: optionalString,
   messageIndex: coerceNumber.optional(),
+  tagName: optionalString,
 });
 
 export const SearchResultsSchema = z.array(SearchResultSchema);
-
-// ---------------------------------------------------------------------------
-// Folder
-// ---------------------------------------------------------------------------
-
-export const FolderSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  parentId: optionalString,
-  sortOrder: coerceNumber,
-  color: optionalString,
-  icon: optionalString,
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export const FoldersSchema = z.array(FolderSchema);
-export const FolderSessionsSchema = z.array(z.string());
 
 // ---------------------------------------------------------------------------
 // Tag

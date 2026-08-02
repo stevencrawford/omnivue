@@ -797,8 +797,8 @@ export function SettingsModal({
                   Factory Reset
                 </h4>
                 <p className="text-xs text-ov-text-secondary mb-3">
-                  Remove all Omnivue-local data including sources, folders, scratch notes,
-                  bookmarks, search index, and configuration. Agent data on disk is unaffected.
+                  Remove all Omnivue-local data including sources, tags, scratch notes, bookmarks,
+                  search index, and configuration. Agent data on disk is unaffected.
                 </p>
 
                 {resetStep === 0 && (
@@ -816,7 +816,7 @@ export function SettingsModal({
                     <div className="flex items-start gap-2">
                       <TriangleAlert className="size-4 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-xs text-red-400/90">
-                        This will permanently remove all local data: sources, folders, bookmarks,
+                        This will permanently remove all local data: sources, tags, bookmarks,
                         scratch notes, search index, and settings. Agent data on disk is safe and
                         can be re-added. This action cannot be undone.
                       </p>

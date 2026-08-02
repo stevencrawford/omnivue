@@ -79,7 +79,7 @@ export function App() {
   const [activeSection, setActiveSection] = useState<Section>("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-const [queueCount, setQueueCount] = useState(0);
+  const [queueCount, setQueueCount] = useState(0);
   const [promptVersion, setPromptVersion] = useState(0);
   const [highlightPromptId, setHighlightPromptId] = useState<string | null>(null);
 
@@ -131,6 +131,7 @@ const [queueCount, setQueueCount] = useState(0);
     setFocusStepIndex,
     setFocusMessageIndex,
     setShowOverview,
+    openTag,
   );
 
   // ---- Scratch files ----
@@ -471,11 +472,7 @@ const [queueCount, setQueueCount] = useState(0);
                         </div>
                       </div>
                     ) : sessions.length > 0 && showOverview ? (
-                      <OverviewScreen
-                        sessions={sessions}
-                        onSessionSelect={handleSessionSelect}
-                        onOpenProjects={() => setActiveSection("projects")}
-                      />
+                      <OverviewScreen sessions={sessions} onSessionSelect={handleSessionSelect} />
                     ) : (
                       <EmptyState
                         sessionsCount={sessions.length}

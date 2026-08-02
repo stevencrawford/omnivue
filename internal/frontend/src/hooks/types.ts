@@ -147,17 +147,7 @@ export interface SearchResult {
   fileTitle?: string;
   fileId?: string;
   messageIndex?: number;
-}
-
-export interface Folder {
-  id: string;
-  name: string;
-  parentId?: string;
-  sortOrder: number;
-  color?: string;
-  icon?: string;
-  createdAt: string;
-  updatedAt: string;
+  tagName?: string;
 }
 
 export interface Tag {

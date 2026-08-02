@@ -23,7 +23,7 @@ const KIND_OPTIONS: { value: NotificationKind; label: string }[] = [
 const SCOPE_OPTIONS: { value: NotificationSettings["scope"]; label: string }[] = [
   { value: "all", label: "All sessions" },
   { value: "opened", label: "Only sessions I've opened" },
-  { value: "pinned", label: "Only sessions in folders" },
+  { value: "pinned", label: "Only tagged sessions" },
 ];
 
 export function NotificationsSettingsTab({ settings, onSave }: NotificationsSettingsTabProps) {

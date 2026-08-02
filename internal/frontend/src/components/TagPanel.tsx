@@ -5,7 +5,6 @@ import {
   ArrowUpDown,
   ChevronRight,
   Tags as TagsIcon,
-  Folder as FolderIcon,
   Pencil,
   Trash2,
   X,
@@ -19,14 +18,11 @@ import { useTagsContext } from "../hooks/useTags";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 import { tagColor, hasTagColor } from "../utils/tagColors";
 import { CreateTagModal } from "./CreateTagModal";
-import { ContextMenu } from "./ContextMenu";
-import { AddToProjectDialog } from "./AddToProjectDialog";
 
 interface TagPanelProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  showToast: (msg: string) => void;
 }
 
 type TagSort = "name" | "count";
@@ -72,7 +68,7 @@ function loadTagSessionsEffect(id: string) {
   );
 }
 
-export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast }: TagPanelProps) {
+export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPanelProps) {
   const { version, filterTag, bump, clearFilter } = useTagsContext();
   const [search, setSearch] = useState("");
   const [searchActive, setSearchActive] = useState(false);
@@ -121,19 +117,6 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
       /* noop */
     }
   }, [tagSort]);
-
-  const [contextMenu, setContextMenu] = useState<{
-    sessionId: string;
-    x: number;
-    y: number;
-  } | null>(null);
-  const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
-
-  const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ sessionId, x: e.clientX, y: e.clientY });
-  }, []);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -580,7 +563,6 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
                       isActive={sid === activeSessionId}
                       onSelect={() => onSessionSelect(sid)}
                       onRemove={() => handleUnassign(tag.id, sid)}
-                      onContextMenu={handleContextMenu}
                     />
                   );
                 })}
@@ -589,32 +571,6 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect, showToast
           </div>
         ))}
       </div>
-
-      {contextMenu && (
-        <ContextMenu
-          position={{ x: contextMenu.x, y: contextMenu.y }}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              label: "Add to Project",
-              icon: <FolderIcon size={14} />,
-              onClick: () => {
-                setAddToProjectSessionId(contextMenu.sessionId);
-              },
-            },
-          ]}
-        />
-      )}
-
-      {addToProjectSessionId && (
-        <AddToProjectDialog
-          isOpen={!!addToProjectSessionId}
-          sessionId={addToProjectSessionId}
-          sessionTitle={sessions.find((s) => s.id === addToProjectSessionId)?.title || ""}
-          onClose={() => setAddToProjectSessionId(null)}
-          onAssigned={(name) => showToast(`Added to ${name}`)}
-        />
-      )}
 
       <CreateTagModal
         isOpen={creating}
@@ -632,16 +588,9 @@ interface TagSessionRowProps {
   isActive: boolean;
   onSelect: () => void;
   onRemove: () => void;
-  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
 }
 
-function TagSessionRow({
-  session,
-  isActive,
-  onSelect,
-  onRemove,
-  onContextMenu,
-}: TagSessionRowProps) {
+function TagSessionRow({ session, isActive, onSelect, onRemove }: TagSessionRowProps) {
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", session.id);
     e.dataTransfer.effectAllowed = "copy";
@@ -654,7 +603,6 @@ function TagSessionRow({
         draggable
         onDragStart={handleDragStart}
         onClick={onSelect}
-        onContextMenu={(e) => onContextMenu(session.id, e)}
         title={session.directory || session.repository}
         className={`session-draggable sess-parent-session w-full text-left transition-all ${
           isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"

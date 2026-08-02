@@ -53,7 +53,7 @@ Initial release of **Omnivue** (formerly **sess**) — forked from [mo](https://
 - **Browser UI** — Tabbed session viewer with conversation, plan, and diff views
 - **Real-time updates** — Adaptive SSE polling (5s live / 30s idle)
 - **Full-text search** — FTS5 index across all session content
-- **User folders** — Virtual session organization with nesting, color, and icons
+- **User tags** — Virtual session organization with unique names and optional colors
 - **Scratch notes** — Per-session markdown notes (TipTap rich text + Monaco code editor)
 - **Session renaming** — Display name overrides persisted in `omnivue.db`
 - **Settings UI** — Add/remove session sources from the browser

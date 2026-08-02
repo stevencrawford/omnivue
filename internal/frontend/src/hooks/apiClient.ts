@@ -13,7 +13,6 @@ import type {
   ScratchFile,
   StatusInfo,
   SearchResult,
-  Folder,
   Tag,
   Bookmark,
   AppNotification,
@@ -33,9 +32,6 @@ import {
   SourcesSchema,
   SourceSchema,
   DiscoveredSourcesSchema,
-  FoldersSchema,
-  FolderSchema,
-  FolderSessionsSchema,
   TagsSchema,
   TagSchema,
   TagSessionsSchema,
@@ -239,60 +235,6 @@ export async function fetchSearch(
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (sessionId) params.set("session_id", sessionId);
   return fetchJson(`/_/api/search?${params}`, SearchResultsSchema, signal ? { signal } : undefined);
-}
-
-// ---------------------------------------------------------------------------
-// Folders
-// ---------------------------------------------------------------------------
-
-export async function fetchFolders(): Promise<Folder[]> {
-  return fetchJson("/_/api/folders", FoldersSchema);
-}
-
-export async function createFolder(name: string, color?: string, icon?: string): Promise<Folder> {
-  return fetchJson("/_/api/folders", FolderSchema, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color, icon }),
-  });
-}
-
-export async function updateFolder(
-  id: string,
-  name: string,
-  color?: string,
-  icon?: string,
-): Promise<void> {
-  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color: color || "", icon: icon || "" }),
-  });
-}
-
-export async function deleteFolder(id: string): Promise<void> {
-  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
-}
-
-export async function fetchFolderSessions(folderId: string): Promise<string[]> {
-  return fetchJson(`/_/api/folders/${encodeURIComponent(folderId)}/sessions`, FolderSessionsSchema);
-}
-
-export async function assignSessionToFolder(folderId: string, sessionId: string): Promise<void> {
-  await fetchVoid(
-    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
-    { method: "POST" },
-  );
-}
-
-export async function unassignSessionFromFolder(
-  folderId: string,
-  sessionId: string,
-): Promise<void> {
-  await fetchVoid(
-    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
-    { method: "DELETE" },
-  );
 }
 
 // ---------------------------------------------------------------------------

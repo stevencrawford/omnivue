@@ -28,7 +28,7 @@ type mockAdapter struct {
 	liveUpdatedAt time.Time
 }
 
-func (m *mockAdapter) Type() ingest.AgentType { return ingest.AgentOpenCode }
+func (m *mockAdapter) Type() ingest.AgentType  { return ingest.AgentOpenCode }
 func (m *mockAdapter) Detect(path string) bool { return false }
 func (m *mockAdapter) ListSessions(context.Context) ([]ingest.Session, error) {
 	m.listCalls.Add(1)
@@ -52,14 +52,16 @@ func (m *mockAdapter) Session(ctx context.Context, id string) (*ingest.Session, 
 	}
 	return nil, os.ErrNotExist
 }
-func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error) { return m.messages, nil }
-func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)         { return nil, nil }
-func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error)    { return nil, nil }
-func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error)   { return nil, nil }
-func (m *mockAdapter) ResumeCommand(*ingest.Session) string                          { return "cd /tmp && echo resume" }
-func (m *mockAdapter) AgentCommand(*ingest.Session) string                          { return "/resume ses-1" }
-func (m *mockAdapter) LastModified(context.Context) (int64, error)                   { return 0, nil }
-func (m *mockAdapter) Close() error                                                  { return nil }
+func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error) {
+	return m.messages, nil
+}
+func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)       { return nil, nil }
+func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error) { return nil, nil }
+func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error) { return nil, nil }
+func (m *mockAdapter) ResumeCommand(*ingest.Session) string                     { return "cd /tmp && echo resume" }
+func (m *mockAdapter) AgentCommand(*ingest.Session) string                      { return "/resume ses-1" }
+func (m *mockAdapter) LastModified(context.Context) (int64, error)              { return 0, nil }
+func (m *mockAdapter) Close() error                                             { return nil }
 
 func TestHandleStatus(t *testing.T) {
 	state := &State{
@@ -200,32 +202,6 @@ func TestResolveSession_FallsBackToAdapterAndRegisters(t *testing.T) {
 
 	if _, err := state.Session(ctx, "nonexistent"); err == nil {
 		t.Error("expected error for nonexistent session")
-	}
-}
-
-func TestHandleFolders_StoreUnavailable(t *testing.T) {
-	state := &State{store: nil}
-
-	mux := NewHandler(state)
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/_/api/folders")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-
-	var folders []store.Folder
-	if err := json.NewDecoder(resp.Body).Decode(&folders); err != nil {
-		t.Fatal(err)
-	}
-	if len(folders) != 0 {
-		t.Errorf("expected empty list, got %d", len(folders))
 	}
 }
 
@@ -539,10 +515,10 @@ func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
 	defer st.Close()
 
 	state := &State{
-		store:      st,
-		adapters:   map[string]ingest.Adapter{"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}, messages: []ingest.Message{{ID: "m1", Content: "q?", Timestamp: time.Now(), ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}}}}}},
-		sessions:   []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}},
-		prevStatus: map[string]string{"ses-1": "completed"},
+		store:       st,
+		adapters:    map[string]ingest.Adapter{"src-1": &mockAdapter{sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}, messages: []ingest.Message{{ID: "m1", Content: "q?", Timestamp: time.Now(), ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}}}}}},
+		sessions:    []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}},
+		prevStatus:  map[string]string{"ses-1": "completed"},
 		activeViews: make(map[string]time.Time),
 	}
 

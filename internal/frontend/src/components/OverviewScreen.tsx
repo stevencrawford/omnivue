@@ -1,14 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Bot, Coins, Folder, GitBranch, Sparkles, Zap } from "lucide-react";
-import { Effect } from "effect";
+import { useEffect, useMemo, useState } from "react";
+import { Bot, Coins, GitBranch, Sparkles, Zap } from "lucide-react";
 import { ResumeButton } from "./ResumeButton";
 import { SessionsIcon } from "./IconChannel";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { ActivityCharts } from "./ActivityCharts";
 import { ModelAgentBreakdown } from "./ModelAgentBreakdown";
-import type { Folder as FolderType, Session } from "../hooks/types";
-import { FolderService } from "../services";
-import { runPromise } from "../lib/effect";
+import type { Session } from "../hooks/types";
 import { useTimeRange } from "../hooks/useTimeRange";
 import { shortRepoName } from "../utils/buildTree";
 import {
@@ -30,7 +27,6 @@ import {
 interface OverviewScreenProps {
   sessions: Session[];
   onSessionSelect: (sessionId: string) => void;
-  onOpenProjects?: () => void;
 }
 
 interface OverviewStats {
@@ -219,47 +215,6 @@ function MiniSessionRow({
   );
 }
 
-function ProjectCard({
-  folder,
-  sessions,
-  onSessionSelect,
-}: {
-  folder: FolderType;
-  sessions: Session[];
-  onSessionSelect: (id: string) => void;
-}) {
-  const recent = sortByRecent(sessions).slice(0, 3);
-  const color = folder.color || "var(--color-accent)";
-
-  return (
-    <div className="sess-overview-card">
-      <div className="flex items-center gap-2 mb-3">
-        <span
-          className="size-7 rounded-md flex items-center justify-center shrink-0"
-          style={{ background: `color-mix(in srgb, ${color} 18%, transparent)` }}
-        >
-          <Folder size={14} style={{ color }} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium truncate">{folder.name}</h3>
-          <p className="text-[11px] text-ov-text-secondary tabular-nums">
-            {sessions.length} session{sessions.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      </div>
-      {recent.length === 0 ? (
-        <p className="text-xs text-ov-text-secondary italic py-2">No sessions yet</p>
-      ) : (
-        <div className="space-y-0.5">
-          {recent.map((s) => (
-            <MiniSessionRow key={s.id} session={s} onSelect={() => onSessionSelect(s.id)} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function RepoCard({
   repoLabel,
   repoPath,
@@ -297,7 +252,7 @@ function RepoCard({
   );
 }
 
-export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: OverviewScreenProps) {
+export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProps) {
   const hideCosts = useHideCosts();
   const { range, startDate, endDate, label, setPreset, setCustomRange } = useTimeRange();
 
@@ -324,41 +279,6 @@ export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: Ov
 
   // ---- All-time recent sessions (not time-filtered, for repo cards & latest session) ----
   const recentSessions = useMemo(() => sortByRecent(sessions).slice(0, 8), [sessions]);
-  const sessionById = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
-
-  // ---- Folders ----
-  const [folders, setFolders] = useState<FolderType[]>([]);
-  const [folderSessions, setFolderSessions] = useState<Record<string, string[]>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const list = await runPromise(
-        FolderService.pipe(
-          Effect.flatMap((svc) => svc.list()),
-          Effect.catchAll(() => Effect.succeed([] as FolderType[])),
-        ),
-      );
-      if (cancelled) return;
-      setFolders(list || []);
-      const map: Record<string, string[]> = {};
-      await Promise.all(
-        (list || []).map(async (f) => {
-          const ids = await runPromise(
-            FolderService.pipe(
-              Effect.flatMap((svc) => svc.listSessions(f.id)),
-              Effect.catchAll(() => Effect.succeed([] as string[])),
-            ),
-          );
-          map[f.id] = ids || [];
-        }),
-      );
-      if (!cancelled) setFolderSessions(map);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [sessions]);
 
   // ---- Repo groups (time-filtered) ----
   const repoGroups = useMemo(() => {
@@ -490,41 +410,6 @@ export function OverviewScreen({ sessions, onSessionSelect, onOpenProjects }: Ov
                   onSessionSelect={onSessionSelect}
                 />
               ))}
-            </div>
-          </section>
-        )}
-
-        {/* ---- Projects (folders) ---- */}
-        {folders.length > 0 && (
-          <section className="mb-8">
-            <div className="sess-overview-section-header">
-              <Folder size={14} />
-              <h3>Projects</h3>
-              {onOpenProjects && (
-                <button
-                  type="button"
-                  onClick={onOpenProjects}
-                  className="ml-auto text-[11px] text-accent hover:underline cursor-pointer"
-                >
-                  Manage
-                </button>
-              )}
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {folders.slice(0, 4).map((folder) => {
-                const ids = folderSessions[folder.id] || [];
-                const folderSessionList = ids
-                  .map((id) => sessionById.get(id))
-                  .filter((s): s is Session => !!s);
-                return (
-                  <ProjectCard
-                    key={folder.id}
-                    folder={folder}
-                    sessions={folderSessionList}
-                    onSessionSelect={onSessionSelect}
-                  />
-                );
-              })}
             </div>
           </section>
         )}

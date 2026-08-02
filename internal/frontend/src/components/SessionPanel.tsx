@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, Tags, Plus, Minus, ArrowUpDown, ArrowRight, Archive } from "lucide-react";
+import { ChevronRight, Tags, Plus, Minus, ArrowUpDown, ArrowRight, Archive } from "lucide-react";
 import type { Session } from "../hooks/useApi";
 import { buildTree } from "../utils/buildTree";
 import type { TreeNode, SortMode } from "../utils/buildTree";
@@ -20,7 +20,6 @@ import {
 } from "../utils/sessionFilters";
 import { useSessionListSettings } from "../hooks/useSessionListSettings";
 import { ContextMenu } from "./ContextMenu";
-import { AddToProjectDialog } from "./AddToProjectDialog";
 import { ManageTagsDialog } from "./ManageTagsDialog";
 
 function getAncestorChain(sessions: Session[], id: string): string[] {
@@ -38,7 +37,6 @@ interface SessionPanelProps {
   sessions: Session[];
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  showToast: (msg: string) => void;
   sessionUnread?: Record<string, number>;
 }
 
@@ -90,7 +88,6 @@ export function SessionPanel({
   sessions,
   activeSessionId,
   onSessionSelect,
-  showToast,
   sessionUnread = {},
 }: SessionPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
@@ -145,7 +142,6 @@ export function SessionPanel({
     x: number;
     y: number;
   } | null>(null);
-  const [addToProjectSessionId, setAddToProjectSessionId] = useState<string | null>(null);
   const [tagsSessionId, setTagsSessionId] = useState<string | null>(null);
 
   const handleContextMenu = useCallback((sessionId: string, e: React.MouseEvent) => {
@@ -410,13 +406,6 @@ export function SessionPanel({
           onClose={() => setContextMenu(null)}
           items={[
             {
-              label: "Add to Project",
-              icon: <Folder size={14} />,
-              onClick: () => {
-                setAddToProjectSessionId(contextMenu.sessionId);
-              },
-            },
-            {
               label: "Add Tags...",
               icon: <Tags size={14} />,
               onClick: () => {
@@ -424,16 +413,6 @@ export function SessionPanel({
               },
             },
           ]}
-        />
-      )}
-
-      {addToProjectSessionId && (
-        <AddToProjectDialog
-          isOpen={!!addToProjectSessionId}
-          sessionId={addToProjectSessionId}
-          sessionTitle={sessions.find((s) => s.id === addToProjectSessionId)?.title || ""}
-          onClose={() => setAddToProjectSessionId(null)}
-          onAssigned={(name) => showToast(`Added to ${name}`)}
         />
       )}
 

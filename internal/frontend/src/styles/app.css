@@ -840,7 +840,7 @@ body {
 }
 
 .sess-tag-popover {
-  display: none;
+  display: flex;
   position: absolute;
   left: 0;
   top: 100%;
@@ -854,10 +854,6 @@ body {
   border-radius: 0.5rem;
   background: var(--color-surface-elevated);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-}
-
-.sess-tag-more:hover .sess-tag-popover {
-  display: flex;
 }
 
 .sess-tag-pop-item {
