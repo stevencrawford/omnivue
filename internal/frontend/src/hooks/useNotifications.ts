@@ -174,19 +174,25 @@ export function useNotifications(): NotificationsState {
 
 export function useActiveView(activeSessionId: string | null) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const report = useCallback((sessionId: string) => {
+    runPromise(
+      NotificationService.pipe(
+        Effect.flatMap((svc) => svc.setActiveView(sessionId)),
+        Effect.catchAll(() => Effect.void),
+      ),
+    );
+  }, []);
   useEffect(() => {
     if (!activeSessionId) return;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      runPromise(
-        NotificationService.pipe(
-          Effect.flatMap((svc) => svc.setActiveView(activeSessionId)),
-          Effect.catchAll(() => Effect.void),
-        ),
-      );
-    }, 500);
+    timer.current = setTimeout(() => report(activeSessionId), 500);
+    // Heartbeat: keep the session marked as active so the server-side
+    // ExcludeActiveView window doesn't expire while the user stays on it.
+    interval.current = setInterval(() => report(activeSessionId), 60_000);
     return () => {
       if (timer.current) clearTimeout(timer.current);
+      if (interval.current) clearInterval(interval.current);
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, report]);
 }

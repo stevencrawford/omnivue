@@ -93,7 +93,7 @@ func newState(t *testing.T, adapters map[string]ingest.Adapter, sessions []inges
 	}
 	index := NewIndexer(hub, st, st)
 	notif := NewNotifier(hub, st, st, st, bus)
-	dep := newDep(hub, index, notif, bus, st)
+	dep := newDep(hub, index, notif, bus, storeRolesOf(st))
 	s := &State{
 		dep:     dep,
 		stateCh: &lifecycle{shutdownCh: make(chan struct{}, 1), restartCh: make(chan string, 1)},
@@ -619,6 +619,48 @@ func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
 	}
 }
 
+func TestClassifyChanges_ExcludeActiveView(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	bus := NewEventBus()
+	sess := []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}
+	adapter := &mockAdapter{
+		sessions: sess,
+		messages: []ingest.Message{{
+			ID: "m1", Content: "q?", Timestamp: time.Now(),
+			ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
+		}},
+	}
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, sessions: sess}
+	notif := NewNotifier(hub, st, st, st, bus)
+
+	settings := notify.DefaultSettings()
+	settings.Enabled = true
+	settings.Kinds = []notify.Kind{notify.KindQuestion}
+	settings.Scope = "all"
+	settings.ExcludeActiveView = true
+	if err := notif.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+
+	notif.ReportActiveView("ses-1")
+	notif.ClassifyChanges(context.Background(), []string{"ses-1"}, nil)
+
+	list, err := st.ListNotifications(50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("expected 0 notifications for an actively-viewed session, got %d", len(list))
+	}
+}
+
 func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
@@ -630,7 +672,7 @@ func TestHandleListNotifications_StoreUnavailable(t *testing.T) {
 
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
-	dep := newDep(hub, NewIndexer(hub, st, st), NewNotifier(hub, st, st, st, bus), bus, st)
+	dep := newDep(hub, NewIndexer(hub, st, st), NewNotifier(hub, st, st, st, bus), bus, storeRolesOf(st))
 
 	var list []store.Notification
 	doJSON(t, NewHandler(dep), http.MethodGet, "/_/api/notifications", nil, http.StatusOK, &list)
@@ -651,7 +693,7 @@ func TestHandleNotifySettings_RoundTrip(t *testing.T) {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
 	notif := NewNotifier(hub, st, st, st, bus)
-	dep := newDep(hub, NewIndexer(hub, nil, nil), notif, bus, st)
+	dep := newDep(hub, NewIndexer(hub, nil, nil), notif, bus, storeRolesOf(st))
 
 	// GET defaults.
 	var defaults notify.Settings
@@ -737,7 +779,39 @@ func TestHandleCreateTag_FakeStore(t *testing.T) {
 func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter), prevStatus: make(map[string]string)}
-	dep := newDep(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus, nil)
+	dep := newDep(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus, storeRolesOf(nil))
 	dep.Tags = tags
 	return dep
+}
+
+// TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
+// into the role interfaces: an interface wrapping a nil pointer is non-nil, so
+// every `!= nil` guard would pass and the call would panic on the nil receiver.
+func TestStoreRoles_NilStoreStaysNil(t *testing.T) {
+	dep := newDep(nil, nil, nil, NewEventBus(), storeRolesOf(nil))
+	for name, v := range map[string]any{
+		"Sources":   dep.Sources,
+		"Tags":      dep.Tags,
+		"Bookmarks": dep.Bookmarks,
+		"Scratch":   dep.Scratch,
+		"Config":    dep.Config,
+		"Notifs":    dep.Notifs,
+		"Prompts":   dep.Prompts,
+		"Search":    dep.Search,
+		"Meta":      dep.Meta,
+		"Reset":     dep.Reset,
+	} {
+		if v != nil {
+			t.Errorf("expected %s to be nil with no store, got %v", name, v)
+		}
+	}
+}
+
+// TestHandleSetConfig_StoreUnavailable_NoPanic exercises a write handler with a
+// genuinely-nil store role: it must return 500 "store not available" instead of
+// panicking on the nil receiver.
+func TestHandleSetConfig_StoreUnavailable_NoPanic(t *testing.T) {
+	dep := newDep(nil, nil, nil, NewEventBus(), storeRolesOf(nil))
+	doJSON(t, NewHandler(dep), http.MethodPut, "/_/api/config",
+		map[string]string{"key": "k", "value": "v"}, http.StatusInternalServerError, nil)
 }

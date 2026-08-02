@@ -15,6 +15,12 @@ import (
 
 const notifySettingsKey = "notifications.settings"
 
+// activeViewWindow is how long a session stays excluded from notifications
+// after it was last reported as actively viewed. The frontend re-reports the
+// active view on a heartbeat while a session is open, so this window only needs
+// to bridge the gap between reports.
+const activeViewWindow = 5 * time.Minute
+
 // Notifier classifies changed sessions into notifications, advances the
 // seen-message cursors, and emits results over the EventBus. It operates on
 // the distinct store roles it needs so it can be driven in isolation from the
@@ -147,6 +153,12 @@ func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, tra
 
 		candidates := notify.Classify(prevStatus, string(sess.Status), msgs, st.LastSeenMessageCount, settings)
 
+		// ExcludeActiveView: don't notify about the session the user is currently
+		// looking at. The seen-cursor still advances below so no backlog forms.
+		if settings.ExcludeActiveView && n.isActiveView(sess.ID) {
+			candidates = nil
+		}
+
 		for _, c := range candidates {
 			nraw := store.Notification{
 				ID:        fmt.Sprintf("notif_%d_%s", time.Now().UnixNano(), shortID(c.DedupKey)),
@@ -268,4 +280,20 @@ func (n *Notifier) emitNotification(notification store.Notification, payload map
 		return
 	}
 	n.bus.Send(sseEvent{Name: "notification", Data: string(data)})
+}
+
+// isActiveView reports whether the session was viewed recently enough to still
+// count as actively viewed, evicting the entry once it ages out.
+func (n *Notifier) isActiveView(sessionID string) bool {
+	n.activeViewsMu.Lock()
+	defer n.activeViewsMu.Unlock()
+	last, ok := n.activeViews[sessionID]
+	if !ok {
+		return false
+	}
+	if time.Since(last) > activeViewWindow {
+		delete(n.activeViews, sessionID)
+		return false
+	}
+	return true
 }

@@ -61,11 +61,12 @@ func NewState(ctx context.Context) *State {
 		slog.Error("failed to open store", "error", err)
 		st = nil
 	}
+	roles := storeRolesOf(st)
 
 	bus := NewEventBus()
-	hub := NewSessionHub(st)
-	index := NewIndexer(hub, st, st)
-	notif := NewNotifier(hub, st, st, st, bus)
+	hub := NewSessionHub(roles.names)
+	index := NewIndexer(hub, roles.search, roles.scratch)
+	notif := NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus)
 	poller := NewPoller(hub, index, notif, bus)
 
 	// Load configured sources and create adapters.
@@ -92,7 +93,7 @@ func NewState(ctx context.Context) *State {
 	shutdownCh := make(chan struct{}, 1)
 	restartCh := make(chan string, 1)
 
-	dep := newDep(hub, index, notif, bus, st)
+	dep := newDep(hub, index, notif, bus, roles)
 	dep.Shutdown = func() {
 		select {
 		case shutdownCh <- struct{}{}:
@@ -120,22 +121,62 @@ func NewState(ctx context.Context) *State {
 // Deps returns the handler wiring for this State.
 func (s *State) Deps() Dep { return s.dep }
 
-func newDep(hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus, st *store.Store) Dep {
+// storeRoles bundles the narrowed store role interfaces (ATH-02) so a nil
+// store is never boxed into an interface: storeRolesOf returns all-nil roles
+// when the store failed to open, keeping handlers' `!= nil` guards honest. A
+// typed-nil *store.Store stored into an interface is non-nil, which would make
+// every guard pass and every call panic on the nil receiver.
+type storeRoles struct {
+	sources   store.SourceStore
+	tags      store.TagStore
+	bookmarks store.BookmarkStore
+	scratch   store.ScratchStore
+	config    store.ConfigStore
+	notifs    store.NotificationStore
+	prompts   store.PromptStore
+	search    store.SearchStore
+	meta      store.SchemaVersioner
+	reset     store.Resetter
+	names     store.SessionNameStore
+}
+
+// storeRolesOf derives the role interfaces from a concrete store, or all-nil
+// interfaces when the store is unavailable.
+func storeRolesOf(st *store.Store) storeRoles {
+	if st == nil {
+		return storeRoles{}
+	}
+	return storeRoles{
+		sources:   st,
+		tags:      st,
+		bookmarks: st,
+		scratch:   st,
+		config:    st,
+		notifs:    st,
+		prompts:   st,
+		search:    st,
+		meta:      st,
+		reset:     st,
+		names:     st,
+	}
+}
+
+func newDep(hub *SessionHub, index *Indexer, notif *Notifier, bus *EventBus, roles storeRoles) Dep {
 	return Dep{
 		Hub:       hub,
 		Indexer:   index,
 		Notifier:  notif,
 		Bus:       bus,
-		Sources:   st,
-		Tags:      st,
-		Bookmarks: st,
-		Scratch:   st,
-		Config:    st,
-		Notifs:    st,
-		Prompts:   st,
-		Search:    st,
-		Meta:      st,
-		Reset:     st,
+		Sources:   roles.sources,
+		Tags:      roles.tags,
+		Bookmarks: roles.bookmarks,
+		Scratch:   roles.scratch,
+		Config:    roles.config,
+		Notifs:    roles.notifs,
+		Prompts:   roles.prompts,
+		Search:    roles.search,
+		Meta:      roles.meta,
+		Reset:     roles.reset,
 	}
 }
 

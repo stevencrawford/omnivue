@@ -78,26 +78,17 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 				slog.Warn("failed to list scratch files", "session_id", sess.ID, "error", err)
 			}
 		}
-		var scratchBuilder strings.Builder
-		for _, sf := range scratchFiles {
-			scratchBuilder.WriteString(sf.Title)
-			scratchBuilder.WriteString("\n")
-			scratchBuilder.WriteString(sf.Content)
-			scratchBuilder.WriteString("\n")
-		}
-		scratchContent := scratchBuilder.String()
+		scratchContent := scratchContentOf(scratchFiles)
 
 		// Combined content for hash comparison.
-		combined := nameContent + "\n" + planContent + "\n" + messagesContent + "\n" + scratchContent
-		h := sha256.Sum256([]byte(combined))
-		contentHash := hex.EncodeToString(h[:8])
+		sessionHash := contentHash(nameContent, planContent, messagesContent, scratchContent)
 
 		// Check if already indexed with same hash.
 		existingHash, err := ix.search.IndexState(sess.ID)
 		if err != nil {
 			continue
 		}
-		if existingHash == contentHash {
+		if existingHash == sessionHash {
 			continue // already up to date
 		}
 
@@ -140,27 +131,19 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 			if err := retryOnBusy(func() error { return ix.search.ClearSessionChunkType(sess.ID, "scratch") }); err != nil {
 				slog.Warn("failed to clear scratch index", "session", sess.ID, "error", err)
 			}
-			for _, sf := range scratchFiles {
-				if sf.Content == "" {
-					continue
-				}
-				fileContent := sf.Title + "\n" + sf.Content
-				if err := retryOnBusy(func() error {
-					return ix.search.IndexSessionAt(sess.ID, sess.SourceID, "scratch", sess.Repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
-				}); err != nil {
-					slog.Warn("failed to index scratch file", "session", sess.ID, "file", sf.ID, "error", err)
-				}
-			}
+			ix.indexScratchChunk(sess.ID, sess.SourceID, sess.Repository, scratchFiles)
 		}
 
 		// Update index state.
-		if err := retryOnBusy(func() error { return ix.search.UpdateIndexState(sess.ID, sess.SourceID, contentHash) }); err != nil {
+		if err := retryOnBusy(func() error { return ix.search.UpdateIndexState(sess.ID, sess.SourceID, sessionHash) }); err != nil {
 			slog.Warn("failed to update index state", "session", sess.ID, "error", err)
 		}
 	}
 }
 
-// ReindexSessionScratch re-indexes all scratch files for a session.
+// ReindexSessionScratch re-indexes all scratch files for a session and
+// refreshes the stored content hash, so the next poll's hash-dedup skips the
+// whole-session re-index (only the scratch chunk changed).
 func (ix *Indexer) ReindexSessionScratch(sessionID string) {
 	if ix.search == nil || ix.scratch == nil {
 		return
@@ -184,17 +167,70 @@ func (ix *Indexer) ReindexSessionScratch(sessionID string) {
 	if err := retryOnBusy(func() error { return ix.search.ClearSessionChunkType(sessionID, "scratch") }); err != nil {
 		return
 	}
-	for _, sf := range scratchFiles {
+	ix.indexScratchChunk(sessionID, sourceID, repository, scratchFiles)
+	ix.updateIndexState(context.Background(), sessionID, sourceID, repository)
+}
+
+// indexScratchChunk writes the scratch files chunk for a session. Shared by the
+// full IndexSessions pass and the scratch-only ReindexSessionScratch path.
+func (ix *Indexer) indexScratchChunk(sessionID, sourceID, repository string, files []store.ScratchFile) {
+	for _, sf := range files {
 		if sf.Content == "" {
 			continue
 		}
-		content := sf.Title + "\n" + sf.Content
+		fileContent := sf.Title + "\n" + sf.Content
 		if err := retryOnBusy(func() error {
-			return ix.search.IndexSessionAt(sessionID, sourceID, "scratch", repository, content, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
+			return ix.search.IndexSessionAt(sessionID, sourceID, "scratch", repository, fileContent, sf.UpdatedAt.Format(time.RFC3339), sf.Title, sf.ID, 0)
 		}); err != nil {
 			slog.Warn("failed to index scratch file", "session", sessionID, "file", sf.ID, "error", err)
 		}
 	}
+}
+
+// updateIndexState recomputes the session's combined content hash and persists
+// it, so a scratch-only reindex does not force the next poll to rewrite every
+// chunk of the session.
+func (ix *Indexer) updateIndexState(ctx context.Context, sessionID, sourceID, repository string) {
+	sess, err := ix.hub.Session(ctx, sessionID)
+	if err != nil || sess == nil {
+		return
+	}
+	messages, err := ix.hub.Messages(ctx, sessionID)
+	if err != nil {
+		return
+	}
+	var planContent string
+	if plan, err := ix.hub.Plan(ctx, sessionID); err == nil && plan != nil {
+		planContent = plan.Markdown
+	}
+	files, err := ix.scratch.ListScratchFiles(sessionID)
+	if err != nil {
+		return
+	}
+	h := contentHash(sess.Title, planContent, buildMessagesContent(messages), scratchContentOf(files))
+	if err := retryOnBusy(func() error { return ix.search.UpdateIndexState(sessionID, sourceID, h) }); err != nil {
+		slog.Warn("failed to update index state", "session", sessionID, "error", err)
+	}
+}
+
+// contentHash returns the stable hash over a session's searchable content, used
+// to skip re-indexing sessions whose content has not changed.
+func contentHash(name, plan, messages, scratch string) string {
+	combined := name + "\n" + plan + "\n" + messages + "\n" + scratch
+	h := sha256.Sum256([]byte(combined))
+	return hex.EncodeToString(h[:8])
+}
+
+// scratchContentOf concatenates scratch file titles and content for hashing.
+func scratchContentOf(files []store.ScratchFile) string {
+	var b strings.Builder
+	for _, sf := range files {
+		b.WriteString(sf.Title)
+		b.WriteString("\n")
+		b.WriteString(sf.Content)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // buildMessagesContent concatenates every message's content plus its tool calls.
