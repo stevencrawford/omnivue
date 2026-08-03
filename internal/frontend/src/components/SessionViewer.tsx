@@ -17,6 +17,7 @@ import type { Session, Message } from "../hooks/useApi";
 import { deleteScratchFile, fetchMessages } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
+import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
 import { useCopy } from "../hooks/useCopy";
 import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
@@ -416,7 +417,9 @@ export function SessionViewer({
         title={markdownModal?.title}
         size="xl"
       >
-        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
+        {markdownModal && (
+          <ModalMarkdownWrapper content={markdownModal.content} title={markdownModal.title} />
+        )}
       </Modal>
 
       {/* Create scratch file dialog */}
@@ -488,11 +491,12 @@ export function SessionViewer({
   );
 }
 
-function ModalMarkdownWrapper({ content }: { content: string }) {
+function ModalMarkdownWrapper({ content, title }: { content: string; title?: string }) {
   const { copied, copy } = useCopy(2000);
   return (
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <MarkdownScreenshotButton content={content} title={title} />
         <button
           type="button"
           onClick={() => copy(content)}

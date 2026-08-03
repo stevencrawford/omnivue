@@ -21,6 +21,8 @@ import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
 import { WebFetchToolDiff } from "./WebFetchToolDiff";
 import { WebSearchToolDiff } from "./WebSearchToolDiff";
 import { StoreMemoryToolDiff } from "./StoreMemoryToolDiff";
+import { ReadInboxToolDiff } from "./ReadInboxToolDiff";
+import { ReadMemoriesToolDiff } from "./ReadMemoriesToolDiff";
 import { DefaultToolDiff } from "./DefaultToolDiff";
 
 function fp(tool: ToolCall): string {
@@ -399,6 +401,33 @@ export const definitions: ToolRendererDefinition[] = [
     suppressCopy: true,
     markerColor: "#8b5cf6",
     markerLabel: "Memory",
+    markerDisplayType: "memory",
+    markerPriority: 15,
+  },
+  {
+    kind: "read_inbox",
+    names: ["read_inbox"],
+    Component: ReadInboxToolDiff,
+    summary: (tool) => {
+      const e = extractJSONField(tool.input, "entry_id") || "";
+      return `inbox: ${e.slice(0, 80)}`;
+    },
+    display: { type: "expandable", defaultOpen: true },
+    truncateOutput: 0,
+    markerColor: "#8b5cf6",
+    markerLabel: "Inbox",
+    markerDisplayType: "memory",
+    markerPriority: 15,
+  },
+  {
+    kind: "read_memories",
+    names: ["read_memories"],
+    Component: ReadMemoriesToolDiff,
+    summary: () => "memories",
+    display: { type: "expandable", defaultOpen: true },
+    truncateOutput: 0,
+    markerColor: "#8b5cf6",
+    markerLabel: "Memories",
     markerDisplayType: "memory",
     markerPriority: 15,
   },

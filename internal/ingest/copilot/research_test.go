@@ -182,9 +182,9 @@ func TestMessagesFromEvents_SubAgentMessageCount(t *testing.T) {
 	writeEventsJSONL(t, dir, "sess-1", []string{
 		`{"type":"user.message","data":{"content":"do it"},"id":"u1","timestamp":"2025-01-01T00:00:00Z"}`,
 		`{"type":"assistant.message","data":{"content":"","messageId":"a1","toolRequests":[{"toolCallId":"tool-1","name":"delegate","arguments":{}}]},"id":"e2","timestamp":"2025-01-01T00:00:01Z"}`,
-		`{"type":"subagent.started","data":{"toolCallId":"tool-1","agentName":"code-review","agentDisplayName":"Code Review"}}`,
-		`{"type":"user.message","data":{"content":"sub user"},"id":"u2","timestamp":"2025-01-01T00:00:02Z"}`,
-		`{"type":"assistant.message","data":{"content":"sub reply","messageId":"a2"},"id":"e4","timestamp":"2025-01-01T00:00:03Z"}`,
+		`{"type":"subagent.started","data":{"toolCallId":"tool-1","agentName":"code-review","agentDisplayName":"Code Review"},"agentId":"sub-1"}`,
+		`{"type":"user.message","data":{"content":"sub user"},"id":"u2","timestamp":"2025-01-01T00:00:02Z","agentId":"sub-1"}`,
+		`{"type":"assistant.message","data":{"content":"sub reply","messageId":"a2"},"id":"e4","timestamp":"2025-01-01T00:00:03Z","agentId":"sub-1"}`,
 		`{"type":"subagent.completed","data":{},"id":"e5"}`,
 	})
 	a := &Adapter{basePath: dir, syntheticSessions: make(map[string]*syntheticSession)}
@@ -206,4 +206,89 @@ func TestMessagesFromEvents_SubAgentMessageCount(t *testing.T) {
 			t.Errorf("expected ParentID sess-1, got %q", syn.session.ParentID)
 		}
 	}
+}
+
+func TestMessagesFromEvents_SubAgentFailedReleasesStack(t *testing.T) {
+	dir := t.TempDir()
+	writeEventsJSONL(t, dir, "sess-1", []string{
+		`{"type":"user.message","data":{"content":"do it"},"id":"u1","timestamp":"2025-01-01T00:00:00Z"}`,
+		`{"type":"assistant.message","data":{"content":"","messageId":"a1","toolRequests":[{"toolCallId":"tool-1","name":"delegate","arguments":{}}]},"id":"e2","timestamp":"2025-01-01T00:00:01Z"}`,
+		`{"type":"subagent.started","data":{"toolCallId":"tool-1","agentName":"sidekick","agentDisplayName":"Sidekick"}}`,
+		`{"type":"subagent.failed","data":{"toolCallId":"tool-1","error":"No response generated"},"id":"e4"}`,
+		`{"type":"user.message","data":{"content":"main user follow-up"},"id":"u3","timestamp":"2025-01-01T00:00:04Z"}`,
+		`{"type":"assistant.message","data":{"content":"main assistant reply","messageId":"a2"},"id":"e6","timestamp":"2025-01-01T00:00:05Z"}`,
+	})
+	a := &Adapter{basePath: dir, syntheticSessions: make(map[string]*syntheticSession)}
+
+	messages, err := a.messagesFromEvents("sess-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(messages) != 4 {
+		t.Fatalf("expected 4 messages after failed subagent, got %d", len(messages))
+	}
+	if got := messages[3].Content; got != "main assistant reply" {
+		t.Errorf("expected last message content %q, got %q", "main assistant reply", got)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.syntheticSessions) != 0 {
+		t.Errorf("expected no synthetic session for a failed subagent, got %d", len(a.syntheticSessions))
+	}
+}
+
+// TestMessagesFromEvents_MainAgentMessagesSurviveSubAgentInterleave reproduces
+// the case where a background sub-agent (e.g. Copilot's github-context-memory
+// sidekick) runs concurrently with the main agent. Main-agent messages that
+// arrive while the sub-agent is active must be routed into the main
+// conversation, not the sub-agent's buffer — otherwise they are discarded when
+// the sub-agent fails and the conversation loses real work.
+func TestMessagesFromEvents_MainAgentMessagesSurviveSubAgentInterleave(t *testing.T) {
+	dir := t.TempDir()
+	writeEventsJSONL(t, dir, "sess-1", []string{
+		`{"type":"user.message","data":{"content":"plan the PR work"},"id":"u1","timestamp":"2025-01-01T00:00:00Z"}`,
+		`{"type":"subagent.started","data":{"toolCallId":"tool-1","agentName":"github-context-memory","agentDisplayName":"GitHub Context (Memory)"},"agentId":"sidekick-1","id":"e2"}`,
+		`{"type":"assistant.message","data":{"content":"main view","messageId":"a1","toolRequests":[{"toolCallId":"tool-2","name":"view","arguments":{"path":"/src/App.java"}},{"toolCallId":"tool-3","name":"bash","arguments":{"command":"gh pr view"}}]},"id":"e3","timestamp":"2025-01-01T00:00:01Z"}`,
+		`{"type":"assistant.message","data":{"content":"","messageId":"a2","toolRequests":[{"toolCallId":"call-1","name":"read_memories","arguments":{}}]},"agentId":"sidekick-1","id":"e4","timestamp":"2025-01-01T00:00:02Z"}`,
+		`{"type":"assistant.message","data":{"content":"","messageId":"a3","toolRequests":[{"toolCallId":"tool-4","name":"bash","arguments":{"command":"gh pr diff"}},{"toolCallId":"tool-5","name":"glob","arguments":{"pattern":"**/*.java"}}]},"id":"e5","timestamp":"2025-01-01T00:00:03Z"}`,
+		`{"type":"subagent.failed","data":{"toolCallId":"tool-1","error":"No response generated"},"agentId":"sidekick-1","id":"e6"}`,
+		`{"type":"assistant.message","data":{"content":"","messageId":"a4","toolRequests":[{"toolCallId":"tool-6","name":"read_inbox","arguments":{"entry_id":"inbox-1"}}]},"id":"e7","timestamp":"2025-01-01T00:00:04Z"}`,
+	})
+	a := &Adapter{basePath: dir, syntheticSessions: make(map[string]*syntheticSession)}
+
+	messages, err := a.messagesFromEvents("sess-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(messages) != 4 {
+		t.Fatalf("expected 4 main messages (user + view/bash + bash/glob + read_inbox), got %d", len(messages))
+	}
+
+	wantTool := []string{"view", "bash"}
+	if got := toolNames(messages[1]); !strings.EqualFold(strings.Join(got, ","), strings.Join(wantTool, ",")) {
+		t.Errorf("expected tools %v in main message 1, got %v", wantTool, got)
+	}
+	if got := toolNames(messages[2]); got[0] != "bash" || got[1] != "glob" {
+		t.Errorf("expected tools [bash glob] in main message 2, got %v", got)
+	}
+	if got := toolNames(messages[3]); len(got) != 1 || got[0] != "read_inbox" {
+		t.Errorf("expected read_inbox as last main tool, got %v", got)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.syntheticSessions) != 0 {
+		t.Errorf("expected no synthetic session for a failed subagent, got %d", len(a.syntheticSessions))
+	}
+}
+
+func toolNames(m ingest.Message) []string {
+	var names []string
+	for _, tc := range m.ToolCalls {
+		names = append(names, tc.Name)
+	}
+	return names
 }

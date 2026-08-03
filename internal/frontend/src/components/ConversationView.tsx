@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { CirclePlus, ChevronDown, ChevronUp, TriangleAlert, ArrowRight, Info } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { shouldShowStepContent } from "../utils/toolDisplay";
@@ -16,24 +16,28 @@ import { useSessionNav } from "../hooks/useNav";
 
 import { relativeTime } from "../utils/sessionUtils";
 
-function groupMessages(messages: Message[]): Message[] {
+interface GroupResult {
+  grouped: Message[];
+  ownerByRawIndex: number[];
+}
+
+function groupMessages(messages: Message[]): GroupResult {
   const result: Message[] = [];
+  const ownerByRawIndex: number[] = [];
   for (const msg of messages) {
     if (msg.role === "assistant") {
       const tools = msg.toolCalls ?? [];
       if (tools.length > 0 && !shouldShowStepContent(msg.content ?? "", tools)) {
         const last = result[result.length - 1];
         if (last && last.role === "assistant" && last.toolCalls && last.toolCalls.length > 0) {
-          if (last.toolCalls.some((tc) => tc.name === "question")) {
-            // Don't merge into a message with a question tool call
-            // so question + answer + follow-up remain distinct
-          } else {
+          if (!last.toolCalls.some((tc) => tc.name === "question")) {
             last.toolCalls = [...last.toolCalls, ...tools];
             if (msg.reasoning) {
               last.reasoning = last.reasoning
                 ? last.reasoning + "\n\n" + msg.reasoning
                 : msg.reasoning;
             }
+            ownerByRawIndex.push(result.length - 1);
             continue;
           }
         }
@@ -48,13 +52,15 @@ function groupMessages(messages: Message[]): Message[] {
           if (msg.reasoning) {
             last.reasoning = last.reasoning + "\n\n" + msg.reasoning;
           }
+          ownerByRawIndex.push(result.length - 1);
           continue;
         }
       }
     }
     result.push({ ...msg, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined });
+    ownerByRawIndex.push(result.length - 1);
   }
-  return result;
+  return { grouped: result, ownerByRawIndex };
 }
 
 function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
@@ -191,7 +197,7 @@ export function ConversationView({
 
   const firstMessage = messages[0];
   const tail = messages.slice(1);
-  const grouped = useMemo(() => groupMessages(tail), [tail]);
+  const { grouped, ownerByRawIndex } = useMemo(() => groupMessages(tail), [tail]);
 
   const systemReminders = useMemo(
     () => messages.filter((m) => m.role === "system" && m.metadata?.type === "system_reminder"),
@@ -200,6 +206,45 @@ export function ConversationView({
   const messagesWithoutReminders = useMemo(
     () => grouped.filter((m) => m.role !== "system" || m.metadata?.type !== "system_reminder"),
     [grouped],
+  );
+
+  // Map raw message positions/ids to the rendered block index in
+  // messagesWithoutReminders. Assistant tool-call messages that are merged into
+  // a previous message resolve to the block they were absorbed into, so
+  // notifications (which carry raw messageIndex/messageId) can always find the
+  // correct rendered element.
+  const renderedIndexByRaw = useMemo(() => {
+    const groupedIdxToRendered = new Map<number, number>();
+    grouped.forEach((m, gi) => {
+      if (m.role !== "system" || m.metadata?.type !== "system_reminder") {
+        groupedIdxToRendered.set(gi, groupedIdxToRendered.size);
+      }
+    });
+    const byIndex = new Map<number, number>();
+    const byId = new Map<string, number>();
+    ownerByRawIndex.forEach((ownerGroupedIdx, ti) => {
+      const rendered = groupedIdxToRendered.get(ownerGroupedIdx);
+      if (rendered === undefined) return;
+      byIndex.set(ti + 1, rendered);
+      const msg = tail[ti];
+      if (msg?.id) byId.set(msg.id, rendered);
+    });
+    messagesWithoutReminders.forEach((m, ri) => {
+      if (m.id) byId.set(m.id, ri);
+    });
+    return { byIndex, byId };
+  }, [grouped, ownerByRawIndex, messagesWithoutReminders, tail]);
+
+  const resolveRenderIndex = useCallback(
+    (rawIndex: number | undefined, messageId: string | undefined): number | undefined => {
+      if (messageId !== undefined) {
+        const viaId = renderedIndexByRaw.byId.get(messageId);
+        if (viaId !== undefined) return viaId;
+      }
+      if (rawIndex !== undefined) return renderedIndexByRaw.byIndex.get(rawIndex);
+      return undefined;
+    },
+    [renderedIndexByRaw],
   );
 
   useSearchHighlight(
@@ -211,6 +256,7 @@ export function ConversationView({
     focusMessageId,
     messagesWithoutReminders,
     onClearFocus,
+    resolveRenderIndex,
   );
 
   useEffect(() => {
@@ -243,14 +289,16 @@ export function ConversationView({
             <p className="text-sm text-ov-text-secondary">No messages in this session</p>
           </div>
         </div>
-        <PinnedPromptBar
-          session={session}
-          firstMessage={firstMessage}
-          onOpenModal={onOpenModal}
-          onQueueChanged={onQueueChanged}
-          highlightPromptId={highlightPromptId}
-          onHighlightDone={onHighlightDone}
-        />
+        {!session.parentId && (
+          <PinnedPromptBar
+            session={session}
+            firstMessage={firstMessage}
+            onOpenModal={onOpenModal}
+            onQueueChanged={onQueueChanged}
+            highlightPromptId={highlightPromptId}
+            onHighlightDone={onHighlightDone}
+          />
+        )}
       </div>
     );
   }
@@ -338,14 +386,16 @@ export function ConversationView({
         />
       </div>
 
-      <PinnedPromptBar
-        session={session}
-        firstMessage={firstMessage}
-        onOpenModal={onOpenModal}
-        onQueueChanged={onQueueChanged}
-        highlightPromptId={highlightPromptId}
-        onHighlightDone={onHighlightDone}
-      />
+      {!session.parentId && (
+        <PinnedPromptBar
+          session={session}
+          firstMessage={firstMessage}
+          onOpenModal={onOpenModal}
+          onQueueChanged={onQueueChanged}
+          highlightPromptId={highlightPromptId}
+          onHighlightDone={onHighlightDone}
+        />
+      )}
     </div>
   );
 }
