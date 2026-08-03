@@ -32,14 +32,20 @@ export function ToolActionsBar({
   inputText?: string;
   copyKind?: string;
 }) {
+  // Screenshots only ever capture markdown content, which must be supplied
+  // explicitly (never the possibly-truncated raw tool.output).
+  const markdownContent = screenshotText ?? pinText;
+
   return (
     <div className="flex items-center gap-0.5 shrink-0">
       {showPin && (pinText || tool.output) && onPin && (
         <>
-          <MarkdownScreenshotButton
-            content={screenshotText ?? pinText ?? tool.output}
-            className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-          />
+          {markdownContent && (
+            <MarkdownScreenshotButton
+              content={markdownContent}
+              className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
+            />
+          )}
           <button
             type="button"
             onClick={(e) => {

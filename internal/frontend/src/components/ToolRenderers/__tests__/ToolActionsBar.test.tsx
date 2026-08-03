@@ -12,9 +12,23 @@ const tool: ToolCall = {
 };
 
 describe("ToolActionsBar", () => {
-  it("shows the screenshot button alongside the pin button", () => {
-    render(<ToolActionsBar tool={tool} showPin onPin={() => {}} />);
+  it("shows the screenshot button when explicit markdown content is provided", () => {
+    render(
+      <ToolActionsBar
+        tool={tool}
+        showPin
+        pinText="# hello"
+        onPin={() => {}}
+        screenshotText="# hello"
+      />,
+    );
     expect(screen.getByTitle("Screenshot")).toBeDefined();
+    expect(screen.getByTitle("Pin as scratch note")).toBeDefined();
+  });
+
+  it("does not show a screenshot button for raw (possibly truncated) tool output", () => {
+    render(<ToolActionsBar tool={tool} showPin onPin={() => {}} />);
+    expect(screen.queryByTitle("Screenshot")).toBeNull();
     expect(screen.getByTitle("Pin as scratch note")).toBeDefined();
   });
 
