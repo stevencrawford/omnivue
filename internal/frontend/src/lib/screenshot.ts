@@ -1,5 +1,23 @@
 import { toPng } from "html-to-image";
 
+/**
+ * Prepares a capture node for rasterization: expands any collapsed content
+ * (`<details>` blocks) and removes `max-height` truncation clamps so the
+ * screenshot shows everything fully expanded.
+ */
+export function capturePrep(node: HTMLElement): void {
+  node.querySelectorAll("details").forEach((d) => {
+    if (!d.open) d.open = true;
+  });
+  node.querySelectorAll<HTMLElement>("*").forEach((el) => {
+    const maxHeight = getComputedStyle(el).maxHeight;
+    if (maxHeight && maxHeight !== "none") {
+      el.style.maxHeight = "none";
+      el.style.overflow = "visible";
+    }
+  });
+}
+
 /** Rasterizes a DOM node to a PNG blob at retina resolution. */
 export async function captureNodeToBlob(node: HTMLElement): Promise<Blob> {
   const dataUrl = await toPng(node, {
