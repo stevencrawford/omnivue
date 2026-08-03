@@ -11,6 +11,7 @@ var canonicalToolNames = []string{
 	"read", "write", "edit", "bash", "grep", "glob", "task",
 	"todowrite", "task_complete", "question", "websearch",
 	"webfetch", "delete", "model_switch", "compaction",
+	"codesearch", "read_lints", "exit_plan_mode",
 }
 
 // CanonicalToolNames returns the set of standard tool call names.

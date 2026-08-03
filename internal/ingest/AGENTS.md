@@ -71,15 +71,15 @@ if err != nil {
 ### Content Truncation
 
 Large file content in tool call input/output fields can bloat API payloads. `ingestkit.MaxContentBytes`
-(in `internal/ingest/ingestkit/util.go`) caps blocks at 2000 bytes:
+(in `internal/ingest/ingestkit/util.go`) is the shared cap, currently 2000 bytes. Truncate content
+with `ingestkit.TruncateContent`, which is `nil`-safe and returns the original string unchanged
+when it is already within the limit:
 
 ```go
-s := ingestkit.MaxContentBytes(s)
+s := ingestkit.TruncateContent(s, ingestkit.MaxContentBytes)
 ```
 
-`MaxContentBytes` is `nil`-safe and returns the original string unchanged when it is already
-within the limit. Apply it whenever embedding file contents into `ToolCall.Input` or
-`ToolCall.Output`.
+Apply it whenever embedding file contents into `ToolCall.Input` or `ToolCall.Output`.
 
 ### Error Handling
 
@@ -156,7 +156,7 @@ raw `bufio.Scanner` for all JSONL parsing.
 - **Session data**: Each `.jsonl` file is a session, starting with a session header line (`"session"` type) followed by event lines
 - **Events**: `model_change`, `thinking_level_change`, `message` (user/assistant), `toolResult`
 - **Messages**: Assistant messages may contain `text`, `thinking` (reasoning), and `toolCall` content parts
-- **Tool calls**: Parsed from JSON but not normalized to standard names (pass-through)
+- **Tool calls**: Parsed from JSON; native names mapped to the standard set via `ingestkit.CanonicalizeToolName`, with field renames via the `piRenameRules` table in `normalize.go`
 - **Plans/Diffs**: Not supported — returns `(nil, nil)`
 - **Resume**: `cd /path && pi --session <id>`
 - **Key pattern**: Parse JSONL files with scanner, read first line as session header, subsequent lines as events:
@@ -190,7 +190,7 @@ the field names it actually emits. Example (Cursor's read rule):
 |-------------|-----------------|
 | `targetFile` / `effectiveUri` / `relativeWorkspacePath` | `filePath` |
 
-A `RenameRule` has `FilePath`, `NewString`, `OldString`, `Query`, `Pattern`, `Directory`,
+A `RenameRules` value has `FilePath`, `NewString`, `OldString`, `Query`, `Pattern`, `Directory`,
 `CopyNewString` (copy a field into `newString`), and `Drop` (remove a field) members.
 Copy the canonical-name table **out of** `ingestkit` (never redefine it in an adapter), but
 copy the per-adapter field renames **into** your adapter — do not union every agent's field
