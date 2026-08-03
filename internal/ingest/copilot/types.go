@@ -103,6 +103,7 @@ type eventsMetadata struct {
 
 // subAgentState tracks the buffering of sub-agent events between subagent.started and subagent.completed.
 type subAgentState struct {
+	agentID       string
 	toolCallID    string
 	agentName     string
 	agentDisplay  string

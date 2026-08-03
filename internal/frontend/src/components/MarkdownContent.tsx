@@ -7,6 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import { useCopy } from "../hooks/useCopy";
 import { useSearchHighlight } from "../hooks/useNav";
 import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
+import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
 
 interface MarkdownContentProps {
   content: string;
@@ -102,14 +103,20 @@ export function MarkdownContent({
             />
           </button>
           {!hideCopy && (
-            <button
-              type="button"
-              onClick={() => copy(content)}
-              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-              title="Copy"
-            >
-              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => copy(content)}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                title="Copy"
+              >
+                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              </button>
+              <MarkdownScreenshotButton
+                content={content}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              />
+            </>
           )}
           {onPin && (
             <button
@@ -189,14 +196,17 @@ export function MarkdownContent({
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {!hideCopy && (
-          <button
-            type="button"
-            onClick={() => copy(content)}
-            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
-            title="Copy"
-          >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => copy(content)}
+              className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+              title="Copy"
+            >
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            </button>
+            <MarkdownScreenshotButton content={content} />
+          </>
         )}
         {onPin && (
           <button

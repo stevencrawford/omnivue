@@ -48,11 +48,8 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 					msg.Content = cleaned
 					msg.Metadata = map[string]string{"type": "system_reminder_inline"}
 				}
-				if len(subAgentStack) > 0 {
-					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
-				} else {
-					messages = append(messages, *msg)
-				}
+				target := routeTarget(event, subAgentStack, &messages)
+				*target = append(*target, *msg)
 			}
 
 		case "assistant.message":
@@ -77,20 +74,13 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 				for i := range msg.ToolCalls {
 					normalizeSQLToTodoWrite(&msg.ToolCalls[i], todoState)
 				}
-				if len(subAgentStack) > 0 {
-					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
-				} else {
-					messages = append(messages, *msg)
-				}
+				target := routeTarget(event, subAgentStack, &messages)
+				*target = append(*target, *msg)
 			}
 
 		case "tool.execution_complete":
 			if data := handleToolComplete(event); data != nil {
-				if len(subAgentStack) > 0 {
-					updateToolCallResult(&subAgentStack[len(subAgentStack)-1].messages, *data)
-				} else {
-					updateToolCallResult(&messages, *data)
-				}
+				updateToolCallResult(routeTarget(event, subAgentStack, &messages), *data)
 			}
 
 		case "subagent.started":
@@ -101,13 +91,13 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 		case "subagent.completed":
 			a.handleSubAgentCompleted(sessionID, &subAgentStack, &messages)
 
+		case "subagent.failed":
+			a.handleSubAgentFailed(&subAgentStack)
+
 		case "system_reminder":
 			if msg := handleSystemReminder(event); msg != nil {
-				if len(subAgentStack) > 0 {
-					subAgentStack[len(subAgentStack)-1].messages = append(subAgentStack[len(subAgentStack)-1].messages, *msg)
-				} else {
-					messages = append(messages, *msg)
-				}
+				target := routeTarget(event, subAgentStack, &messages)
+				*target = append(*target, *msg)
 			}
 
 		case "session.shutdown":
@@ -258,6 +248,7 @@ func handleSubAgentStarted(event eventEnvelope, messages []ingest.Message) *subA
 		return nil
 	}
 	sa := &subAgentState{
+		agentID:       event.AgentID,
 		toolCallID:    data.ToolCallID,
 		agentName:     data.AgentName,
 		agentDisplay:  data.AgentDisplayName,
@@ -278,6 +269,24 @@ func handleSubAgentStarted(event eventEnvelope, messages []ingest.Message) *subA
 		}
 	}
 	return sa
+}
+
+// routeTarget returns the message slice that an event should be routed into.
+// Events produced by the active sub-agent (matching its agentID) go into that
+// sub-agent's buffer; all other events — including main-agent messages that
+// interleave while a background sub-agent is running — belong to the main
+// conversation. Routing by agent identity (rather than stack depth) ensures a
+// concurrently running sub-agent never swallows the main conversation.
+func routeTarget(event eventEnvelope, subAgentStack []*subAgentState, messages *[]ingest.Message) *[]ingest.Message {
+	if event.AgentID == "" {
+		return messages
+	}
+	for i := range slices.Backward(subAgentStack) {
+		if subAgentStack[i].agentID == event.AgentID {
+			return &subAgentStack[i].messages
+		}
+	}
+	return messages
 }
 
 func (a *Adapter) handleSubAgentCompleted(sessionID string, subAgentStack *[]*subAgentState, messages *[]ingest.Message) {
@@ -335,6 +344,19 @@ func (a *Adapter) handleSubAgentCompleted(sessionID string, subAgentStack *[]*su
 			tc.Metadata = string(metaBytes)
 		}
 	}
+}
+
+// handleSubAgentFailed pops a sub-agent's buffered state after the agent
+// reports a failure via a subagent.failed event. Unlike a completed subagent,
+// a failed one produces no usable transcript, so its buffered messages are
+// discarded and no synthetic session is created. Popping the stack is required
+// to release the parent conversation so its subsequent messages are no longer
+// routed into the sub-agent's buffer.
+func (a *Adapter) handleSubAgentFailed(subAgentStack *[]*subAgentState) {
+	if len(*subAgentStack) == 0 {
+		return
+	}
+	*subAgentStack = (*subAgentStack)[:len(*subAgentStack)-1]
 }
 
 func handleSystemReminder(event eventEnvelope) *ingest.Message {
