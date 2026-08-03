@@ -198,6 +198,9 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		}
 
 		if msg.Role == ingest.MessageRoleUser {
+			if len(msg.Content) > ingest.DefaultMessageContentBytes {
+				msg.Content = ingestkit.TruncateContent(msg.Content, ingest.DefaultMessageContentBytes)
+			}
 			msg.Content = wrapEmbeddedFileContent(msg.Content)
 		}
 

@@ -187,7 +187,14 @@ func (s *State) Messages(ctx context.Context, sessionID string) ([]ingest.Messag
 	if err != nil {
 		return nil, err
 	}
-	return adapter.Messages(ctx, sessionID)
+	messages, err := adapter.Messages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	// Bound oversized message content before it reaches the frontend, where the
+	// synchronous markdown renderer would otherwise hang on a multi-megabyte part.
+	ingest.CapMessages(messages, s.maxMessageContentBytes())
+	return messages, nil
 }
 
 // Plan returns the plan for a session.
@@ -978,6 +985,10 @@ func (s *State) sendEvent(event sseEvent) {
 
 const notifySettingsKey = "notifications.settings"
 
+// messageContentMaxKey is the config key controlling the byte cap applied to a
+// single message's Content/Reasoning before it is served to the frontend.
+const messageContentMaxKey = "server.maxContentBytes"
+
 // loadNotifySettings loads notification settings from the config table,
 // falling back to defaults on any error or missing row.
 func (s *State) loadNotifySettings() notify.Settings {
@@ -1008,6 +1019,24 @@ func (s *State) saveNotifySettings(settings notify.Settings) error {
 		return fmt.Errorf("save settings: %w", err)
 	}
 	return nil
+}
+
+// maxMessageContentBytes returns the configured cap for a single message's
+// Content/Reasoning, defaulting to ingest.DefaultMessageContentBytes when the
+// config key is unset or invalid.
+func (s *State) maxMessageContentBytes() int {
+	if s.store == nil {
+		return ingest.DefaultMessageContentBytes
+	}
+	raw, err := s.store.Config(messageContentMaxKey)
+	if err != nil || raw == "" {
+		return ingest.DefaultMessageContentBytes
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return ingest.DefaultMessageContentBytes
+	}
+	return n
 }
 
 // reportActiveView records that the given session is currently being viewed by
