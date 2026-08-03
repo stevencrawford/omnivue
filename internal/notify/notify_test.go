@@ -228,6 +228,48 @@ func TestClassify_NewToolCallSkipsQuestionAndTask(t *testing.T) {
 	}
 }
 
+func TestPreviewForQuestion_PrefersToolInput(t *testing.T) {
+	// OpenCode stores the ask in the tool input; the message content holds the
+	// assistant's preceding narrative and must not win.
+	input := `{"questions":[{"question":"What flash crash threshold?","header":"Choose threshold","options":[{"label":"3.0x"}]}]}`
+	content := "I reviewed the current settings before asking."
+	if got := previewForQuestion(content, input); got != "What flash crash threshold?" {
+		t.Errorf("expected question text from tool input, got %q", got)
+	}
+}
+
+func TestPreviewForQuestion_MultipleQuestionsUsesFirst(t *testing.T) {
+	input := `{"questions":[{"header":"Scope","question":"Which files should I change?","options":[{"label":"All"}]},{"question":"Any constraints?","options":[{"label":"No"}]}]}`
+	if got := previewForQuestion("", input); got != "Which files should I change?" {
+		t.Errorf("expected first question, got %q", got)
+	}
+}
+
+func TestPreviewForQuestion_FallsBackToContent(t *testing.T) {
+	// No usable input (invalid JSON) -> message content is used.
+	if got := previewForQuestion("should I refactor?", "pick a plan"); got != "should I refactor?" {
+		t.Errorf("expected content fallback, got %q", got)
+	}
+	// Empty input and empty content -> default.
+	if got := previewForQuestion("", ""); got != "Agent asked you a question" {
+		t.Errorf("expected default preview, got %q", got)
+	}
+}
+
+func TestPreviewForPermission_PrefersCommand(t *testing.T) {
+	input := `{"command":"rm -rf /tmp/build","choices":["Allow","Deny"]}`
+	if got := previewForPermission("cleaning up the build directory", input); got != "rm -rf /tmp/build" {
+		t.Errorf("expected command from tool input, got %q", got)
+	}
+}
+
+func TestPreviewForPermission_PrefersQuestionText(t *testing.T) {
+	input := `{"questions":[{"question":"Allow running this script?","options":[{"label":"Allow once","description":"runs the script"}]}]}`
+	if got := previewForPermission("the assistant wants to run a script", input); got != "Allow running this script?" {
+		t.Errorf("expected question text from tool input, got %q", got)
+	}
+}
+
 func TestInQuietHours_Overnight(t *testing.T) {
 	settings := Settings{QuietHoursEnabled: true, QuietHoursStart: "22:00", QuietHoursEnd: "08:00"}
 	if !InQuietHours(time.Date(2026, 7, 4, 23, 30, 0, 0, time.Local), settings) {
