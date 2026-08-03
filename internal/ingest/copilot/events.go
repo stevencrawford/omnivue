@@ -103,6 +103,9 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 		case "subagent.completed":
 			a.handleSubAgentCompleted(sessionID, &subAgentStack, &messages)
 
+		case "subagent.failed":
+			a.handleSubAgentFailed(&subAgentStack)
+
 		case "system_reminder":
 			if msg := handleSystemReminder(event); msg != nil {
 				if len(subAgentStack) > 0 {
@@ -339,6 +342,19 @@ func (a *Adapter) handleSubAgentCompleted(sessionID string, subAgentStack *[]*su
 	}
 }
 
+// handleSubAgentFailed pops a sub-agent's buffered state after the agent
+// reports a failure via a subagent.failed event. Unlike a completed subagent,
+// a failed one produces no usable transcript, so its buffered messages are
+// discarded and no synthetic session is created. Popping the stack is required
+// to release the parent conversation so its subsequent messages are no longer
+// routed into the sub-agent's buffer.
+func (a *Adapter) handleSubAgentFailed(subAgentStack *[]*subAgentState) {
+	if len(*subAgentStack) == 0 {
+		return
+	}
+	*subAgentStack = (*subAgentStack)[:len(*subAgentStack)-1]
+}
+
 func handleSystemReminder(event eventEnvelope) *ingest.Message {
 	var data systemReminderData
 	if json.Unmarshal(event.Data, &data) != nil {
@@ -450,5 +466,3 @@ func extractCopilotPatchPath(patch string) string {
 	}
 	return ""
 }
-
-

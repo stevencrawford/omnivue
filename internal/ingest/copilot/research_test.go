@@ -207,3 +207,34 @@ func TestMessagesFromEvents_SubAgentMessageCount(t *testing.T) {
 		}
 	}
 }
+
+func TestMessagesFromEvents_SubAgentFailedReleasesStack(t *testing.T) {
+	dir := t.TempDir()
+	writeEventsJSONL(t, dir, "sess-1", []string{
+		`{"type":"user.message","data":{"content":"do it"},"id":"u1","timestamp":"2025-01-01T00:00:00Z"}`,
+		`{"type":"assistant.message","data":{"content":"","messageId":"a1","toolRequests":[{"toolCallId":"tool-1","name":"delegate","arguments":{}}]},"id":"e2","timestamp":"2025-01-01T00:00:01Z"}`,
+		`{"type":"subagent.started","data":{"toolCallId":"tool-1","agentName":"sidekick","agentDisplayName":"Sidekick"}}`,
+		`{"type":"subagent.failed","data":{"toolCallId":"tool-1","error":"No response generated"},"id":"e4"}`,
+		`{"type":"user.message","data":{"content":"main user follow-up"},"id":"u3","timestamp":"2025-01-01T00:00:04Z"}`,
+		`{"type":"assistant.message","data":{"content":"main assistant reply","messageId":"a2"},"id":"e6","timestamp":"2025-01-01T00:00:05Z"}`,
+	})
+	a := &Adapter{basePath: dir, syntheticSessions: make(map[string]*syntheticSession)}
+
+	messages, err := a.messagesFromEvents("sess-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(messages) != 4 {
+		t.Fatalf("expected 4 messages after failed subagent, got %d", len(messages))
+	}
+	if got := messages[3].Content; got != "main assistant reply" {
+		t.Errorf("expected last message content %q, got %q", "main assistant reply", got)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.syntheticSessions) != 0 {
+		t.Errorf("expected no synthetic session for a failed subagent, got %d", len(a.syntheticSessions))
+	}
+}
