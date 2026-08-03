@@ -340,46 +340,67 @@ func previewText(content, fallback string) string {
 }
 
 // previewForQuestion builds a preview for question tool call notifications.
-// It prefers the message content, then tries to extract text from the tool
-// input JSON (which may contain a "question", "text", "prompt", or "message"
-// field), and falls back to a descriptive default.
+// It prefers the question text carried by the tool input (the actual ask),
+// then the message content, and falls back to a descriptive default. Some
+// agents (e.g. OpenCode) embed the question in the tool input while the
+// message content holds the assistant's preceding narrative.
 func previewForQuestion(content, input string) string {
-	if s := strings.TrimSpace(content); s != "" && s != "{}" {
-		return previewText(s, "")
-	}
 	var data map[string]any
 	if json.Unmarshal([]byte(input), &data) == nil {
-		for _, key := range []string{"question", "text", "prompt", "message"} {
-			if s, ok := data[key].(string); ok && s != "" {
-				return previewText(s, "")
-			}
+		if s := questionTextFromInput(data); s != "" {
+			return previewText(s, "")
 		}
+	}
+	if s := strings.TrimSpace(content); s != "" && s != "{}" {
+		return previewText(s, "")
 	}
 	return "Agent asked you a question"
 }
 
 // previewForPermission builds a preview for permission request notifications.
-// It prefers the message content, then tries to extract a "command" or
-// "questions[0].question" field from the tool input JSON, and falls back to
-// a descriptive default.
+// It prefers the requested "command" or the question text from the tool input,
+// then the message content, and falls back to a descriptive default.
 func previewForPermission(content, input string) string {
-	if s := strings.TrimSpace(content); s != "" && s != "{}" {
-		return previewText(s, "")
-	}
 	var data map[string]any
 	if json.Unmarshal([]byte(input), &data) == nil {
 		if s, ok := data["command"].(string); ok && s != "" {
 			return previewText(s, "")
 		}
-		if qs, ok := data["questions"].([]any); ok && len(qs) > 0 {
-			if q, ok := qs[0].(map[string]any); ok {
-				if s, ok := q["question"].(string); ok && s != "" {
-					return previewText(s, "")
+		if s := questionTextFromInput(data); s != "" {
+			return previewText(s, "")
+		}
+	}
+	if s := strings.TrimSpace(content); s != "" && s != "{}" {
+		return previewText(s, "")
+	}
+	return "Session is blocked awaiting permissions"
+}
+
+// questionTextFromInput extracts the text of the first question from a
+// question/permission tool input. Supported shapes:
+//
+//   - a top-level "question" string,
+//   - a "questions" array whose first entry has "question" or "header", or
+//   - top-level "text", "prompt", or "message" strings.
+func questionTextFromInput(data map[string]any) string {
+	if s, ok := data["question"].(string); ok && s != "" {
+		return s
+	}
+	if qs, ok := data["questions"].([]any); ok && len(qs) > 0 {
+		if q, ok := qs[0].(map[string]any); ok {
+			for _, key := range []string{"question", "header"} {
+				if s, ok := q[key].(string); ok && s != "" {
+					return s
 				}
 			}
 		}
 	}
-	return "Session is blocked awaiting permissions"
+	for _, key := range []string{"text", "prompt", "message"} {
+		if s, ok := data[key].(string); ok && s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // isPermissionInput reports whether the tool input represents a permission
