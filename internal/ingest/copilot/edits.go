@@ -1,7 +1,6 @@
 package copilot
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -23,8 +22,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 
 	var edits []ingest.FileEdit
 	var msgCounter int
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	for scanner.Scan() {
 		var event eventEnvelope

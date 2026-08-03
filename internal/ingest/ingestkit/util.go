@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 )
@@ -49,9 +48,10 @@ func HasPlanContent(text string) bool {
 }
 
 const (
-	// DefaultJSONLBufferSize is the initial buffer size for bufio.Scanner when reading JSONL lines.
-	// File content embedded in JSONL lines can exceed the default 64KB limit.
-	DefaultJSONLBufferSize = 4 * 1024 * 1024
+	// DefaultJSONLBufferSize is the buffer size for bufio.Scanner when reading JSONL lines.
+	// File content embedded in JSONL lines can exceed the default 64KB limit; the largest
+	// lines (Copilot events with embedded file contents) require up to 10MB.
+	DefaultJSONLBufferSize = 10 * 1024 * 1024
 
 	// MaxContentBytes is the maximum number of bytes for tool call input/output
 	// content before truncation. Shared across adapters to keep truncation
@@ -213,27 +213,6 @@ func TruncateContent(s string, maxBytes int) string {
 		end = maxBytes
 	}
 	return s[:end] + "\n… (truncated)"
-}
-
-// canonicalToolNames is the set of standard tool call names that all adapters
-// normalize to. Each adapter's normalize.go maps its native names to this set.
-var canonicalToolNames = []string{
-	"read", "write", "edit", "bash", "grep", "glob", "task",
-	"todowrite", "task_complete", "question", "websearch",
-	"webfetch", "delete", "model_switch", "compaction",
-}
-
-// CanonicalToolNames returns the set of standard tool call names.
-func CanonicalToolNames() []string {
-	out := make([]string, len(canonicalToolNames))
-	copy(out, canonicalToolNames)
-	return out
-}
-
-// IsCanonicalToolName reports whether name is one of the standard tool call
-// names that adapters normalize to.
-func IsCanonicalToolName(name string) bool {
-	return slices.Contains(canonicalToolNames, name)
 }
 
 // FindCursorVscdbPath resolves a Cursor entry path (directory or file) to the

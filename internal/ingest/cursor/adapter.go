@@ -60,10 +60,6 @@ func New(vscdbPath string) (*Adapter, error) {
 	return a, nil
 }
 
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentCursor }
-
-func (a *Adapter) Detect(path string) bool { return path == a.vscdbPath }
-
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {
 	dir := session.Directory
 	if dir == "" {

@@ -3,7 +3,6 @@ package opencode
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
@@ -37,14 +36,6 @@ func New(basePath string) (*Adapter, error) {
 		return nil, fmt.Errorf("opencode adapter: %w", err)
 	}
 	return &Adapter{db: db, basePath: basePath}, nil
-}
-
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentOpenCode }
-
-func (a *Adapter) Detect(path string) bool {
-	dbPath := filepath.Join(path, "opencode.db")
-	_, err := os.Stat(dbPath)
-	return err == nil
 }
 
 func (a *Adapter) ResumeCommand(session *ingest.Session) string {

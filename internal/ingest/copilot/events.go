@@ -1,7 +1,6 @@
 package copilot
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -29,8 +28,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var shutdownSnapshots []shutdownSnapshot
 	var pendingReasoning string
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
+	scanner := ingestkit.NewJSONLScanner(f)
 
 	for scanner.Scan() {
 		var event eventEnvelope

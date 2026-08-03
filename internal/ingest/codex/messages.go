@@ -94,7 +94,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			case "function_call":
 				tc := &ingest.ToolCall{
 					ID:     pl.CallID,
-					Name:   normalizeToolName(pl.Name),
+					Name:   ingestkit.CanonicalizeToolName(pl.Name),
 					Input:  pl.Arguments,
 					Status: ingest.ToolCallRunning,
 				}
@@ -111,7 +111,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			case "custom_tool_call":
 				tc := &ingest.ToolCall{
 					ID:     pl.CallID,
-					Name:   normalizeToolName(pl.Name),
+					Name:   ingestkit.CanonicalizeToolName(pl.Name),
 					Input:  pl.Input,
 					Status: ingest.ToolCallRunning,
 				}

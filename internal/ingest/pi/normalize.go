@@ -8,33 +8,39 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
+// piRenameRules holds Pi's conservative field-rename rules per canonical tool
+// kind, applied via ingestkit.RenameToolKeys. Pi keeps its "content" key
+// alongside the canonical "newString", so it is copied rather than moved.
+var piRenameRules = map[string]ingestkit.RenameRules{
+	"read": {
+		FilePath: []string{"file", "path"},
+	},
+	"edit": {
+		FilePath:      []string{"file", "path", "file_path"},
+		NewString:     []string{"new_content", "updated_content"},
+		OldString:     []string{"old_content"},
+		CopyNewString: []string{"content"},
+	},
+	"write": {
+		FilePath:      []string{"file", "path", "file_path"},
+		NewString:     []string{"new_content", "updated_content"},
+		OldString:     []string{"old_content"},
+		CopyNewString: []string{"content"},
+	},
+	"grep": {
+		Query: []string{"pattern"},
+	},
+}
+
 // normalizeToolCall maps Pi-native tool call names and field names to the
-// standard conventions expected by the frontend's tool renderers.
+// standard conventions expected by the frontend's tool renderers. Name
+// mapping is centralized in ingestkit.CanonicalizeToolName; field renaming is
+// applied through the shared ingestkit.RenameToolKeys mechanism.
 func normalizeToolCall(tc *ingest.ToolCall) {
-	switch tc.Name {
-	case "read_file", "read_files", "view_file":
-		tc.Name = "read"
-	case "write", "write_file", "create_file", "new_file":
-		tc.Name = "write"
-	case "edit", "edit_file", "edit_file_content", "modify_file", "apply_diff", "replace_text":
-		tc.Name = "edit"
-	case "delete_file", "remove_file":
-		tc.Name = "delete"
-	case "run_command", "execute_command", "shell", "run_terminal":
-		tc.Name = "bash"
-	case "search_files", "grep_search", "find_text", "search_text":
-		tc.Name = "grep"
-	case "list_files", "list_directory", "find_file":
-		tc.Name = "glob"
-	case "ask_question", "ask_user", "prompt_user":
-		tc.Name = "question"
-	case "fetch_url", "http_request", "make_request", "web_fetch":
-		tc.Name = "webfetch"
-	case "web_search", "search_web", "search_internet":
-		tc.Name = "websearch"
-	default:
+	if tc.Name == "" {
 		return
 	}
+	tc.Name = ingestkit.CanonicalizeToolName(tc.Name)
 
 	if tc.Input == "" {
 		return
@@ -47,65 +53,13 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 
 	switch tc.Name {
 	case "read":
-		if v, ok := p["file"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "file")
-		}
-		if v, ok := p["path"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "path")
-		}
+		ingestkit.RenameToolKeys(p, piRenameRules["read"])
 		if content := ingestkit.ExtractJSONString(tc.Output, "content"); content != "" {
 			tc.Output = content
 		}
 
 	case "edit", "write":
-		if v, ok := p["file"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "file")
-		}
-		if v, ok := p["path"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "path")
-		}
-		if v, ok := p["file_path"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "file_path")
-		}
-		if v, ok := p["new_content"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-			delete(p, "new_content")
-		}
-		if v, ok := p["updated_content"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-			delete(p, "updated_content")
-		}
-		if v, ok := p["content"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-		}
-		if v, ok := p["old_content"]; ok {
-			if _, exists := p["oldString"]; !exists {
-				p["oldString"] = v
-			}
-			delete(p, "old_content")
-		}
-
+		ingestkit.RenameToolKeys(p, piRenameRules[tc.Name])
 		if editsRaw, ok := p["edits"]; ok {
 			if editsArr, ok := editsRaw.([]any); ok && len(editsArr) > 0 {
 				var oldParts, newParts []string
@@ -141,14 +95,7 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		}
 
 	case "grep":
-		if v, ok := p["pattern"]; ok {
-			if _, exists := p["query"]; !exists {
-				p["query"] = v
-			}
-			delete(p, "pattern")
-		}
-
-	case "glob":
+		ingestkit.RenameToolKeys(p, piRenameRules["grep"])
 	}
 
 	if out, err := json.Marshal(p); err == nil {
