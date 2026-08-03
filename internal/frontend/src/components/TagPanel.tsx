@@ -10,10 +10,16 @@ import {
   X,
   Search,
 } from "lucide-react";
-import { Effect } from "effect";
 import type { Session, Tag } from "../hooks/types";
-import { TagService } from "../services";
-import { runPromise } from "../lib/effect";
+import {
+  fetchTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  fetchTagSessions,
+  assignTagToSession,
+  unassignTagFromSession,
+} from "../hooks/apiClient";
 import { useTagsContext } from "../hooks/useTags";
 import { sessionTitle, sessionMetaParts, relativeTime } from "../utils/sessionUtils";
 import { tagColor, hasTagColor } from "../utils/tagColors";
@@ -48,24 +54,13 @@ function saveExpanded(next: Set<string>) {
   }
 }
 
-function listTagsEffect() {
-  return TagService.pipe(
-    Effect.flatMap((svc) => svc.list()),
-    Effect.catchAll((err) => {
-      console.error("Failed to load tags:", err);
-      return Effect.succeed([] as Tag[]);
-    }),
-  );
-}
-
-function loadTagSessionsEffect(id: string) {
-  return TagService.pipe(
-    Effect.flatMap((svc) => svc.listSessions(id)),
-    Effect.catchAll((err) => {
-      console.error("Failed to load tag sessions:", err);
-      return Effect.succeed([] as string[]);
-    }),
-  );
+async function loadTagSessions(id: string): Promise<string[]> {
+  try {
+    return await fetchTagSessions(id);
+  } catch (err) {
+    console.error("Failed to load tag sessions:", err);
+    return [];
+  }
 }
 
 export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPanelProps) {
@@ -103,7 +98,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
     if (tags.length === 0) return;
     tags.forEach((t) => {
       if (initialExpandedRef.current?.has(t.id)) {
-        runPromise(loadTagSessionsEffect(t.id)).then((ids) => {
+        loadTagSessions(t.id).then((ids) => {
           setTagSessions((prev) => ({ ...prev, [t.id]: ids }));
         });
       }
@@ -129,8 +124,13 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
   }, [tagSortOpen]);
 
   const loadTags = useCallback(async () => {
-    const data = await runPromise(listTagsEffect());
-    setTags(data);
+    try {
+      const data = await fetchTags();
+      setTags(data);
+    } catch (err) {
+      console.error("Failed to load tags:", err);
+      setTags([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
     const matched = tags.find((t) => t.name === filterTag);
     if (!matched) return;
     setExpandedTags((prev) => new Set(prev).add(matched.id));
-    runPromise(loadTagSessionsEffect(matched.id)).then((ids) => {
+    loadTagSessions(matched.id).then((ids) => {
       setTagSessions((prev) => ({ ...prev, [matched.id]: ids }));
     });
   }, [filterTag, tags]);
@@ -152,15 +152,11 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
   }, [editingId]);
 
   const handleCreate = async (name: string, color?: string) => {
-    await runPromise(
-      TagService.pipe(
-        Effect.flatMap((svc) => svc.create(name, color)),
-        Effect.catchAll((err) => {
-          console.error("Failed to create tag:", err);
-          return Effect.void;
-        }),
-      ),
-    );
+    try {
+      await createTag(name, color);
+    } catch (err) {
+      console.error("Failed to create tag:", err);
+    }
     setCreating(false);
     loadTags();
     bump();
@@ -168,30 +164,22 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
 
   const handleRename = async (id: string) => {
     if (!editName.trim()) return;
-    await runPromise(
-      TagService.pipe(
-        Effect.flatMap((svc) => svc.update(id, editName.trim())),
-        Effect.catchAll((err) => {
-          console.error("Failed to rename tag:", err);
-          return Effect.void;
-        }),
-      ),
-    );
+    try {
+      await updateTag(id, editName.trim());
+    } catch (err) {
+      console.error("Failed to rename tag:", err);
+    }
     setEditingId(null);
     loadTags();
     bump();
   };
 
   const handleDelete = async (id: string) => {
-    await runPromise(
-      TagService.pipe(
-        Effect.flatMap((svc) => svc.remove(id)),
-        Effect.catchAll((err) => {
-          console.error("Failed to delete tag:", err);
-          return Effect.void;
-        }),
-      ),
-    );
+    try {
+      await deleteTag(id);
+    } catch (err) {
+      console.error("Failed to delete tag:", err);
+    }
     setExpandedTags((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -211,14 +199,14 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
       }
       return next;
     });
-    const ids = await runPromise(loadTagSessionsEffect(id));
+    const ids = await loadTagSessions(id);
     setTagSessions((prev) => ({ ...prev, [id]: ids }));
   };
 
   const expandAll = useCallback(() => {
     setExpandedTags(new Set(tags.map((t) => t.id)));
     tags.forEach((t) => {
-      runPromise(loadTagSessionsEffect(t.id)).then((ids) => {
+      loadTagSessions(t.id).then((ids) => {
         setTagSessions((prev) => ({ ...prev, [t.id]: ids }));
       });
     });
@@ -229,47 +217,35 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
   }, []);
 
   const handleDrop = async (tagId: string, sessionId: string) => {
-    await runPromise(
-      TagService.pipe(
-        Effect.flatMap((svc) => svc.assignTag(tagId, sessionId)),
-        Effect.catchAll((err) => {
-          console.error("Failed to assign session to tag:", err);
-          return Effect.void;
-        }),
-      ),
-    );
-    const ids = await runPromise(loadTagSessionsEffect(tagId));
+    try {
+      await assignTagToSession(tagId, sessionId);
+    } catch (err) {
+      console.error("Failed to assign session to tag:", err);
+    }
+    const ids = await loadTagSessions(tagId);
     setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
     bump();
   };
 
   const handleAssign = async (tagId: string, sessionId: string) => {
-    await runPromise(
-      TagService.pipe(
-        Effect.flatMap((svc) => svc.assignTag(tagId, sessionId)),
-        Effect.catchAll((err) => {
-          console.error("Failed to assign session to tag:", err);
-          return Effect.void;
-        }),
-      ),
-    );
-    const ids = await runPromise(loadTagSessionsEffect(tagId));
+    try {
+      await assignTagToSession(tagId, sessionId);
+    } catch (err) {
+      console.error("Failed to assign session to tag:", err);
+    }
+    const ids = await loadTagSessions(tagId);
     setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
     setAssigningTag(null);
     bump();
   };
 
   const handleUnassign = async (tagId: string, sessionId: string) => {
-    await runPromise(
-      TagService.pipe(
-        Effect.flatMap((svc) => svc.unassignTag(tagId, sessionId)),
-        Effect.catchAll((err) => {
-          console.error("Failed to unassign session from tag:", err);
-          return Effect.void;
-        }),
-      ),
-    );
-    const ids = await runPromise(loadTagSessionsEffect(tagId));
+    try {
+      await unassignTagFromSession(tagId, sessionId);
+    } catch (err) {
+      console.error("Failed to unassign session from tag:", err);
+    }
+    const ids = await loadTagSessions(tagId);
     setTagSessions((prev) => ({ ...prev, [tagId]: ids }));
     bump();
   };

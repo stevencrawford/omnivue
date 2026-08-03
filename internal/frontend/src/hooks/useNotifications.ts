@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Effect } from "effect";
 import type { AppNotification, NotificationSettings } from "./types";
 import { useSSE } from "./useSSE";
-import { NotificationService, ApiError } from "../services";
-import { runPromise } from "../lib/effect";
+import {
+  fetchNotifications,
+  markNotificationsRead,
+  clearNotifications,
+  setNotificationActiveView,
+  fetchNotificationSettings,
+  setNotificationSettings,
+} from "./apiClient";
 
 export interface NotificationsState {
   notifications: AppNotification[];
@@ -19,43 +24,6 @@ export interface NotificationsState {
   saveSettings: (settings: NotificationSettings) => Promise<void>;
 }
 
-function fetchNotificationsEffect(opts: { limit?: number; unreadOnly?: boolean } = {}) {
-  return NotificationService.pipe(
-    Effect.flatMap((svc) => svc.list(opts)),
-    Effect.catchAll((err: ApiError) => {
-      console.error("[notifications] reload failed:", err.message);
-      return Effect.succeed([] as AppNotification[]);
-    }),
-  );
-}
-
-function markReadEffect(ids: string[]) {
-  return NotificationService.pipe(
-    Effect.flatMap((svc) => svc.markRead(ids)),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to mark read:", err.message)),
-    ),
-  );
-}
-
-function markAllReadEffect() {
-  return NotificationService.pipe(
-    Effect.flatMap((svc) => svc.markRead(null)),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to mark all read:", err.message)),
-    ),
-  );
-}
-
-function clearAllEffect() {
-  return NotificationService.pipe(
-    Effect.flatMap((svc) => svc.clearAll()),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to clear notifications:", err.message)),
-    ),
-  );
-}
-
 export function useNotifications(): NotificationsState {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -64,24 +32,27 @@ export function useNotifications(): NotificationsState {
 
   const reload = useCallback(() => {
     setLoading(true);
-    runPromise(fetchNotificationsEffect({ limit: 100 }))
+    fetchNotifications({ limit: 100 })
       .then((data) => {
         setNotifications(data || []);
+      })
+      .catch((err: unknown) => {
+        console.error("[notifications] reload failed:", err instanceof Error ? err.message : err);
       })
       .finally(() => setLoading(false));
   }, []);
 
   const reloadSettings = useCallback(async () => {
-    const s = await runPromise(
-      NotificationService.pipe(
-        Effect.flatMap((svc) => svc.getSettings()),
-        Effect.catchAll((err: ApiError) => {
-          console.error("[notifications] failed to load settings:", err.message);
-          return Effect.succeed(null as unknown as NotificationSettings);
-        }),
-      ),
-    );
-    setSettings(s);
+    try {
+      const s = await fetchNotificationSettings();
+      setSettings(s);
+    } catch (err) {
+      console.error(
+        "[notifications] failed to load settings:",
+        err instanceof Error ? err.message : err,
+      );
+      setSettings(null);
+    }
   }, []);
 
   const scheduleReload = useCallback(() => {
@@ -120,32 +91,38 @@ export function useNotifications(): NotificationsState {
     const set = new Set(ids);
     const now = Date.now();
     setNotifications((prev) => prev.map((n) => (set.has(n.id) ? { ...n, readAt: now } : n)));
-    runPromise(markReadEffect(ids));
+    markNotificationsRead(ids).catch((err: unknown) =>
+      console.error("Failed to mark read:", err instanceof Error ? err.message : err),
+    );
   }, []);
 
   const markAllRead = useCallback(() => {
     const now = Date.now();
     setNotifications((prev) => prev.map((n) => ({ ...n, readAt: now })));
-    runPromise(markAllReadEffect());
+    markNotificationsRead(null).catch((err: unknown) =>
+      console.error("Failed to mark all read:", err instanceof Error ? err.message : err),
+    );
   }, []);
 
   const clearAll = useCallback(() => {
     setNotifications([]);
-    runPromise(clearAllEffect());
+    clearNotifications().catch((err: unknown) =>
+      console.error("Failed to clear notifications:", err instanceof Error ? err.message : err),
+    );
   }, []);
 
   const saveSettings = useCallback(async (next: NotificationSettings) => {
     setSettings(next);
-    const saved = await runPromise(
-      NotificationService.pipe(
-        Effect.flatMap((svc) => svc.saveSettings(next)),
-        Effect.catchAll((err: ApiError) => {
-          console.error("[notifications] failed to save settings:", err.message);
-          return Effect.succeed(next);
-        }),
-      ),
-    );
-    setSettings(saved);
+    try {
+      const saved = await setNotificationSettings(next);
+      setSettings(saved);
+    } catch (err) {
+      console.error(
+        "[notifications] failed to save settings:",
+        err instanceof Error ? err.message : err,
+      );
+      setSettings(next);
+    }
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
@@ -178,12 +155,9 @@ export function useActiveView(activeSessionId: string | null) {
     if (!activeSessionId) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      runPromise(
-        NotificationService.pipe(
-          Effect.flatMap((svc) => svc.setActiveView(activeSessionId)),
-          Effect.catchAll(() => Effect.void),
-        ),
-      );
+      setNotificationActiveView(activeSessionId).catch(() => {
+        /* ignore */
+      });
     }, 500);
     return () => {
       if (timer.current) clearTimeout(timer.current);

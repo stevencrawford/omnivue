@@ -1,7 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { Effect } from "effect";
-import { ConfigService } from "../services";
-import { runPromise } from "../lib/effect";
+import { fetchConfig, setConfig } from "./apiClient";
 import { STALE_DAYS } from "../utils/sessionFilters";
 
 const CONFIG_HIDE_STALE = "sessions.hideStale";
@@ -38,16 +36,13 @@ export function SessionListSettingsProvider({ children }: { children: ReactNode 
 
   useEffect(() => {
     let cancelled = false;
-    runPromise(
-      ConfigService.pipe(
-        Effect.flatMap((svc) => svc.fetch()),
-        Effect.catchAll(() => Effect.succeed({} as Record<string, string>)),
-      ),
-    ).then((cfg) => {
-      if (cancelled) return;
-      setHideStaleState(parseBool(cfg[CONFIG_HIDE_STALE], true));
-      setStaleDaysState(parseDays(cfg[CONFIG_STALE_DAYS], STALE_DAYS));
-    });
+    fetchConfig()
+      .catch(() => ({}) as Record<string, string>)
+      .then((cfg) => {
+        if (cancelled) return;
+        setHideStaleState(parseBool(cfg[CONFIG_HIDE_STALE], true));
+        setStaleDaysState(parseDays(cfg[CONFIG_STALE_DAYS], STALE_DAYS));
+      });
     return () => {
       cancelled = true;
     };
@@ -55,23 +50,17 @@ export function SessionListSettingsProvider({ children }: { children: ReactNode 
 
   const setHideStale = useCallback((v: boolean) => {
     setHideStaleState(v);
-    runPromise(
-      ConfigService.pipe(
-        Effect.flatMap((svc) => svc.set(CONFIG_HIDE_STALE, v ? "true" : "false")),
-        Effect.catchAll(() => Effect.void),
-      ),
-    );
+    setConfig(CONFIG_HIDE_STALE, v ? "true" : "false").catch(() => {
+      /* ignore */
+    });
   }, []);
 
   const setStaleDays = useCallback((v: number) => {
     const clamped = Math.min(STALE_DAYS_MAX, Math.max(STALE_DAYS_MIN, Math.round(v)));
     setStaleDaysState(clamped);
-    runPromise(
-      ConfigService.pipe(
-        Effect.flatMap((svc) => svc.set(CONFIG_STALE_DAYS, String(clamped))),
-        Effect.catchAll(() => Effect.void),
-      ),
-    );
+    setConfig(CONFIG_STALE_DAYS, String(clamped)).catch(() => {
+      /* ignore */
+    });
   }, []);
 
   return (

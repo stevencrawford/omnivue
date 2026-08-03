@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Effect } from "effect";
 import type { Session } from "./types";
 import { useSSE } from "./useSSE";
-import { SessionService, ApiError } from "../services";
-import { runPromise } from "../lib/effect";
+import { fetchSessions, ApiError } from "./apiClient";
 
 export interface SessionsState {
   sessions: Session[];
@@ -13,16 +11,6 @@ export interface SessionsState {
   activeSession: Session | null;
   loadSessions: () => Promise<void>;
   setActiveSessionId: (id: string | null) => void;
-}
-
-function listSessionsEffect() {
-  return SessionService.pipe(
-    Effect.flatMap((svc) => svc.list()),
-    Effect.catchAll((err: ApiError) => {
-      console.error("[sessions] failed to load:", err.message);
-      return Effect.succeed([] as Session[]);
-    }),
-  );
 }
 
 // Global callback for prompt-queue-changed SSE events.
@@ -40,9 +28,16 @@ export function useSessions(): SessionsState {
 
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
-    const data = await runPromise(listSessionsEffect());
-    setSessions(data ?? []);
-    setSessionsLoading(false);
+    try {
+      const data = await fetchSessions();
+      setSessions(data ?? []);
+    } catch (err) {
+      if (err instanceof ApiError) console.error("[sessions] failed to load:", err.message);
+      else console.error("[sessions] failed to load:", err);
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
