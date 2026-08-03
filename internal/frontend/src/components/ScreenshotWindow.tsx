@@ -5,23 +5,22 @@ interface ScreenshotWindowProps {
   content: string;
   title?: string;
   subtitle?: string;
-  /** Ref to the window root so the capture util can rasterize it. */
+  /**
+   * Ref to the capture root. Rendered on-screen (inside a short-lived overlay)
+   * because html-to-image cannot rasterize offscreen nodes, and any background
+   * must live on an inner child — html-to-image drops a background applied to
+   * the captured node itself.
+   */
   innerRef?: Ref<HTMLDivElement>;
 }
 
 /**
  * macOS-style window chrome used only as the capture target for markdown
- * screenshots. Rendered offscreen by `MarkdownScreenshotButton` and never shown
- * in the viewport. Colors resolve from the current theme at capture time.
+ * screenshots. Colors resolve from the current theme at capture time.
  */
 export function ScreenshotWindow({ content, title, subtitle, innerRef }: ScreenshotWindowProps) {
   return (
-    <div
-      ref={innerRef}
-      className="fixed top-0 left-[-10000px] w-[760px] pointer-events-none"
-      data-screenshot-window
-      aria-hidden="true"
-    >
+    <div ref={innerRef} className="w-[760px]" data-screenshot-window aria-hidden="true">
       <div className="bg-surface-elevated rounded-2xl border border-ov-border shadow-2xl overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 bg-[var(--color-ov-bg-secondary)] border-b border-ov-border">
           <div className="flex items-center gap-1.5">

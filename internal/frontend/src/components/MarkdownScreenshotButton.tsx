@@ -26,6 +26,9 @@ async function waitForPaint(): Promise<void> {
   );
 }
 
+const OVERLAY_LABEL = "Capturing screenshot…";
+const VIEW_URL_LIFETIME_MS = 60000;
+
 export function MarkdownScreenshotButton({
   content,
   title,
@@ -46,8 +49,14 @@ export function MarkdownScreenshotButton({
         if (cancelled || !nodeRef.current) return;
         const blob = await captureNodeToBlob(nodeRef.current);
         if (cancelled) return;
-        downloadBlob(blob, screenshotFilename());
-        showToast("Screenshot saved");
+        const filename = screenshotFilename();
+        downloadBlob(blob, filename);
+        const viewUrl = URL.createObjectURL(blob);
+        showToast("Screenshot saved", {
+          label: "View",
+          onClick: () => window.open(viewUrl, "_blank", "noopener"),
+        });
+        setTimeout(() => URL.revokeObjectURL(viewUrl), VIEW_URL_LIFETIME_MS);
       } catch {
         if (!cancelled) showToast("Screenshot failed");
       } finally {
@@ -81,12 +90,20 @@ export function MarkdownScreenshotButton({
       </button>
       {capture &&
         createPortal(
-          <ScreenshotWindow
-            content={capture.content}
-            title={capture.title}
-            subtitle={capture.subtitle}
-            innerRef={nodeRef}
-          />,
+          <div className="fixed inset-0 z-[9999]" data-screenshot-overlay>
+            <div className="fixed inset-0 bg-black/40" />
+            <div className="relative flex justify-center pt-[5vh]">
+              <ScreenshotWindow
+                content={capture.content}
+                title={capture.title}
+                subtitle={capture.subtitle}
+                innerRef={nodeRef}
+              />
+            </div>
+            <div className="fixed bottom-6 inset-x-0 text-center text-xs text-white/80">
+              {OVERLAY_LABEL}
+            </div>
+          </div>,
           document.body,
         )}
     </>
