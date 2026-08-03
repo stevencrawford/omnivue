@@ -8,59 +8,21 @@ import (
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
+// normalizeToolCall maps Claude Code-native tool call names to the canonical
+// ingest set via ingestkit.CanonicalizeToolName (which also covers Claude's
+// internal harness tools and the "X:X" prefix-stripping rule), then applies
+// the TaskCreate/TaskUpdate input transforms that depend on the original name.
 func normalizeToolCall(tc *ingest.ToolCall) {
-	switch tc.Name {
-	case "Read":
-		tc.Name = "read"
-	case "Write":
-		tc.Name = "write"
-	case "Edit":
-		tc.Name = "edit"
-	case "Bash":
-		tc.Name = "bash"
-	case "Glob":
-		tc.Name = "glob"
-	case "Grep":
-		tc.Name = "grep"
-	case "Task":
-		tc.Name = "task"
-	case "ExitPlanMode":
-		tc.Name = "exit_plan_mode"
-	case "Delete":
-		tc.Name = "delete"
-	case "WebFetch":
-		tc.Name = "webfetch"
-	case "WebSearch":
-		tc.Name = "websearch"
-	default:
-		normalizeClaudeInternalTool(tc)
-	}
-}
-
-// normalizeClaudeInternalTool handles Claude Code internal tool names that
-// originate from harness tool definitions rather than standard tool calls.
-func normalizeClaudeInternalTool(tc *ingest.ToolCall) {
-	switch tc.Name {
+	original := tc.Name
+	tc.Name = ingestkit.CanonicalizeToolName(tc.Name)
+	switch original {
 	case "TaskCreate":
-		tc.Name = "todowrite"
 		normalizeTaskCreateInput(tc)
 	case "TaskUpdate":
-		tc.Name = "todowrite"
 		normalizeTaskUpdateInput(tc)
-	case "Agent":
-		// Agent launches a sub-agent — maps to "task" for frontend rendering.
-		// Metadata["sessionId"] carries the sub-agent ID for disambiguation.
-		tc.Name = "task"
-	case "TaskOutput":
-		tc.Name = "task_complete"
-	default:
-		// Strip harness prefix (e.g., "Bash:Bash" → "Bash"), then lowercase
-		// so the result is consistent with main normalizeToolCall switch cases.
-		if idx := strings.Index(tc.Name, ":"); idx > 0 && idx+1 < len(tc.Name) && tc.Name[:idx] == tc.Name[idx+1:] {
-			tc.Name = strings.ToLower(tc.Name[:idx])
-		}
 	}
 }
 

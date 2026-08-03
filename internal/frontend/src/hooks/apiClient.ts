@@ -51,7 +51,7 @@ import {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   endpoint: string;
 
@@ -61,6 +61,24 @@ class ApiError extends Error {
     this.status = status;
     this.endpoint = endpoint;
   }
+}
+
+const RETRYABLE_DELAY_MS = 500;
+
+async function withRetry<T>(fn: () => Promise<T>, retries: number): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, RETRYABLE_DELAY_MS));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 async function fetchJson<T>(url: string, schema: ZodType<T>, init?: RequestInit): Promise<T> {
@@ -99,15 +117,19 @@ async function fetchVoid(url: string, init?: RequestInit): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function fetchSessions(): Promise<Session[]> {
-  return fetchJson("/_/api/sessions", SessionsSchema);
+  return withRetry(() => fetchJson("/_/api/sessions", SessionsSchema), 3);
 }
 
 export async function fetchSession(id: string): Promise<Session> {
   return fetchJson(`/_/api/sessions/${encodeURIComponent(id)}`, SessionSchema);
 }
 
-export async function fetchMessages(sessionId: string): Promise<Message[]> {
-  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/messages`, MessagesSchema);
+export async function fetchMessages(sessionId: string, signal?: AbortSignal): Promise<Message[]> {
+  return fetchJson(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/messages`,
+    MessagesSchema,
+    signal ? { signal } : undefined,
+  );
 }
 
 export async function fetchPlan(sessionId: string): Promise<Plan> {

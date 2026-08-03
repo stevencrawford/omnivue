@@ -8,34 +8,6 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
 
-func normalizeToolName(name string) string {
-	switch name {
-	case "exec_command":
-		return "bash"
-	case "apply_patch":
-		return "edit"
-	case "read_file":
-		return "read"
-	case "write_file":
-		return "write"
-	case "multi_tool_use.parallel":
-		return name
-	case "request_user_input":
-		return "question"
-	default:
-		if strings.HasPrefix(name, "exec_") {
-			return "bash"
-		}
-		if strings.HasPrefix(name, "edit_") || strings.HasSuffix(name, "_patch") {
-			return "edit"
-		}
-		if strings.HasPrefix(name, "read_") {
-			return "read"
-		}
-		return name
-	}
-}
-
 func normalizeBashInput(tc *ingest.ToolCall) {
 	if tc.Name != "bash" || tc.Input == "" {
 		return

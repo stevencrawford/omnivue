@@ -13,13 +13,11 @@ import {
   BarChart3,
   Terminal,
 } from "lucide-react";
-import { Effect } from "effect";
 import type { Session, Message } from "../hooks/useApi";
-import { deleteScratchFile } from "../hooks/useApi";
-import { runFork } from "../lib/effect";
-import { SessionService } from "../services";
+import { deleteScratchFile, fetchMessages } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
+import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
 import { useCopy } from "../hooks/useCopy";
 import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
@@ -127,27 +125,25 @@ export function SessionViewer({
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const cancelLoadRef = useRef<(() => void) | null>(null);
+  const cancelLoadRef = useRef<AbortController | null>(null);
 
   const loadMessages = useCallback(() => {
-    cancelLoadRef.current?.();
+    cancelLoadRef.current?.abort();
+    const controller = new AbortController();
+    cancelLoadRef.current = controller;
     setLoading(true);
-    const cancel = runFork(
-      SessionService.pipe(
-        Effect.flatMap((svc) => svc.getMessages(session.id)),
-        Effect.map((data) => {
-          setMessages(data || []);
-        }),
-        Effect.catchAll((err) =>
-          Effect.sync(() => {
-            console.error("Failed to load messages:", err.message);
-            setMessages([]);
-          }),
-        ),
-        Effect.ensuring(Effect.sync(() => setLoading(false))),
-      ),
-    );
-    cancelLoadRef.current = cancel;
+    fetchMessages(session.id, controller.signal)
+      .then((data) => {
+        setMessages(data || []);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("Failed to load messages:", err instanceof Error ? err.message : err);
+        setMessages([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
   }, [session.id]);
 
   useEffect(() => {
@@ -421,7 +417,9 @@ export function SessionViewer({
         title={markdownModal?.title}
         size="xl"
       >
-        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
+        {markdownModal && (
+          <ModalMarkdownWrapper content={markdownModal.content} title={markdownModal.title} />
+        )}
       </Modal>
 
       {/* Create scratch file dialog */}
@@ -493,11 +491,12 @@ export function SessionViewer({
   );
 }
 
-function ModalMarkdownWrapper({ content }: { content: string }) {
+function ModalMarkdownWrapper({ content, title }: { content: string; title?: string }) {
   const { copied, copy } = useCopy(2000);
   return (
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <MarkdownScreenshotButton content={content} title={title} />
         <button
           type="button"
           onClick={() => copy(content)}

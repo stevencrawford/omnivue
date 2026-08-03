@@ -56,6 +56,10 @@ export function useSearchHighlight(
   focusMessageId: string | undefined,
   messagesWithoutReminders: Message[],
   onClearFocus?: () => void,
+  renderIndexResolver?: (
+    rawIndex: number | undefined,
+    messageId: string | undefined,
+  ) => number | undefined,
 ) {
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
 
@@ -93,9 +97,18 @@ export function useSearchHighlight(
   useEffect(() => {
     if (focusMessageIndex === undefined && focusMessageId === undefined) return;
     if (!scrollRef.current || messagesWithoutReminders.length === 0) return;
-    const el = focusMessageId
-      ? scrollRef.current.querySelector(`[data-message-id="${focusMessageId}"]`)
-      : scrollRef.current.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    const container = scrollRef.current;
+    let el: Element | null = null;
+    const resolved = renderIndexResolver
+      ? renderIndexResolver(focusMessageIndex, focusMessageId)
+      : undefined;
+    if (resolved !== undefined) {
+      el = container.querySelector(`[data-message-index="${resolved}"]`);
+    } else if (focusMessageId) {
+      el = container.querySelector(`[data-message-id="${focusMessageId}"]`);
+    } else if (!renderIndexResolver && focusMessageIndex !== undefined) {
+      el = container.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    }
     if (el) {
       scrollToMessageEl(el);
       el.classList.add("sess-message-highlight");
@@ -112,6 +125,7 @@ export function useSearchHighlight(
     messagesWithoutReminders.length,
     scrollToMessageEl,
     scrollRef,
+    renderIndexResolver,
   ]);
 
   useEffect(() => {

@@ -9,8 +9,6 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
-const maxContentBytes = 2000
-
 func parseAssistantContent(raw json.RawMessage, _ string) (text, reasoning string, toolCalls []ingest.ToolCall) {
 	if len(raw) == 0 {
 		return "", "", nil
@@ -247,13 +245,13 @@ func handleProgressEvent(line []byte, toolCallsByID map[string]*ingest.ToolCall,
 func truncateEditInput(raw json.RawMessage) string {
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return ingestkit.TruncateContent(string(raw), maxContentBytes)
+		return ingestkit.TruncateContent(string(raw), ingestkit.MaxContentBytes)
 	}
 	changed := false
 	for _, key := range []string{"content", "new_str", "newStr", "old_str", "oldStr"} {
 		if v, ok := m[key]; ok {
-			if s, ok := v.(string); ok && len(s) > maxContentBytes {
-				m[key] = s[:maxContentBytes] + "\n… (truncated)"
+			if s, ok := v.(string); ok && len(s) > ingestkit.MaxContentBytes {
+				m[key] = s[:ingestkit.MaxContentBytes] + "\n… (truncated)"
 				changed = true
 			}
 		}
