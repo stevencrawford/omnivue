@@ -12,17 +12,18 @@ export function useRecentSearches() {
       .then(setSearches);
   }, []);
 
-  const addSearch = useCallback((query: string) => {
-    const q = query.trim();
-    if (!q) return;
-    setSearches((prev) => {
-      const next = [q, ...prev.filter((s) => s !== q)].slice(0, MAX_SEARCHES);
+  const addSearch = useCallback(
+    (query: string) => {
+      const q = query.trim();
+      if (!q) return;
+      const next = [q, ...searches.filter((s) => s !== q)].slice(0, MAX_SEARCHES);
+      setSearches(next);
       addRecentSearches(next).catch(() => {
         /* ignore */
       });
-      return next;
-    });
-  }, []);
+    },
+    [searches],
+  );
 
   const clearSearches = useCallback(() => {
     setSearches([]);

@@ -67,7 +67,12 @@ export function useNotifications(): NotificationsState {
 
   useEffect(() => {
     const id = setInterval(() => reload(), 60000);
-    return () => clearInterval(id);
+    const timer = reloadTimer;
+    return () => {
+      clearInterval(id);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+    };
   }, [reload]);
 
   useSSE({
