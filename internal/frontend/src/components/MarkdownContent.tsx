@@ -103,30 +103,30 @@ export function MarkdownContent({
             />
           </button>
           {!hideCopy && (
-            <button
-              type="button"
-              onClick={() => copy(content)}
-              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-              title="Copy"
-            >
-              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-            </button>
-          )}
-          {onPin && (
             <>
+              <button
+                type="button"
+                onClick={() => copy(content)}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                title="Copy"
+              >
+                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              </button>
               <MarkdownScreenshotButton
                 content={content}
                 className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
               />
-              <button
-                type="button"
-                onClick={() => onPin(content)}
-                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-                title="Pin as scratch note"
-              >
-                <Pin size={12} />
-              </button>
             </>
+          )}
+          {onPin && (
+            <button
+              type="button"
+              onClick={() => onPin(content)}
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              title="Pin as scratch note"
+            >
+              <Pin size={12} />
+            </button>
           )}
           {onBookmark && (
             <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
@@ -196,27 +196,27 @@ export function MarkdownContent({
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {!hideCopy && (
-          <button
-            type="button"
-            onClick={() => copy(content)}
-            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
-            title="Copy"
-          >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-          </button>
-        )}
-        {onPin && (
           <>
-            <MarkdownScreenshotButton content={content} />
             <button
               type="button"
-              onClick={() => onPin(content)}
+              onClick={() => copy(content)}
               className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
-              title="Pin as scratch note"
+              title="Copy"
             >
-              <Pin size={12} />
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
             </button>
+            <MarkdownScreenshotButton content={content} />
           </>
+        )}
+        {onPin && (
+          <button
+            type="button"
+            onClick={() => onPin(content)}
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+            title="Pin as scratch note"
+          >
+            <Pin size={12} />
+          </button>
         )}
         {onBookmark && (
           <BookmarkButton
