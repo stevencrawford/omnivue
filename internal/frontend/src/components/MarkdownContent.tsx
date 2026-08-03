@@ -7,6 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import { useCopy } from "../hooks/useCopy";
 import { useSearchHighlight } from "../hooks/useNav";
 import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
+import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
 
 interface MarkdownContentProps {
   content: string;
@@ -112,14 +113,20 @@ export function MarkdownContent({
             </button>
           )}
           {onPin && (
-            <button
-              type="button"
-              onClick={() => onPin(content)}
-              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-              title="Pin as scratch note"
-            >
-              <Pin size={12} />
-            </button>
+            <>
+              <MarkdownScreenshotButton
+                content={content}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => onPin(content)}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                title="Pin as scratch note"
+              >
+                <Pin size={12} />
+              </button>
+            </>
           )}
           {onBookmark && (
             <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
@@ -199,14 +206,17 @@ export function MarkdownContent({
           </button>
         )}
         {onPin && (
-          <button
-            type="button"
-            onClick={() => onPin(content)}
-            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
-            title="Pin as scratch note"
-          >
-            <Pin size={12} />
-          </button>
+          <>
+            <MarkdownScreenshotButton content={content} />
+            <button
+              type="button"
+              onClick={() => onPin(content)}
+              className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+              title="Pin as scratch note"
+            >
+              <Pin size={12} />
+            </button>
+          </>
         )}
         {onBookmark && (
           <BookmarkButton

@@ -1,7 +1,6 @@
 import { CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../MarkdownContent";
-import { MarkdownScreenshotButton } from "../../MarkdownScreenshotButton";
 import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
@@ -75,13 +74,6 @@ export function TaskCompleteToolDiff({
                 {(displayDuration / 1000).toFixed(1)}s
               </span>
             )}
-            {(summary || outputLabel) && (
-              <MarkdownScreenshotButton
-                content={summary || outputLabel}
-                title="Task Complete"
-                className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-              />
-            )}
             <ToolActionsBar
               tool={tool}
               onPin={onPin}
@@ -90,6 +82,7 @@ export function TaskCompleteToolDiff({
               childSessionId={childSessionId}
               navigateToSession={navigateToSession}
               showPin
+              pinText={summary || outputLabel || undefined}
             />
           </div>
         </div>

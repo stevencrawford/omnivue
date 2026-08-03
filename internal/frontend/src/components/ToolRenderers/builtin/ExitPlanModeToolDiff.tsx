@@ -1,7 +1,6 @@
 import { FileText } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../MarkdownContent";
-import { MarkdownScreenshotButton } from "../../MarkdownScreenshotButton";
 import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
@@ -58,14 +57,7 @@ export function ExitPlanModeToolDiff({
         <div className="flex items-center gap-2.5 mb-2">
           <FileText size={20} className="text-amber-400 shrink-0" />
           <span className="font-semibold text-[13px] text-amber-400">Proposed Plan</span>
-          <div className="ml-auto flex items-center gap-0.5">
-            {summary && (
-              <MarkdownScreenshotButton
-                content={summary}
-                title="Proposed Plan"
-                className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-              />
-            )}
+          <div className="ml-auto">
             <ToolActionsBar
               tool={tool}
               onPin={onPin}
