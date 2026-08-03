@@ -141,11 +141,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                   setOpen(false);
                 }}
               >
-                <OptionPreview
-                  label="Command"
-                  cmd={options.relative}
-                  icon={<Terminal size={12} />}
-                />
+                <OptionPreview label="Agent" cmd={options.relative} icon={<Terminal size={12} />} />
               </button>
               <button
                 type="button"
@@ -158,7 +154,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                 }}
               >
                 <OptionPreview
-                  label="Agent"
+                  label="Command"
                   cmd={options.agentCommand}
                   icon={<MessageSquareCode size={12} />}
                 />
