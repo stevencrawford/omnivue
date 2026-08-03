@@ -149,7 +149,7 @@ func startServer(ctx context.Context, addr string) error {
 	defer cleanup()
 
 	state := server.NewState(ctx)
-	handler := server.NewHandler(state)
+	handler := server.NewHandler(state.Deps())
 
 	srv := &http.Server{
 		Addr:              addr,
