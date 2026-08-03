@@ -264,9 +264,7 @@ func scratchContentOf(files []store.ScratchFile) string {
 func buildMessagesContent(messages []ingest.Message) string {
 	var b strings.Builder
 	for _, msg := range messages {
-		b.WriteString(msg.Content)
-		b.WriteString("\n")
-		writeToolCalls(&b, msg.ToolCalls)
+		b.WriteString(buildContentWithTools(msg))
 	}
 	return b.String()
 }

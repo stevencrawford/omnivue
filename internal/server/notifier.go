@@ -187,11 +187,7 @@ func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, tra
 		}
 
 		// Advance the seen-message cursor regardless of whether we emitted.
-		if len(msgs) != st.LastSeenMessageCount {
-			if err := n.notif.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
-				slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
-			}
-		}
+		advanceCursor(n.notif, sess.ID, len(msgs), st.LastSeenMessageCount)
 	}
 
 	if emittedAny {
@@ -226,10 +222,18 @@ func (n *Notifier) AdvanceSeenCursor(ctx context.Context, sess *ingest.Session) 
 	if err != nil {
 		return
 	}
-	if len(msgs) != st.LastSeenMessageCount {
-		if err := n.notif.SetNotificationState(sess.ID, len(msgs), time.Now()); err != nil {
-			slog.Warn("failed to set notification state", "session", sess.ID, "error", err)
-		}
+	advanceCursor(n.notif, sess.ID, len(msgs), st.LastSeenMessageCount)
+}
+
+// advanceCursor advances the seen-message cursor for a session when its message
+// count has grown since the last recorded state. The single source of truth for
+// cursor-advance semantics, shared by ClassifyChanges and AdvanceSeenCursor.
+func advanceCursor(notif store.NotificationStore, sessionID string, msgCount, lastSeen int) {
+	if msgCount == lastSeen {
+		return
+	}
+	if err := notif.SetNotificationState(sessionID, msgCount, time.Now()); err != nil {
+		slog.Warn("failed to set notification state", "session", sessionID, "error", err)
 	}
 }
 
