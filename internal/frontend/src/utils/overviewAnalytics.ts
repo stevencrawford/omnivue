@@ -1,5 +1,5 @@
-import type { Session } from "../hooks/useApi";
-import { agentLabel } from "./sessionUtils";
+import type { Session } from "../hooks/types";
+import { agentLabel, shortModel } from "./sessionUtils";
 
 export { agentLabel };
 
@@ -130,7 +130,7 @@ export function aggregateByModel(sessions: Session[]): ModelStats[] {
     if (!entry) {
       entry = {
         model,
-        label: shortModelLabel(model),
+        label: shortModel(model),
         sessions: 0,
         cost: 0,
         tokens: 0,
@@ -193,16 +193,6 @@ export function topSessions(sessions: Session[], count = 5): TopSession[] {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function shortModelLabel(model: string): string {
-  if (!model) return "unknown";
-  return model
-    .replace("anthropic/", "")
-    .replace("openai/", "")
-    .replace("github-copilot/", "")
-    .replace("claude-", "")
-    .replace("gpt-", "");
-}
-
 export interface OverviewStats {
   totalSessions: number;
   totalMessages: number;
@@ -243,7 +233,7 @@ export function computeStats(sessions: Session[]): OverviewStats {
     .sort((a, b) => b.count - a.count);
 
   const models = [...modelCounts.entries()]
-    .map(([model, count]) => ({ model, count, label: shortModelLabel(model) }))
+    .map(([model, count]) => ({ model, count, label: shortModel(model) }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
