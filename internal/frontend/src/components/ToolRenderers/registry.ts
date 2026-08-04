@@ -1,4 +1,4 @@
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 import type { ToolRendererDefinition } from "./types";
 import { extractJSONField } from "../../utils/jsonField";
 import { toolKindInfo } from "../../utils/toolKindTaxonomy";

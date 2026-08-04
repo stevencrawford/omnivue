@@ -1,4 +1,4 @@
-import type { Session, Bookmark, AppNotification } from "../hooks/useApi";
+import type { Session, Bookmark, AppNotification } from "../hooks/types";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";

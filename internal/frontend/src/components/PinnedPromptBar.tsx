@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronRight, User, Copy, Trash2, Loader2, Check } from "lucide-react";
-import type { Session, Message, QueuedPrompt } from "../hooks/useApi";
-import { createPrompt, fetchPrompts, deletePrompt } from "../hooks/useApi";
+import type { Session, Message, QueuedPrompt } from "../hooks/types";
+import { createPrompt, fetchPrompts, deletePrompt } from "../hooks/apiClient";
 import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
 import { useHideCosts } from "../hooks/useHideCosts";

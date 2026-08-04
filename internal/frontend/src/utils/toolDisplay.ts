@@ -1,4 +1,4 @@
-import type { ToolCall } from "../hooks/useApi";
+import type { ToolCall } from "../hooks/types";
 import { toolRendererRegistry } from "../components/ToolRenderers/registry";
 
 export { extractJSONField } from "./jsonField";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Folder, X, Clock, Tag } from "lucide-react";
-import type { SearchResult } from "../hooks/useApi";
-import { fetchSearch } from "../hooks/useApi";
+import type { SearchResult } from "../hooks/types";
+import { fetchSearch } from "../hooks/apiClient";
 import { relativeTime } from "../utils/sessionUtils";
 import { renderSnippet } from "../utils/searchUtils";
 import { useToast } from "../hooks/useToast";

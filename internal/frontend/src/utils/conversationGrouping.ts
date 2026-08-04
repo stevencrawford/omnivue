@@ -1,4 +1,4 @@
-import type { Message } from "../hooks/useApi";
+import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "./toolDisplay";
 
 export interface GroupResult {

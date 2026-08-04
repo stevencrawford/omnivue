@@ -1,5 +1,5 @@
 import { GitBranch } from "lucide-react";
-import type { Session } from "../../hooks/useApi";
+import type { Session } from "../../hooks/types";
 import { sortByRecent } from "../../utils/overviewAnalytics";
 import { MiniSessionRow } from "./MiniSessionRow";
 

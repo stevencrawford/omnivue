@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Session } from "../../hooks/useApi";
+import type { Session } from "../../hooks/types";
 import { formatCost, formatTokens, shortModel } from "../../utils/sessionUtils";
 import { useHideCosts } from "../../hooks/useHideCosts";
 

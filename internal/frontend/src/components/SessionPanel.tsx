@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpDown, Archive, Minus, Plus, Tags } from "lucide-react";
-import type { Session } from "../hooks/useApi";
+import type { Session } from "../hooks/types";
 import { buildTree, type SortMode } from "../utils/buildTree";
 import { shortDir } from "../utils/sessionUtils";
 import {

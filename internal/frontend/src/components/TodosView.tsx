@@ -1,5 +1,5 @@
 import { CircleCheckBig, CircleDot, Circle, Ban } from "lucide-react";
-import type { Todo } from "../hooks/useApi";
+import type { Todo } from "../hooks/types";
 
 interface TodosViewProps {
   todos: Todo[];

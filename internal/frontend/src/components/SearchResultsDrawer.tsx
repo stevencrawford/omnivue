@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Folder, X, Tag } from "lucide-react";
-import type { SearchResult } from "../hooks/useApi";
+import type { SearchResult } from "../hooks/types";
 import { relativeTime } from "../utils/sessionUtils";
 import { renderSnippet } from "../utils/searchUtils";
 import { groupSearchSections, type SearchSection } from "../utils/searchSections";

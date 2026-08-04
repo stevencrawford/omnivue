@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { Session } from "./useApi";
+import type { Session } from "./types";
 
 const SESSION_HASH = /^#\/session\/([^/]+)(?:\/step\/(\d+))?/;
 

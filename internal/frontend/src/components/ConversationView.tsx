@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { CirclePlus, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
-import type { Session, Message } from "../hooks/useApi";
+import type { Session, Message } from "../hooks/types";
 
 import { SystemReminderView } from "./SystemReminderView";
 import { ScrollMarkers } from "./ScrollMarkers";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SearchResult } from "./useApi";
+import type { SearchResult } from "./types";
 import type { Tab } from "../components/SessionViewer";
 import { fetchSearch } from "./apiClient";
 import { isAbortError } from "../utils/errors";

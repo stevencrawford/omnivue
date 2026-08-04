@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Plus, X, Check } from "lucide-react";
-import type { Session, Tag } from "../hooks/useApi";
+import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
   clearSessionName,
@@ -9,7 +9,7 @@ import {
   createTag,
   assignTagToSession,
   unassignTagFromSession,
-} from "../hooks/useApi";
+} from "../hooks/apiClient";
 import { agentLabel } from "../utils/sessionUtils";
 import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";

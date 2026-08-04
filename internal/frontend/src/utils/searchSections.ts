@@ -1,4 +1,4 @@
-import type { SearchResult } from "../hooks/useApi";
+import type { SearchResult } from "../hooks/types";
 
 export interface SearchSection {
   chunkType: string;

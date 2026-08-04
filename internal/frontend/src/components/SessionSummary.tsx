@@ -1,5 +1,5 @@
 import { Timer, DollarSign, Activity, Zap } from "lucide-react";
-import type { Session, Message } from "../hooks/useApi";
+import type { Session, Message } from "../hooks/types";
 import { useSessionSummary } from "../hooks/useSessionSummary";
 import { useSessionTokenomics } from "../hooks/useSessionTokenomics";
 import { useHideCosts } from "../hooks/useHideCosts";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen, MessageSquareText, ArrowRight, File } from "lucide-react";
-import type { FileEdit } from "../hooks/useApi";
-import { fetchEdits } from "../hooks/useApi";
+import type { FileEdit } from "../hooks/types";
+import { fetchEdits } from "../hooks/apiClient";
 import { PatchRenderer } from "./DiffRenderer";
 import { CopyButton } from "./CopyButton";
 import { detectLanguage } from "../utils/detectLanguage";

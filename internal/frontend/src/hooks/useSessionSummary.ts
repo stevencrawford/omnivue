@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Message } from "./useApi";
+import type { Message } from "./types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { aggregateToolKind, toolKindInfo } from "../utils/toolKindTaxonomy";
 

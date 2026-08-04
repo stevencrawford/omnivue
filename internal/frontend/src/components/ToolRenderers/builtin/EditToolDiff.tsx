@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { File, FilePen } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import type { ToolCall } from "../../../hooks/useApi";
+import type { ToolCall } from "../../../hooks/types";
 import { detectLanguage } from "../../../utils/detectLanguage";
 import { computeDiff } from "../../../utils/diff";
 import { PatchRenderer, FileRenderer } from "../../DiffRenderer";

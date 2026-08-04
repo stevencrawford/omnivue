@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListTodo } from "lucide-react";
-import type { Plan } from "../hooks/useApi";
-import { fetchPlan } from "../hooks/useApi";
+import type { Plan } from "../hooks/types";
+import { fetchPlan } from "../hooks/apiClient";
 import { MarkdownContent } from "./MarkdownContent";
 import { LoadingState } from "./LoadingState";
 import { EmptyPanel } from "./EmptyPanel";

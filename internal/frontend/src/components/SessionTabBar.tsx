@@ -11,8 +11,8 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-import type { Session } from "../hooks/useApi";
-import { deleteScratchFile } from "../hooks/useApi";
+import type { Session } from "../hooks/types";
+import { deleteScratchFile } from "../hooks/apiClient";
 import { useToast } from "../hooks/useToast";
 import { Modal } from "./Modal";
 import { ResumeButton } from "./ResumeButton";

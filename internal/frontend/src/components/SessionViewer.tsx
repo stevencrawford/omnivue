@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import type { Session, Message } from "../hooks/useApi";
-import { fetchMessages } from "../hooks/useApi";
+import type { Session, Message } from "../hooks/types";
+import { fetchMessages } from "../hooks/apiClient";
 import { isAbortError } from "../utils/errors";
 import { useToast } from "../hooks/useToast";
 import { MarkdownContent } from "./MarkdownContent";

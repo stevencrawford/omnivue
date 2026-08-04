@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, ChevronRight } from "lucide-react";
-import type { Session } from "../../hooks/useApi";
+import type { Session } from "../../hooks/types";
 import type { TreeNode } from "../../utils/buildTree";
 import { relativeTime, sessionMetaParts, sessionTitle } from "../../utils/sessionUtils";
 import { VerboseStats } from "./VerboseStats";

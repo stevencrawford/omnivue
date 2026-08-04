@@ -1,4 +1,4 @@
-import type { Session } from "../hooks/useApi";
+import type { Session } from "../hooks/types";
 import { relativeTime } from "./buildTree";
 
 export function sessionTitle(session: Session): string {

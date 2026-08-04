@@ -1,4 +1,4 @@
-import type { FileEdit } from "../hooks/useApi";
+import type { FileEdit } from "../hooks/types";
 import { computeDiff } from "./diff";
 import { detectLanguage } from "./detectLanguage";
 

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Message, Session } from "./useApi";
+import type { Message, Session } from "./types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { TOKEN_COLOR_SEGMENTS, toolKindInfo } from "../utils/toolKindTaxonomy";
 

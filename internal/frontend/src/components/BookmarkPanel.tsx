@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Bookmark, Trash2, MessageSquareText } from "lucide-react";
-import type { Bookmark as BookmarkType, Session } from "../hooks/useApi";
+import type { Bookmark as BookmarkType, Session } from "../hooks/types";
 
 interface BookmarkPanelProps {
   bookmarks: BookmarkType[];

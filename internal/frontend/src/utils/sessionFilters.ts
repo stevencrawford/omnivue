@@ -1,4 +1,4 @@
-import type { Session } from "../hooks/useApi";
+import type { Session } from "../hooks/types";
 
 export interface SessionFilters {
   agent: string | null;
