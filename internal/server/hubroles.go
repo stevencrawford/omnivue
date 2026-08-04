@@ -27,6 +27,13 @@ type SessionCatalog interface {
 	TitleMap() map[string]string
 }
 
+// AdapterProvider is the registered-source seam: the Poller watches each
+// source's last-modified time to decide whether a refresh is needed. It needs
+// the adapter set, never the session cache or lifecycle.
+type AdapterProvider interface {
+	Adapters() map[string]ingest.Adapter
+}
+
 // SessionNames is the display-name override seam. Renaming a session mutates
 // neither adapters nor the source cache, so it is isolated from the lifecycle
 // surface that only the process wiring touches.
@@ -38,7 +45,8 @@ type SessionNames interface {
 // Compile-time assertions keep the seam honest: if SessionHub ever stops
 // satisfying a role, these fail at build time rather than at a call site.
 var (
-	_ SessionReader  = (*SessionHub)(nil)
-	_ SessionCatalog = (*SessionHub)(nil)
-	_ SessionNames   = (*SessionHub)(nil)
+	_ SessionReader   = (*SessionHub)(nil)
+	_ SessionCatalog  = (*SessionHub)(nil)
+	_ AdapterProvider = (*SessionHub)(nil)
+	_ SessionNames    = (*SessionHub)(nil)
 )

@@ -68,7 +68,7 @@ func NewState(ctx context.Context) *State {
 	index := NewIndexer(hub, hub, roles.search, roles.scratch)
 	notif := NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus)
 	f := newFanout(hub, index, notif, bus)
-	poller := NewPoller(f)
+	poller := NewPoller(hub, f)
 
 	// Load configured sources and create adapters.
 	if st != nil {

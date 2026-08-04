@@ -382,6 +382,52 @@ func TestPollInterval_PicksLiveCadenceWhenSessionIsActive(t *testing.T) {
 	}
 }
 
+// fakeAdapterProvider is an in-memory AdapterProvider for driving the Poller's
+// source-watch logic through the seam, independently of the hub's real adapter
+// set.
+type fakeAdapterProvider struct {
+	adapters map[string]ingest.Adapter
+}
+
+func (f *fakeAdapterProvider) Adapters() map[string]ingest.Adapter {
+	return f.adapters
+}
+
+// TestPollerTick_ReadsSourcesThroughAdapterProvider pins the Poller to its
+// AdapterProvider seam: the source-watch pass must read from the provider, not
+// the concrete hub. The hub still registers a changing source, but the fake
+// provider omits it, so a correct poller observes nothing and emits no events.
+func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
+	adapter := &tickingAdapter{
+		mockAdapter: mockAdapter{
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+		},
+		lastModFn: func() (int64, error) { return 2, nil },
+	}
+
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
+	notif := NewNotifier(hub, nil, nil, nil, bus)
+	index := NewIndexer(hub, hub, nil, nil)
+	// The provider the poller watches is empty, so the hub's changing source is
+	// invisible to the watch pass.
+	poller := NewPoller(&fakeAdapterProvider{adapters: map[string]ingest.Adapter{}}, newFanout(hub, index, notif, bus))
+	// Seed a previous observation for the source the poller cannot see.
+	poller.lastMod["src-1"] = 1
+
+	ch := bus.Subscribe()
+	defer bus.Unsubscribe(ch)
+
+	poller.tick(context.Background())
+
+	// No source is visible through the provider, so no refresh/broadcast may fire.
+	select {
+	case ev := <-ch:
+		t.Fatalf("expected no events when the provider sees no source, got %q", ev.Name)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 // TestPollPath drives the poll → refresh → SSE path synchronously through the
 // Poller.tick method, without waiting on the 30s idle cadence. The indexer and
 // notifier run as their own collaborators so the full pipeline is reachable
@@ -400,7 +446,7 @@ func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	}
 	notif := NewNotifier(hub, nil, nil, nil, bus)
 	index := NewIndexer(hub, hub, nil, nil)
-	poller := NewPoller(newFanout(hub, index, notif, bus))
+	poller := NewPoller(hub, newFanout(hub, index, notif, bus))
 	// Seed the previous observation so the next tick is a real change.
 	poller.lastMod["src-1"] = 1
 
@@ -478,7 +524,7 @@ func TestPollerTick_DrivesIndexAndClassify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	poller := NewPoller(newFanout(hub, index, notif, bus))
+	poller := NewPoller(hub, newFanout(hub, index, notif, bus))
 	poller.lastMod["src-1"] = 1
 
 	ch := bus.Subscribe()
