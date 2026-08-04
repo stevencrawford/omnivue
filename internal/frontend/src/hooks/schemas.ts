@@ -113,10 +113,12 @@ export const DiscoveredSourcesSchema = z.array(DiscoveredSourceSchema);
 // Plan
 // ---------------------------------------------------------------------------
 
-export const PlanSchema = z.object({
-  markdown: z.string(),
-  source: z.string(),
-});
+export const PlanSchema = z
+  .object({
+    markdown: z.string(),
+    source: z.string(),
+  })
+  .nullable();
 
 // ---------------------------------------------------------------------------
 // DiffFile

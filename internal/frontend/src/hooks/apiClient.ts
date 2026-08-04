@@ -132,7 +132,7 @@ export async function fetchMessages(sessionId: string, signal?: AbortSignal): Pr
   );
 }
 
-export async function fetchPlan(sessionId: string): Promise<Plan> {
+export async function fetchPlan(sessionId: string): Promise<Plan | null> {
   return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/plan`, PlanSchema);
 }
 
