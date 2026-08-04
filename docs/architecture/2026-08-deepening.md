@@ -1,7 +1,7 @@
 # Architecture Deepening Spec — 2026
 
 Status: **Active** — Lead: architecture lead
-Last updated: 2026-08-02
+Last updated: 2026-08-04
 
 This spec consolidates the codebase architecture review into a single ranked list of
 **deepening opportunities** — refactors that turn shallow modules into deep ones. It is the
@@ -42,18 +42,18 @@ id and its own Goals / Files / Seam / Acceptance / Tests card.
 | ATH-02 | Split `store.Store` into role interfaces | H | 0 | done |
 | ATH-03 | De-leak & normalize the HTTP handler layer | H | 0 | done |
 | ATH-04 | Collapse EffectJS service layer / unify `ApiError` | H | 1 | done |
-| ATH-05 | Centralize ingest tool-call canonicalization | H | 2 | open |
-| ATH-06 | Shrink the `ingest` Adapter interface + fix doc drift | H | 2 | open |
+| ATH-05 | Centralize ingest tool-call canonicalization | H | 2 | done |
+| ATH-06 | Shrink the `ingest` Adapter interface + fix doc drift | H | 2 | done |
 | ATH-07 | Single tool-kind + token-color taxonomy | H | 2 | open |
 | ATH-08 | Focus context / shrink App prop surface | M | 3 | done |
-| ATH-09 | Split the god components | M | 3 | open |
-| ATH-10 | Frontend shared widgets & constants (dedup) | M | 2 | open |
+| ATH-09 | Split the god components | M | 3 | in progress (named components done; ConversationView/SessionViewer/SearchPanel remain) |
+| ATH-10 | Frontend shared widgets & constants (dedup) | M | 2 | in progress (STORAGE_KEYS/FilterChip/useHideCosts done; literals + resize + section-group remain) |
 | ATH-11 | Hook-contract consistency | M | 3 | done |
 | ATH-12 | Effect-cleanup correctness | M | 1 | done |
 | ATH-13 | Error / loading / empty-state consistency | M | 1 | done |
-| ATH-14 | Adapter derived-parse for `edits` | M | 3 | open |
+| ATH-14 | Adapter derived-parse for `edits` | M | 3 | done |
 | ATH-15 | Derive frontend types from Zod / retire barrel | L | 4 | open |
-| ATH-16 | Dead & duplicate helper cleanup | L | 4 | open |
+| ATH-16 | Dead & duplicate helper cleanup | L | 4 | open (mostly done via ATH-09; minor leftovers) |
 | ATH-17 | `useSessionRouting` hash-effect conflict | L | 4 | open |
 
 ---
@@ -350,12 +350,13 @@ Append one line here each time a card flips to `done` so agents can see progress
 re-reading the whole table.
 
 - 2026-08-04 — ATH-12 (effect-cleanup) done on `refactor/ath12-effect-cleanup`: `reloadTimer` cleared on unmount in `useNotifications`; `addRecentSearches` moved out of the `setSearches` updater in `useRecentSearches` (impure / StrictMode double-write); regression tests added. `make test` green.
-- 2026-08-04 — ATH-08 (focus context) done on `refactor/ath08-focus-ath11-hooks`: new `hooks/useFocus.tsx` (FocusContext + `parseMessageTarget`); `handleSessionSelect`/`handleBookmarkSelect`/`handleDiffNavigateToMessage`/`handleNotificationClick` consolidated onto `jumpToMessage`; `focus*`/`onClearFocus` props removed from `SessionViewer`/`ConversationView` (leaf reads `useFocus()`). Frontend gates green.
-- 2026-08-04 — ATH-11 (hook-contract consistency) done on `refactor/ath08-focus-ath11-hooks`: shared `runCatching(effect, onError)` in `utils/errors.ts` adopted by `useSessions`/`useBookmarks`/`useNotifications`/`useRecentSearches`/`useScratchFiles`; `sessionsLoading` → `loading` in `useSessions` + App consumer; `useTheme` collapsed (dropped `theme`/`setTheme` aliases, merged `THEMES`+`THEME_NAMES` into `THEME_OPTIONS`, consumers migrated to `themeMode`/`THEME_OPTIONS`). Leaked raw setters (`setActiveSessionId`, `setDrawerOpen`/`setDrawerResults`, `setPinTitle`, `setSearchSessionScope`) intentionally kept — they are cross-hook coordination points wired through `useAppKeyboard`/`useSessionRouting`, not internal leaks; renaming them is higher-risk churn than the card's "worth exploring" value. `pnpm build`/`fmt`/`lint`/`test` green.
-- 2026-08-04 — ATH-13 (error/loading/empty-state) done on `refactor/ath13-error-loading`: shared `utils/errors.ts` (`getErrorMessage`/`isAbortError`/`describeApiError`), `showErrorToast` on the Toast context, shared `Spinner`/`LoadingState`/`EmptyPanel`; migrated the card's named files (PlanView, DiffView, ConversationView, SearchPanel, SessionViewer, ScratchEditor) + `useSearchState`. Remaining ~90 catch sites left as incremental follow-up. `make test` green.
-- 2026-08-04 — ATH-08 (focus context) done on `refactor/ath08-focus-ath11-hooks`: new `hooks/useFocus.tsx` (FocusContext + `parseMessageTarget`); `handleSessionSelect`/`handleBookmarkSelect`/`handleDiffNavigateToMessage`/`handleNotificationClick` consolidated onto `jumpToMessage`; `focus*`/`onClearFocus` props removed from `SessionViewer`/`ConversationView` (leaf reads `useFocus()`). Frontend gates green.
-- 2026-08-04 — ATH-11 (hook-contract consistency) done on `refactor/ath08-focus-ath11-hooks`: shared `runCatching(effect, onError)` in `utils/errors.ts` adopted by `useSessions`/`useBookmarks`/`useNotifications`/`useRecentSearches`/`useScratchFiles`; `sessionsLoading` → `loading` in `useSessions` + App consumer; `useTheme` collapsed (dropped `theme`/`setTheme` aliases, merged `THEMES`+`THEME_NAMES` into `THEME_OPTIONS`, consumers migrated to `themeMode`/`THEME_OPTIONS`). Leaked raw setters intentionally kept (cross-hook coordination via `useAppKeyboard`/`useSessionRouting`). Frontend gates green.
-- 2026-08-04 — ATH-09 (split god components) in progress on `refactor/ath09-god-components`: SettingsModal split 928→85-line shell composing per-tab modules (AgentSettingsTab, SessionsSettingsTab, AppearanceSettingsTab, Privacy/Developer tabs, AboutSettingsTab, each <400 lines); extracted shared `FilterChip` (deduped from SettingsModal + SessionPanel), `useHideCosts` hook (adopted by SettingsModal, SessionSummary, OverviewScreen — removes local dups), `utils/uuid.ts` `makeId`. All remaining named god components are now split and each <400 lines: SessionPanel 758→391 (`components/sessions/`: SessionTree, VerboseStats, IconBtn, SortMenu), TagPanel 677→354 (`components/tags/`: TagListHeader, TagFilterBar, TagRow, TagSessionRow, AssignPicker), DiffView 677→321 (shell + `components/diff/FileTree` + `utils/diffTree.ts`), SessionSummary 648→99 (`components/sessionSummary/`: charts + format helpers), OverviewScreen 434→208 (`components/overview/` StatCard/RepoCard/MiniSessionRow; `computeStats`/`sortByRecent`/`agentLabel` consolidated into `overviewAnalytics`, pre-work for ATH-16). `ProjectPanel` no longer exists. Frontend gates green; row stays `open` while other ATH-09 scope (remaining god-files, e.g. ConversationView/SessionViewer) is verified.
+- 2026-08-04 — ATH-08 (focus context) and ATH-11 (hook-contract consistency) done, merged on `dev` via #100 (`refactor/ath08-focus-ath11-hooks`): new `hooks/useFocus.tsx` (FocusContext + `parseMessageTarget`); `handleSessionSelect`/`handleBookmarkSelect`/`handleDiffNavigateToMessage`/`handleNotificationClick` consolidated onto `jumpToMessage`; `focus*`/`onClearFocus` props removed from leaf (reads `useFocus()`). Shared `runCatching(effect, onError)` in `utils/errors.ts`; `sessionsLoading` → `loading`; `useTheme` collapsed to `themeMode`/`THEME_OPTIONS`. Leaked raw setters intentionally kept (cross-hook coordination via `useAppKeyboard`/`useSessionRouting`). Frontend gates green.
+- 2026-08-04 — ATH-13 (error/loading/empty-state) done, merged on `dev` via #96 (`refactor/ath13-error-loading`): shared `utils/errors.ts` (`getErrorMessage`/`isAbortError`/`describeApiError`), `showErrorToast` on the Toast context, shared `Spinner`/`LoadingState`/`EmptyPanel`; migrated the card's named files + `useSearchState`. Remaining ~90 catch sites left as incremental follow-up. `make test` green.
+- 2026-08-04 — ATH-09 (split god components) part 1 merged on `dev` via #101 (`refactor/ath09-god-components`): SettingsModal 928→85 shell composing per-tab modules; extracted shared `FilterChip`, `useHideCosts`, `utils/uuid.ts` `makeId`; SessionPanel 758→391, TagPanel 677→354, DiffView 677→321, SessionSummary 648→99, OverviewScreen 434→208; `ProjectPanel` removed. Remaining god-files still >400 lines: ConversationView (498), SessionViewer (500), SearchPanel (418).
+- 2026-08-04 — ATH-12 (effect-cleanup) done, merged on `dev` via #95 (`refactor/ath12-effect-cleanup`): `reloadTimer` cleared on unmount in `useNotifications`; `addRecentSearches` moved out of the `setSearches` updater in `useRecentSearches` (impure / StrictMode double-write); regression tests added. `make test` green.
+- 2026-08-04 — ATH-14 (adapter derived-parse for `edits`) done, merged on `dev` via #99 (`refactor/ath14-edits-derive`).
+- 2026-08-04 — ATH-05 (ingest tool-call canonicalization) & ATH-06 (shrink Adapter interface + doc drift) done, merged on `dev` via #89 (`refactor/ingest-architecture`): `ingestkit.CanonicalizeToolName` alias table consumed by all adapters; `Detect`/`Type` stripped from the interface; `internal/ingest/AGENTS.md` reconciled.
+- 2026-08-04 — ATH-01/02/03 (State split, store role interfaces, HTTP handler de-leak) done, merged on `dev` via #88 (`refactor/state-store-split`). ATH-04 (EffectJS collapse / unified `ApiError`) via #87 (`refactor/ath04-collapse-effect-services`).
 - 2026-08-02 — PR review response round 3 on `refactor/state-store-split`: S1 liveness heuristic dedup (`applyLiveness`), S2 fan-out bundle (`fanout` struct, handlers + Poller share it), S3 scratch read routed through `requireStore`, S4 `util.go` dissolved into single-consumer homes, Spec(a) 200 centralized behind `writeOK` (48 sites). Kept + responded: Spec(b) frontend heartbeat (half of A2, card-tied), Spec(c) test rewrite + hub-private `SessionNameStore` (accepted D3 consequence), S5 `State` facade (reviewer called acceptable). `make test` green.
 - 2026-08-02 — PR review response round 2 on `refactor/state-store-split`: A1 typed-nil store roles (`storeRoles`/`storeRolesOf`, never box a nil `*Store`), A2 `ExcludeActiveView` wired end-to-end (+ frontend heartbeat), A3 indexer hash-dedup restored (`updateIndexState`), B1/B2 `prevStatus`+`SetNames` deleted, C1/C2 fan-out+scratch-chunk dedup (`fanoutSessions`, `indexScratchChunk`), D1/D2/D3 handler seams narrowed + status writes centralized (`writeNoContent`/`writeCreated`/`writeAccepted`/`requireStore`) + in-memory fake stores for handler tests. Resolve-changes kept and pinned by `server_test.go`; `make test` green.
 - 2026-08-02 — ATH-04 (EffectJS service layer collapse + unified `ApiError`) done on `refactor/ath04-collapse-effect-services`.
