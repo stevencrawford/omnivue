@@ -13,6 +13,7 @@ import { PinnedPromptBar } from "./PinnedPromptBar";
 import { useConversationScroll } from "../hooks/useConversationScroll";
 import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useSessionNav } from "../hooks/useNav";
+import { useFocus } from "../hooks/useFocus";
 
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./Spinner";
@@ -153,12 +154,7 @@ export function ConversationView({
   onPin,
   onBookmark,
   bookmarkIdByRef,
-  focusStepIndex,
   searchHighlightQuery,
-  focusMessageIndex,
-  focusMessageKey,
-  focusMessageId,
-  onClearFocus,
   onQueueChanged,
   highlightPromptId,
   onHighlightDone,
@@ -176,16 +172,13 @@ export function ConversationView({
     label: string,
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
-  focusStepIndex?: number;
   searchHighlightQuery?: string;
-  focusMessageIndex?: number;
-  focusMessageKey?: number;
-  focusMessageId?: string;
-  onClearFocus?: () => void;
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
 }) {
+  const { focusStepIndex, focusMessageIndex, focusMessageKey, focusMessageId, clearFocus } =
+    useFocus();
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
       sessionId: session.id,
@@ -256,7 +249,7 @@ export function ConversationView({
     focusMessageKey,
     focusMessageId,
     messagesWithoutReminders,
-    onClearFocus,
+    clearFocus,
     resolveRenderIndex,
   );
 
