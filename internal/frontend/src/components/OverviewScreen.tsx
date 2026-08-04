@@ -20,6 +20,7 @@ import {
   filterSessionsByTimeRange,
   sortByRecent,
 } from "../utils/overviewAnalytics";
+import { TOKEN_COLOR_SEGMENTS } from "../utils/toolKindTaxonomy";
 
 interface OverviewScreenProps {
   sessions: Session[];
@@ -87,17 +88,17 @@ export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProp
     stats.tokensInput + stats.tokensOutput + stats.tokensCacheRead + stats.tokensReasoning;
 
   const tokenSegments = [
-    { label: "Input", value: stats.tokensInput, color: "var(--color-accent)" },
-    { label: "Output", value: stats.tokensOutput, color: "var(--color-accent-secondary)" },
+    { label: "Input", value: stats.tokensInput, color: TOKEN_COLOR_SEGMENTS.input },
+    { label: "Output", value: stats.tokensOutput, color: TOKEN_COLOR_SEGMENTS.output },
     {
       label: "Cache",
       value: stats.tokensCacheRead,
-      color: "color-mix(in srgb, var(--color-accent) 50%, cyan)",
+      color: TOKEN_COLOR_SEGMENTS.cache,
     },
     {
       label: "Reasoning",
       value: stats.tokensReasoning,
-      color: "color-mix(in srgb, var(--color-accent-secondary) 60%, violet)",
+      color: TOKEN_COLOR_SEGMENTS.reasoning,
     },
   ].filter((s) => s.value > 0);
 

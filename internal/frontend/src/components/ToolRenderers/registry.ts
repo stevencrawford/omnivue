@@ -1,6 +1,7 @@
 import type { ToolCall } from "../../hooks/useApi";
 import type { ToolRendererDefinition } from "./types";
 import { extractJSONField } from "../../utils/jsonField";
+import { toolKindInfo } from "../../utils/toolKindTaxonomy";
 
 interface RegistryModules {
   definitions?: ToolRendererDefinition[];
@@ -13,8 +14,8 @@ interface MarkerInfo {
   markerPriority: number;
 }
 
-const DEFAULT_MARKER_COLOR = "#6b7280";
-const DEFAULT_MARKER_LABEL = "Other";
+const DEFAULT_MARKER_COLOR = toolKindInfo("other").color;
+const DEFAULT_MARKER_LABEL = toolKindInfo("other").label;
 const DEFAULT_MARKER_DISPLAY_TYPE = "tool";
 const DEFAULT_MARKER_PRIORITY = 1000;
 

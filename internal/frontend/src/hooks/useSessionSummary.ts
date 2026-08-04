@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Message } from "./useApi";
 import { effectiveToolKind } from "../utils/toolDisplay";
+import { aggregateToolKind, toolKindInfo } from "../utils/toolKindTaxonomy";
 
 export interface SummaryCategory {
   kind: string;
@@ -18,18 +19,14 @@ export interface SessionSummary {
   hasTiming: boolean;
 }
 
-const SUMMARY_DEFS: {
+interface SummaryDef {
   kind: string;
-  label: string;
-  color: string;
   test: (msg: Message, counted: Set<string>) => boolean;
-  toolKinds: string[];
-}[] = [
+}
+
+const SUMMARY_DEFS: SummaryDef[] = [
   {
     kind: "user-request",
-    label: "User Requests",
-    color: "#58a6ff",
-    toolKinds: [],
     test: (msg, counted) => {
       if (msg.role !== "user") return false;
       counted.add(msg.id);
@@ -38,9 +35,6 @@ const SUMMARY_DEFS: {
   },
   {
     kind: "thinking",
-    label: "Thinking",
-    color: "#a78bfa",
-    toolKinds: [],
     test: (msg, counted) => {
       if (msg.role !== "assistant") return false;
       if (!msg.reasoning) return false;
@@ -48,58 +42,13 @@ const SUMMARY_DEFS: {
       return true;
     },
   },
-  {
-    kind: "edit",
-    label: "Edits",
-    color: "#ef4444",
-    toolKinds: ["edit", "write", "delete"],
-    test: () => false,
-  },
-  {
-    kind: "read",
-    label: "Reads",
-    color: "#06b6d4",
-    toolKinds: ["read"],
-    test: () => false,
-  },
-  {
-    kind: "bash",
-    label: "Shell",
-    color: "#eab308",
-    toolKinds: ["bash"],
-    test: () => false,
-  },
-  {
-    kind: "search",
-    label: "Search",
-    color: "#8b5cf6",
-    toolKinds: ["grep", "glob", "codesearch"],
-    test: () => false,
-  },
-  {
-    kind: "web",
-    label: "Web",
-    color: "#ec4899",
-    toolKinds: ["webfetch", "websearch"],
-    test: () => false,
-  },
-  {
-    kind: "other",
-    label: "Other",
-    color: "#6b7280",
-    toolKinds: [],
-    test: () => false,
-  },
+  { kind: "edit", test: () => false },
+  { kind: "read", test: () => false },
+  { kind: "bash", test: () => false },
+  { kind: "search", test: () => false },
+  { kind: "web", test: () => false },
+  { kind: "other", test: () => false },
 ];
-
-function mapToolKind(kind: string): string {
-  if (["edit", "write", "delete"].includes(kind)) return "edit";
-  if (kind === "read") return "read";
-  if (kind === "bash") return "bash";
-  if (["grep", "glob", "codesearch"].includes(kind)) return "search";
-  if (["webfetch", "websearch"].includes(kind)) return "web";
-  return "other";
-}
 
 export function useSessionSummary(messages: Message[]): SessionSummary {
   return useMemo(() => {
@@ -123,7 +72,7 @@ export function useSessionSummary(messages: Message[]): SessionSummary {
 
       if (msg.role === "assistant" && msg.toolCalls) {
         for (const tc of msg.toolCalls) {
-          const kind = mapToolKind(effectiveToolKind(tc));
+          const kind = aggregateToolKind(effectiveToolKind(tc));
           counts.set(kind, (counts.get(kind) ?? 0) + 1);
           if (tc.duration && tc.duration > 0) {
             durations.set(kind, (durations.get(kind) ?? 0) + tc.duration);
@@ -138,8 +87,8 @@ export function useSessionSummary(messages: Message[]): SessionSummary {
 
     const categories: SummaryCategory[] = SUMMARY_DEFS.map((def) => ({
       kind: def.kind,
-      label: def.label,
-      color: def.color,
+      label: toolKindInfo(def.kind).label,
+      color: toolKindInfo(def.kind).color,
       count: counts.get(def.kind) ?? 0,
       percentage: totalCount > 0 ? ((counts.get(def.kind) ?? 0) / totalCount) * 100 : 0,
       duration: durations.get(def.kind) ?? 0,
