@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import type { Session, Bookmark, AppNotification } from "../hooks/useApi";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
@@ -7,6 +6,8 @@ import { TagPanel } from "./TagPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
 import { QueuePanel } from "./QueuePanel";
+import { useResizable } from "../hooks/useResizable";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 interface SidebarProps {
   sessions: Session[];
@@ -31,17 +32,7 @@ interface SidebarProps {
   onPromptClick?: (sessionId: string, promptId: string) => void;
 }
 
-const SIDEBAR_WIDTH_KEY = "omnivue-sidebar-width";
-
-function getInitialWidth(): number {
-  try {
-    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (stored) return Math.max(220, Math.min(600, Number(stored)));
-  } catch {
-    /* noop */
-  }
-  return 280;
-}
+const SIDEBAR_WIDTH_KEY = STORAGE_KEYS.SIDEBAR_WIDTH;
 
 export function Sidebar({
   sessions,
@@ -65,54 +56,17 @@ export function Sidebar({
   promptVersion = 0,
   onPromptClick,
 }: SidebarProps) {
-  const [width, setWidth] = useState(getInitialWidth);
-  const [isResizing, setIsResizing] = useState(false);
-  const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
-
-  useEffect(() => {
-    return () => {
-      for (const [type, handler] of resizeListeners.current) {
-        document.removeEventListener(type, handler);
-      }
-      resizeListeners.current = [];
-    };
-  }, []);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    for (const [type, handler] of resizeListeners.current) {
-      document.removeEventListener(type, handler);
-    }
-    resizeListeners.current = [];
-    setIsResizing(true);
-    const startX = e.clientX;
-    const startWidth = width;
-
-    const handleMouseMove = (ev: MouseEvent) => {
-      const newWidth = Math.max(220, Math.min(600, startWidth + (ev.clientX - startX)));
-      setWidth(newWidth);
-    };
-
-    const handleMouseUp = (ev: MouseEvent) => {
-      setIsResizing(false);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      resizeListeners.current = [];
-      const finalWidth = Math.max(220, Math.min(600, startWidth + (ev.clientX - startX)));
-      try {
-        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(finalWidth));
-      } catch {
-        /* noop */
-      }
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    resizeListeners.current = [
-      ["mousemove", handleMouseMove as EventListener],
-      ["mouseup", handleMouseUp as EventListener],
-    ];
-  };
+  const {
+    value: width,
+    isResizing,
+    startResize,
+  } = useResizable({
+    storageKey: SIDEBAR_WIDTH_KEY,
+    axis: "horizontal",
+    min: 220,
+    max: 600,
+    defaultValue: 280,
+  });
 
   const renderedWidth = sidebarOpen ? width : 48;
   const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
@@ -186,7 +140,7 @@ export function Sidebar({
       {sidebarOpen && (
         <div
           className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
-          onMouseDown={handleMouseDown}
+          onMouseDown={startResize}
         />
       )}
     </aside>

@@ -16,6 +16,7 @@ import { FilterChip } from "./FilterChip";
 import { SessionTree, type DisplayMode } from "./sessions/SessionTree";
 import { IconBtn } from "./sessions/IconBtn";
 import { SortMenu } from "./sessions/SortMenu";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 function getAncestorChain(sessions: Session[], id: string): string[] {
   const chain: string[] = [];
@@ -35,9 +36,9 @@ interface SessionPanelProps {
   sessionUnread?: Record<string, number>;
 }
 
-const COLLAPSED_KEY = "omnivue-sidebar-collapsed";
-const SORT_KEY = "omnivue-sidebar-sort";
-const DISPLAY_KEY = "omnivue-sidebar-display";
+const COLLAPSED_KEY = STORAGE_KEYS.SIDEBAR_COLLAPSED;
+const SORT_KEY = STORAGE_KEYS.SIDEBAR_SORT;
+const DISPLAY_KEY = STORAGE_KEYS.SIDEBAR_DISPLAY;
 
 function getInitialCollapsed(): Set<string> {
   try {

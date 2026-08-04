@@ -1,20 +1,14 @@
 import type { ReactNode } from "react";
 import type { Session } from "../../hooks/useApi";
 import { formatCost, formatTokens, shortModel } from "../../utils/sessionUtils";
-
-function hideCosts(): boolean {
-  try {
-    return localStorage.getItem("omnivue-hide-costs") === "true";
-  } catch {
-    return false;
-  }
-}
+import { useHideCosts } from "../../hooks/useHideCosts";
 
 export function VerboseStats({ session }: { session: Session }) {
+  const hideCosts = useHideCosts();
   const totalTokens =
     session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
   const parts: ReactNode[] = [];
-  const costsVisible = !hideCosts();
+  const costsVisible = !hideCosts;
 
   const model = shortModel(session.model);
   if (model) {

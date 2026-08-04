@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 export type ThemeName =
   | "default"
@@ -33,7 +34,7 @@ function isThemeName(value: string): value is ThemeName {
 
 function getInitialThemeName(): ThemeName {
   try {
-    const stored = localStorage.getItem("omnivue-theme");
+    const stored = localStorage.getItem(STORAGE_KEYS.THEME);
     if (stored && isThemeName(stored)) return stored;
     if (stored === "light" || stored === "dark") return "github";
   } catch {
@@ -44,9 +45,9 @@ function getInitialThemeName(): ThemeName {
 
 function getInitialThemeMode(): ThemeMode {
   try {
-    const stored = localStorage.getItem("omnivue-mode");
+    const stored = localStorage.getItem(STORAGE_KEYS.MODE);
     if (stored === "light" || stored === "dark") return stored;
-    const old = localStorage.getItem("omnivue-theme");
+    const old = localStorage.getItem(STORAGE_KEYS.THEME);
     if (old === "light" || old === "dark") return old;
   } catch {
     /* localStorage throws SecurityError in restricted contexts */
@@ -72,8 +73,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute("data-theme", themeName);
     document.documentElement.setAttribute("data-mode", themeMode);
     try {
-      localStorage.setItem("omnivue-theme", themeName);
-      localStorage.setItem("omnivue-mode", themeMode);
+      localStorage.setItem(STORAGE_KEYS.THEME, themeName);
+      localStorage.setItem(STORAGE_KEYS.MODE, themeMode);
     } catch {
       /* localStorage throws SecurityError in restricted contexts */
     }

@@ -197,15 +197,21 @@ export function buildFileTree(diffs: MergedFileDiff[]): FileTreeNode[] {
   return root;
 }
 
+export const DIFF_STATUS_COLORS = {
+  added: { text: "text-green-500", bg: "bg-green-500" },
+  modified: { text: "text-yellow-500", bg: "bg-yellow-500" },
+  deleted: { text: "text-red-500", bg: "bg-red-500" },
+} as const;
+
 export function computeFileStatus(diff?: MergedFileDiff): { letter: string; color: string } {
   if (!diff) return { letter: "", color: "" };
   switch (diff.status) {
     case "added":
-      return { letter: "A", color: "text-green-500" };
+      return { letter: "A", color: DIFF_STATUS_COLORS.added.text };
     case "deleted":
-      return { letter: "D", color: "text-red-500" };
+      return { letter: "D", color: DIFF_STATUS_COLORS.deleted.text };
     default:
-      return { letter: "M", color: "text-yellow-500" };
+      return { letter: "M", color: DIFF_STATUS_COLORS.modified.text };
   }
 }
 

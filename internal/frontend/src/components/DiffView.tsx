@@ -12,9 +12,12 @@ import {
   mergeFileEdits,
   relativizePath,
   buildFileTree,
+  DIFF_STATUS_COLORS,
   type MergedFileDiff,
 } from "../utils/diffTree";
 import { FileTree } from "./diff/FileTree";
+import { useResizable } from "../hooks/useResizable";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 interface DiffViewProps {
   sessionId: string;
@@ -24,8 +27,8 @@ interface DiffViewProps {
   onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }
 
-const DIFF_TREE_WIDTH_KEY = "omnivue-diff-tree-width";
-const DIFF_TREE_COLLAPSED_KEY = "omnivue-diff-tree-collapsed";
+const DIFF_TREE_WIDTH_KEY = STORAGE_KEYS.DIFF_TREE_WIDTH;
+const DIFF_TREE_COLLAPSED_KEY = STORAGE_KEYS.DIFF_TREE_COLLAPSED;
 
 export function DiffView({
   sessionId,
@@ -44,28 +47,14 @@ export function DiffView({
       return false;
     }
   });
-  const [treeWidth, setTreeWidth] = useState(() => {
-    try {
-      const stored = localStorage.getItem(DIFF_TREE_WIDTH_KEY);
-      if (stored) return Math.max(200, Math.min(600, Number(stored)));
-    } catch {
-      /* */
-    }
-    return 280;
+  const { value: treeWidth, startResize } = useResizable({
+    storageKey: DIFF_TREE_WIDTH_KEY,
+    axis: "horizontal",
+    min: 200,
+    max: 600,
+    defaultValue: 280,
   });
-  const treeWidthRef = useRef(treeWidth);
-  treeWidthRef.current = treeWidth;
-  const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
   const { showErrorToast } = useToast();
-
-  useEffect(() => {
-    return () => {
-      for (const [type, handler] of resizeListeners.current) {
-        document.removeEventListener(type, handler);
-      }
-      resizeListeners.current = [];
-    };
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,40 +138,6 @@ export function DiffView({
     rightPanelRef.current?.scrollTo(0, 0);
   }, [selectedPath]);
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    for (const [type, handler] of resizeListeners.current) {
-      document.removeEventListener(type, handler);
-    }
-    resizeListeners.current = [];
-
-    const startX = e.clientX;
-    const startWidth = treeWidthRef.current;
-
-    const handleMouseMove = (ev: MouseEvent) => {
-      const newWidth = Math.max(200, Math.min(600, startWidth + (ev.clientX - startX)));
-      setTreeWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      resizeListeners.current = [];
-      try {
-        localStorage.setItem(DIFF_TREE_WIDTH_KEY, String(treeWidthRef.current));
-      } catch {
-        /* */
-      }
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    resizeListeners.current = [
-      ["mousemove", handleMouseMove as EventListener],
-      ["mouseup", handleMouseUp as EventListener],
-    ];
-  }, []);
-
   if (loading && edits.length === 0) {
     return <LoadingState label="Loading diffs..." />;
   }
@@ -217,19 +172,24 @@ export function DiffView({
           {mergedDiffs.length} {mergedDiffs.length === 1 ? "file" : "files"} changed
         </span>
         {stats.additions > 0 && (
-          <span className="text-green-500 font-mono">+{stats.additions}</span>
+          <span className={`${DIFF_STATUS_COLORS.added.text} font-mono`}>+{stats.additions}</span>
         )}
-        {stats.deletions > 0 && <span className="text-red-500 font-mono">-{stats.deletions}</span>}
+        {stats.deletions > 0 && (
+          <span className={`${DIFF_STATUS_COLORS.deleted.text} font-mono`}>-{stats.deletions}</span>
+        )}
         <div className="ml-auto flex items-center gap-1.5 text-[11px] text-ov-text-secondary">
           <span className="flex items-center gap-1">
-            <span className="size-2.5 rounded-sm bg-green-500" /> {stats.added} added
+            <span className={`size-2.5 rounded-sm ${DIFF_STATUS_COLORS.added.bg}`} /> {stats.added}{" "}
+            added
           </span>
           <span className="flex items-center gap-1">
-            <span className="size-2.5 rounded-sm bg-yellow-500" /> {stats.modified} modified
+            <span className={`size-2.5 rounded-sm ${DIFF_STATUS_COLORS.modified.bg}`} />{" "}
+            {stats.modified} modified
           </span>
           {stats.deleted > 0 && (
             <span className="flex items-center gap-1">
-              <span className="size-2.5 rounded-sm bg-red-500" /> {stats.deleted} deleted
+              <span className={`size-2.5 rounded-sm ${DIFF_STATUS_COLORS.deleted.bg}`} />{" "}
+              {stats.deleted} deleted
             </span>
           )}
         </div>
@@ -251,7 +211,7 @@ export function DiffView({
         {!treeCollapsed && (
           <div
             className="w-1 cursor-col-resize shrink-0 bg-ov-border hover:bg-accent transition-colors relative"
-            onMouseDown={handleResizeStart}
+            onMouseDown={startResize}
           >
             <div className="absolute inset-y-0 -left-1 -right-1" />
           </div>

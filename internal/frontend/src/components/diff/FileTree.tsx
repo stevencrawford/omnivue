@@ -3,6 +3,7 @@ import { ChevronRight, Folder } from "lucide-react";
 import {
   computeFileStatus,
   getFileName,
+  DIFF_STATUS_COLORS,
   type FileTreeNode,
   type MergedFileDiff,
 } from "../../utils/diffTree";
@@ -38,8 +39,12 @@ function FileTreeFileRow({
       </span>
       {(diff.additions > 0 || diff.deletions > 0) && (
         <span className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] font-mono pr-2">
-          {diff.additions > 0 && <span className="text-green-500">+{diff.additions}</span>}
-          {diff.deletions > 0 && <span className="text-red-500">-{diff.deletions}</span>}
+          {diff.additions > 0 && (
+            <span className={DIFF_STATUS_COLORS.added.text}>+{diff.additions}</span>
+          )}
+          {diff.deletions > 0 && (
+            <span className={DIFF_STATUS_COLORS.deleted.text}>-{diff.deletions}</span>
+          )}
         </span>
       )}
     </button>

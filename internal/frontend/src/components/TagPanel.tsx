@@ -15,6 +15,7 @@ import { CreateTagModal } from "./CreateTagModal";
 import { TagListHeader, type TagSort } from "./tags/TagListHeader";
 import { TagFilterBar } from "./tags/TagFilterBar";
 import { TagRow } from "./tags/TagRow";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 interface TagPanelProps {
   sessions: Session[];
@@ -22,8 +23,8 @@ interface TagPanelProps {
   onSessionSelect: (sessionId: string) => void;
 }
 
-const EXPANDED_KEY = "omnivue-tags-expanded";
-const SORT_TAG_KEY = "omnivue-tag-sort";
+const EXPANDED_KEY = STORAGE_KEYS.TAGS_EXPANDED;
+const SORT_TAG_KEY = STORAGE_KEYS.TAG_SORT;
 
 function getInitialExpanded(): Set<string> {
   try {
