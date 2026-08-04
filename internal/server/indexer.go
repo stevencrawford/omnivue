@@ -82,7 +82,10 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 		// Build content for each chunk type.
 		messagesContent := buildMessagesContent(messages)
 
-		// Build plan content.
+		// Build plan content. reader.Plan is safe to call unconditionally:
+		// SessionHub.Plan type-asserts for ingest.Planner and returns
+		// (nil, nil) for adapters without plan support, so a nil plan here
+		// simply means the session is indexed without a plan chunk.
 		var planContent string
 		if plan, err := ix.reader.Plan(ctx, sess.ID); err == nil && plan != nil {
 			planContent = plan.Markdown

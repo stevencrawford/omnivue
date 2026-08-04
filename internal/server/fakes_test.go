@@ -505,13 +505,18 @@ func (f *fakeSessionReader) Edits(_ context.Context, id string) ([]ingest.FileEd
 	return f.edits[id], nil
 }
 
-func (f *fakeSessionReader) ResumeCommand(_ context.Context, id string) (dir, absolute, relative, agentCommand string, err error) {
+func (f *fakeSessionReader) ResumeCommand(_ context.Context, id string) (*ResumeSpec, error) {
 	for _, s := range f.sessions {
 		if s.ID == id {
-			return s.Directory, "resume " + id, "absolute " + id, "agent " + id, nil
+			return &ResumeSpec{
+				Directory:    s.Directory,
+				Absolute:     "resume " + id,
+				Relative:     "absolute " + id,
+				AgentCommand: "agent " + id,
+			}, nil
 		}
 	}
-	return "", "", "", "", notFound("session not found: " + id)
+	return nil, notFound("session not found: " + id)
 }
 
 // fakeSessionCatalog is an in-memory SessionCatalog for driving the Indexer.

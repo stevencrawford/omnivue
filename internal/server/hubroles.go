@@ -6,6 +6,17 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
 
+// ResumeSpec bundles the CLI resume data for a session: the working directory
+// together with the absolute (cd + command), relative, and in-harness agent
+// command variants. Grouping the four related strings into one value keeps the
+// resume seam a single concept instead of a positional tuple.
+type ResumeSpec struct {
+	Directory    string
+	Absolute     string
+	Relative     string
+	AgentCommand string
+}
+
 // SessionReader is the per-session read seam: every by-ID read on a session's
 // content flows through it, so the read handlers, the Notifier, and the Indexer
 // all cross the same interface instead of pinning the concrete SessionHub. The
@@ -17,7 +28,7 @@ type SessionReader interface {
 	Plan(ctx context.Context, sessionID string) (*ingest.Plan, error)
 	Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error)
 	Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error)
-	ResumeCommand(ctx context.Context, sessionID string) (dir, absolute, relative, agentCommand string, err error)
+	ResumeCommand(ctx context.Context, sessionID string) (*ResumeSpec, error)
 }
 
 // SessionCatalog is the list-level read seam: patterns that consume the cached

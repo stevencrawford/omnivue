@@ -217,16 +217,19 @@ func (h *SessionHub) Edits(ctx context.Context, sessionID string) ([]ingest.File
 	return []ingest.FileEdit{}, nil
 }
 
-// ResumeCommand returns the CLI commands to resume a session: the working
-// directory, the absolute command (with cd), the relative command (without cd),
-// and the in-harness agent slash command.
-func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (dir, absolute, relative, agentCommand string, err error) {
+// ResumeCommand returns the CLI resume data for a session.
+func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (*ResumeSpec, error) {
 	sess, adapter, err := h.Resolve(ctx, sessionID)
 	if err != nil {
-		return "", "", "", "", err
+		return nil, err
 	}
 	abs := adapter.ResumeCommand(sess)
-	return sess.Directory, abs, terminal.ExtractCmd(abs), adapter.AgentCommand(sess), nil
+	return &ResumeSpec{
+		Directory:    sess.Directory,
+		Absolute:     abs,
+		Relative:     terminal.ExtractCmd(abs),
+		AgentCommand: adapter.AgentCommand(sess),
+	}, nil
 }
 
 // SetName applies a display-name override and updates the cached session list

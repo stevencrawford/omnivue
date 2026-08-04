@@ -370,16 +370,16 @@ func handleGetEdits(reader SessionReader) http.HandlerFunc {
 
 func handleGetResumeCommand(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		dir, abs, rel, agentCmd, err := reader.ResumeCommand(r.Context(), r.PathValue("id"))
+		spec, err := reader.ResumeCommand(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
 		}
 		writeOK(w, map[string]string{
-			"directory":    dir,
-			"absolute":     abs,
-			"relative":     rel,
-			"agentCommand": agentCmd,
+			"directory":    spec.Directory,
+			"absolute":     spec.Absolute,
+			"relative":     spec.Relative,
+			"agentCommand": spec.AgentCommand,
 		})
 	}
 }
@@ -1267,11 +1267,12 @@ func handleTerminalWS(reader SessionReader) http.HandlerFunc {
 			return
 		}
 
-		dir, _, initCmd, _, err := reader.ResumeCommand(r.Context(), sessionID)
+		spec, err := reader.ResumeCommand(r.Context(), sessionID)
 		if err != nil {
 			writeError(w, notFound("session not found"))
 			return
 		}
+		dir := spec.Directory
 		if dir == "" {
 			dir = "."
 		}
@@ -1285,7 +1286,7 @@ func handleTerminalWS(reader SessionReader) http.HandlerFunc {
 		}
 		defer ws.Close(websocket.StatusNormalClosure, "terminal closed") //nolint:errcheck
 
-		if err := terminal.Run(r.Context(), ws, dir, initCmd); err != nil {
+		if err := terminal.Run(r.Context(), ws, dir, spec.Relative); err != nil {
 			slog.Debug("terminal: session ended", "session", sessionID, "error", err)
 		}
 	}
