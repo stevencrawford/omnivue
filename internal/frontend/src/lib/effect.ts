@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-export function runFork<A, E, R>(effect: Effect.Effect<A, E, R>): () => void {
-  return Effect.runCallback(effect as Effect.Effect<A, E>);
+export function runFork<A, E>(effect: Effect.Effect<A, E>): () => void {
+  return Effect.runCallback(effect);
 }
 
 export { Effect };

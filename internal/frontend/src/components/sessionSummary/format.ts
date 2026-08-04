@@ -10,14 +10,7 @@ export function formatDuration(ms: number): string {
   return remainMin > 0 ? `${hours}h ${remainMin}m` : `${hours}h`;
 }
 
-export function formatPct(value: number): string {
-  if (value === 0) return "\u2014";
-  if (value >= 99.95) return "100%";
-  if (value < 0.1) return "<0.1%";
-  return `${value.toFixed(1)}%`;
-}
-
-export function formatSmallPct(value: number | null): string {
+export function formatPct(value: number | null): string {
   if (value === null || value === 0) return "\u2014";
   if (value >= 99.95) return "100%";
   if (value < 0.1) return "<0.1%";

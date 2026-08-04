@@ -1,4 +1,7 @@
 import type { Session } from "../hooks/useApi";
+import { agentLabel } from "./sessionUtils";
+
+export { agentLabel };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,18 +201,6 @@ function shortModelLabel(model: string): string {
     .replace("github-copilot/", "")
     .replace("claude-", "")
     .replace("gpt-", "");
-}
-
-export function agentLabel(agent: string): string {
-  const map: Record<string, string> = {
-    opencode: "OpenCode",
-    copilot: "Copilot",
-    cursor: "Cursor",
-    codex: "Codex",
-    "claude-code": "Claude Code",
-    pi: "Pi",
-  };
-  return map[agent] ?? agent;
 }
 
 export interface OverviewStats {

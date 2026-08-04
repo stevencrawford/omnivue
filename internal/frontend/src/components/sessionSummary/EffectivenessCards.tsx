@@ -1,6 +1,6 @@
 import { Zap, TrendingUp, CheckCircle, Activity } from "lucide-react";
 import type { EffectivenessMetrics } from "../../hooks/useSessionTokenomics";
-import { formatSmallPct } from "./format";
+import { formatPct } from "./format";
 
 function MiniMetricCard({
   icon: Icon,
@@ -40,22 +40,21 @@ export function EffectivenessCards({ metrics }: { metrics: EffectivenessMetrics 
     {
       icon: Zap,
       label: "Cache Hit Rate",
-      value: formatSmallPct(metrics.cacheHitRate),
+      value: formatPct(metrics.cacheHitRate),
       tooltip:
         "Percentage of input tokens served from cache. Higher means fewer API calls and lower latency.",
     },
     {
       icon: TrendingUp,
       label: "Efficiency",
-      value:
-        metrics.efficiencyRatio !== null ? formatSmallPct(metrics.efficiencyRatio * 100) : "\u2014",
+      value: metrics.efficiencyRatio !== null ? formatPct(metrics.efficiencyRatio * 100) : "\u2014",
       tooltip:
         "Ratio of output tokens to input tokens. Lower numbers mean more context processed per response token.",
     },
     {
       icon: CheckCircle,
       label: "Tool Success",
-      value: formatSmallPct(metrics.toolSuccessRate),
+      value: formatPct(metrics.toolSuccessRate),
       tooltip:
         "Percentage of tool calls (file edits, shell commands, searches) that completed without error.",
     },
