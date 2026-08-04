@@ -20,7 +20,7 @@ interface ScreenshotWindowProps {
  */
 export function ScreenshotWindow({ content, title, subtitle, innerRef }: ScreenshotWindowProps) {
   return (
-    <div ref={innerRef} className="w-[760px]" data-screenshot-window aria-hidden="true">
+    <div ref={innerRef} className="w-[1140px]" data-screenshot-window aria-hidden="true">
       <div className="bg-surface-elevated rounded-2xl border border-ov-border shadow-2xl overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 bg-[var(--color-ov-bg-secondary)] border-b border-ov-border">
           <div className="flex items-center gap-1.5">
