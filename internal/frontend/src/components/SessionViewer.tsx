@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
 import { deleteScratchFile, fetchMessages } from "../hooks/useApi";
+import { isAbortError } from "../utils/errors";
+import { useToast } from "../hooks/useToast";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
 import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
@@ -124,6 +126,7 @@ export function SessionViewer({
   const [deleteConfirmFileId, setDeleteConfirmFileId] = useState<string | null>(null);
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const { showErrorToast } = useToast();
 
   const cancelLoadRef = useRef<AbortController | null>(null);
 
@@ -137,14 +140,14 @@ export function SessionViewer({
         setMessages(data || []);
       })
       .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        console.error("Failed to load messages:", err instanceof Error ? err.message : err);
+        if (isAbortError(err)) return;
+        showErrorToast(err, "Failed to load messages");
         setMessages([]);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-  }, [session.id]);
+  }, [session.id, showErrorToast]);
 
   useEffect(() => {
     loadMessages();
@@ -474,8 +477,8 @@ export function SessionViewer({
                 if (!deleteConfirmFileId) return;
                 try {
                   await deleteScratchFile(session.id, deleteConfirmFileId);
-                } catch {
-                  /* ignore */
+                } catch (err) {
+                  showErrorToast(err, "Failed to delete scratch note");
                 }
                 onCloseScratchTab(deleteConfirmFileId);
                 setDeleteConfirmFileId(null);

@@ -3,6 +3,9 @@ import { ListTodo } from "lucide-react";
 import type { Plan } from "../hooks/useApi";
 import { fetchPlan } from "../hooks/useApi";
 import { MarkdownContent } from "./MarkdownContent";
+import { LoadingState } from "./LoadingState";
+import { EmptyPanel } from "./EmptyPanel";
+import { useToast } from "../hooks/useToast";
 
 interface PlanViewProps {
   sessionId: string;
@@ -15,6 +18,7 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const { showErrorToast } = useToast();
 
   useEffect(() => {
     return () => {
@@ -28,12 +32,13 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
     try {
       const data = await fetchPlan(sessionId);
       setPlan(data);
-    } catch {
+    } catch (err) {
+      showErrorToast(err, "Failed to load plan");
       setPlan(null);
     } finally {
       setLoading(false);
     }
-  }, [sessionId, refreshKey]);
+  }, [sessionId, refreshKey, showErrorToast]);
 
   useEffect(() => {
     load();
@@ -68,23 +73,11 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
   }, [searchHighlightQuery, plan]);
 
   if (loading && plan === null) {
-    return (
-      <div className="h-full flex items-center justify-center gap-2 text-sm text-ov-text-secondary">
-        <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-        Loading plan...
-      </div>
-    );
+    return <LoadingState label="Loading plan..." />;
   }
 
   if (!plan || !plan.markdown) {
-    return (
-      <div className="sess-empty-state p-8 h-full">
-        <div className="sess-empty-icon">
-          <ListTodo size={20} />
-        </div>
-        <p className="text-sm text-ov-text-secondary">No plan for this session</p>
-      </div>
-    );
+    return <EmptyPanel icon={<ListTodo size={20} />} title="No plan for this session" />;
   }
 
   return (

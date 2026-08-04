@@ -47,7 +47,7 @@ describe("useRecentSearches", () => {
     });
 
     expect(addRecentSearches).toHaveBeenCalledTimes(13);
-    const last = addRecentSearches.mock.calls.at(-1)![0] as string[];
+    const last = vi.mocked(addRecentSearches).mock.calls.at(-1)![0] as string[];
     expect(last).toHaveLength(10);
     expect(last[0]).toBe("q5");
     expect(last).toContain("q5");

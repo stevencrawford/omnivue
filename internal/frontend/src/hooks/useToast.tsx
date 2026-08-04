@@ -1,11 +1,16 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { Toast, type ToastAction } from "../components/Toast";
+import { describeApiError } from "../utils/errors";
 
 interface ToastContextValue {
   showToast: (message: string, action?: ToastAction, durationMs?: number) => void;
+  showErrorToast: (err: unknown, fallback?: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
+const ToastContext = createContext<ToastContextValue>({
+  showToast: () => {},
+  showErrorToast: () => {},
+});
 
 export function useToast() {
   return useContext(ToastContext);
@@ -26,12 +31,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToastKey((k) => k + 1);
   }, []);
 
+  const showErrorToast = useCallback(
+    (err: unknown, fallback?: string) => {
+      showToast(describeApiError(err, fallback));
+    },
+    [showToast],
+  );
+
   const hideToast = useCallback(() => {
     setToastVisible(false);
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, showErrorToast }}>
       {children}
       <Toast
         key={toastKey}

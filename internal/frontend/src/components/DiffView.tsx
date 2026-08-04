@@ -14,6 +14,9 @@ import { computeDiff } from "../utils/diff";
 import { PatchRenderer } from "./DiffRenderer";
 import { CopyButton } from "./CopyButton";
 import { detectLanguage } from "../utils/detectLanguage";
+import { LoadingState } from "./LoadingState";
+import { EmptyPanel } from "./EmptyPanel";
+import { useToast } from "../hooks/useToast";
 
 interface DiffViewProps {
   sessionId: string;
@@ -409,6 +412,7 @@ export function DiffView({
   const treeWidthRef = useRef(treeWidth);
   treeWidthRef.current = treeWidth;
   const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
+  const { showErrorToast } = useToast();
 
   useEffect(() => {
     return () => {
@@ -425,12 +429,12 @@ export function DiffView({
       const data = await fetchEdits(sessionId);
       setEdits(data || []);
     } catch (err) {
-      console.error("Failed to load edits:", err);
+      showErrorToast(err, "Failed to load diffs");
       setEdits([]);
     } finally {
       setLoading(false);
     }
-  }, [sessionId, refreshKey]);
+  }, [sessionId, refreshKey, showErrorToast]);
 
   useEffect(() => {
     load();
@@ -536,23 +540,11 @@ export function DiffView({
   }, []);
 
   if (loading && edits.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center gap-2 text-sm text-ov-text-secondary">
-        <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-        Loading diffs...
-      </div>
-    );
+    return <LoadingState label="Loading diffs..." />;
   }
 
   if (mergedDiffs.length === 0) {
-    return (
-      <div className="sess-empty-state p-8 h-full">
-        <div className="sess-empty-icon">
-          <File size={20} />
-        </div>
-        <p className="text-sm text-ov-text-secondary">No file changes in this session</p>
-      </div>
-    );
+    return <EmptyPanel icon={<File size={20} />} title="No file changes in this session" />;
   }
 
   return (
