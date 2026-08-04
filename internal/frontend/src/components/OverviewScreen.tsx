@@ -1,255 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
-import { Bot, Coins, GitBranch, Sparkles, Zap } from "lucide-react";
-import { ResumeButton } from "./ResumeButton";
+import { useMemo } from "react";
+import { Bot, Coins, Sparkles, Zap } from "lucide-react";
 import { SessionsIcon } from "./IconChannel";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { ActivityCharts } from "./ActivityCharts";
 import { ModelAgentBreakdown } from "./ModelAgentBreakdown";
+import { StatCard } from "./overview/StatCard";
+import { RepoCard } from "./overview/RepoCard";
 import type { Session } from "../hooks/types";
 import { useTimeRange } from "../hooks/useTimeRange";
+import { useHideCosts } from "../hooks/useHideCosts";
 import { shortRepoName } from "../utils/buildTree";
 import {
   formatCost,
   formatTokenBreakdown,
   formatTokens,
-  relativeTime,
-  sessionMetaParts,
-  sessionTitle,
-  shortModel,
 } from "../utils/sessionUtils";
 import {
   aggregateByAgent,
   aggregateByDay,
   aggregateByModel,
+  agentLabel,
+  computeStats,
   filterSessionsByTimeRange,
+  sortByRecent,
 } from "../utils/overviewAnalytics";
 
 interface OverviewScreenProps {
   sessions: Session[];
   onSessionSelect: (sessionId: string) => void;
-}
-
-interface OverviewStats {
-  totalSessions: number;
-  totalMessages: number;
-  totalCost: number;
-  tokensInput: number;
-  tokensOutput: number;
-  tokensCacheRead: number;
-  tokensReasoning: number;
-  agents: { agent: string; count: number }[];
-  models: { model: string; label: string; count: number }[];
-  totalWorkspaces: number;
-}
-
-function useHideCosts(): boolean {
-  const [hide, setHide] = useState(() => {
-    try {
-      return localStorage.getItem("omnivue-hide-costs") === "true";
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "omnivue-hide-costs") {
-        setHide(e.newValue === "true");
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-  return hide;
-}
-
-function computeStats(sessions: Session[]): OverviewStats {
-  const agentCounts = new Map<string, number>();
-  const modelCounts = new Map<string, number>();
-  let totalMessages = 0;
-  let totalCost = 0;
-  let tokensInput = 0;
-  let tokensOutput = 0;
-  let tokensCacheRead = 0;
-  let tokensReasoning = 0;
-
-  for (const s of sessions) {
-    totalMessages += s.messageCount;
-    totalCost += s.cost;
-    tokensInput += s.tokensInput;
-    tokensOutput += s.tokensOutput;
-    tokensCacheRead += s.tokensCacheRead;
-    tokensReasoning += s.tokensReasoning;
-    if (s.agent) agentCounts.set(s.agent, (agentCounts.get(s.agent) || 0) + 1);
-    const modelKey = s.model || "unknown";
-    modelCounts.set(modelKey, (modelCounts.get(modelKey) || 0) + 1);
-  }
-
-  const agents = [...agentCounts.entries()]
-    .map(([agent, count]) => ({ agent, count }))
-    .sort((a, b) => b.count - a.count);
-
-  const models = [...modelCounts.entries()]
-    .map(([model, count]) => ({ model, label: shortModel(model) || model, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 6);
-
-  const uniqueRepos = new Set<string>();
-  for (const s of sessions) {
-    uniqueRepos.add(s.repository || "Unknown");
-  }
-
-  return {
-    totalSessions: sessions.length,
-    totalMessages,
-    totalCost,
-    tokensInput,
-    tokensOutput,
-    tokensCacheRead,
-    tokensReasoning,
-    agents,
-    models,
-    totalWorkspaces: uniqueRepos.size,
-  };
-}
-
-function sortByRecent(list: Session[]): Session[] {
-  return [...list].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
-}
-
-function agentLabel(agent: string): string {
-  if (agent === "opencode") return "OpenCode";
-  if (agent === "copilot") return "Copilot";
-  if (agent === "cursor") return "Cursor";
-  if (agent === "codex") return "Codex";
-  if (agent === "claude-code") return "Claude Code";
-  if (agent === "pi") return "Pi";
-  return agent;
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ComponentType<{ size?: number }>;
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="sess-overview-stat">
-      <div className="sess-overview-stat-icon">
-        <Icon size={14} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-widest text-ov-text-secondary">{label}</p>
-        <p className="text-lg font-semibold tabular-nums truncate">{value}</p>
-        {sub && (
-          <p className="text-[11px] text-ov-text-secondary truncate" title={sub}>
-            {sub}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MiniSessionRow({
-  session,
-  onSelect,
-  showModel,
-}: {
-  session: Session;
-  onSelect: () => void;
-  showModel?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="sess-overview-session-row group"
-      title={session.directory || session.repository}
-    >
-      {!showModel && (
-        <span className={`sess-agent-badge sess-agent-badge--${session.agent} shrink-0`}>
-          {agentLabel(session.agent).slice(0, 1)}
-        </span>
-      )}
-      {showModel ? (
-        <span className="flex-1 min-w-0 text-left">
-          <span className="flex items-center gap-2">
-            <span className="flex-1 text-xs truncate">{sessionTitle(session)}</span>
-            <span className="text-[11px] text-ov-text-secondary tabular-nums shrink-0">
-              {relativeTime(session.updatedAt)}
-            </span>
-          </span>
-          <span className="flex items-center gap-1.5 mt-0.5">
-            <span className={`sess-agent-badge sess-agent-badge--${session.agent}`}>
-              {agentLabel(session.agent)}
-            </span>
-            <span className="text-[11px] text-ov-text-secondary truncate">
-              {shortModel(session.model) || session.model}
-            </span>
-          </span>
-        </span>
-      ) : (
-        <span className="flex-1 min-w-0 text-left">
-          <span className="block text-xs truncate group-hover:text-accent transition-colors">
-            {sessionTitle(session)}
-          </span>
-          <span className="block text-[11px] text-ov-text-secondary truncate">
-            {sessionMetaParts(session).join(" · ")}
-          </span>
-        </span>
-      )}
-      {!showModel && (
-        <span className="text-[11px] text-ov-text-secondary tabular-nums shrink-0">
-          {relativeTime(session.updatedAt)}
-        </span>
-      )}
-      <ResumeButton sessionId={session.id} />
-    </button>
-  );
-}
-
-function RepoCard({
-  repoLabel,
-  repoPath,
-  sessions,
-  onSessionSelect,
-}: {
-  repoLabel: string;
-  repoPath: string;
-  sessions: Session[];
-  onSessionSelect: (id: string) => void;
-}) {
-  const recent = sortByRecent(sessions).slice(0, 3);
-
-  return (
-    <div className="sess-overview-card">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="size-7 rounded-md flex items-center justify-center shrink-0 bg-ov-bg-hover">
-          <GitBranch size={14} className="text-ov-text-secondary" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium truncate" title={repoPath}>
-            {repoLabel}
-          </h3>
-          <p className="text-[11px] text-ov-text-secondary tabular-nums">
-            {sessions.length} session{sessions.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      </div>
-      <div className="space-y-0.5">
-        {recent.map((s) => (
-          <MiniSessionRow key={s.id} session={s} onSelect={() => onSessionSelect(s.id)} showModel />
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProps) {
