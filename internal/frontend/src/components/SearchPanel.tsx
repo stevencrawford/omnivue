@@ -4,6 +4,8 @@ import type { SearchResult } from "../hooks/useApi";
 import { fetchSearch } from "../hooks/useApi";
 import { relativeTime } from "../utils/sessionUtils";
 import { renderSnippet } from "../utils/searchUtils";
+import { useToast } from "../hooks/useToast";
+import { Spinner } from "./Spinner";
 
 interface SearchPanelProps {
   query: string;
@@ -69,6 +71,7 @@ export function SearchPanel({
   recentSearches,
   onClearRecentSearches,
 }: SearchPanelProps) {
+  const { showErrorToast } = useToast();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -134,13 +137,13 @@ export function SearchPanel({
         const data = await fetchSearch(q.trim(), 50, scope ?? undefined);
         setResults(data);
       } catch (err) {
-        console.error("Search failed:", err);
+        showErrorToast(err, "Search failed");
         setResults([]);
       } finally {
         setLoading(false);
       }
     },
-    [searchScope],
+    [searchScope, showErrorToast],
   );
 
   const handleSelectRecentSearch = useCallback(
@@ -269,7 +272,7 @@ export function SearchPanel({
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
             {loading && (
               <div className="flex items-center justify-center gap-2 text-xs text-ov-text-secondary p-6">
-                <span className="size-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <Spinner className="size-3" />
                 Searching...
               </div>
             )}

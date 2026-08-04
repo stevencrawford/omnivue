@@ -15,6 +15,7 @@ import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useSessionNav } from "../hooks/useNav";
 
 import { relativeTime } from "../utils/sessionUtils";
+import { Spinner } from "./Spinner";
 
 interface GroupResult {
   grouped: Message[];
@@ -309,7 +310,7 @@ export function ConversationView({
         {showLoadingOverlay && (
           <div className="absolute inset-0 flex items-center justify-center z-10 bg-ov-bg">
             <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
-              <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+              <Spinner />
               Loading conversation...
             </div>
           </div>

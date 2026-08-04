@@ -13,6 +13,7 @@ import { Copy, Check, Lock, Minimize2, Maximize2 } from "lucide-react";
 import { getScratchFile, updateScratchFile } from "../hooks/useApi";
 import { useCopy } from "../hooks/useCopy";
 import { markdownToHtml, htmlToMarkdown } from "../utils/scratchMarkdown";
+import { useToast } from "../hooks/useToast";
 
 const lowlight = createLowlight(common);
 
@@ -52,6 +53,7 @@ interface ScratchEditorProps {
 }
 
 export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
+  const { showErrorToast } = useToast();
   const [sourceContent, setSourceContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [editorMode, setEditorMode] = useState<"wysiwyg" | "source">("wysiwyg");
@@ -72,12 +74,12 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
       originalTitleRef.current = f.title;
       lastSavedMarkdownRef.current = f.content;
       setIsReadOnly(f.mode === "readonly");
-    } catch {
-      /* ignore */
+    } catch (err) {
+      showErrorToast(err, "Failed to load scratch note");
     } finally {
       setLoading(false);
     }
-  }, [sessionId, fileId]);
+  }, [sessionId, fileId, showErrorToast]);
 
   useEffect(() => {
     loadFile();

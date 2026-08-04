@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SearchResult } from "./useApi";
 import type { Tab } from "../components/SessionViewer";
 import { fetchSearch } from "./apiClient";
+import { isAbortError } from "../utils/errors";
 
 export function useSearchState(
   addSearch: (q: string) => void,
@@ -32,7 +33,7 @@ export function useSearchState(
         setDrawerOpen(true);
       })
       .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (isAbortError(err)) return;
         setDrawerResults([]);
       });
   }
