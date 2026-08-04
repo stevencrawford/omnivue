@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 func normalizeBashInput(tc *ingest.ToolCall) {
@@ -54,14 +55,14 @@ func normalizeEditInput(tc *ingest.ToolCall) {
 		}
 	}
 
-	result := parseRawPatch(tc.Input)
-	if result.filePath == "" {
+	filePath, content := ingestkit.ParseApplyPatch(tc.Input)
+	if filePath == "" {
 		return
 	}
 
 	out := map[string]string{
-		"filePath": result.filePath,
-		"content":  result.content,
+		"filePath": filePath,
+		"content":  content,
 	}
 	encoded, err := json.Marshal(out)
 	if err != nil {

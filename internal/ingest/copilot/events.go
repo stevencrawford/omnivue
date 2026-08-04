@@ -455,18 +455,3 @@ func stripSystemReminder(content string) (string, bool) {
 	cleaned = strings.TrimSpace(cleaned)
 	return cleaned, true
 }
-
-// extractCopilotPatchPath extracts the file path from apply_patch text.
-// Format: "*** Begin Patch\n*** Update File: <path>\n...\n*** End Patch".
-func extractCopilotPatchPath(patch string) string {
-	for _, prefix := range []string{"*** Update File: ", "*** Add File: ", "*** Modify File: "} {
-		if _, after, found := strings.Cut(patch, prefix); found {
-			rest := after
-			if nl := strings.IndexAny(rest, "\n\r"); nl >= 0 {
-				return strings.TrimSpace(rest[:nl])
-			}
-			return strings.TrimSpace(rest)
-		}
-	}
-	return ""
-}

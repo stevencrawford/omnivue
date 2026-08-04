@@ -90,7 +90,4 @@ type changeEntry struct {
 	UnifiedDiff string `json:"unified_diff"`
 }
 
-type rawPatchResult struct {
-	filePath string
-	content  string
-}
+
