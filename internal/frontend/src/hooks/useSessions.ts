@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "./types";
 import { useSSE } from "./useSSE";
 import { fetchSessions, ApiError } from "./apiClient";
+import { runCatching } from "../utils/errors";
 
 export interface SessionsState {
   sessions: Session[];
-  sessionsLoading: boolean;
+  loading: boolean;
   activeSessionId: string | null;
   liveChangedIds: Set<string>;
   activeSession: Session | null;
@@ -22,22 +23,21 @@ export function setOnPromptQueueChanged(cb: (() => void) | null) {
 
 export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
 
   const loadSessions = useCallback(async () => {
-    setSessionsLoading(true);
-    try {
-      const data = await fetchSessions();
-      setSessions(data ?? []);
-    } catch (err) {
-      if (err instanceof ApiError) console.error("[sessions] failed to load:", err.message);
-      else console.error("[sessions] failed to load:", err);
-      setSessions([]);
-    } finally {
-      setSessionsLoading(false);
-    }
+    setLoading(true);
+    const data = await runCatching(
+      () => fetchSessions(),
+      (err) => {
+        if (err instanceof ApiError) console.error("[sessions] failed to load:", err.message);
+        else console.error("[sessions] failed to load:", err);
+      },
+    );
+    setSessions(data ?? []);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function useSessions(): SessionsState {
 
   return {
     sessions,
-    sessionsLoading,
+    loading,
     activeSessionId,
     liveChangedIds,
     activeSession,

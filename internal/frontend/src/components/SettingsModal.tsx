@@ -10,7 +10,7 @@ import {
   setConfig,
   resetApp,
 } from "../hooks/apiClient";
-import { useTheme, THEMES } from "../hooks/useTheme";
+import { useTheme, THEME_OPTIONS } from "../hooks/useTheme";
 import type { ThemeName, ThemeMode } from "../hooks/useTheme";
 import { NotificationsSettingsTab } from "./NotificationsSettingsTab";
 import {
@@ -104,7 +104,7 @@ export function SettingsModal({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
 
-  const { themeName, setThemeName, theme, setTheme } = useTheme();
+  const { themeName, setThemeName, themeMode, setThemeMode } = useTheme();
 
   const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();
 
@@ -259,7 +259,7 @@ export function SettingsModal({
   };
 
   const handleThemeModeChange = async (mode: ThemeMode) => {
-    setTheme(mode);
+    setThemeMode(mode);
     try {
       await setConfig("theme-mode", mode);
     } catch {
@@ -617,14 +617,14 @@ export function SettingsModal({
 
               <p className="text-[11px] font-medium text-ov-text-secondary mb-2">Theme</p>
               <div className="grid grid-cols-2 gap-2">
-                {THEMES.map((t) => {
-                  const isActive = themeName === t.name;
-                  const cols = THEME_PREVIEWS[t.name][theme];
+                {THEME_OPTIONS.map((t) => {
+                  const isActive = themeName === t.value;
+                  const cols = THEME_PREVIEWS[t.value][themeMode];
                   return (
                     <button
-                      key={t.name}
+                      key={t.value}
                       type="button"
-                      onClick={() => handleThemeNameChange(t.name)}
+                      onClick={() => handleThemeNameChange(t.value)}
                       className={`rounded-lg border overflow-hidden cursor-pointer transition-colors ${
                         isActive
                           ? "border-accent-border"
@@ -665,7 +665,7 @@ export function SettingsModal({
                     type="button"
                     onClick={() => handleThemeModeChange(m)}
                     className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer capitalize transition-colors ${
-                      theme === m
+                      themeMode === m
                         ? "border-accent-border bg-accent-muted text-accent"
                         : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:text-ov-text"
                     }`}

@@ -41,7 +41,7 @@ export function App() {
   // ---- Data hooks ----
   const {
     sessions,
-    sessionsLoading,
+    loading: sessionsLoading,
     activeSessionId,
     liveChangedIds,
     activeSession,

@@ -12,29 +12,19 @@ export type ThemeName =
   | "night-owl";
 export type ThemeMode = "light" | "dark";
 
-export const THEMES: { name: ThemeName; label: string; description: string }[] = [
-  { name: "default", label: "Ayu", description: "Warm earthy tones" },
-  { name: "nord", label: "Nord", description: "Cool arctic blues" },
-  { name: "catppuccin", label: "Catppuccin", description: "Warm pastel tones" },
-  { name: "tokyo-night", label: "Tokyo Night", description: "Deep blue night" },
-  { name: "github", label: "GitHub", description: "GitHub's official palette" },
-  { name: "one-monokai", label: "One Monokai", description: "Vibrant warm contrast" },
-  { name: "atom-one", label: "Atom One", description: "Clean classic palette" },
-  { name: "dracula", label: "Dracula", description: "Deep purple darkness" },
-  { name: "night-owl", label: "Night Owl", description: "Soft nocturnal tones" },
+export const THEME_OPTIONS: { value: ThemeName; label: string; description: string }[] = [
+  { value: "default", label: "Ayu", description: "Warm earthy tones" },
+  { value: "nord", label: "Nord", description: "Cool arctic blues" },
+  { value: "catppuccin", label: "Catppuccin", description: "Warm pastel tones" },
+  { value: "tokyo-night", label: "Tokyo Night", description: "Deep blue night" },
+  { value: "github", label: "GitHub", description: "GitHub's official palette" },
+  { value: "one-monokai", label: "One Monokai", description: "Vibrant warm contrast" },
+  { value: "atom-one", label: "Atom One", description: "Clean classic palette" },
+  { value: "dracula", label: "Dracula", description: "Deep purple darkness" },
+  { value: "night-owl", label: "Night Owl", description: "Soft nocturnal tones" },
 ];
 
-const THEME_NAMES: readonly ThemeName[] = [
-  "default",
-  "nord",
-  "catppuccin",
-  "tokyo-night",
-  "github",
-  "one-monokai",
-  "atom-one",
-  "dracula",
-  "night-owl",
-];
+const THEME_NAMES: readonly ThemeName[] = THEME_OPTIONS.map((t) => t.value);
 
 /** Type predicate — narrows string to ThemeName at runtime. */
 function isThemeName(value: string): value is ThemeName {
@@ -70,8 +60,6 @@ interface ThemeContextValue {
   setThemeName: (name: ThemeName) => void;
   setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
-  theme: ThemeMode;
-  setTheme: (t: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -92,7 +80,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [themeName, themeMode]);
 
   const toggleTheme = () => setThemeMode((t) => (t === "dark" ? "light" : "dark"));
-  const setTheme = (t: ThemeMode) => setThemeMode(t);
 
   return (
     <ThemeContext.Provider
@@ -102,8 +89,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setThemeName,
         setThemeMode,
         toggleTheme,
-        theme: themeMode,
-        setTheme,
       }}
     >
       {children}
