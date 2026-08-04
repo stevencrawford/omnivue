@@ -150,7 +150,7 @@ export function ScreenshotCaptureLayer({
       title="screenshot-capture"
       aria-hidden="true"
       tabIndex={-1}
-      className="fixed left-0 top-0 w-[760px] border-0"
+      className="fixed left-0 top-0 w-[1140px] border-0"
       style={{ zIndex: -1, pointerEvents: "none" }}
     />,
     document.body,
