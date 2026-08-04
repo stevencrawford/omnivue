@@ -65,7 +65,7 @@ func NewState(ctx context.Context) *State {
 
 	bus := NewEventBus()
 	hub := NewSessionHub(roles.names)
-	index := NewIndexer(hub, roles.search, roles.scratch)
+	index := NewIndexer(hub, hub, roles.search, roles.scratch)
 	notif := NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus)
 	f := newFanout(hub, index, notif, bus)
 	poller := NewPoller(f)

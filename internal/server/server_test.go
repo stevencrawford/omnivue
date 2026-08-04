@@ -399,7 +399,7 @@ func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
 	notif := NewNotifier(hub, nil, nil, nil, bus)
-	index := NewIndexer(hub, nil, nil)
+	index := NewIndexer(hub, hub, nil, nil)
 	poller := NewPoller(newFanout(hub, index, notif, bus))
 	// Seed the previous observation so the next tick is a real change.
 	poller.lastMod["src-1"] = 1
@@ -467,7 +467,7 @@ func TestPollerTick_DrivesIndexAndClassify(t *testing.T) {
 	hub := &SessionHub{
 		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
-	index := NewIndexer(hub, st, st)
+	index := NewIndexer(hub, hub, st, st)
 	notif := NewNotifier(hub, st, st, st, bus)
 
 	settings := notify.DefaultSettings()
@@ -544,15 +544,16 @@ func TestClassifyChanges_EmitsQuestionNotification(t *testing.T) {
 
 	bus := NewEventBus()
 	sess := []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}
-	adapter := &mockAdapter{
+	reader := &fakeSessionReader{
 		sessions: sess,
-		messages: []ingest.Message{{
-			ID: "m1", Content: "q?", Timestamp: time.Now(),
-			ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
-		}},
+		messages: map[string][]ingest.Message{
+			"ses-1": {{
+				ID: "m1", Content: "q?", Timestamp: time.Now(),
+				ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
+			}},
+		},
 	}
-	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, sessions: sess}
-	notif := NewNotifier(hub, st, st, st, bus)
+	notif := NewNotifier(reader, st, st, st, bus)
 
 	settings := notify.DefaultSettings()
 	settings.Enabled = true
@@ -588,15 +589,16 @@ func TestClassifyChanges_ExcludeActiveView(t *testing.T) {
 
 	bus := NewEventBus()
 	sess := []ingest.Session{{ID: "ses-1", SourceID: "src-1", Status: ingest.SessionStatusActive}}
-	adapter := &mockAdapter{
+	reader := &fakeSessionReader{
 		sessions: sess,
-		messages: []ingest.Message{{
-			ID: "m1", Content: "q?", Timestamp: time.Now(),
-			ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
-		}},
+		messages: map[string][]ingest.Message{
+			"ses-1": {{
+				ID: "m1", Content: "q?", Timestamp: time.Now(),
+				ToolCalls: []ingest.ToolCall{{ID: "tc-1", Name: "question", Status: "completed"}},
+			}},
+		},
 	}
-	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}, sessions: sess}
-	notif := NewNotifier(hub, st, st, st, bus)
+	notif := NewNotifier(reader, st, st, st, bus)
 
 	settings := notify.DefaultSettings()
 	settings.Enabled = true
@@ -716,7 +718,7 @@ func TestHandleCreateTag_FakeStore(t *testing.T) {
 func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
-	dep := newDep(newFanout(hub, NewIndexer(hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus), storeRolesOf(nil))
+	dep := newDep(newFanout(hub, NewIndexer(hub, hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus), storeRolesOf(nil))
 	dep.Tags = tags
 	return dep
 }
@@ -751,4 +753,81 @@ func TestHandleSetConfig_StoreUnavailable_NoPanic(t *testing.T) {
 	dep := newDep(newFanout(nil, nil, nil, NewEventBus()), storeRolesOf(nil))
 	doJSON(t, NewHandler(dep), http.MethodPut, "/_/api/config",
 		map[string]string{"key": "k", "value": "v"}, http.StatusInternalServerError, nil)
+}
+
+// TestIndexer_IndexSessions drives the Indexer through its SessionCatalog +
+// SessionReader seam (no hub, no adapter) against a real store, asserting the
+// message content lands in the FTS index. This exercises the collapsed
+// single-path indexing after the hub-role split.
+func TestIndexer_IndexSessions(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	catalog := &fakeSessionCatalog{
+		sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Repository: "r1", Title: "idx me", UpdatedAt: now}},
+	}
+	reader := &fakeSessionReader{
+		sessions: catalog.sessions,
+		messages: map[string][]ingest.Message{
+			"ses-1": {{ID: "m1", Content: "unique idx marker", Timestamp: now}},
+		},
+	}
+
+	ix := NewIndexer(catalog, reader, st, st)
+	ix.IndexSessions(context.Background())
+
+	results, err := st.Search("unique", 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected indexed search results")
+	}
+	if results[0].SessionID != "ses-1" {
+		t.Errorf("expected index row for ses-1, got %s", results[0].SessionID)
+	}
+}
+
+// TestIndexer_ReindexSessionScratch exercises the scratch-only reindex path,
+// which resolves sourceID/repository through the SessionReader instead of a
+// linear scan of the cached session list.
+func TestIndexer_ReindexSessionScratch(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+	st, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	catalog := &fakeSessionCatalog{
+		sessions: []ingest.Session{{ID: "ses-1", SourceID: "src-1", Repository: "r1", Title: "s", UpdatedAt: now}},
+	}
+	if err := st.CreateScratchFile(store.ScratchFile{
+		SessionID: "ses-1", ID: "sc-1", Title: "note", Content: "scratch reindex marker",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reader := &fakeSessionReader{
+		sessions: catalog.sessions,
+		messages: map[string][]ingest.Message{"ses-1": nil},
+	}
+
+	ix := NewIndexer(catalog, reader, st, st)
+	ix.ReindexSessionScratch("ses-1")
+
+	results, err := st.Search("scratch", 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected scratch content indexed")
+	}
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -465,5 +466,64 @@ func newFakeDep(adapters map[string]ingest.Adapter, sessions []ingest.Session) D
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: adapters, sessions: sessions}
 	roles := fakeRoles()
-	return newDep(newFanout(hub, NewIndexer(hub, roles.search, roles.scratch), NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus), bus), roles)
+	return newDep(newFanout(hub, NewIndexer(hub, hub, roles.search, roles.scratch), NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus), bus), roles)
+}
+
+// fakeSessionReader is an in-memory SessionReader for unit-driving the Notifier
+// and Indexer without a live hub or any adapter. Sessions index by ID; per-ID
+// reads render their fields from the canned values.
+type fakeSessionReader struct {
+	sessions []ingest.Session
+	messages map[string][]ingest.Message
+	plans    map[string]*ingest.Plan
+	diffs    map[string][]ingest.DiffFile
+	edits    map[string][]ingest.FileEdit
+}
+
+func (f *fakeSessionReader) Session(_ context.Context, id string) (*ingest.Session, error) {
+	for _, s := range f.sessions {
+		if s.ID == id {
+			return &s, nil
+		}
+	}
+	return nil, notFound("session not found: " + id)
+}
+
+func (f *fakeSessionReader) Messages(_ context.Context, id string) ([]ingest.Message, error) {
+	return f.messages[id], nil
+}
+
+func (f *fakeSessionReader) Plan(_ context.Context, id string) (*ingest.Plan, error) {
+	return f.plans[id], nil
+}
+
+func (f *fakeSessionReader) Diffs(_ context.Context, id string) ([]ingest.DiffFile, error) {
+	return f.diffs[id], nil
+}
+
+func (f *fakeSessionReader) Edits(_ context.Context, id string) ([]ingest.FileEdit, error) {
+	return f.edits[id], nil
+}
+
+func (f *fakeSessionReader) ResumeCommand(_ context.Context, id string) (dir, absolute, relative, agentCommand string, err error) {
+	for _, s := range f.sessions {
+		if s.ID == id {
+			return s.Directory, "resume " + id, "absolute " + id, "agent " + id, nil
+		}
+	}
+	return "", "", "", "", notFound("session not found: " + id)
+}
+
+// fakeSessionCatalog is an in-memory SessionCatalog for driving the Indexer.
+type fakeSessionCatalog struct {
+	sessions []ingest.Session
+	titles   map[string]string
+}
+
+func (f *fakeSessionCatalog) Sessions() []ingest.Session {
+	return f.sessions
+}
+
+func (f *fakeSessionCatalog) TitleMap() map[string]string {
+	return f.titles
 }
