@@ -17,3 +17,21 @@ export function describeApiError(err: unknown, fallback = "Request failed"): str
   if (err instanceof Error) return err.message;
   return fallback;
 }
+
+/**
+ * Run a promise-producing effect, routing failures through `onError`.
+ * Returns the resolved value, or `undefined` when the effect rejects.
+ * Hooks use this to centralize the repetitive try/catch-and-log blocks
+ * that previously wrapped every data fetch.
+ */
+export async function runCatching<T>(
+  effect: () => Promise<T>,
+  onError?: (err: unknown) => void,
+): Promise<T | undefined> {
+  try {
+    return await effect();
+  } catch (err) {
+    onError?.(err);
+    return undefined;
+  }
+}

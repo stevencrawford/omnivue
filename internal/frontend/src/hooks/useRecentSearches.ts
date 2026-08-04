@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchRecentSearches, addRecentSearches } from "./apiClient";
+import { runCatching } from "../utils/errors";
 
 const MAX_SEARCHES = 10;
 
@@ -7,9 +8,7 @@ export function useRecentSearches() {
   const [searches, setSearches] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchRecentSearches()
-      .catch(() => [] as string[])
-      .then(setSearches);
+    runCatching(() => fetchRecentSearches()).then((data) => setSearches(data ?? []));
   }, []);
 
   const addSearch = useCallback(
@@ -18,18 +17,14 @@ export function useRecentSearches() {
       if (!q) return;
       const next = [q, ...searches.filter((s) => s !== q)].slice(0, MAX_SEARCHES);
       setSearches(next);
-      addRecentSearches(next).catch(() => {
-        /* ignore */
-      });
+      runCatching(() => addRecentSearches(next));
     },
     [searches],
   );
 
   const clearSearches = useCallback(() => {
     setSearches([]);
-    addRecentSearches([]).catch(() => {
-      /* ignore */
-    });
+    runCatching(() => addRecentSearches([]));
   }, []);
 
   return { recentSearches: searches, addSearch, clearSearches };

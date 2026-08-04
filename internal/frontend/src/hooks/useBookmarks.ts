@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Bookmark } from "./types";
 import { fetchBookmarks, createBookmark, deleteBookmark } from "./apiClient";
+import { runCatching } from "../utils/errors";
 
 export interface BookmarksState {
   bookmarks: Bookmark[];
@@ -29,13 +30,13 @@ export function useBookmarks(): BookmarksState {
   }, [bookmarks]);
 
   const loadBookmarks = useCallback(async () => {
-    try {
-      const data = await fetchBookmarks();
-      setBookmarks(data ?? []);
-    } catch (err) {
-      console.error("[bookmarks] failed to load:", err instanceof Error ? err.message : err);
-      setBookmarks([]);
-    }
+    const data = await runCatching(
+      () => fetchBookmarks(),
+      (err) => {
+        console.error("[bookmarks] failed to load:", err instanceof Error ? err.message : err);
+      },
+    );
+    setBookmarks(data ?? []);
   }, []);
 
   const handleBookmark = useCallback(
@@ -45,11 +46,11 @@ export function useBookmarks(): BookmarksState {
       toolCallId: string | undefined,
       label: string,
     ) => {
-      try {
-        await createBookmark({ sessionId, messageIndex, toolCallId, label });
-      } catch (err) {
-        console.error("Failed to create bookmark:", err instanceof Error ? err.message : err);
-      }
+      await runCatching(
+        () => createBookmark({ sessionId, messageIndex, toolCallId, label }),
+        (err) =>
+          console.error("Failed to create bookmark:", err instanceof Error ? err.message : err),
+      );
       await loadBookmarks();
     },
     [loadBookmarks],
@@ -57,11 +58,11 @@ export function useBookmarks(): BookmarksState {
 
   const handleBookmarkDelete = useCallback(
     async (id: string) => {
-      try {
-        await deleteBookmark(id);
-      } catch (err) {
-        console.error("Failed to delete bookmark:", err instanceof Error ? err.message : err);
-      }
+      await runCatching(
+        () => deleteBookmark(id),
+        (err) =>
+          console.error("Failed to delete bookmark:", err instanceof Error ? err.message : err),
+      );
       await loadBookmarks();
     },
     [loadBookmarks],

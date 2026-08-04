@@ -14,35 +14,7 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		return nil, err
 	}
 
-	var edits []ingest.FileEdit
-	for mi, msg := range msgs {
-		for _, tc := range msg.ToolCalls {
-			if tc.Name != "edit" && tc.Name != "write" {
-				continue
-			}
-
-			fp, oldContent, newContent := parsePiEditContent(tc)
-			if fp == "" {
-				continue
-			}
-
-			content := newContent
-			if oldContent != "" {
-				content = ""
-			}
-
-			edits = append(edits, ingest.FileEdit{
-				FilePath:     fp,
-				ToolName:     tc.Name,
-				OldStr:       oldContent,
-				NewStr:       newContent,
-				Content:      content,
-				MessageIndex: mi,
-				MessageID:    msg.ID,
-			})
-		}
-	}
-	return edits, nil
+	return ingest.ExtractEdits(msgs, parsePiEdit), nil
 }
 
 func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
@@ -51,6 +23,33 @@ func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFil
 		return nil, err
 	}
 	return ingest.DiffStatsFromEdits(edits), nil
+}
+
+// parsePiEdit extracts a FileEdit from a normalized Pi edit/write tool call.
+func parsePiEdit(tc ingest.ToolCall, mi int, msg ingest.Message) *ingest.FileEdit {
+	if tc.Name != "edit" && tc.Name != "write" {
+		return nil
+	}
+
+	fp, oldContent, newContent := parsePiEditContent(tc)
+	if fp == "" {
+		return nil
+	}
+
+	content := newContent
+	if oldContent != "" {
+		content = ""
+	}
+
+	return &ingest.FileEdit{
+		FilePath:     fp,
+		ToolName:     tc.Name,
+		OldStr:       oldContent,
+		NewStr:       newContent,
+		Content:      content,
+		MessageIndex: mi,
+		MessageID:    msg.ID,
+	}
 }
 
 // parsePiEditContent extracts file path and old/new content from an edit or

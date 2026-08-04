@@ -16,32 +16,29 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		return nil, err
 	}
 
-	var edits []ingest.FileEdit
-	for mi, m := range msgs {
-		for _, tc := range m.ToolCalls {
-			if tc.Name != "edit" && tc.Name != "write" {
-				continue
-			}
-			fp, oldContent, newContent := a.parseEditContent(ctx, tc)
-			if fp == "" {
-				continue
-			}
-			content := newContent
-			if oldContent != "" {
-				content = ""
-			}
-			edits = append(edits, ingest.FileEdit{
-				FilePath:     fp,
-				ToolName:     tc.Name,
-				OldStr:       oldContent,
-				NewStr:       newContent,
-				Content:      content,
-				MessageIndex: mi,
-				MessageID:    m.ID,
-			})
+	parse := func(tc ingest.ToolCall, mi int, m ingest.Message) *ingest.FileEdit {
+		if tc.Name != "edit" && tc.Name != "write" {
+			return nil
+		}
+		fp, oldContent, newContent := a.parseEditContent(ctx, tc)
+		if fp == "" {
+			return nil
+		}
+		content := newContent
+		if oldContent != "" {
+			content = ""
+		}
+		return &ingest.FileEdit{
+			FilePath:     fp,
+			ToolName:     tc.Name,
+			OldStr:       oldContent,
+			NewStr:       newContent,
+			Content:      content,
+			MessageIndex: mi,
+			MessageID:    m.ID,
 		}
 	}
-	return edits, nil
+	return ingest.ExtractEdits(msgs, parse), nil
 }
 
 func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {

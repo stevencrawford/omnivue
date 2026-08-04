@@ -21,7 +21,7 @@ export function capturePrep(node: HTMLElement): void {
 /** Rasterizes a DOM node to a PNG blob at retina resolution. */
 export async function captureNodeToBlob(node: HTMLElement): Promise<Blob> {
   const dataUrl = await toPng(node, {
-    pixelRatio: 2,
+    pixelRatio: 1.5,
     cacheBust: true,
     backgroundColor: "transparent",
   });
