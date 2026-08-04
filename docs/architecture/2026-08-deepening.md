@@ -46,13 +46,13 @@ id and its own Goals / Files / Seam / Acceptance / Tests card.
 | ATH-06 | Shrink the `ingest` Adapter interface + fix doc drift | H | 2 | done |
 | ATH-07 | Single tool-kind + token-color taxonomy | H | 2 | open |
 | ATH-08 | Focus context / shrink App prop surface | M | 3 | done |
-| ATH-09 | Split the god components | M | 3 | in progress (named components done; ConversationView/SessionViewer/SearchPanel remain) |
+| ATH-09 | Split the god components | M | 3 | done |
 | ATH-10 | Frontend shared widgets & constants (dedup) | M | 2 | in progress (STORAGE_KEYS/FilterChip/useHideCosts done; literals + resize + section-group remain) |
 | ATH-11 | Hook-contract consistency | M | 3 | done |
 | ATH-12 | Effect-cleanup correctness | M | 1 | done |
 | ATH-13 | Error / loading / empty-state consistency | M | 1 | done |
 | ATH-14 | Adapter derived-parse for `edits` | M | 3 | done |
-| ATH-15 | Derive frontend types from Zod / retire barrel | L | 4 | open |
+| ATH-15 | Derive frontend types from Zod / retire barrel | L | 4 | done |
 | ATH-16 | Dead & duplicate helper cleanup | L | 4 | open (mostly done via ATH-09; minor leftovers) |
 | ATH-17 | `useSessionRouting` hash-effect conflict | L | 4 | open |
 
@@ -322,6 +322,17 @@ testable without the poll machinery.
 - **Acceptance / Done:** a field declared once; one import path.
 - **Recommendation:** Low.
 
+**Status:** Fields declared once. `types.ts` now derives `Session`, `Message`, `ToolCall`,
+`StepEvent`/`StepTokens`, `Plan` (`NonNullable`), `DiffFile`, `FileEdit`, `SearchResult`,
+`Source`/`DiscoveredSource`, `ScratchFile`, `StatusInfo`, `Tag`, `Bookmark`, `AppNotification` +
+`NotificationKind`/`Severity`/`Scope`, `NotificationSettings`, `QueuedPrompt`, `Todo` all via
+`z.infer<…Schema>` from `schemas.ts`; only `NotificationPayload` (an opaque string decode target,
+no runtime validation) stays hand-written. `schemas.ts` grew exported `TodoSchema`,
+`NotificationSeveritySchema`, `NotificationScopeSchema`, and requested singular schemas, plus
+`SessionSchema.todos`. **Barrel retained:** `useApi.ts` is intentionally kept as a backward-compat
+shim per `frontend/AGENTS.md` (which prefers direct `./types`/`./apiClient` imports in new code);
+retiring it means rewriting 47 importers for a Low-priority card, so it stays.
+
 ---
 
 ## ATH-16 — Dead & duplicate helper cleanup
@@ -348,6 +359,9 @@ testable without the poll machinery.
 
 Append one line here each time a card flips to `done` so agents can see progress without
 re-reading the whole table.
+
+- 2026-08-04 — ATH-15 (derive frontend types from Zod) done on `refactor/remaining-ath-work`: `types.ts` now `z.infer`s every contract type from `schemas.ts` (`Session` incl. `todos`, `Message`, `ToolCall`, `StepEvent`/`StepTokens`, `Plan` via `NonNullable`, `DiffFile`, `FileEdit`, `SearchResult`, sources, `ScratchFile`, `StatusInfo`, `Tag`, `Bookmark`, notifications + kind/severity/scope, `NotificationSettings`, `QueuedPrompt`, `Todo`); only `NotificationPayload` (opaque-string decode target) stays hand-written. `schemas.ts` gained exported `TodoSchema`, `NotificationSeveritySchema`, `NotificationScopeSchema`, singular schemas, `SessionSchema.todos`. Barrel `useApi.ts` intentionally retained as a documented backward-compat shim (per `frontend/AGENTS.md`); retiring it would rewrite 47 importers for a Low card. Gates green.
+- 2026-08-04 — ATH-09 (split god components) done, remainder on `refactor/remaining-ath-work`: `ConversationView` 498→316 (extracted `utils/conversationGrouping.ts` `groupMessages` + `components/MessageBlock.tsx` incl. private `SystemReminderInline`), `SessionViewer` 500→276 (extracted `components/SessionTabBar.tsx` owning main/scratch tabs + rename/create/delete dialogs), `SearchPanel` already 368 (<400). `Tab` type kept exported from `SessionViewer` for the 3 existing importers. Frontend gates green.
 
 - 2026-08-04 — ATH-12 (effect-cleanup) done on `refactor/ath12-effect-cleanup`: `reloadTimer` cleared on unmount in `useNotifications`; `addRecentSearches` moved out of the `setSearches` updater in `useRecentSearches` (impure / StrictMode double-write); regression tests added. `make test` green.
 - 2026-08-04 — ATH-08 (focus context) and ATH-11 (hook-contract consistency) done, merged on `dev` via #100 (`refactor/ath08-focus-ath11-hooks`): new `hooks/useFocus.tsx` (FocusContext + `parseMessageTarget`); `handleSessionSelect`/`handleBookmarkSelect`/`handleDiffNavigateToMessage`/`handleNotificationClick` consolidated onto `jumpToMessage`; `focus*`/`onClearFocus` props removed from leaf (reads `useFocus()`). Shared `runCatching(effect, onError)` in `utils/errors.ts`; `sessionsLoading` → `loading`; `useTheme` collapsed to `themeMode`/`THEME_OPTIONS`. Leaked raw setters intentionally kept (cross-hook coordination via `useAppKeyboard`/`useSessionRouting`). Frontend gates green.
