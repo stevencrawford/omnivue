@@ -92,7 +92,7 @@ func NewHandler(dep Dep) http.Handler {
 	return mux
 }
 
-func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, hub *SessionHub) http.HandlerFunc {
+func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog SessionCatalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var schemaVersion int
 		if meta != nil {
@@ -112,7 +112,7 @@ func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, hub *Se
 			"version":       version.Version,
 			"pid":           os.Getpid(),
 			"sources":       sourceCount,
-			"sessions":      len(hub.Sessions()),
+			"sessions":      len(catalog.Sessions()),
 			"schemaVersion": schemaVersion,
 		})
 	}
@@ -301,15 +301,15 @@ func handleSetConfig(cfg store.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleSessions(hub *SessionHub) http.HandlerFunc {
+func handleSessions(catalog SessionCatalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeOK(w, hub.Sessions())
+		writeOK(w, catalog.Sessions())
 	}
 }
 
-func handleGetSession(hub *SessionHub) http.HandlerFunc {
+func handleGetSession(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := hub.Session(r.Context(), r.PathValue("id"))
+		session, err := reader.Session(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -318,9 +318,9 @@ func handleGetSession(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetMessages(hub *SessionHub) http.HandlerFunc {
+func handleGetMessages(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		messages, err := hub.Messages(r.Context(), r.PathValue("id"))
+		messages, err := reader.Messages(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -329,9 +329,9 @@ func handleGetMessages(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetPlan(hub *SessionHub) http.HandlerFunc {
+func handleGetPlan(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		plan, err := hub.Plan(r.Context(), r.PathValue("id"))
+		plan, err := reader.Plan(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -340,9 +340,9 @@ func handleGetPlan(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
+func handleGetDiffs(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		diffs, err := hub.Diffs(r.Context(), r.PathValue("id"))
+		diffs, err := reader.Diffs(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -354,9 +354,9 @@ func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetEdits(hub *SessionHub) http.HandlerFunc {
+func handleGetEdits(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		edits, err := hub.Edits(r.Context(), r.PathValue("id"))
+		edits, err := reader.Edits(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -368,23 +368,23 @@ func handleGetEdits(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetResumeCommand(hub *SessionHub) http.HandlerFunc {
+func handleGetResumeCommand(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		dir, abs, rel, agentCmd, err := hub.ResumeCommand(r.Context(), r.PathValue("id"))
+		spec, err := reader.ResumeCommand(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
 		}
 		writeOK(w, map[string]string{
-			"directory":    dir,
-			"absolute":     abs,
-			"relative":     rel,
-			"agentCommand": agentCmd,
+			"directory":    spec.Directory,
+			"absolute":     spec.Absolute,
+			"relative":     spec.Relative,
+			"agentCommand": spec.AgentCommand,
 		})
 	}
 }
 
-func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
+func handleSetSessionName(names SessionNames) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			DisplayName string `json:"displayName"`
@@ -397,7 +397,7 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 			writeError(w, badRequest("displayName is required"))
 			return
 		}
-		if err := hub.SetName(r.PathValue("id"), body.DisplayName); err != nil {
+		if err := names.SetName(r.PathValue("id"), body.DisplayName); err != nil {
 			writeError(w, err)
 			return
 		}
@@ -405,9 +405,9 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleClearSessionName(hub *SessionHub) http.HandlerFunc {
+func handleClearSessionName(names SessionNames) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := hub.ClearName(r.PathValue("id")); err != nil {
+		if err := names.ClearName(r.PathValue("id")); err != nil {
 			writeError(w, err)
 			return
 		}
@@ -597,7 +597,7 @@ func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
+func handleSearch(search store.SearchStore, catalog SessionCatalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		if q == "" {
@@ -620,7 +620,7 @@ func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
 			}
 		}
 		// Enrich results with session title.
-		titles := hub.TitleMap()
+		titles := catalog.TitleMap()
 		for i := range results {
 			if title, ok := titles[results[i].SessionID]; ok {
 				results[i].SessionName = title
@@ -1259,7 +1259,7 @@ func handleSSE(bus *EventBus) http.HandlerFunc {
 	}
 }
 
-func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
+func handleTerminalWS(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessionID := r.URL.Query().Get("session_id")
 		if sessionID == "" {
@@ -1267,11 +1267,12 @@ func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
 			return
 		}
 
-		dir, _, initCmd, _, err := hub.ResumeCommand(r.Context(), sessionID)
+		spec, err := reader.ResumeCommand(r.Context(), sessionID)
 		if err != nil {
 			writeError(w, notFound("session not found"))
 			return
 		}
+		dir := spec.Directory
 		if dir == "" {
 			dir = "."
 		}
@@ -1285,7 +1286,7 @@ func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
 		}
 		defer ws.Close(websocket.StatusNormalClosure, "terminal closed") //nolint:errcheck
 
-		if err := terminal.Run(r.Context(), ws, dir, initCmd); err != nil {
+		if err := terminal.Run(r.Context(), ws, dir, spec.Relative); err != nil {
 			slog.Debug("terminal: session ended", "session", sessionID, "error", err)
 		}
 	}
