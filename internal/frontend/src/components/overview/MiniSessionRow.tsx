@@ -1,12 +1,7 @@
 import { ResumeButton } from "../ResumeButton";
 import type { Session } from "../../hooks/useApi";
 import { agentLabel } from "../../utils/overviewAnalytics";
-import {
-  relativeTime,
-  sessionMetaParts,
-  sessionTitle,
-  shortModel,
-} from "../../utils/sessionUtils";
+import { relativeTime, sessionMetaParts, sessionTitle, shortModel } from "../../utils/sessionUtils";
 
 interface MiniSessionRowProps {
   session: Session;

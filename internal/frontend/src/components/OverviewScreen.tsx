@@ -10,11 +10,7 @@ import type { Session } from "../hooks/types";
 import { useTimeRange } from "../hooks/useTimeRange";
 import { useHideCosts } from "../hooks/useHideCosts";
 import { shortRepoName } from "../utils/buildTree";
-import {
-  formatCost,
-  formatTokenBreakdown,
-  formatTokens,
-} from "../utils/sessionUtils";
+import { formatCost, formatTokenBreakdown, formatTokens } from "../utils/sessionUtils";
 import {
   aggregateByAgent,
   aggregateByDay,
