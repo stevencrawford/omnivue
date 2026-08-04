@@ -60,11 +60,6 @@ interface SessionViewerProps {
     label: string,
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
-  focusStepIndex?: number;
-  focusMessageIndex?: number;
-  focusMessageKey?: number;
-  focusMessageId?: string;
-  onClearFocus?: () => void;
   searchHighlightQuery?: string | null;
   onNavigateToMessage?: (messageIndex: number) => void;
   onQueueChanged?: () => void;
@@ -99,11 +94,6 @@ export function SessionViewer({
   onPinMessage,
   onBookmark,
   bookmarkIdByRef,
-  focusStepIndex,
-  focusMessageIndex,
-  focusMessageKey,
-  focusMessageId,
-  onClearFocus,
   searchHighlightQuery,
   onNavigateToMessage,
   onQueueChanged,
@@ -345,11 +335,6 @@ export function SessionViewer({
             onPin={onPinMessage}
             onBookmark={onBookmark}
             bookmarkIdByRef={bookmarkIdByRef}
-            focusStepIndex={focusStepIndex}
-            focusMessageIndex={focusMessageIndex}
-            focusMessageKey={focusMessageKey}
-            focusMessageId={focusMessageId}
-            onClearFocus={onClearFocus}
             searchHighlightQuery={searchHighlightQuery ?? undefined}
             onQueueChanged={onQueueChanged}
             highlightPromptId={highlightPromptId}

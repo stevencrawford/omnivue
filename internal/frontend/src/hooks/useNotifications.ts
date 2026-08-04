@@ -9,6 +9,7 @@ import {
   fetchNotificationSettings,
   setNotificationSettings,
 } from "./apiClient";
+import { runCatching } from "../utils/errors";
 
 export interface NotificationsState {
   notifications: AppNotification[];
@@ -32,14 +33,15 @@ export function useNotifications(): NotificationsState {
 
   const reload = useCallback(() => {
     setLoading(true);
-    fetchNotifications({ limit: 100 })
-      .then((data) => {
-        setNotifications(data || []);
-      })
-      .catch((err: unknown) => {
+    runCatching(
+      () => fetchNotifications({ limit: 100 }),
+      (err: unknown) => {
         console.error("[notifications] reload failed:", err instanceof Error ? err.message : err);
-      })
-      .finally(() => setLoading(false));
+      },
+    ).then((data) => {
+      setNotifications(data || []);
+      setLoading(false);
+    });
   }, []);
 
   const reloadSettings = useCallback(async () => {

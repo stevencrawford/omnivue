@@ -45,10 +45,10 @@ id and its own Goals / Files / Seam / Acceptance / Tests card.
 | ATH-05 | Centralize ingest tool-call canonicalization | H | 2 | open |
 | ATH-06 | Shrink the `ingest` Adapter interface + fix doc drift | H | 2 | open |
 | ATH-07 | Single tool-kind + token-color taxonomy | H | 2 | open |
-| ATH-08 | Focus context / shrink App prop surface | M | 3 | open |
+| ATH-08 | Focus context / shrink App prop surface | M | 3 | done |
 | ATH-09 | Split the god components | M | 3 | open |
 | ATH-10 | Frontend shared widgets & constants (dedup) | M | 2 | open |
-| ATH-11 | Hook-contract consistency | M | 3 | open |
+| ATH-11 | Hook-contract consistency | M | 3 | done |
 | ATH-12 | Effect-cleanup correctness | M | 1 | done |
 | ATH-13 | Error / loading / empty-state consistency | M | 1 | done |
 | ATH-14 | Adapter derived-parse for `edits` | M | 3 | open |
@@ -350,6 +350,8 @@ Append one line here each time a card flips to `done` so agents can see progress
 re-reading the whole table.
 
 - 2026-08-04 — ATH-12 (effect-cleanup) done on `refactor/ath12-effect-cleanup`: `reloadTimer` cleared on unmount in `useNotifications`; `addRecentSearches` moved out of the `setSearches` updater in `useRecentSearches` (impure / StrictMode double-write); regression tests added. `make test` green.
+- 2026-08-04 — ATH-08 (focus context) done on `refactor/ath08-focus-ath11-hooks`: new `hooks/useFocus.tsx` (FocusContext + `parseMessageTarget`); `handleSessionSelect`/`handleBookmarkSelect`/`handleDiffNavigateToMessage`/`handleNotificationClick` consolidated onto `jumpToMessage`; `focus*`/`onClearFocus` props removed from `SessionViewer`/`ConversationView` (leaf reads `useFocus()`). Frontend gates green.
+- 2026-08-04 — ATH-11 (hook-contract consistency) done on `refactor/ath08-focus-ath11-hooks`: shared `runCatching(effect, onError)` in `utils/errors.ts` adopted by `useSessions`/`useBookmarks`/`useNotifications`/`useRecentSearches`/`useScratchFiles`; `sessionsLoading` → `loading` in `useSessions` + App consumer; `useTheme` collapsed (dropped `theme`/`setTheme` aliases, merged `THEMES`+`THEME_NAMES` into `THEME_OPTIONS`, consumers migrated to `themeMode`/`THEME_OPTIONS`). Leaked raw setters (`setActiveSessionId`, `setDrawerOpen`/`setDrawerResults`, `setPinTitle`, `setSearchSessionScope`) intentionally kept — they are cross-hook coordination points wired through `useAppKeyboard`/`useSessionRouting`, not internal leaks; renaming them is higher-risk churn than the card's "worth exploring" value. `pnpm build`/`fmt`/`lint`/`test` green.
 - 2026-08-04 — ATH-13 (error/loading/empty-state) done on `refactor/ath13-error-loading`: shared `utils/errors.ts` (`getErrorMessage`/`isAbortError`/`describeApiError`), `showErrorToast` on the Toast context, shared `Spinner`/`LoadingState`/`EmptyPanel`; migrated the card's named files (PlanView, DiffView, ConversationView, SearchPanel, SessionViewer, ScratchEditor) + `useSearchState`. Remaining ~90 catch sites left as incremental follow-up. `make test` green.
 - 2026-08-02 — PR review response round 3 on `refactor/state-store-split`: S1 liveness heuristic dedup (`applyLiveness`), S2 fan-out bundle (`fanout` struct, handlers + Poller share it), S3 scratch read routed through `requireStore`, S4 `util.go` dissolved into single-consumer homes, Spec(a) 200 centralized behind `writeOK` (48 sites). Kept + responded: Spec(b) frontend heartbeat (half of A2, card-tied), Spec(c) test rewrite + hub-private `SessionNameStore` (accepted D3 consequence), S5 `State` facade (reviewer called acceptable). `make test` green.
 - 2026-08-02 — PR review response round 2 on `refactor/state-store-split`: A1 typed-nil store roles (`storeRoles`/`storeRolesOf`, never box a nil `*Store`), A2 `ExcludeActiveView` wired end-to-end (+ frontend heartbeat), A3 indexer hash-dedup restored (`updateIndexState`), B1/B2 `prevStatus`+`SetNames` deleted, C1/C2 fan-out+scratch-chunk dedup (`fanoutSessions`, `indexScratchChunk`), D1/D2/D3 handler seams narrowed + status writes centralized (`writeNoContent`/`writeCreated`/`writeAccepted`/`requireStore`) + in-memory fake stores for handler tests. Resolve-changes kept and pinned by `server_test.go`; `make test` green.

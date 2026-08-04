@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScratchFile, Session } from "./types";
 import { fetchAllScratchFiles, createScratchFile, renameScratchFile } from "./apiClient";
+import { runCatching } from "../utils/errors";
 
 export interface ScratchFileInfo {
   title: string;
@@ -45,13 +46,13 @@ export function useScratchFiles(
   }, [validScratchFiles]);
 
   const loadScratchFiles = useCallback(async () => {
-    try {
-      const data = await fetchAllScratchFiles();
-      setScratchFiles(data ?? []);
-    } catch (err) {
-      console.error("[scratch] failed to load:", err instanceof Error ? err.message : err);
-      setScratchFiles([]);
-    }
+    const data = await runCatching(
+      () => fetchAllScratchFiles(),
+      (err) => {
+        console.error("[scratch] failed to load:", err instanceof Error ? err.message : err);
+      },
+    );
+    setScratchFiles(data ?? []);
   }, []);
 
   useEffect(() => {
