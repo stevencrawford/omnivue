@@ -80,6 +80,29 @@ func DefaultSettings() Settings {
 	}
 }
 
+// ResolveEnabledAt decides the EnabledAt value for a settings save. The first
+// time the user enables notifications (or re-enables after disabling), now is
+// stamped so the classifier can suppress the flood of pre-existing messages;
+// disabling clears the boundary; an unchanged save keeps the previous one. The
+// HTTP handler calls this instead of embedding the rule.
+func ResolveEnabledAt(prev, next Settings, now time.Time) int64 {
+	switch {
+	case next.Enabled && (!prev.Enabled || prev.EnabledAt == 0):
+		return now.UnixMilli()
+	case !next.Enabled:
+		return 0
+	default:
+		return prev.EnabledAt
+	}
+}
+
+// suppresses reports whether a message timestamp is older than the moment
+// notifications were enabled and should therefore be skipped by the first-run
+// flood suppression.
+func (s *Settings) suppresses(t time.Time) bool {
+	return !t.IsZero() && s.EnabledAt > 0 && t.Before(time.UnixMilli(s.EnabledAt))
+}
+
 // has reports whether the given kind is enabled in settings.
 func (s *Settings) has(k Kind) bool {
 	return slices.Contains(s.Kinds, k)
@@ -132,7 +155,6 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		return nil
 	}
 
-	enabledAt := time.UnixMilli(settings.EnabledAt)
 	if lastSeenCount > len(msgs) {
 		lastSeenCount = len(msgs)
 	}
@@ -149,7 +171,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		// First-run flood suppression: ignore messages older than the moment
 		// notifications were enabled. (Status transitions below are not
 		// suppressed, since they reflect current state.)
-		if !m.Timestamp.IsZero() && settings.EnabledAt > 0 && m.Timestamp.Before(enabledAt) {
+		if settings.suppresses(m.Timestamp) {
 			continue
 		}
 		newMessageCount++

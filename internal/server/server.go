@@ -975,15 +975,10 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 		}
 		// If the user is enabling notifications for the first time (or after
 		// having disabled them), stamp EnabledAt so the classifier can suppress
-		// the flood of pre-existing messages.
+		// the flood of pre-existing messages. The decision lives in the notify
+		// package so the flood-suppression policy has a single home.
 		prev := notifier.LoadSettings()
-		if settings.Enabled && (!prev.Enabled || prev.EnabledAt == 0) {
-			settings.EnabledAt = time.Now().UnixMilli()
-		} else if !settings.Enabled {
-			settings.EnabledAt = 0
-		} else {
-			settings.EnabledAt = prev.EnabledAt
-		}
+		settings.EnabledAt = notify.ResolveEnabledAt(prev, settings, time.Now())
 		if err := notifier.SaveSettings(settings); err != nil {
 			writeError(w, err)
 			return
