@@ -1,69 +1,20 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { CirclePlus, ChevronDown, ChevronUp, TriangleAlert, ArrowRight, Info } from "lucide-react";
+import { CirclePlus, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import type { Session, Message } from "../hooks/useApi";
-import { shouldShowStepContent } from "../utils/toolDisplay";
 
-import { MarkdownContent } from "./MarkdownContent";
 import { SystemReminderView } from "./SystemReminderView";
-import { UserTurnView } from "./UserTurnMessage";
-import { AssistantMessageView } from "./AssistantMessage";
 import { ScrollMarkers } from "./ScrollMarkers";
 import { PinnedPromptBar } from "./PinnedPromptBar";
+import { MessageBlock } from "./MessageBlock";
 
 import { useConversationScroll } from "../hooks/useConversationScroll";
 import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useSessionNav } from "../hooks/useNav";
 import { useFocus } from "../hooks/useFocus";
 
+import { groupMessages } from "../utils/conversationGrouping";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./Spinner";
-
-interface GroupResult {
-  grouped: Message[];
-  ownerByRawIndex: number[];
-}
-
-function groupMessages(messages: Message[]): GroupResult {
-  const result: Message[] = [];
-  const ownerByRawIndex: number[] = [];
-  for (const msg of messages) {
-    if (msg.role === "assistant") {
-      const tools = msg.toolCalls ?? [];
-      if (tools.length > 0 && !shouldShowStepContent(msg.content ?? "", tools)) {
-        const last = result[result.length - 1];
-        if (last && last.role === "assistant" && last.toolCalls && last.toolCalls.length > 0) {
-          if (!last.toolCalls.some((tc) => tc.name === "question")) {
-            last.toolCalls = [...last.toolCalls, ...tools];
-            if (msg.reasoning) {
-              last.reasoning = last.reasoning
-                ? last.reasoning + "\n\n" + msg.reasoning
-                : msg.reasoning;
-            }
-            ownerByRawIndex.push(result.length - 1);
-            continue;
-          }
-        }
-        // Merge tool-call message into the preceding reasoning-only assistant message
-        if (
-          last &&
-          last.role === "assistant" &&
-          last.reasoning &&
-          (!last.toolCalls || last.toolCalls.length === 0)
-        ) {
-          last.toolCalls = tools;
-          if (msg.reasoning) {
-            last.reasoning = last.reasoning + "\n\n" + msg.reasoning;
-          }
-          ownerByRawIndex.push(result.length - 1);
-          continue;
-        }
-      }
-    }
-    result.push({ ...msg, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined });
-    ownerByRawIndex.push(result.length - 1);
-  }
-  return { grouped: result, ownerByRawIndex };
-}
 
 function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
   const { navigateToSession } = useSessionNav();
@@ -111,36 +62,6 @@ function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function SystemReminderInline({ content }: { content: string }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="mb-3">
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-px bg-gray-500/20" />
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap hover:text-gray-300 transition-colors cursor-pointer"
-        >
-          <Info size={12} className="text-gray-400 shrink-0" />
-          <span>SYSTEM REMINDER</span>
-          {expanded ? (
-            <ChevronUp size={10} className="text-gray-400" />
-          ) : (
-            <ChevronDown size={10} className="text-gray-400" />
-          )}
-        </button>
-        <div className="flex-1 h-px bg-gray-500/20" />
-      </div>
-      {expanded && (
-        <div className="mt-1 pl-1">
-          <MarkdownContent content={content} className="markdown-body--wide" />
-        </div>
-      )}
     </div>
   );
 }
@@ -391,108 +312,5 @@ export function ConversationView({
         />
       )}
     </div>
-  );
-}
-
-function MessageBlock({
-  message,
-  messageIndex,
-  sessionId,
-  onOpenModal,
-  onPin,
-  onBookmark,
-  bookmarkIdByRef,
-}: {
-  message: Message;
-  messageIndex: number;
-  sessionId: string;
-  onOpenModal?: (content: string, title?: string) => void;
-  onPin?: (content: string) => void;
-  onBookmark?: (
-    sessionId: string,
-    messageIndex: number,
-    toolCallId: string | undefined,
-    label: string,
-  ) => void;
-  bookmarkIdByRef?: Record<string, string>;
-}) {
-  const msgKey = `${sessionId}:${messageIndex}:`;
-  const isMsgBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[msgKey] : false;
-
-  if (message.role === "user") {
-    if (!message.content?.trim()) return null;
-    const turnAborted = message.metadata?.type === "turn_aborted";
-    if (turnAborted) {
-      return (
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex-1 h-px bg-red-500/20" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <TriangleAlert size={12} className="text-red-400" />
-            <span
-              className="text-[10px] font-semibold text-red-400 uppercase tracking-wider select-none"
-              title={message.content}
-            >
-              TURN ABORTED
-            </span>
-          </div>
-          <div className="flex-1 h-px bg-red-500/20" />
-        </div>
-      );
-    }
-    const isInlineReminder = message.metadata?.type === "system_reminder_inline";
-    if (isInlineReminder) {
-      return <SystemReminderInline content={message.content} />;
-    }
-    return (
-      <UserTurnView
-        content={message.content}
-        toolCalls={message.toolCalls}
-        sessionId={sessionId}
-        messageIndex={messageIndex}
-        onOpenModal={onOpenModal}
-        onPin={onPin}
-        onBookmark={onBookmark}
-        isBookmarked={isMsgBookmarked}
-        bookmarkIdByRef={bookmarkIdByRef}
-      />
-    );
-  }
-  if (message.role === "system") {
-    if (!message.content?.trim()) return null;
-    const isReminder = message.metadata?.type === "system_reminder";
-    if (isReminder) {
-      return (
-        <SystemReminderView
-          content={message.content}
-          fileName={message.metadata?.file || "AGENTS.md"}
-        />
-      );
-    }
-    return <div className="sess-system-notice whitespace-pre-wrap">{message.content}</div>;
-  }
-  return (
-    <>
-      {message.error && (
-        <div className="border border-red-500/30 rounded-lg overflow-hidden mb-3 bg-red-500/[0.03]">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-red-500/20">
-            <TriangleAlert size={14} className="text-red-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-red-400">API ERROR</span>
-          </div>
-          <div className="px-3 py-2 text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
-            {message.error}
-          </div>
-        </div>
-      )}
-      <AssistantMessageView
-        message={message}
-        sessionId={sessionId}
-        messageIndex={messageIndex}
-        onOpenModal={onOpenModal}
-        onPin={onPin}
-        onBookmark={onBookmark}
-        isMsgBookmarked={isMsgBookmarked}
-        bookmarkIdByRef={bookmarkIdByRef}
-      />
-    </>
   );
 }
