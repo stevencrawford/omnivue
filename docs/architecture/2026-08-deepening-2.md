@@ -43,8 +43,8 @@ Goals / Files / Seam / Acceptance / Tests card.
 | ATH-18 | One refresh pipeline (kill the poller's split-brain) | H | 0 | done |
 | ATH-19 | Collapse the ingest `Adapter`'s vestigial optionality | H | 1 | done |
 | ATH-20 | Resume-command module (domain stops importing the PTY) | M | 1 | done |
-| ATH-21 | Single tool-kind vocabulary (notify + indexer) | M | 2 | open |
-| ATH-22 | Deepen the diff pipeline (no parse→serialize→parse) | H | 2 | open |
+| ATH-21 | Single tool-kind vocabulary (notify + indexer) | M | 2 | done |
+| ATH-22 | Deepen the diff pipeline (no parse→serialize→parse) | H | 2 | done |
 | ATH-23 | One data-loading lifecycle behind one interface | H | 3 | open |
 | ATH-24 | A search module (stop scattering search across 7 files) | H | 3 | open |
 
@@ -306,3 +306,20 @@ re-reading the whole table.
   `ResumeSpec.Directory` field stays the raw session directory. Per-adapter resume +
   `AgentCommand` tests added for all six (opencode/copilot gained tests). Backend gates green
   (`go build`, `golangci-lint`, `gostyle`, `go test`, `make test`); `resumecmd` at 100% coverage.
+- 2026-08-05 — Wave 2 done (ATH-21 + ATH-22). **ATH-21:** new pure `ingestkit.ToolKind`
+  vocabulary (`KindsOf`/`HasKind`, kinds `Question`/`Permission`/`TaskComplete`/`Plan`) next to
+  `CanonicalizeToolName`. Deleted the notifier's `QuestionToolNames`/`PermissionToolNames`/
+  `TaskCompleteToolNames` maps and the indexer's `isPlanTool`; both now call `ingestkit.HasKind`.
+  `task_complete`/`task-complete` map to both `TaskComplete` and `Plan` (preserving both modules'
+  behaviour). New `toolkind_test.go` pins the union of all prior literals. **ATH-22:** `utils/diff.ts`
+  deepened — `DiffHunk.lines` are structured `DiffLine{type,text,oldLine,newLine}`; the unified-diff
+  render and the data-boundary parse collapse to a single shared `advanceLine` line-number walker used
+  by hunk counting, `parseUnifiedDiff`, and `renderHunk`. Hunk headers anchor at the first hunk line
+  (not the first change). `mergeFileEdits` returns `hunks` (each with `messageIndex`); the
+  `patch`/`perHunkPatches`/`perHunkMessageIndices` text fields are gone. `PatchRenderer` became
+  `HunkRenderer` consuming structured hunks; `DiffView` search uses a `hunksContain` helper over hunk
+  lines and `EditToolDiff` renders `computeDiff`/`parseUnifiedDiff` hunks directly (no component
+  re-parses diff text). Tests: `utils/__tests__/diff.test.ts` covers compute/merge/parse/render/
+  `hunksContain`, plus component smoke tests for `DiffView` and `EditToolDiff`. Frontend gates green
+  (`pnpm fmt`, `pnpm lint`, `pnpm test`,
+  `pnpm build`) and `make test` green.

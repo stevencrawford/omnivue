@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen, MessageSquareText, ArrowRight, File } from "lucide-react";
 import type { FileEdit } from "../hooks/types";
 import { fetchEdits } from "../hooks/apiClient";
-import { PatchRenderer } from "./DiffRenderer";
+import { HunkRenderer } from "./DiffRenderer";
 import { CopyButton } from "./CopyButton";
 import { detectLanguage } from "../utils/detectLanguage";
 import { LoadingState } from "./LoadingState";
@@ -15,6 +15,7 @@ import {
   DIFF_STATUS_COLORS,
   type MergedFileDiff,
 } from "../utils/diffTree";
+import { hunksContain } from "../utils/diff";
 import { FileTree } from "./diff/FileTree";
 import { useResizable } from "../hooks/useResizable";
 import { STORAGE_KEYS } from "../utils/storageKeys";
@@ -109,7 +110,7 @@ export function DiffView({
     if (!searchHighlightQuery || mergedDiffs.length === 0) return;
     const q = searchHighlightQuery.toLowerCase();
     const match = mergedDiffs.find(
-      (d) => d.path.toLowerCase().includes(q) || d.patch.toLowerCase().includes(q),
+      (d) => d.path.toLowerCase().includes(q) || hunksContain(d.hunks, q),
     );
     if (match) {
       setSelectedPath(match.path);
@@ -219,7 +220,7 @@ export function DiffView({
 
         {/* Right: Diff view */}
         <div ref={rightPanelRef} className="flex-1 overflow-y-auto min-w-0">
-          {selectedDiff && selectedDiff.patch ? (
+          {selectedDiff && selectedDiff.hunks.length > 0 ? (
             <div className="p-4 space-y-3">
               <div className="group flex items-center gap-2 pb-2 border-b border-ov-border">
                 <File size={14} className="shrink-0 text-ov-text-secondary" />
@@ -237,9 +238,9 @@ export function DiffView({
                   iconSize={12}
                 />
               </div>
-              {selectedDiff.perHunkPatches.map((hunkPatch, i) => {
-                const msgIdx = selectedDiff.perHunkMessageIndices[i];
-                const prevMsgIdx = i > 0 ? selectedDiff.perHunkMessageIndices[i - 1] : -2;
+              {selectedDiff.hunks.map((hunk, i) => {
+                const msgIdx = hunk.messageIndex;
+                const prevMsgIdx = i > 0 ? selectedDiff.hunks[i - 1].messageIndex : -2;
                 const showIndicator = msgIdx >= 0 && msgIdx !== prevMsgIdx && onNavigateToMessage;
                 const edit = edits.find((e) => e.messageIndex === msgIdx);
                 const msgId = edit?.messageId;
@@ -257,7 +258,7 @@ export function DiffView({
                         <ArrowRight size={10} />
                       </button>
                     )}
-                    <PatchRenderer patch={hunkPatch} lang={detectLanguage(selectedDiff.path)} />
+                    <HunkRenderer hunk={hunk} lang={detectLanguage(selectedDiff.path)} />
                   </div>
                 );
               })}

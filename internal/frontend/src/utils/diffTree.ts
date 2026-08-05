@@ -1,24 +1,12 @@
 import type { FileEdit } from "../hooks/types";
-import { computeDiff } from "./diff";
-import { detectLanguage } from "./detectLanguage";
+import { computeDiff, parseUnifiedDiff, type DiffHunk } from "./diff";
 
 export interface MergedFileDiff {
   path: string;
   status: "added" | "modified" | "deleted";
   additions: number;
   deletions: number;
-  patch: string;
-  perHunkPatches: string[];
-  perHunkMessageIndices: number[];
-}
-
-interface ExtractedHunk {
-  deletionStart: number;
-  deletionCount: number;
-  additionStart: number;
-  additionCount: number;
-  lines: string[];
-  messageIndex: number;
+  hunks: Array<DiffHunk & { messageIndex: number }>;
 }
 
 export interface FileTreeNode {
@@ -30,25 +18,9 @@ export interface FileTreeNode {
   depth: number;
 }
 
-export function extractHunks(
-  _filePath: string,
-  oldContent: string,
-  newContent: string,
-  _lang: string,
-  messageIndex: number,
-): ExtractedHunk[] {
-  try {
-    const hunks = computeDiff(oldContent, newContent);
-    return hunks.map((h) => ({ ...h, messageIndex }));
-  } catch {
-    return [];
-  }
-}
-
 export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
-  const allHunks: ExtractedHunk[] = [];
+  const allHunks: Array<DiffHunk & { messageIndex: number }> = [];
   let isNew = false;
-  const lang = detectLanguage(filePath);
 
   for (const edit of edits) {
     const mi = edit.messageIndex ?? -1;
@@ -56,31 +28,29 @@ export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileD
     if (body && !edit.oldStr) {
       isNew = true;
       if (body.startsWith("@@")) {
-        const lines = body.split("\n");
-        allHunks.push({
-          deletionStart: 0,
-          deletionCount: 0,
-          additionStart: 1,
-          additionCount: 0,
-          lines,
-          messageIndex: mi,
-        });
+        for (const hunk of parseUnifiedDiff(body)) {
+          allHunks.push({ ...hunk, messageIndex: mi });
+        }
       } else {
         const lines = body.split("\n");
         const count = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
         if (count === 0) continue;
-        const hunkLines: string[] = [`@@ -0,0 +1,${count} @@`];
-        for (const l of lines.slice(0, count)) {
-          hunkLines.push("+" + l);
-        }
-        allHunks.push({
-          deletionStart: 0,
-          deletionCount: 0,
-          additionStart: 1,
-          additionCount: count,
-          lines: hunkLines,
-          messageIndex: mi,
-        });
+        const hunks: Array<DiffHunk & { messageIndex: number }> = [
+          {
+            deletionStart: 0,
+            deletionCount: 0,
+            additionStart: 1,
+            additionCount: count,
+            lines: lines.slice(0, count).map((text, i) => ({
+              type: "add",
+              text,
+              oldLine: 0,
+              newLine: i + 1,
+            })),
+            messageIndex: mi,
+          },
+        ];
+        allHunks.push(...hunks);
       }
       continue;
     }
@@ -89,35 +59,20 @@ export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileD
 
     const oldContent = edit.oldStr || "";
     const newContent = edit.newStr || edit.content || "";
-    const hunks = extractHunks(filePath, oldContent, newContent, lang, mi);
-    allHunks.push(...hunks);
+    for (const hunk of computeDiff(oldContent, newContent)) {
+      allHunks.push({ ...hunk, messageIndex: mi });
+    }
   }
 
   allHunks.sort((a, b) => a.deletionStart - b.deletionStart);
 
-  const merged = allHunks;
-
   let totalAdditions = 0;
   let totalDeletions = 0;
-  for (const hunk of merged) {
+  for (const hunk of allHunks) {
     for (const line of hunk.lines) {
-      if (line.startsWith("+") && !line.startsWith("++")) totalAdditions++;
-      else if (line.startsWith("-") && !line.startsWith("--")) totalDeletions++;
+      if (line.type === "add") totalAdditions++;
+      else if (line.type === "del") totalDeletions++;
     }
-  }
-
-  let patch = "";
-  const perHunkPatches: string[] = [];
-  const perHunkMessageIndices: number[] = [];
-  if (merged.length > 0) {
-    const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
-    for (const hunk of merged) {
-      const hunkPatch = header + hunk.lines.join("\n") + "\n";
-      patch += hunk.lines.join("\n") + "\n";
-      perHunkPatches.push(hunkPatch);
-      perHunkMessageIndices.push(hunk.messageIndex);
-    }
-    patch = header + patch;
   }
 
   return {
@@ -125,9 +80,7 @@ export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileD
     status: isNew ? "added" : "modified",
     additions: totalAdditions,
     deletions: totalDeletions,
-    patch,
-    perHunkPatches,
-    perHunkMessageIndices,
+    hunks: allHunks,
   };
 }
 
