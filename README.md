@@ -58,34 +58,7 @@ Omnivue keeps your workflow on your machine:
 brew install stevencrawford/tap/omnivue
 ```
 
-### 2. Pre-built binary
-
-**macOS (Apple Silicon)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-```
-
-**macOS (Intel)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_amd64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-```
-
-**Linux (amd64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
-```
-
-**Linux (arm64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_arm64.tar.gz | tar xz
-```
-
-**Windows (amd64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
-```
-
-### 3. Build from source
+### 2. Build from source
 
 Requires Go 1.26+, [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
 
