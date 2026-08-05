@@ -52,7 +52,13 @@ Omnivue keeps your workflow on your machine:
 
 ## Getting Started
 
-### 1. Pre-built binary (recommended)
+### 1. Homebrew (macOS)
+
+```sh
+brew install stevencrawford/tap/omnivue
+```
+
+### 2. Pre-built binary
 
 **macOS (Apple Silicon)**
 ```bash
@@ -79,7 +85,7 @@ curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/om
 curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
 ```
 
-### 2. Build from source
+### 3. Build from source
 
 Requires Go 1.26+, [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
 
@@ -88,12 +94,6 @@ git clone https://github.com/stevencrawford/omnivue.git
 cd omnivue
 make build
 ./omnivue --foreground --port 16275
-```
-
-### Post-install
-
-```console
-$ ./omnivue
 ```
 
 ## Keyboard shortcuts
