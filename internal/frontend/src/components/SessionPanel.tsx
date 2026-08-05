@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpDown, Archive, Minus, Plus, Tags } from "lucide-react";
+import { Archive, FolderTree, Minus, Plus, Tags } from "lucide-react";
 import type { Session } from "../hooks/types";
-import { buildTree, type SortMode } from "../utils/buildTree";
+import { buildTree, type GroupMode } from "../utils/buildTree";
 import { shortDir } from "../utils/sessionUtils";
 import {
   getDistinctValues,
@@ -15,7 +15,7 @@ import { ManageTagsDialog } from "./ManageTagsDialog";
 import { FilterChip } from "./FilterChip";
 import { SessionTree, type DisplayMode } from "./sessions/SessionTree";
 import { IconBtn } from "./sessions/IconBtn";
-import { SortMenu } from "./sessions/SortMenu";
+import { GroupMenu } from "./sessions/GroupMenu";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
 function getAncestorChain(sessions: Session[], id: string): string[] {
@@ -37,7 +37,7 @@ interface SessionPanelProps {
 }
 
 const COLLAPSED_KEY = STORAGE_KEYS.SIDEBAR_COLLAPSED;
-const SORT_KEY = STORAGE_KEYS.SIDEBAR_SORT;
+const GROUP_KEY = STORAGE_KEYS.SIDEBAR_GROUP;
 const DISPLAY_KEY = STORAGE_KEYS.SIDEBAR_DISPLAY;
 
 function getInitialCollapsed(): Set<string> {
@@ -50,14 +50,16 @@ function getInitialCollapsed(): Set<string> {
   return new Set();
 }
 
-function getInitialSort(): SortMode {
+function getInitialGroup(): GroupMode {
   try {
-    const stored = localStorage.getItem(SORT_KEY);
-    if (stored === "name" || stored === "agent") return stored;
+    const stored = localStorage.getItem(GROUP_KEY);
+    if (stored === "repo" || stored === "cwd" || stored === "model" || stored === "none") {
+      return stored;
+    }
   } catch {
     /* noop */
   }
-  return "recent";
+  return "repo";
 }
 
 function getInitialDisplay(): DisplayMode {
@@ -77,9 +79,9 @@ export function SessionPanel({
   sessionUnread = {},
 }: SessionPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(getInitialCollapsed);
-  const [sortMode, setSortMode] = useState<SortMode>(getInitialSort);
-  const [sortOpen, setSortOpen] = useState(false);
-  const sortRef = useRef<HTMLDivElement>(null);
+  const [groupMode, setGroupMode] = useState<GroupMode>(getInitialGroup);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const groupRef = useRef<HTMLDivElement>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(getInitialDisplay);
   const { hideStale, staleDays, setHideStale } = useSessionListSettings();
   const toggleDisplayMode = useCallback(() => {
@@ -165,7 +167,7 @@ export function SessionPanel({
 
   const treeSessions = hideStale ? visibleSessions : filteredSessions;
 
-  const tree = useMemo(() => buildTree(treeSessions, sortMode), [treeSessions, sortMode]);
+  const tree = useMemo(() => buildTree(treeSessions, groupMode), [treeSessions, groupMode]);
 
   const agents = useMemo(() => getDistinctValues(sessions, "agent"), [sessions]);
   const projects = useMemo(() => getDistinctValues(sessions, "directory"), [sessions]);
@@ -204,7 +206,7 @@ export function SessionPanel({
   );
 
   const collapseAll = useCallback(() => {
-    const all = new Set(tree.map((n) => n.fullPath));
+    const all = new Set(tree.filter((n) => n.isGroup).map((n) => n.fullPath));
     setCollapsed(all);
     saveCollapsed(all);
   }, [tree, saveCollapsed]);
@@ -214,11 +216,11 @@ export function SessionPanel({
     saveCollapsed(new Set());
   }, [saveCollapsed]);
 
-  const setSort = useCallback((mode: SortMode) => {
-    setSortMode(mode);
-    setSortOpen(false);
+  const setGroup = useCallback((mode: GroupMode) => {
+    setGroupMode(mode);
+    setGroupOpen(false);
     try {
-      localStorage.setItem(SORT_KEY, mode);
+      localStorage.setItem(GROUP_KEY, mode);
     } catch {
       /* noop */
     }
@@ -230,15 +232,16 @@ export function SessionPanel({
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
-        setSortOpen(false);
+      if (groupRef.current && !groupRef.current.contains(e.target as Node)) {
+        setGroupOpen(false);
       }
     };
-    if (sortOpen) document.addEventListener("mousedown", handleClick);
+    if (groupOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [sortOpen]);
+  }, [groupOpen]);
 
-  const allCollapsed = tree.length > 0 && tree.every((n) => collapsed.has(n.fullPath));
+  const groupNodes = tree.filter((n) => n.isGroup);
+  const allCollapsed = groupNodes.length > 0 && groupNodes.every((n) => collapsed.has(n.fullPath));
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -248,17 +251,19 @@ export function SessionPanel({
           Sessions
         </span>
         <div className="flex items-center gap-0.5">
-          <IconBtn
-            title={allCollapsed ? "Expand all repos" : "Collapse all repos"}
-            onClick={allCollapsed ? expandAll : collapseAll}
-          >
-            {allCollapsed ? <Plus size={14} /> : <Minus size={14} />}
-          </IconBtn>
-          <div className="relative" ref={sortRef}>
-            <IconBtn title="Sort" onClick={() => setSortOpen((v) => !v)}>
-              <ArrowUpDown size={14} />
+          {groupMode !== "none" && (
+            <IconBtn
+              title={allCollapsed ? "Expand all groups" : "Collapse all groups"}
+              onClick={allCollapsed ? expandAll : collapseAll}
+            >
+              {allCollapsed ? <Plus size={14} /> : <Minus size={14} />}
             </IconBtn>
-            <SortMenu open={sortOpen} sortMode={sortMode} onSelect={setSort} />
+          )}
+          <div className="relative" ref={groupRef}>
+            <IconBtn title="Group by" onClick={() => setGroupOpen((v) => !v)}>
+              <FolderTree size={14} />
+            </IconBtn>
+            <GroupMenu open={groupOpen} groupMode={groupMode} onSelect={setGroup} />
           </div>
           <IconBtn
             title={displayMode === "condensed" ? "Verbose view" : "Condensed view"}

@@ -43,15 +43,54 @@ describe("shortRepoName", () => {
 });
 
 describe("buildTree", () => {
-  it("groups sessions by repository", () => {
+  it("groups sessions by repository with latest first", () => {
     const sessions = [
-      baseSession({ id: "s1", repository: "org/alpha" }),
-      baseSession({ id: "s2", repository: "org/beta" }),
+      baseSession({ id: "s1", repository: "org/alpha", updatedAt: "2024-01-02T00:00:00Z" }),
+      baseSession({ id: "s2", repository: "org/beta", updatedAt: "2024-01-03T00:00:00Z" }),
+      baseSession({ id: "s3", repository: "org/alpha", updatedAt: "2024-01-01T00:00:00Z" }),
     ];
-    const tree = buildTree(sessions, "name");
+    const tree = buildTree(sessions, "repo");
     expect(tree).toHaveLength(2);
-    expect(tree[0].name).toBe("alpha");
-    expect(tree[1].name).toBe("beta");
+    // Groups ordered by most recent session
+    expect(tree[0].name).toBe("beta");
+    expect(tree[1].name).toBe("alpha");
+    // Within-group sessions latest first
+    expect(tree[1].children.map((c) => c.session?.id)).toEqual(["s1", "s3"]);
+  });
+
+  it("groups sessions by working directory", () => {
+    const sessions = [
+      baseSession({ id: "s1", directory: "/Users/me/proj-a" }),
+      baseSession({ id: "s2", directory: "/Users/me/proj-b" }),
+    ];
+    const tree = buildTree(sessions, "cwd");
+    expect(tree).toHaveLength(2);
+    expect(tree.map((n) => n.name)).toEqual(expect.arrayContaining(["proj-a", "proj-b"]));
+    expect(tree.every((n) => n.isGroup)).toBe(true);
+  });
+
+  it("groups sessions by raw model string", () => {
+    const sessions = [
+      baseSession({ id: "s1", model: "anthropic/claude-3" }),
+      baseSession({ id: "s2", model: "openai/gpt-4" }),
+    ];
+    const tree = buildTree(sessions, "model");
+    expect(tree).toHaveLength(2);
+    expect(tree.map((n) => n.name)).toEqual(
+      expect.arrayContaining(["anthropic/claude-3", "openai/gpt-4"]),
+    );
+  });
+
+  it("returns a flat latest-first list for none", () => {
+    const sessions = [
+      baseSession({ id: "s1", updatedAt: "2024-01-01T00:00:00Z" }),
+      baseSession({ id: "s2", updatedAt: "2024-01-03T00:00:00Z" }),
+      baseSession({ id: "s3", updatedAt: "2024-01-02T00:00:00Z" }),
+    ];
+    const tree = buildTree(sessions, "none");
+    expect(tree).toHaveLength(3);
+    expect(tree.every((n) => !n.isGroup)).toBe(true);
+    expect(tree.map((n) => n.session?.id)).toEqual(["s2", "s3", "s1"]);
   });
 
   it("nests child sessions under parent", () => {
@@ -59,7 +98,7 @@ describe("buildTree", () => {
       baseSession({ id: "parent-1", repository: "org/repo" }),
       baseSession({ id: "child-1", parentId: "parent-1", repository: "org/repo" }),
     ];
-    const tree = buildTree(sessions, "name");
+    const tree = buildTree(sessions, "repo");
     expect(tree).toHaveLength(1);
     expect(tree[0].children).toHaveLength(1);
     expect(tree[0].children[0].session?.id).toBe("parent-1");
@@ -74,7 +113,7 @@ describe("buildTree", () => {
       baseSession({ id: "grandchild", parentId: "child", repository: "org/repo" }),
       baseSession({ id: "great-grandchild", parentId: "grandchild", repository: "org/repo" }),
     ];
-    const tree = buildTree(sessions, "name");
+    const tree = buildTree(sessions, "repo");
     expect(tree).toHaveLength(1);
     expect(tree[0].children).toHaveLength(1);
     // root → child → grandchild → great-grandchild
@@ -90,7 +129,8 @@ describe("buildTree", () => {
   });
 
   it("handles empty session list", () => {
-    expect(buildTree([], "recent")).toEqual([]);
+    expect(buildTree([], "repo")).toEqual([]);
+    expect(buildTree([], "none")).toEqual([]);
   });
 });
 
