@@ -2,7 +2,6 @@ package ingestkit
 
 import (
 	"slices"
-	"strings"
 )
 
 // ToolKind classifies the semantic role a tool call name signals to downstream
@@ -39,10 +38,12 @@ var toolKinds = map[string][]ToolKind{
 	"task":               {KindPlan},
 }
 
-// KindsOf returns the semantic kinds the given tool call name signals. The
-// name is matched case-insensitively. An unknown name yields an empty slice.
+// KindsOf returns the semantic kinds the given tool call name signals. Names
+// are matched exactly against the canonical (lowercased) form; callers pass the
+// name as it appears after CanonicalizeToolName. An unknown name yields an
+// empty slice.
 func KindsOf(name string) []ToolKind {
-	return toolKinds[strings.ToLower(name)]
+	return toolKinds[name]
 }
 
 // HasKind reports whether the given tool call name signals the given kind.

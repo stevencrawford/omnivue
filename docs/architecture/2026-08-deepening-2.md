@@ -312,12 +312,14 @@ re-reading the whole table.
   `TaskCompleteToolNames` maps and the indexer's `isPlanTool`; both now call `ingestkit.HasKind`.
   `task_complete`/`task-complete` map to both `TaskComplete` and `Plan` (preserving both modules'
   behaviour). New `toolkind_test.go` pins the union of all prior literals. **ATH-22:** `utils/diff.ts`
-  deepened — `DiffHunk.lines` are structured `DiffLine{type,text,oldLine,newLine}`; text is now a
-  single leaf (`serializeUnifiedDiff`) plus a data-boundary parse (`parseUnifiedDiff`), and `renderHunk`
-  owns line/header bookkeeping. `mergeFileEdits` returns `hunks` (each with `messageIndex`); the
+  deepened — `DiffHunk.lines` are structured `DiffLine{type,text,oldLine,newLine}`; the unified-diff
+  render and the data-boundary parse collapse to a single shared `advanceLine` line-number walker used
+  by hunk counting, `parseUnifiedDiff`, and `renderHunk`. Hunk headers anchor at the first hunk line
+  (not the first change). `mergeFileEdits` returns `hunks` (each with `messageIndex`); the
   `patch`/`perHunkPatches`/`perHunkMessageIndices` text fields are gone. `PatchRenderer` became
-  `HunkRenderer` consuming structured hunks; `DiffView` search runs over hunk lines and `EditToolDiff`
-  renders `computeDiff`/`parseUnifiedDiff` hunks directly (no component re-parses diff text). Tests:
-  `utils/__tests__/diff.test.ts` covers compute/merge/serialize↔parse/render, plus component smoke
-  tests for `DiffView` and `EditToolDiff`. Frontend gates green (`pnpm fmt`, `pnpm lint`, `pnpm test`,
+  `HunkRenderer` consuming structured hunks; `DiffView` search uses a `hunksContain` helper over hunk
+  lines and `EditToolDiff` renders `computeDiff`/`parseUnifiedDiff` hunks directly (no component
+  re-parses diff text). Tests: `utils/__tests__/diff.test.ts` covers compute/merge/parse/render/
+  `hunksContain`, plus component smoke tests for `DiffView` and `EditToolDiff`. Frontend gates green
+  (`pnpm fmt`, `pnpm lint`, `pnpm test`,
   `pnpm build`) and `make test` green.

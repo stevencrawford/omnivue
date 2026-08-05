@@ -15,6 +15,7 @@ import {
   DIFF_STATUS_COLORS,
   type MergedFileDiff,
 } from "../utils/diffTree";
+import { hunksContain } from "../utils/diff";
 import { FileTree } from "./diff/FileTree";
 import { useResizable } from "../hooks/useResizable";
 import { STORAGE_KEYS } from "../utils/storageKeys";
@@ -109,9 +110,7 @@ export function DiffView({
     if (!searchHighlightQuery || mergedDiffs.length === 0) return;
     const q = searchHighlightQuery.toLowerCase();
     const match = mergedDiffs.find(
-      (d) =>
-        d.path.toLowerCase().includes(q) ||
-        d.hunks.some((h) => h.lines.some((l) => l.text.toLowerCase().includes(q))),
+      (d) => d.path.toLowerCase().includes(q) || hunksContain(d.hunks, q),
     );
     if (match) {
       setSelectedPath(match.path);

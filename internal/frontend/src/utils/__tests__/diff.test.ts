@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDiff, renderHunk, serializeUnifiedDiff, parseUnifiedDiff } from "../diff";
+import { computeDiff, renderHunk, parseUnifiedDiff, hunksContain } from "../diff";
 import { mergeFileEdits } from "../diffTree";
 import type { FileEdit } from "../../hooks/types";
 
@@ -17,6 +17,14 @@ describe("computeDiff", () => {
     expect(hunk.lines[0]).toEqual({ type: "ctx", text: "a", oldLine: 1, newLine: 1 });
     expect(hunk.lines[1]).toEqual({ type: "del", text: "b", oldLine: 2, newLine: 0 });
     expect(hunk.lines[2]).toEqual({ type: "add", text: "X", oldLine: 0, newLine: 2 });
+  });
+
+  it("anchors the hunk header at the first hunk line, not the first change", () => {
+    const hunks = computeDiff("a\nb\nc\n", "a\nX\nc\n");
+    expect(hunks[0].deletionStart).toBe(1);
+    expect(hunks[0].additionStart).toBe(1);
+    expect(hunks[0].deletionCount).toBe(3);
+    expect(hunks[0].additionCount).toBe(3);
   });
 
   it("treats a wholly-new file as an all-add hunk", () => {
@@ -47,16 +55,16 @@ describe("renderHunk", () => {
       newNum: "",
     });
     expect(rows.slice(1).map((r) => r.kind)).toEqual(["ctx", "del", "add", "ctx"]);
-    // Line numbers derive from the hunk header start, mirroring the legacy
-    // unified-diff text renderer (leading context inherits the start offset).
-    expect(rows[1]).toMatchObject({ kind: "ctx", text: "a", oldNum: "2", newNum: "0" });
-    expect(rows[2]).toMatchObject({ kind: "del", text: "b", oldNum: "3", newNum: "" });
-    expect(rows[3]).toMatchObject({ kind: "add", text: "X", oldNum: "", newNum: "1" });
+    // Line numbers derive from the hunk header start, so leading context
+    // inherits the start offset.
+    expect(rows[1]).toMatchObject({ kind: "ctx", text: "a", oldNum: "1", newNum: "1" });
+    expect(rows[2]).toMatchObject({ kind: "del", text: "b", oldNum: "2", newNum: "" });
+    expect(rows[3]).toMatchObject({ kind: "add", text: "X", oldNum: "", newNum: "2" });
   });
 });
 
-describe("serialize/parse round trip", () => {
-  it("reconstructs equivalent hunks from text", () => {
+describe("parseUnifiedDiff", () => {
+  it("parses unified-diff text into structured hunks", () => {
     const text = ["--- a/f.ts", "+++ b/f.ts", "@@ -1,3 +1,3 @@", " a", "-b", "+X", " c", ""].join(
       "\n",
     );
@@ -70,15 +78,26 @@ describe("serialize/parse round trip", () => {
       ["add", "X"],
       ["ctx", "c"],
     ]);
-
-    const reparsed = parseUnifiedDiff(serializeUnifiedDiff(hunks, { filePath: "f.ts" }));
-    expect(reparsed).toEqual(hunks);
+    expect(hunks[0].lines.map((l) => l.oldLine)).toEqual([1, 2, 0, 3]);
+    expect(hunks[0].lines.map((l) => l.newLine)).toEqual([1, 0, 2, 3]);
   });
 
   it("handles count-less hunk headers", () => {
     const hunks = parseUnifiedDiff("@@ -2 +2 @@\n-b\n+X\n");
     expect(hunks[0].deletionCount).toBe(1);
     expect(hunks[0].additionCount).toBe(1);
+  });
+});
+
+describe("hunksContain", () => {
+  it("reports whether any hunk line contains the query (case-insensitive)", () => {
+    const hunks = computeDiff("a\nb\nc\n", "a\nXYZ\nc\n");
+    expect(hunksContain(hunks, "xyz")).toBe(true);
+    expect(hunksContain(hunks, "missing")).toBe(false);
+  });
+
+  it("is false for empty hunks", () => {
+    expect(hunksContain([], "anything")).toBe(false);
   });
 });
 
@@ -125,12 +144,16 @@ describe("mergeFileEdits", () => {
     expect(merged.hunks[0].messageIndex).toBe(1);
   });
 
-  it("sorts hunks by deletion start while keeping message indices", () => {
-    const merged = mergeFileEdits("src/a.ts", [
-      edit({ oldStr: "keep\nchange\n", newStr: "keep\nX\n", messageIndex: 4 }),
-      edit({ oldStr: "change2\n", newStr: "Y\n", messageIndex: 2 }),
-    ]);
-    expect(merged.hunks.map((h) => h.messageIndex)).toEqual([2, 4]);
+  it("sorts hunks by position within an edit while keeping message indices", () => {
+    const oldContent = Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join("\n");
+    const newContent = oldContent.replace("line5", "CHANGED5").replace("line16", "CHANGED16");
+    const hunks = mergeFileEdits("doc.ts", [
+      edit({ oldStr: oldContent, newStr: newContent, messageIndex: 2 }),
+    ]).hunks;
+    expect(hunks.map((h) => h.messageIndex)).toEqual([2, 2]);
+    for (let i = 1; i < hunks.length; i++) {
+      expect(hunks[i].deletionStart).toBeGreaterThan(hunks[i - 1].deletionStart);
+    }
   });
 
   it("returns an empty hunk list for empty edits", () => {

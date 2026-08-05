@@ -25,6 +25,24 @@ export interface RenderRow {
   newNum: string;
 }
 
+/**
+ * advanceLine advances the running old/new line counters across one diff line:
+ * an `add` line advances only the new counter, a `del` line only the old
+ * counter, and a context line both. It is the single walker shared by hunk
+ * counting, unified-diff parsing, and row rendering, so the three call sites
+ * cannot drift apart.
+ */
+function advanceLine(line: DiffLine, oldLine: number, newLine: number): [number, number] {
+  const nextOld = line.type === "add" ? oldLine : oldLine + 1;
+  const nextNew = line.type === "del" ? newLine : newLine + 1;
+  return [nextOld, nextNew];
+}
+
+export function hunksContain(hunks: DiffHunk[], query: string): boolean {
+  const q = query.toLowerCase();
+  return hunks.some((h) => h.lines.some((l) => l.text.toLowerCase().includes(q)));
+}
+
 export function computeDiff(oldContent: string, newContent: string): DiffHunk[] {
   if (oldContent === newContent) return [];
 
@@ -90,15 +108,17 @@ export function computeDiff(oldContent: string, newContent: string): DiffHunk[] 
     const hunkEndIdx = Math.min(allLines.length, j + CONTEXT);
     const hunkSlice = allLines.slice(hunkStartIdx, hunkEndIdx);
 
-    const first = hunkSlice.find((l) => l.type !== "ctx") ?? hunkSlice[0];
+    // The hunk header starts at the first line of the hunk, not the first
+    // change: leading context inherits the start offset, so a one-line change
+    // in a three-line file yields `@@ -1,3 +1,3 @@`, never `@@ -2,3 +0,3 @@`.
+    const first = hunkSlice[0];
     const deletionStart = first.type !== "add" ? first.oldLine || 1 : 0;
     const additionStart = first.type !== "del" ? first.newLine || 1 : 0;
 
     let oldCount = 0;
     let newCount = 0;
     for (const line of hunkSlice) {
-      if (line.type !== "add") oldCount++;
-      if (line.type !== "del") newCount++;
+      [oldCount, newCount] = advanceLine(line, oldCount, newCount);
     }
 
     hunks.push({
@@ -119,10 +139,6 @@ function headerFor(hunk: DiffHunk): string {
   return `@@ -${hunk.deletionStart},${hunk.deletionCount} +${hunk.additionStart},${hunk.additionCount} @@`;
 }
 
-function prefixOf(type: DiffLineType): string {
-  return type === "add" ? "+" : type === "del" ? "-" : " ";
-}
-
 /** renderHunk turns a structured hunk into display rows (line numbers resolved). */
 export function renderHunk(hunk: DiffHunk): RenderRow[] {
   let oldLine = hunk.deletionStart - 1;
@@ -133,15 +149,12 @@ export function renderHunk(hunk: DiffHunk): RenderRow[] {
   ];
 
   for (const line of hunk.lines) {
+    [oldLine, newLine] = advanceLine(line, oldLine, newLine);
     if (line.type === "add") {
-      newLine++;
       rows.push({ kind: "add", prefix: "+", text: line.text, oldNum: "", newNum: String(newLine) });
     } else if (line.type === "del") {
-      oldLine++;
       rows.push({ kind: "del", prefix: "-", text: line.text, oldNum: String(oldLine), newNum: "" });
     } else {
-      oldLine++;
-      newLine++;
       rows.push({
         kind: "ctx",
         prefix: " ",
@@ -153,26 +166,6 @@ export function renderHunk(hunk: DiffHunk): RenderRow[] {
   }
 
   return rows;
-}
-
-/**
- * serializeUnifiedDiff is the single leaf that renders structured hunks to
- * unified-diff text with a `--- a/…` / `+++ b/…` file header. Use it only where
- * diff text must leave the module (copy/export); everything else renders the
- * structure directly.
- */
-export function serializeUnifiedDiff(hunks: DiffHunk[], options?: { filePath?: string }): string {
-  const parts: string[] = [];
-  if (options?.filePath) {
-    parts.push(`--- a/${options.filePath}`, `+++ b/${options.filePath}`);
-  }
-  for (const hunk of hunks) {
-    parts.push(headerFor(hunk));
-    for (const line of hunk.lines) {
-      parts.push(prefixOf(line.type) + line.text);
-    }
-  }
-  return parts.join("\n") + "\n";
 }
 
 const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
@@ -215,17 +208,20 @@ export function parseUnifiedDiff(text: string): DiffHunk[] {
 
     const prefix = line.charAt(0);
     const content = line.slice(1);
-    if (prefix === "+") {
-      newLine++;
-      current.lines.push({ type: "add", text: content, oldLine: 0, newLine });
-    } else if (prefix === "-") {
-      oldLine++;
-      current.lines.push({ type: "del", text: content, oldLine, newLine: 0 });
-    } else {
-      oldLine++;
-      newLine++;
-      current.lines.push({ type: "ctx", text: content, oldLine, newLine });
-    }
+    const type: DiffLineType = prefix === "+" ? "add" : prefix === "-" ? "del" : "ctx";
+    const [nextOld, nextNew] = advanceLine(
+      { type, text: content, oldLine: 0, newLine: 0 },
+      oldLine,
+      newLine,
+    );
+    oldLine = nextOld;
+    newLine = nextNew;
+    current.lines.push({
+      type,
+      text: content,
+      oldLine: type === "add" ? 0 : nextOld,
+      newLine: type === "del" ? 0 : nextNew,
+    });
   }
 
   if (current) hunks.push(current);

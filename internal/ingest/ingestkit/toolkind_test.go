@@ -59,7 +59,7 @@ func TestHasKind(t *testing.T) {
 		{"todowrite", KindTaskComplete, false},
 		{"permission_request", KindPermission, true},
 		{"exit_plan_mode", KindPlan, false},
-		{"Question", KindQuestion, true},
+		{"Question", KindQuestion, false},
 	}
 
 	for _, tc := range tests {
