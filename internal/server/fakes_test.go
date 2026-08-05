@@ -397,6 +397,58 @@ func (f *fakeSearchStore) Search(_ string, _ int, _ string) ([]store.SearchResul
 }
 func (f *fakeSearchStore) SearchTags(_ string, _ int) []store.SearchResult { return nil }
 
+// trackingSearchStore wraps fakeSearchStore with a concurrency counter around
+// the per-session index writes. A single IndexSessions pass issues these calls
+// strictly sequentially, so two overlapping passes would interleave them and
+// bump maxConcurrent above 1. The Pipeline's serialization tests assert that
+// never happens (ATH-18 follow-up: the "no overlap" guarantee is code-backed).
+type trackingSearchStore struct {
+	fakeSearchStore
+
+	mu        sync.Mutex
+	active    int
+	maxActive int
+}
+
+func newTrackingSearchStore() *trackingSearchStore { return &trackingSearchStore{} }
+
+func (t *trackingSearchStore) IndexSessionAt(_, _, _, _, _, _, _, _ string, _ int) error {
+	t.enter()
+	defer t.leave()
+	time.Sleep(2 * time.Millisecond) // widen the race window so overlap is detectable
+	return nil
+}
+
+func (t *trackingSearchStore) UpdateIndexState(_, _, _ string) error {
+	t.enter()
+	defer t.leave()
+	time.Sleep(2 * time.Millisecond)
+	return nil
+}
+
+func (t *trackingSearchStore) enter() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.active++
+	if t.active > t.maxActive {
+		t.maxActive = t.active
+	}
+}
+
+func (t *trackingSearchStore) leave() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.active--
+}
+
+// maxConcurrent returns the largest number of simultaneously-in-flight index
+// writes observed, which is 1 iff every index pass ran non-overlapping.
+func (t *trackingSearchStore) maxConcurrent() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.maxActive
+}
+
 type fakeNameStore struct {
 	mu    sync.Mutex
 	names map[string]string

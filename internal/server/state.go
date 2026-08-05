@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sync"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/store"
@@ -168,9 +169,12 @@ func storeRolesOf(st *store.Store) storeRoles {
 // Both poll cadences and the HTTP add/update/remove-source handlers cross its
 // seam, so the refresh→broadcast orchestration lives in exactly one place.
 // Pipeline methods are synchronous; callers own concurrency (the Poller runs
-// in its own goroutine, handlers wrap calls in `go`), which serializes index
-// passes so they cannot overlap.
+// in its own goroutine, handlers wrap calls in `go`). mu serializes the whole
+// pass so refresh → index → classify → broadcast cannot overlap across
+// callers: the poller goroutine and any in-flight handler refresh all line up
+// behind a single lock, and index passes are provably non-overlapping.
 type Pipeline struct {
+	mu      sync.Mutex
 	hub     *SessionHub
 	indexer *Indexer
 	notif   *Notifier
@@ -188,6 +192,8 @@ func newPipeline(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventB
 // It returns the current live session count so the Poller can adapt its
 // cadence.
 func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	ids, liveCount, transitions := p.hub.refreshSessions(ctx)
 
 	// Broadcast right after the refresh: the hub cache that /api/sessions
@@ -215,6 +221,8 @@ func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
 // count; the returned value is the current one. This absorbs what used to be
 // the Poller's hand-rolled idle branch so both cadences share the pipeline.
 func (p *Pipeline) RefreshLiveness(ctx context.Context, prevLive int) (liveCount int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	_, liveCount, transitions := p.hub.refreshSessions(ctx)
 	if liveCount == prevLive {
 		return liveCount
