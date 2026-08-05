@@ -19,6 +19,7 @@ type Dep struct {
 	Indexer  *Indexer
 	Notifier *Notifier
 	Bus      *EventBus
+	Pipeline *Pipeline
 
 	Sources   store.SourceStore
 	Tags      store.TagStore
@@ -67,8 +68,8 @@ func NewState(ctx context.Context) *State {
 	hub := NewSessionHub(roles.names)
 	index := NewIndexer(hub, hub, roles.search, roles.scratch)
 	notif := NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus)
-	f := newFanout(hub, index, notif, bus)
-	poller := NewPoller(hub, f)
+	p := newPipeline(hub, index, notif, bus)
+	poller := NewPoller(hub, p)
 
 	// Load configured sources and create adapters.
 	if st != nil {
@@ -94,7 +95,7 @@ func NewState(ctx context.Context) *State {
 	shutdownCh := make(chan struct{}, 1)
 	restartCh := make(chan string, 1)
 
-	dep := newDep(f, roles)
+	dep := newDep(p, roles)
 	dep.Shutdown = func() {
 		select {
 		case shutdownCh <- struct{}{}:
@@ -109,7 +110,7 @@ func NewState(ctx context.Context) *State {
 	}
 
 	// Initial session load and indexing (background, non-blocking).
-	go f.refreshAndIndex(ctx)
+	go p.Refresh(ctx)
 
 	// Start poller.
 	pollCtx, pollCancel := context.WithCancel(ctx)
@@ -162,55 +163,75 @@ func storeRolesOf(st *store.Store) storeRoles {
 	}
 }
 
-// fanout bundles the collaborators that turn a session refresh into a
-// re-index, an SSE broadcast, and a notification pass. The Poller embeds it
-// and the HTTP add/update-source handlers use it, so the two paths share the
-// exact same fan-out instead of passing the same four collaborators around.
-type fanout struct {
+// Pipeline is the session refresh pipeline: the single module that turns a
+// session refresh into a re-index, an SSE broadcast, and a notification pass.
+// Both poll cadences and the HTTP add/update/remove-source handlers cross its
+// seam, so the refresh→broadcast orchestration lives in exactly one place.
+// Pipeline methods are synchronous; callers own concurrency (the Poller runs
+// in its own goroutine, handlers wrap calls in `go`), which serializes index
+// passes so they cannot overlap.
+type Pipeline struct {
 	hub     *SessionHub
 	indexer *Indexer
 	notif   *Notifier
 	bus     *EventBus
 }
 
-// newFanout builds the session fan-out bundle.
-func newFanout(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventBus) *fanout {
-	return &fanout{hub: hub, indexer: indexer, notif: notif, bus: bus}
+// newPipeline builds the session refresh pipeline.
+func newPipeline(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventBus) *Pipeline {
+	return &Pipeline{hub: hub, indexer: indexer, notif: notif, bus: bus}
 }
 
-// refreshAndIndex runs a session refresh followed by background indexing and
-// emits the SSE events the frontend expects. It is used when a source is added
-// or updated so the HTTP handler is never blocked by adapter I/O.
-func (f *fanout) refreshAndIndex(ctx context.Context) {
-	ids, _, transitions := f.hub.refreshSessions(ctx)
-	f.fanoutSessions(ctx, ids, transitions)
-}
-
-// fanoutSessions broadcasts the result of a session refresh: a background
-// re-index, an SSE "update" pulse, a "session-changed" event carrying the
-// changed IDs, and a notification classification pass. Shared by refreshAndIndex
-// and the Poller's changed tick so the two paths cannot drift.
-func (f *fanout) fanoutSessions(ctx context.Context, ids []string, transitions []statusTransition) {
-	go f.indexer.IndexSessions(ctx)
-	f.bus.Send(sseEvent{Name: "update"})
+// Refresh runs a full refresh pass: re-read sessions from every adapter,
+// re-index search content, classify notifications, and broadcast "update" +
+// "session-changed" events. It returns the current live session count so the
+// Poller can adapt its cadence.
+func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
+	ids, liveCount, transitions := p.hub.refreshSessions(ctx)
+	p.indexer.IndexSessions(ctx)
+	p.bus.Send(sseEvent{Name: "update"})
 	if len(ids) == 0 {
-		return
+		return liveCount
 	}
 	data, err := json.Marshal(map[string]any{"ids": ids})
 	if err != nil {
 		slog.Warn("failed to marshal session change event", "error", err)
 	} else {
-		f.bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
+		p.bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
 	}
-	go f.notif.ClassifyChanges(ctx, ids, transitions)
+	p.notif.ClassifyChanges(ctx, ids, transitions)
+	return liveCount
 }
 
-func newDep(f *fanout, roles storeRoles) Dep {
+// RefreshLiveness refreshes and broadcasts only liveness/status changes: when
+// the live session count moved (e.g. a session went idle), it pushes an
+// "update" pulse and classifies any status transitions, without re-indexing or
+// emitting a session-changed event. prevLive is the caller's last-known live
+// count; the returned value is the current one. This absorbs what used to be
+// the Poller's hand-rolled idle branch so both cadences share the pipeline.
+func (p *Pipeline) RefreshLiveness(ctx context.Context, prevLive int) (liveCount int) {
+	_, liveCount, transitions := p.hub.refreshSessions(ctx)
+	if liveCount == prevLive {
+		return liveCount
+	}
+	p.bus.Send(sseEvent{Name: "update"})
+	if len(transitions) > 0 {
+		ids := make([]string, 0, len(transitions))
+		for _, t := range transitions {
+			ids = append(ids, t.sessionID)
+		}
+		p.notif.ClassifyChanges(ctx, ids, transitions)
+	}
+	return liveCount
+}
+
+func newDep(p *Pipeline, roles storeRoles) Dep {
 	return Dep{
-		Hub:       f.hub,
-		Indexer:   f.indexer,
-		Notifier:  f.notif,
-		Bus:       f.bus,
+		Hub:       p.hub,
+		Indexer:   p.indexer,
+		Notifier:  p.notif,
+		Bus:       p.bus,
+		Pipeline:  p,
 		Sources:   roles.sources,
 		Tags:      roles.tags,
 		Bookmarks: roles.bookmarks,

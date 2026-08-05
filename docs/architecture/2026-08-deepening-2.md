@@ -40,7 +40,7 @@ Goals / Files / Seam / Acceptance / Tests card.
 
 | # | Task | Rank | Wave | Status |
 |----|------|------|------|--------|
-| ATH-18 | One refresh pipeline (kill the poller's split-brain) | H | 0 | open |
+| ATH-18 | One refresh pipeline (kill the poller's split-brain) | H | 0 | done |
 | ATH-19 | Collapse the ingest `Adapter`'s vestigial optionality | H | 1 | open |
 | ATH-20 | Resume-command module (domain stops importing the PTY) | M | 1 | open |
 | ATH-21 | Single tool-kind vocabulary (notify + indexer) | M | 2 | open |
@@ -270,3 +270,10 @@ re-reading the whole table.
   `architecture-review-1785877277.html`). All tasks `open`.
 - 2026-08-04 — ATH-18 plan locked: synchronous `Pipeline` (`Refresh` + `RefreshLiveness`),
   remove-source routed through it, term recorded in `CONTEXT.md`. Card updated.
+- 2026-08-04 — ATH-18 done. `fanout` renamed to `Pipeline` in `state.go`; single synchronous
+  refresh→index→classify→broadcast path with caller-owned `go`; `RefreshLiveness` drops the
+  poller's idle/live split-brain (caller-supplied previous live count); Poller + `handleAddSource`/
+  `handleRemoveSource`/`handleUpdateSource` route through it on the shared `Dep.Pipeline`
+  instance; remove-source refresh now async like add/update. Integration test rewritten to drive
+  the pipeline synchronously (no deadline polling) + new `RefreshLiveness` determinism test.
+  Backend gates green (`go build`, `golangci-lint`, `gostyle`, `go test`, `make test`).
