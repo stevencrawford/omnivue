@@ -9,7 +9,6 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/store"
-	"github.com/stevencrawford/omnivue/internal/terminal"
 )
 
 // SessionHub owns the cached session list and the collection of adapters,
@@ -223,12 +222,16 @@ func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (*Resu
 	if err != nil {
 		return nil, err
 	}
-	abs := adapter.ResumeCommand(sess)
+	spec := adapter.ResumeCommand()
+	dir := sess.Directory
+	if dir == "" {
+		dir = "."
+	}
 	return &ResumeSpec{
-		Directory:    sess.Directory,
-		Absolute:     abs,
-		Relative:     terminal.ExtractCmd(abs),
-		AgentCommand: adapter.AgentCommand(sess),
+		Directory:    dir,
+		Command:      spec.Command(dir, sess.ID),
+		CommandNoCD:  spec.CommandNoCD(sess.ID),
+		AgentCommand: spec.AgentCommand(sess.ID),
 	}, nil
 }
 

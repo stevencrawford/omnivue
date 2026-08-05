@@ -27,16 +27,18 @@ Adapters are the pluggable interface between Omnivue and AI coding agent data st
 
 `internal/ingest/adapter.go`:
 
-The `Adapter` interface is composed of four sub-interfaces. Adapters that don't support optional features return `(nil, nil)`.
+The `Adapter` interface is the core `SessionSource` only. `Planner`, `Differ`, and `Editor` are
+genuinely-optional capability seams: an adapter implements them only when it supports the
+feature, and consumers detect support with a type assertion. Adapters never carry a stub method
+for a capability they lack. Capabilities are pinned by the table test in
+`internal/ingest/capabilities_test.go`.
 
 ```go
 type SessionSource interface {
-    Type() AgentType
-    Detect(path string) bool
     ListSessions(ctx context.Context) ([]Session, error)
     Session(ctx context.Context, id string) (*Session, error)
     Messages(ctx context.Context, sessionID string) ([]Message, error)
-    ResumeCommand(session *Session) string
+    ResumeCommand() resumecmd.Spec
     LastModified(ctx context.Context) (int64, error)
     Close() error
 }
@@ -55,9 +57,6 @@ type Editor interface {
 
 type Adapter interface {
     SessionSource
-    Planner
-    Differ
-    Editor
 }
 ```
 

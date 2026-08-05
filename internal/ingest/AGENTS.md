@@ -5,16 +5,17 @@ This file explains how to add a new agent adapter to Omnivue, the patterns used 
 ## Adapter Interface
 
 Every adapter implements `ingest.Adapter`, defined in `internal/ingest/adapter.go` as the
-union of the core `SessionSource` interface and the optional `Planner`, `Differ`, and `Editor`
-interfaces:
+core `SessionSource` interface only. `Planner`, `Differ`, and `Editor` are genuinely-optional
+capability seams: an adapter implements them only when it supports the feature, and consumers
+detect support with a type assertion. Adapters never carry a stub method for a capability they
+lack.
 
 ```go
 type SessionSource interface {
     ListSessions(ctx context.Context) ([]Session, error)
     Session(ctx context.Context, id string) (*Session, error)
     Messages(ctx context.Context, sessionID string) ([]Message, error)
-    ResumeCommand(session *Session) string
-    AgentCommand(session *Session) string
+    ResumeCommand() resumecmd.Spec
     LastModified(ctx context.Context) (int64, error)
     Close() error
 }
@@ -34,6 +35,9 @@ type Editor interface {
     Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
 }
 ```
+
+The `ingest.Adapter` interface embeds only `SessionSource`. Each adapter's declared capability
+set is pinned by the table test in `internal/ingest/capabilities_test.go`.
 
 Path detection is **not** part of the interface. Discovery is handled by the registry's
 `Detector` closures (a package-level `detectPath(path string) *ingest.DiscoveredSource`
@@ -84,7 +88,8 @@ Apply it whenever embedding file contents into `ToolCall.Input` or `ToolCall.Out
 ### Error Handling
 
 - Wrap all errors with a prefix like `"myagent adapter: %w"` for traceability
-- Return `(nil, nil)` from `Plan` / `Diffs` if the agent doesn't support the feature
+- Omit `Plan` / `Diffs` / `Edits` entirely when the agent doesn't support the feature — the
+  missing method is the declaration of absence; never ship a `(nil, nil)` stub
 - Log and skip malformed records rather than failing the entire listing
 
 ### Polling
@@ -101,7 +106,7 @@ Implement `LastModified` to return the latest modification timestamp across all 
 - **Tool calls**: Inline in message parts with standard names (`edit`, `write`, `read`, `bash`, `grep`, `glob`, `todowrite`, `task`, `question`, `webfetch`, `websearch`, `codesearch`)
 - **Plans**: Synthesized from `todo` and `task` tables
 - **Diffs**: Computed from `tool_call` data and snapshot git repos
-- **Resume**: `opencode --resume <session_id>`
+- **Resume**: `cd /path && opencode -s <session_id>`
 - **Key pattern**: Parse message parts JSON to extract text content and tool calls:
 
   ```go
@@ -121,7 +126,7 @@ Implement `LastModified` to return the latest modification timestamp across all 
 - **Tool calls**: Only `tool_use` type in events (limited detail). The adapter stores them but with minimal metadata.
 - **Plans**: From `checkpoints/` directory as markdown files
 - **Diffs**: From `session_files` table (file path + status) — no unified diff patch available
-- **Resume**: `copilot --session <session_id>`
+- **Resume**: `cd /path && copilot --resume=<session_id>`
 - **Key pattern**: Parse JSONL events with scanner, extract tool calls from content array:
 
   ```go
@@ -157,7 +162,8 @@ raw `bufio.Scanner` for all JSONL parsing.
 - **Events**: `model_change`, `thinking_level_change`, `message` (user/assistant), `toolResult`
 - **Messages**: Assistant messages may contain `text`, `thinking` (reasoning), and `toolCall` content parts
 - **Tool calls**: Parsed from JSON; native names mapped to the standard set via `ingestkit.CanonicalizeToolName`, with field renames via the `piRenameRules` table in `normalize.go`
-- **Plans/Diffs**: Not supported — returns `(nil, nil)`
+- **Plans**: Not supported — Pi implements neither the `Planner` seam nor a stub
+- **Diffs**: Computed from edit/write tool calls (`DiffStatsFromEdits`)
 - **Resume**: `cd /path && pi --session <id>`
 - **Key pattern**: Parse JSONL files with scanner, read first line as session header, subsequent lines as events:
 
@@ -299,22 +305,25 @@ case ingest.AgentMyAgent:
 - `ListSessions(ctx)` — Query and return all sessions sorted by `UpdatedAt` desc
 - `Session(ctx, id)` — Return single session (can delegate to `ListSessions` + filter)
 - `Messages(ctx, id)` — Return conversation messages with tool calls normalized
-- `Plan(ctx, id)` — Return plan markdown or `(nil, nil)`
-- `Diffs(ctx, id)` — Return file changes or `(nil, nil)`
-- `Edits(ctx, id)` — Return edit/write tool call data (reuse Messages logic)
-- `ResumeCommand(session)` — Return CLI command string to resume
-- `AgentCommand(session)` — Return a generic `agent <cmd>` launch command
+- `Plan(ctx, id)` — Return plan markdown; **omit the method entirely** when the agent has no plans (see the optional `Planner` seam)
+- `Diffs(ctx, id)` — Return file changes; omit when unsupported (optional `Differ` seam)
+- `Edits(ctx, id)` — Return edit/write tool call data; omit when unsupported (optional `Editor` seam)
+- `ResumeCommand()` — Return the adapter's `resumecmd.Spec` (binary, flag, in-harness verb)
 - `LastModified(ctx)` — Return latest unix millisecond timestamp
 - `Close()` — Release the read-only database handle
 
-No `Detect` or `Type` method: path detection is a registry `Detector` closure (Step 4), and the
-agent type is supplied by the registry registration.
+Do **not** implement `Plan`/`Diffs`/`Edits` as `(nil, nil)` stubs for a capability the agent
+lacks: a missing method is the declaration of absence. Path detection is a registry `Detector`
+closure (Step 4), and the agent type is supplied by the registry registration.
 
 ### 8. Add tests
 
 Follow the pattern in existing adapter tests:
 - `TestAdapter_ListSessions` — Verify session listing works
 - `TestAdapter_LastModified` — Verify timestamp query
+- `TestAdapter_ResumeCommand` — Verify `ResumeCommand().Command/CommandNoCD/AgentCommand`
+  render the expected strings
+- Add your adapter to the capability table in `internal/ingest/capabilities_test.go`
 - Table-driven tests using temporary databases
 
 ## Interface Method Details
@@ -356,8 +365,12 @@ If the agent stores content by reference (like Cursor's content IDs), resolve th
 
 ### ResumeCommand
 
-Return the CLI command the user would run to resume the session. Examples:
-- OpenCode: `cd /path && opencode --resume <id>`
-- Copilot: `cd /path && copilot --session <id>`
-- Cursor: `cd /path && cursor --composer <id>`
-- Pi: `cd /path && pi --session <id>`
+Return the adapter's `resumecmd.Spec` — the structured parts (`Binary`, `Flag`, optional `Sep`
+for value-attached flags like copilot's `--resume=<id>`, optional `Verb` for an in-harness slash
+command other than the default `/resume`). The `resumecmd` package (`internal/resumecmd`) owns
+the `cd %s && <binary> <flag> <id>` template and renders the full command, the command with the
+`cd` prefix stripped, and the in-harness agent command. Examples:
+- OpenCode: `{Binary: "opencode", Flag: "-s", Verb: "/session"}` → `cd /path && opencode -s <id>`
+- Copilot: `{Binary: "copilot", Flag: "--resume", Sep: "="}` → `cd /path && copilot --resume=<id>`
+- Cursor: `{Binary: "cursor", Flag: "--composer"}` → `cd /path && cursor --composer <id>`
+- Pi: `{Binary: "pi", Flag: "--session"}` → `cd /path && pi --session <id>`

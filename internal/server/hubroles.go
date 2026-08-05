@@ -7,13 +7,14 @@ import (
 )
 
 // ResumeSpec bundles the CLI resume data for a session: the working directory
-// together with the absolute (cd + command), relative, and in-harness agent
-// command variants. Grouping the four related strings into one value keeps the
-// resume seam a single concept instead of a positional tuple.
+// together with the full (cd + command), the command with the cd prefix
+// stripped, and the in-harness agent command variants. Grouping the four
+// related strings into one value keeps the resume seam a single concept
+// instead of a positional tuple.
 type ResumeSpec struct {
 	Directory    string
-	Absolute     string
-	Relative     string
+	Command      string
+	CommandNoCD  string
 	AgentCommand string
 }
 

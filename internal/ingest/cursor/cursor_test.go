@@ -146,18 +146,6 @@ func TestAdapter_GetMessages(t *testing.T) {
 	}
 }
 
-func TestAdapter_GetPlan(t *testing.T) {
-	adapter := adapterForTest(t)
-
-	plan, err := adapter.Plan(context.Background(), "nonexistent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan != nil {
-		t.Error("expected nil plan for cursor (no-op)")
-	}
-}
-
 func TestAdapter_GetDiffs(t *testing.T) {
 	adapter := adapterForTest(t)
 
@@ -217,11 +205,14 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 		t.Skip("no sessions available")
 	}
 
-	cmd := adapter.ResumeCommand(&testSessions[0])
+	cmd := adapter.ResumeCommand().Command(testSessions[0].Directory, testSessions[0].ID)
 	if cmd == "" {
 		t.Error("resume command is empty")
 	}
 	t.Logf("Resume command: %s", cmd)
+	if agent := adapter.ResumeCommand().AgentCommand(testSessions[0].ID); agent != "/resume "+testSessions[0].ID {
+		t.Errorf("agent command = %q, want %q", agent, "/resume "+testSessions[0].ID)
+	}
 }
 
 func TestAdapter_LastModified(t *testing.T) {

@@ -562,8 +562,8 @@ func (f *fakeSessionReader) ResumeCommand(_ context.Context, id string) (*Resume
 		if s.ID == id {
 			return &ResumeSpec{
 				Directory:    s.Directory,
-				Absolute:     "resume " + id,
-				Relative:     "absolute " + id,
+				Command:      "resume " + id,
+				CommandNoCD:  "absolute " + id,
 				AgentCommand: "agent " + id,
 			}, nil
 		}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/notify"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 	"github.com/stevencrawford/omnivue/internal/store"
 	"github.com/stevencrawford/omnivue/version"
 )
@@ -58,8 +59,7 @@ func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error
 func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)       { return nil, nil }
 func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error) { return nil, nil }
 func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error) { return nil, nil }
-func (m *mockAdapter) ResumeCommand(*ingest.Session) string                     { return "cd /tmp && echo resume" }
-func (m *mockAdapter) AgentCommand(*ingest.Session) string                      { return "/resume ses-1" }
+func (m *mockAdapter) ResumeCommand() *resumecmd.Spec { return &resumecmd.Spec{Binary: "echo", Flag: "resume"} }
 func (m *mockAdapter) LastModified(context.Context) (int64, error)              { return 0, nil }
 func (m *mockAdapter) Close() error                                             { return nil }
 
@@ -782,8 +782,11 @@ func TestHandleGetResumeCommand(t *testing.T) {
 	if resp["directory"] != "/tmp/proj" {
 		t.Errorf("expected directory /tmp/proj, got %q", resp["directory"])
 	}
-	if resp["relative"] != "echo resume" {
-		t.Errorf("expected relative echo resume, got %q", resp["relative"])
+	if resp["absolute"] != "cd /tmp/proj && echo resume ses-1" {
+		t.Errorf("expected absolute cd /tmp/proj && echo resume ses-1, got %q", resp["absolute"])
+	}
+	if resp["relative"] != "echo resume ses-1" {
+		t.Errorf("expected relative echo resume ses-1, got %q", resp["relative"])
 	}
 	if resp["agentCommand"] != "/resume ses-1" {
 		t.Errorf("expected agentCommand /resume ses-1, got %q", resp["agentCommand"])

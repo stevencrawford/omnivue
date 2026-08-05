@@ -10,6 +10,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 
 	_ "modernc.org/sqlite"
 )
@@ -52,12 +53,10 @@ func New(basePath string) (*Adapter, error) {
 	return &Adapter{db: db, basePath: basePath, syntheticSessions: make(map[string]*syntheticSession), cachedSessions: nil}, nil
 }
 
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && copilot --resume=%s", session.Directory, session.ID)
-}
+var copilotResumeSpec = resumecmd.Spec{Binary: "copilot", Flag: "--resume", Sep: "="}
 
-func (a *Adapter) AgentCommand(session *ingest.Session) string {
-	return fmt.Sprintf("/resume %s", session.ID)
+func (a *Adapter) ResumeCommand() *resumecmd.Spec {
+	return &copilotResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

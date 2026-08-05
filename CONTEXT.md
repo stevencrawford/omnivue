@@ -40,3 +40,16 @@ Type → adapter mapping is owned by the ingest registry, not the server.
 A concrete thing that satisfies the ingest `Adapter` interface at the seam between a raw
 agent data store and the unified `Session`/`Message` model. Two adapters make the seam real;
 six make it load-bearing.
+
+## Resume command
+
+The CLI command a user runs to resume a session in the agent's own harness. Adapters declare
+only the structured parts (binary, flag, in-harness verb); the module renders the three
+variants — the full `cd <dir> && <bin> <flag> <id>` command, the same invocation with the `cd`
+prefix stripped, and the in-harness `/resume <id>` (or opencode's `/session <id>`) command.
+
+- **Module:** `internal/resumecmd` — pure, no I/O, no PTY.
+- **Interface:** `Spec{Binary, Flag, Sep, Verb}` with `Command(dir, id)`, `CommandNoCD(id)`,
+  and `AgentCommand(id)`.
+- **Seam:** the six adapters return their static `Spec`; the hub renders the `ResumeSpec`;
+  the terminal module consumes the rendered string at the edge.

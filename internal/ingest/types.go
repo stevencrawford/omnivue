@@ -242,14 +242,6 @@ type DiffFile struct {
 	Patch     string         `json:"patch,omitempty"` // unified diff content
 }
 
-// SessionDetail includes the full session with messages, plan, and diffs.
-type SessionDetail struct {
-	Session  Session    `json:"session"`
-	Messages []Message  `json:"messages,omitempty"`
-	Plan     *Plan      `json:"plan,omitempty"`
-	Diffs    []DiffFile `json:"diffs,omitempty"`
-}
-
 // DiscoveredSource represents a potential session source found during auto-discovery.
 type DiscoveredSource struct {
 	Path      string    `json:"path"`

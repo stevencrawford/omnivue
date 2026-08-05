@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 )
 
 // SessionSource is the core interface that every session source adapter
@@ -16,8 +18,7 @@ type SessionSource interface {
 	ListSessions(ctx context.Context) ([]Session, error)
 	Session(ctx context.Context, id string) (*Session, error)
 	Messages(ctx context.Context, sessionID string) ([]Message, error)
-	ResumeCommand(session *Session) string
-	AgentCommand(session *Session) string
+	ResumeCommand() *resumecmd.Spec
 	LastModified(ctx context.Context) (int64, error)
 	Close() error
 }
@@ -40,15 +41,13 @@ type Editor interface {
 	Edits(ctx context.Context, sessionID string) ([]FileEdit, error)
 }
 
-// Adapter is the combined interface that all session source adapters must
-// implement. It includes the core SessionSource plus Planner, Differ,
-// and Editor. Adapters that don't support optional features should
-// return (nil, nil) from the corresponding methods.
+// Adapter is the interface every session source adapter must implement. It is
+// the core SessionSource only: Planner, Differ, and Editor are genuinely
+// optional capability seams that adapters implement only when they support the
+// feature. Consumers detect support with a type assertion and treat an adapter
+// without the capability as returning empty data.
 type Adapter interface {
 	SessionSource
-	Planner
-	Differ
-	Editor
 }
 
 // OpenReadOnlyDB opens a SQLite database in read-only mode with WAL journal.

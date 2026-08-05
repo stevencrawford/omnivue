@@ -243,3 +243,19 @@ func TestAdapter_LastModified(t *testing.T) {
 	}
 	t.Logf("Last modified: %d", ts)
 }
+
+func TestAdapter_ResumeCommand(t *testing.T) {
+	adapter := &copilot.Adapter{}
+	spec := adapter.ResumeCommand()
+
+	got := spec.Command("/proj", "abc")
+	if want := "cd /proj && copilot --resume=abc"; got != want {
+		t.Errorf("Command() = %q, want %q", got, want)
+	}
+	if got := spec.CommandNoCD("abc"); got != "copilot --resume=abc" {
+		t.Errorf("CommandNoCD() = %q, want %q", got, "copilot --resume=abc")
+	}
+	if got := spec.AgentCommand("abc"); got != "/resume abc" {
+		t.Errorf("AgentCommand() = %q, want %q", got, "/resume abc")
+	}
+}
