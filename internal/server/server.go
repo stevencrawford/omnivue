@@ -376,8 +376,8 @@ func handleGetResumeCommand(reader SessionReader) http.HandlerFunc {
 		}
 		writeOK(w, map[string]string{
 			"directory":    spec.Directory,
-			"absolute":     spec.Absolute,
-			"relative":     spec.Relative,
+			"absolute":     spec.Command,
+			"relative":     spec.CommandNoCD,
 			"agentCommand": spec.AgentCommand,
 		})
 	}
@@ -1280,7 +1280,7 @@ func handleTerminalWS(reader SessionReader) http.HandlerFunc {
 		}
 		defer ws.Close(websocket.StatusNormalClosure, "terminal closed") //nolint:errcheck
 
-		if err := terminal.Run(r.Context(), ws, dir, spec.Relative); err != nil {
+		if err := terminal.Run(r.Context(), ws, dir, spec.CommandNoCD); err != nil {
 			slog.Debug("terminal: session ended", "session", sessionID, "error", err)
 		}
 	}

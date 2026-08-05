@@ -2,7 +2,6 @@ package claudecode
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 )
 
 type Adapter struct {
@@ -73,12 +73,10 @@ func New(basePath string) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && claude -r %s", session.Directory, session.ID)
-}
+var claudeResumeSpec = resumecmd.Spec{Binary: "claude", Flag: "-r"}
 
-func (a *Adapter) AgentCommand(session *ingest.Session) string {
-	return fmt.Sprintf("/resume %s", session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return claudeResumeSpec
 }
 
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {

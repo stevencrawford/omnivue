@@ -41,8 +41,8 @@ Goals / Files / Seam / Acceptance / Tests card.
 | # | Task | Rank | Wave | Status |
 |----|------|------|------|--------|
 | ATH-18 | One refresh pipeline (kill the poller's split-brain) | H | 0 | done |
-| ATH-19 | Collapse the ingest `Adapter`'s vestigial optionality | H | 1 | open |
-| ATH-20 | Resume-command module (domain stops importing the PTY) | M | 1 | open |
+| ATH-19 | Collapse the ingest `Adapter`'s vestigial optionality | H | 1 | done |
+| ATH-20 | Resume-command module (domain stops importing the PTY) | M | 1 | done |
 | ATH-21 | Single tool-kind vocabulary (notify + indexer) | M | 2 | open |
 | ATH-22 | Deepen the diff pipeline (no parse→serialize→parse) | H | 2 | open |
 | ATH-23 | One data-loading lifecycle behind one interface | H | 3 | open |
@@ -293,3 +293,16 @@ re-reading the whole table.
   passes. New `TestPipeline_SerializesConcurrentRefreshPasses` drives 8 concurrent refreshes
   against a tracking fake search store and fails on any overlapping index write (verified to fail
   at 8 concurrent writes with the lock removed). Locked-plan text updated to broadcast-first.
+- 2026-08-05 — Wave 1 done (ATH-19 + ATH-20). **ATH-19:** `Adapter` is now the core
+  `SessionSource` only; `Planner`/`Differ`/`Editor` are genuinely-optional capability seams. Cursor
+  and Pi's stub `Plan`s deleted (both had one), dead `SessionDetail` removed, hub's type assertions
+  (hub.go:190,202,214) are now meaningful. New `TestAdapterCapabilities` table pins all six
+  adapters' declared capabilities. **ATH-20:** new pure `internal/resumecmd` module owns the
+  `cd %s && <bin> <flag> <id>` template (`Spec{Binary,Flag,Sep,Verb}` → `Command`/`CommandNoCD`/
+  `AgentCommand`); `SessionSource.ResumeCommand()` returns the structured `resumecmd.Spec`; hub
+  renders the `ResumeSpec` and no longer imports `internal/terminal`; `terminal.ExtractCmd`
+  deleted; `ResumeSpec.Absolute/Relative` renamed `Command`/`CommandNoCD` (JSON wire keys
+  unchanged); the empty-directory → `.` fallback lives in `resumecmd.Spec.Command` and the
+  `ResumeSpec.Directory` field stays the raw session directory. Per-adapter resume +
+  `AgentCommand` tests added for all six (opencode/copilot gained tests). Backend gates green
+  (`go build`, `golangci-lint`, `gostyle`, `go test`, `make test`); `resumecmd` at 100% coverage.

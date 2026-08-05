@@ -11,6 +11,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 
 	_ "modernc.org/sqlite"
 )
@@ -60,16 +61,10 @@ func New(vscdbPath string) (*Adapter, error) {
 	return a, nil
 }
 
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	dir := session.Directory
-	if dir == "" {
-		dir = "."
-	}
-	return fmt.Sprintf("cd %s && cursor --composer %s", dir, session.ID)
-}
+var cursorResumeSpec = resumecmd.Spec{Binary: "cursor", Flag: "--composer"}
 
-func (a *Adapter) AgentCommand(session *ingest.Session) string {
-	return fmt.Sprintf("/resume %s", session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return cursorResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
@@ -120,7 +115,3 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 }
 
 func (a *Adapter) Close() error { return a.db.Close() }
-
-func (a *Adapter) Plan(_ context.Context, _ string) (*ingest.Plan, error) {
-	return nil, nil
-}

@@ -111,10 +111,15 @@ func TestAdapter_WithSampleSession(t *testing.T) {
 	}
 
 	// Verify resume command for each session
+	spec := a.ResumeCommand()
 	for _, s := range sessions {
-		cmd := a.ResumeCommand(&s)
+		cmd := spec.Command(s.Directory, s.ID)
 		if !strings.Contains(cmd, "pi --session") {
 			t.Errorf("unexpected resume command: %s", cmd)
+		}
+		agent := spec.AgentCommand(s.ID)
+		if agent != "/resume "+s.ID {
+			t.Errorf("unexpected agent command: %s", agent)
 		}
 	}
 }

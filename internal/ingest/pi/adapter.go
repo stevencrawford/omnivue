@@ -2,12 +2,12 @@ package pi
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 )
 
 func init() {
@@ -52,12 +52,10 @@ func New(basePath string) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && pi --session %s", session.Directory, session.ID)
-}
+var piResumeSpec = resumecmd.Spec{Binary: "pi", Flag: "--session"}
 
-func (a *Adapter) AgentCommand(session *ingest.Session) string {
-	return fmt.Sprintf("/resume %s", session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return piResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 
 	_ "modernc.org/sqlite"
 )
@@ -38,12 +39,10 @@ func New(basePath string) (*Adapter, error) {
 	return &Adapter{db: db, basePath: basePath}, nil
 }
 
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && opencode -s %s", session.Directory, session.ID)
-}
+var opencodeResumeSpec = resumecmd.Spec{Binary: "opencode", Flag: "-s", Verb: "/session"}
 
-func (a *Adapter) AgentCommand(session *ingest.Session) string {
-	return fmt.Sprintf("/session %s", session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return opencodeResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
