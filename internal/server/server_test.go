@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -604,6 +605,44 @@ func TestPipelineRefreshLiveness_BroadcastsOnlyOnChange(t *testing.T) {
 	case ev := <-ch:
 		t.Fatalf("expected no events when the live count is unchanged, got %q", ev.Name)
 	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// TestPipeline_SerializesConcurrentRefreshPasses pins the ATH-18 follow-up: the
+// "no overlap" guarantee between the poller goroutine and the handlers'
+// `go p.Refresh(...)` calls is code-backed by the Pipeline mutex, not just by
+// convention. Many goroutines refresh concurrently; the tracking search store
+// fails if any two index passes interleave their store writes.
+func TestPipeline_SerializesConcurrentRefreshPasses(t *testing.T) {
+	now := time.Now()
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{
+			{ID: "ses-a", SourceID: "src-1", Title: "a", UpdatedAt: now},
+			{ID: "ses-b", SourceID: "src-1", Title: "b", UpdatedAt: now},
+			{ID: "ses-c", SourceID: "src-1", Title: "c", UpdatedAt: now},
+		},
+		messages: []ingest.Message{{ID: "m1", Content: "concurrent index marker", Timestamp: now}},
+	}
+
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
+	search := newTrackingSearchStore()
+	pipeline := newPipeline(hub, NewIndexer(hub, hub, search, nil), NewNotifier(hub, nil, nil, nil, bus), bus)
+
+	const goroutines = 8
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range goroutines {
+		wg.Go(func() {
+			<-start
+			pipeline.Refresh(context.Background())
+		})
+	}
+	close(start)
+	wg.Wait()
+
+	if max := search.maxConcurrent(); max != 1 {
+		t.Fatalf("expected index passes to never overlap, observed %d concurrent writes", max)
 	}
 }
 

@@ -105,9 +105,11 @@ Decisions: **synchronous pipeline** (caller owns goroutines) · **two methods** 
   `bus`; all refresh→broadcast orchestration lives behind it. Add `Pipeline` to `Dep`
   (state.go:17-37) so `NewHandler` (server.go:35-37) reuses the poller's instance instead
   of constructing ad-hoc fanouts from `Dep` fields.
-- `Pipeline.Refresh(ctx) (liveCount int)` — full pass: `hub.refreshSessions` → `IndexSessions`
-  → `ClassifyChanges` → `update` + `session-changed` broadcasts, all synchronous. Replaces
-  `refreshAndIndex` + `fanoutSessions` (state.go:184-206).
+- `Pipeline.Refresh(ctx) (liveCount int)` — full pass: `hub.refreshSessions` → `update` +
+  `session-changed` broadcasts → `IndexSessions` → `ClassifyChanges`, all synchronous.
+  Broadcasts run immediately after the refresh so clients can discover the fresh hub cache
+  without waiting on the heavier index pass (the 2026-08-05 follow-up; the original plan had
+  broadcast last). Replaces `refreshAndIndex` + `fanoutSessions` (state.go:184-206).
 - `Pipeline.RefreshLiveness(ctx) (liveCount int)` — refresh + light broadcast: `update` +
   `ClassifyChanges` only when `liveCount` changed. Absorbs poller.go:97-111; the idle branch
   stops touching `bus`/`notif` directly.
@@ -123,8 +125,10 @@ Decisions: **synchronous pipeline** (caller owns goroutines) · **two methods** 
   only on liveCount change).
 
 **Concurrency note:** `Poller.Run` already runs in its own goroutine, and the three handlers
-+ initial load all wrap the call in `go`. Making `Refresh`/`RefreshLiveness` synchronous
-serializes index passes (no overlap) at no latency cost.
++ initial load all wrap the call in `go`. `Refresh`/`RefreshLiveness` are synchronous AND take
+a `sync.Mutex` over the whole pass, so index passes are serialized (no overlap) even when the
+poller tick and a handler refresh land simultaneously — the guarantee is code-backed, not
+conventional (pinned by `TestPipeline_SerializesConcurrentRefreshPasses`).
 
 **Behavior change to note:** `handleRemoveSource`'s refresh moves from synchronous (before
 `writeNoContent`) to backgrounded `go pipeline.Refresh(...)` — the frontend learns of the
@@ -283,3 +287,9 @@ re-reading the whole table.
   15s re-index over a large store, so startup felt slow. Broadcast-first keeps the single
   synchronous pipeline (index passes still serialized) while serving the hub cache to clients
   right away. Verified: first SSE `update` at ~2s vs ~17s before, search still fully indexed.
+- 2026-08-05 — ATH-18 review follow-up: the "no overlap" concurrency guarantee is now code-backed.
+  `Pipeline` gained a `sync.Mutex` taken over the whole `Refresh`/`RefreshLiveness` pass, so the
+  poller goroutine and the handlers' `go p.Refresh(...)` calls can no longer interleave index
+  passes. New `TestPipeline_SerializesConcurrentRefreshPasses` drives 8 concurrent refreshes
+  against a tracking fake search store and fails on any overlapping index write (verified to fail
+  at 8 concurrent writes with the lock removed). Locked-plan text updated to broadcast-first.
