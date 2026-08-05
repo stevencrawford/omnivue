@@ -1,6 +1,6 @@
 import type { Session } from "../hooks/types";
 
-export type SortMode = "recent" | "name" | "agent" | "cost-asc" | "cost-desc";
+export type GroupMode = "repo" | "cwd" | "model" | "none";
 
 export interface TreeNode {
   name: string;
@@ -19,6 +19,13 @@ export function shortRepoName(repository: string): string {
   return parts.length > 0 ? parts[parts.length - 1] : repository;
 }
 
+/** Last path segment of a working directory (e.g. `/Users/me/foo` → `foo`). */
+function shortDir(directory: string): string {
+  if (!directory) return "Unknown";
+  const parts = directory.replace(/\\/g, "/").replace(/\/$/, "").split("/").filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1]! : directory;
+}
+
 export function parentIdsWithChildren(sessions: Session[]): Set<string> {
   const ids = new Set<string>();
   for (const s of sessions) {
@@ -32,7 +39,6 @@ const MAX_CHILD_DEPTH = 10;
 function buildChildTree(
   parentId: string,
   childMap: Map<string, Session[]>,
-  repoKey: string,
   parentPath: string,
   depth: number,
 ): TreeNode[] {
@@ -46,14 +52,17 @@ function buildChildTree(
       return {
         name: cs.title || cs.id.slice(0, 8),
         fullPath: childPath,
-        children: buildChildTree(cs.id, childMap, repoKey, childPath, depth + 1),
+        children: buildChildTree(cs.id, childMap, childPath, depth + 1),
         session: cs,
         isGroup: false,
       };
     });
 }
 
-export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): TreeNode[] {
+const byRecent = (a: Session, b: Session) =>
+  new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+
+export function buildTree(sessions: Session[], groupMode: GroupMode = "repo"): TreeNode[] {
   if (!sessions || sessions.length === 0) return [];
 
   // Build parent -> children map
@@ -68,92 +77,70 @@ export function buildTree(sessions: Session[], sortMode: SortMode = "recent"): T
     }
   }
 
-  // Only root sessions go into repo grouping
+  // Only root sessions go into grouping
   const rootSessions = sessions.filter((s) => !childIds.has(s.id));
 
-  const byRepo = new Map<string, { label: string; sessions: Session[] }>();
+  const toLeaf = (session: Session): TreeNode => ({
+    name: session.title || session.id,
+    fullPath: session.id,
+    children: buildChildTree(session.id, childMap, session.id, 0),
+    session,
+    isGroup: false,
+    childSessions: childMap.get(session.id),
+  });
+
+  // No grouping — a flat, latest-first list of root sessions
+  if (groupMode === "none") {
+    return [...rootSessions].sort(byRecent).map(toLeaf);
+  }
+
+  const groupKey = (session: Session): { key: string; label: string } => {
+    switch (groupMode) {
+      case "cwd": {
+        const key = session.directory || "Unknown";
+        return { key, label: session.directory ? shortDir(session.directory) : "Unknown" };
+      }
+      case "model": {
+        const key = session.model || "Unknown";
+        return { key, label: key };
+      }
+      default: {
+        const key = session.repository || "Unknown";
+        return { key, label: session.repository ? shortRepoName(session.repository) : "Unknown" };
+      }
+    }
+  };
+
+  const byGroup = new Map<string, { label: string; sessions: Session[] }>();
   for (const session of rootSessions) {
-    const repoKey = session.repository || "Unknown";
-    const existing = byRepo.get(repoKey);
+    const { key, label } = groupKey(session);
+    const existing = byGroup.get(key);
     if (existing) {
       existing.sessions.push(session);
     } else {
-      byRepo.set(repoKey, { label: shortRepoName(repoKey), sessions: [session] });
+      byGroup.set(key, { label, sessions: [session] });
     }
   }
 
-  const repoNodes: TreeNode[] = [];
-  for (const [repoKey, { label: repoLabel, sessions: repoSessions }] of byRepo) {
-    const sorted = [...repoSessions].sort((a, b) => {
-      switch (sortMode) {
-        case "name":
-          return (a.title || a.id).localeCompare(b.title || b.id);
-        case "agent":
-          return (
-            a.agent.localeCompare(b.agent) ||
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-        case "cost-asc":
-          return (
-            a.cost - b.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-        case "cost-desc":
-          return (
-            b.cost - a.cost || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-        default:
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-      }
-    });
-
-    const children: TreeNode[] = sorted.map((session) => {
-      const childSessions = childMap.get(session.id);
-      return {
-        name: session.title || session.id,
-        fullPath: `${repoKey}/${session.id}`,
-        children: buildChildTree(session.id, childMap, repoKey, `${repoKey}/${session.id}`, 0),
-        session,
-        isGroup: false,
-        childSessions,
-      };
-    });
-
-    repoNodes.push({
-      name: repoLabel,
-      fullPath: repoKey,
+  const groupNodes: TreeNode[] = [];
+  for (const [key, { label, sessions: groupSessions }] of byGroup) {
+    const children = [...groupSessions].sort(byRecent).map(toLeaf);
+    groupNodes.push({
+      name: label,
+      fullPath: key,
       children,
       isGroup: true,
     });
   }
 
-  repoNodes.sort((a, b) => {
-    switch (sortMode) {
-      case "name":
-        return a.name.localeCompare(b.name);
-      case "agent": {
-        const aAgent = a.children[0]?.session?.agent || "";
-        const bAgent = b.children[0]?.session?.agent || "";
-        return aAgent.localeCompare(bAgent) || a.name.localeCompare(b.name);
-      }
-      case "cost-asc": {
-        const aCost = a.children[0]?.session?.cost ?? 0;
-        const bCost = b.children[0]?.session?.cost ?? 0;
-        return aCost - bCost || a.name.localeCompare(b.name);
-      }
-      case "cost-desc": {
-        const aCost = a.children[0]?.session?.cost ?? 0;
-        const bCost = b.children[0]?.session?.cost ?? 0;
-        return bCost - aCost || a.name.localeCompare(b.name);
-      }
-      default: {
-        const aLatest = a.children[0]?.session?.updatedAt || "";
-        const bLatest = b.children[0]?.session?.updatedAt || "";
-        return bLatest.localeCompare(aLatest);
-      }
-    }
+  // Groups ordered by their most recently updated session
+  groupNodes.sort((a, b) => {
+    const aLatest = a.children[0]?.session?.updatedAt || "";
+    const bLatest = b.children[0]?.session?.updatedAt || "";
+    return bLatest.localeCompare(aLatest);
   });
 
-  return repoNodes;
+  return groupNodes;
 }
 
 export function relativeTime(dateStr: string): string {
