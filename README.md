@@ -52,31 +52,10 @@ Omnivue keeps your workflow on your machine:
 
 ## Getting Started
 
-### 1. Pre-built binary (recommended)
+### 1. Homebrew (macOS)
 
-**macOS (Apple Silicon)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-```
-
-**macOS (Intel)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_amd64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-```
-
-**Linux (amd64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
-```
-
-**Linux (arm64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_arm64.tar.gz | tar xz
-```
-
-**Windows (amd64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
+```sh
+brew install stevencrawford/tap/omnivue
 ```
 
 ### 2. Build from source
@@ -88,12 +67,6 @@ git clone https://github.com/stevencrawford/omnivue.git
 cd omnivue
 make build
 ./omnivue --foreground --port 16275
-```
-
-### Post-install
-
-```console
-$ ./omnivue
 ```
 
 ## Keyboard shortcuts
