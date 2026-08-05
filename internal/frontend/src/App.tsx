@@ -12,7 +12,9 @@ import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/EmptyState";
 import { PinMessageModal } from "./components/PinMessageModal";
 import type { Tab } from "./components/SessionViewer";
-import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
+import { SessionNavContext } from "./hooks/useNav";
+import { SearchHighlightContext } from "./hooks/useSearchHighlightContext";
+import { FocusContext, parseMessageTarget } from "./hooks/useFocus";
 import { SessionListSettingsProvider } from "./hooks/useSessionListSettings";
 import { TagsContext } from "./hooks/useTags";
 import { ThemeProvider } from "./hooks/useTheme";
@@ -40,7 +42,7 @@ export function App() {
   // ---- Data hooks ----
   const {
     sessions,
-    sessionsLoading,
+    loading: sessionsLoading,
     activeSessionId,
     liveChangedIds,
     activeSession,
@@ -71,6 +73,20 @@ export function App() {
   const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
   const [focusMessageKey, setFocusMessageKey] = useState(0);
   const [focusMessageId, setFocusMessageId] = useState<string | undefined>(undefined);
+
+  // jumpToMessage centralizes the focus-jump footgun: a messageId is a more
+  // reliable target than an index (which can drift after grouping), so an
+  // explicit messageId clears the index. Bumping the key re-triggers the
+  // highlight effect even when the target index is unchanged.
+  const jumpToMessage = useCallback(
+    (target: { messageIndex?: number; messageId?: string; stepIndex?: number }) => {
+      setFocusMessageIndex(target.messageId !== undefined ? undefined : target.messageIndex);
+      setFocusMessageId(target.messageId);
+      setFocusStepIndex(target.stepIndex);
+      setFocusMessageKey((k) => k + 1);
+    },
+    [],
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -218,12 +234,13 @@ export function App() {
       setHighlightPromptId(null);
       setShowOverview(false);
       setActiveSessionId(sessionId);
+      setActiveTab("session");
+      setSearchHighlightQuery(null);
+      // Reset any in-flight jump so a fresh session starts unhighlighted.
       setFocusStepIndex(undefined);
       setFocusMessageIndex(undefined);
       setFocusMessageId(undefined);
       setFocusMessageKey(0);
-      setActiveTab("session");
-      setSearchHighlightQuery(null);
       // Mark all unread notifications for this session as read and
       // jump to the first notification's message if one exists.
       // If the user has already scrolled past that message (saved scroll),
@@ -237,25 +254,12 @@ export function App() {
         const first = unreadForSession.sort((a, b) => a.createdAt - b.createdAt)[0];
         const savedPos = scrollPositions.current.get(sessionId);
         const hasSavedScroll = savedPos !== undefined && savedPos > 200;
-        try {
-          if (first.payload) {
-            const payload = JSON.parse(first.payload);
-            if (!hasSavedScroll && typeof payload.messageIndex === "number") {
-              setFocusMessageIndex(payload.messageIndex);
-            }
-            if (!hasSavedScroll && typeof payload.messageId === "string") {
-              setFocusMessageId(payload.messageId);
-            }
-            if (!hasSavedScroll) {
-              setFocusMessageKey((k) => k + 1);
-            }
-          }
-        } catch {
-          // ignore malformed payload
+        if (!hasSavedScroll) {
+          jumpToMessage(parseMessageTarget(first.payload));
         }
       }
     },
-    [notifications, markNotificationRead],
+    [notifications, markNotificationRead, jumpToMessage],
   );
 
   const handlePromptClick = useCallback(
@@ -290,56 +294,35 @@ export function App() {
     (sessionId: string, messageIndex: number, _toolCallId?: string) => {
       setShowOverview(false);
       setActiveSessionId(sessionId);
-      setFocusMessageIndex(messageIndex);
-      setFocusMessageId(undefined);
-      setFocusMessageKey((k) => k + 1);
-      setFocusStepIndex(undefined);
+      jumpToMessage({ messageIndex });
       setActiveTab("session");
       setSearchHighlightQuery(null);
       setActiveSection("sessions");
     },
-    [],
+    [jumpToMessage],
   );
 
-  const handleDiffNavigateToMessage = useCallback((messageIndex: number, messageId?: string) => {
-    setFocusMessageIndex(messageId ? undefined : messageIndex);
-    setFocusMessageId(messageId || undefined);
-    setFocusMessageKey((k) => k + 1);
-    setActiveTab("session");
-  }, []);
+  const handleDiffNavigateToMessage = useCallback(
+    (messageIndex: number, messageId?: string) => {
+      jumpToMessage({ messageIndex, messageId });
+      setActiveTab("session");
+    },
+    [jumpToMessage],
+  );
 
   const handleNotificationClick = useCallback(
     (n: AppNotification) => {
       setShowOverview(false);
       setActiveSessionId(n.sessionId);
       setActiveTab("session");
-      setFocusStepIndex(undefined);
       setSearchHighlightQuery(null);
       markNotificationRead([n.id]);
       setActiveSection("sessions");
-
       // Parse the payload for a message index to jump directly to
       // the message that triggered the notification.
-      let msgIdx: number | undefined;
-      let msgId: string | undefined;
-      try {
-        if (n.payload) {
-          const payload = JSON.parse(n.payload);
-          if (typeof payload.messageIndex === "number") {
-            msgIdx = payload.messageIndex;
-          }
-          if (typeof payload.messageId === "string") {
-            msgId = payload.messageId;
-          }
-        }
-      } catch {
-        // ignore malformed payload
-      }
-      setFocusMessageKey((k) => k + 1);
-      setFocusMessageIndex(msgIdx);
-      setFocusMessageId(msgId);
+      jumpToMessage(parseMessageTarget(n.payload));
     },
-    [markNotificationRead],
+    [markNotificationRead, jumpToMessage],
   );
 
   // ---- Render ----
@@ -435,33 +418,41 @@ export function App() {
                     {activeSession && !showOverview ? (
                       <ErrorBoundary>
                         <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
-                          <SessionViewer
-                            key={activeSession.id}
-                            session={activeSession}
-                            childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
-                            liveChangedIds={liveChangedIds}
-                            activeTab={activeTab}
-                            onTabChange={setActiveTab}
-                            onNameChanged={loadSessions}
-                            openScratchTabs={openScratchTabs}
-                            scratchFileMap={scratchFileMap}
-                            onCloseScratchTab={handleCloseScratchTab}
-                            onNewScratchFile={handleNewScratchFile}
-                            onRenameScratchFile={handleRenameScratchFile}
-                            onPinMessage={handlePinMessage}
-                            onBookmark={handleBookmark}
-                            bookmarkIdByRef={bookmarkIdByRef}
-                            focusStepIndex={focusStepIndex}
-                            focusMessageIndex={focusMessageIndex}
-                            focusMessageKey={focusMessageKey}
-                            focusMessageId={focusMessageId}
-                            onClearFocus={handleClearFocus}
-                            searchHighlightQuery={searchHighlightQuery}
-                            onNavigateToMessage={handleDiffNavigateToMessage}
-                            onQueueChanged={fetchQueueCount}
-                            highlightPromptId={highlightPromptId}
-                            onHighlightDone={handleHighlightDone}
-                          />
+                          <FocusContext.Provider
+                            value={{
+                              focusStepIndex,
+                              focusMessageIndex,
+                              focusMessageKey,
+                              focusMessageId,
+                              jumpToMessage,
+                              clearFocus: handleClearFocus,
+                            }}
+                          >
+                            <SessionViewer
+                              key={activeSession.id}
+                              session={activeSession}
+                              childSessions={sessions.filter(
+                                (s) => s.parentId === activeSession.id,
+                              )}
+                              liveChangedIds={liveChangedIds}
+                              activeTab={activeTab}
+                              onTabChange={setActiveTab}
+                              onNameChanged={loadSessions}
+                              openScratchTabs={openScratchTabs}
+                              scratchFileMap={scratchFileMap}
+                              onCloseScratchTab={handleCloseScratchTab}
+                              onNewScratchFile={handleNewScratchFile}
+                              onRenameScratchFile={handleRenameScratchFile}
+                              onPinMessage={handlePinMessage}
+                              onBookmark={handleBookmark}
+                              bookmarkIdByRef={bookmarkIdByRef}
+                              searchHighlightQuery={searchHighlightQuery}
+                              onNavigateToMessage={handleDiffNavigateToMessage}
+                              onQueueChanged={fetchQueueCount}
+                              highlightPromptId={highlightPromptId}
+                              onHighlightDone={handleHighlightDone}
+                            />
+                          </FocusContext.Provider>
                         </SearchHighlightContext.Provider>
                       </ErrorBoundary>
                     ) : sessionsLoading && sessions.length === 0 ? (

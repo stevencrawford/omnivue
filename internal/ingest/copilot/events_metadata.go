@@ -21,6 +21,7 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 
 	meta := &eventsMetadata{}
 	var msgCount int
+	shutdowns := newShutdownParser()
 	scanner := ingestkit.NewJSONLScanner(f)
 
 	for scanner.Scan() {
@@ -34,10 +35,7 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 		}
 
 		// Parse metadata events
-		var env struct {
-			Type string          `json:"type"`
-			Data json.RawMessage `json:"data"`
-		}
+		var env eventEnvelope
 		if err := json.Unmarshal(line, &env); err != nil {
 			continue
 		}
@@ -52,60 +50,27 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 			}
 
 		case "session.shutdown":
-			var data struct {
-				CurrentModel string `json:"currentModel"`
-				CodeChanges  *struct {
-					LinesAdded    int      `json:"linesAdded"`
-					LinesRemoved  int      `json:"linesRemoved"`
-					FilesModified []string `json:"filesModified"`
-				} `json:"codeChanges"`
-				ModelMetrics map[string]*struct {
-					Requests *struct {
-						Cost float64 `json:"cost"`
-					} `json:"requests"`
-					Usage *struct {
-						InputTokens      int `json:"inputTokens"`
-						OutputTokens     int `json:"outputTokens"`
-						ReasoningTokens  int `json:"reasoningTokens"`
-						CacheReadTokens  int `json:"cacheReadTokens"`
-						CacheWriteTokens int `json:"cacheWriteTokens"`
-					} `json:"usage"`
-				} `json:"modelMetrics"`
-			}
-			if json.Unmarshal(env.Data, &data) != nil {
-				continue
-			}
-			if data.CurrentModel != "" {
-				meta.Model = data.CurrentModel
-			}
-			if data.CodeChanges != nil {
-				meta.DiffAdditions = data.CodeChanges.LinesAdded
-				meta.DiffDeletions = data.CodeChanges.LinesRemoved
-				if n := len(data.CodeChanges.FilesModified); n > 0 {
-					meta.DiffFiles = n
-				}
-			}
-			if data.ModelMetrics != nil {
-				// Each shutdown event has cumulative totals; reset so only the last event's values are kept.
-				meta.Cost = 0
-				meta.TokensInput = 0
-				meta.TokensOutput = 0
-				meta.TokensReasoning = 0
-				meta.TokensCacheRead = 0
-				meta.TokensCacheWrite = 0
-				for _, m := range data.ModelMetrics {
-					if m.Requests != nil {
-						meta.Cost += m.Requests.Cost
-					}
-					if m.Usage != nil {
-						meta.TokensInput += m.Usage.InputTokens
-						meta.TokensOutput += m.Usage.OutputTokens
-						meta.TokensReasoning += m.Usage.ReasoningTokens
-						meta.TokensCacheRead += m.Usage.CacheReadTokens
-						meta.TokensCacheWrite += m.Usage.CacheWriteTokens
-					}
-				}
-			}
+			shutdowns.record(env)
+		}
+	}
+
+	// Closing summary: the metadata path reads the latest cumulative totals and
+	// code-change summary through the single shutdown parser.
+	totals := shutdowns.totals()
+	meta.Cost = totals.Cost
+	meta.TokensInput = totals.TokensInput
+	meta.TokensOutput = totals.TokensOutput
+	meta.TokensReasoning = totals.TokensReasoning
+	meta.TokensCacheRead = totals.TokensCacheRead
+	meta.TokensCacheWrite = totals.TokensCacheWrite
+	if m := shutdowns.model(); m != "" {
+		meta.Model = m
+	}
+	if present, add, del, files := shutdowns.codeChanges(); present {
+		meta.DiffAdditions = add
+		meta.DiffDeletions = del
+		if files > 0 {
+			meta.DiffFiles = files
 		}
 	}
 

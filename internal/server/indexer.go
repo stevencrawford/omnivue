@@ -13,17 +13,19 @@ import (
 )
 
 // Indexer maintains the FTS5 search index over session content. It reads the
-// current cached session list through the SessionHub and persists index rows
-// through a narrowed SearchStore, so indexing is testable without the poll
-// machinery.
+// current cached session list through the SessionCatalog and per-session
+// content through the SessionReader seam, persisting index rows through a
+// narrowed SearchStore, so indexing is testable without the poll machinery or
+// any live adapter.
 type Indexer struct {
-	hub     *SessionHub
+	catalog SessionCatalog
+	reader  SessionReader
 	search  store.SearchStore
 	scratch store.ScratchStore
 }
 
-func NewIndexer(hub *SessionHub, search store.SearchStore, scratch store.ScratchStore) *Indexer {
-	return &Indexer{hub: hub, search: search, scratch: scratch}
+func NewIndexer(catalog SessionCatalog, reader SessionReader, search store.SearchStore, scratch store.ScratchStore) *Indexer {
+	return &Indexer{catalog: catalog, reader: reader, search: search, scratch: scratch}
 }
 
 // isSQLiteBusy reports whether an error is a transient SQLITE_BUSY failure.
@@ -65,17 +67,11 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 		return
 	}
 
-	sessions := ix.hub.Sessions()
-	adapters := ix.hub.Adapters()
+	sessions := ix.catalog.Sessions()
 
 	for _, sess := range sessions {
-		adapter := adapters[sess.SourceID]
-		if adapter == nil {
-			continue
-		}
-
 		// Get messages for hashing.
-		messages, err := adapter.Messages(ctx, sess.ID)
+		messages, err := ix.reader.Messages(ctx, sess.ID)
 		if err != nil {
 			continue
 		}
@@ -86,12 +82,13 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 		// Build content for each chunk type.
 		messagesContent := buildMessagesContent(messages)
 
-		// Build plan content.
+		// Build plan content. reader.Plan is safe to call unconditionally:
+		// SessionHub.Plan type-asserts for ingest.Planner and returns
+		// (nil, nil) for adapters without plan support, so a nil plan here
+		// simply means the session is indexed without a plan chunk.
 		var planContent string
-		if ps, ok := adapter.(ingest.Planner); ok {
-			if plan, err := ps.Plan(ctx, sess.ID); err == nil && plan != nil {
-				planContent = plan.Markdown
-			}
+		if plan, err := ix.reader.Plan(ctx, sess.ID); err == nil && plan != nil {
+			planContent = plan.Markdown
 		}
 
 		// Build name content (title is searchable).
@@ -183,12 +180,9 @@ func (ix *Indexer) ReindexSessionScratch(sessionID string) {
 	// Look up session info for sourceID/repository.
 	sourceID := ""
 	repository := ""
-	for _, sess := range ix.hub.Sessions() {
-		if sess.ID == sessionID {
-			sourceID = sess.SourceID
-			repository = sess.Repository
-			break
-		}
+	if sess, err := ix.reader.Session(context.Background(), sessionID); err == nil && sess != nil {
+		sourceID = sess.SourceID
+		repository = sess.Repository
 	}
 
 	if err := retryOnBusy(func() error { return ix.search.ClearSessionChunkType(sessionID, "scratch") }); err != nil {
@@ -218,16 +212,16 @@ func (ix *Indexer) indexScratchChunk(sessionID, sourceID, repository string, fil
 // it, so a scratch-only reindex does not force the next poll to rewrite every
 // chunk of the session.
 func (ix *Indexer) updateIndexState(ctx context.Context, sessionID, sourceID, repository string) {
-	sess, err := ix.hub.Session(ctx, sessionID)
+	sess, err := ix.reader.Session(ctx, sessionID)
 	if err != nil || sess == nil {
 		return
 	}
-	messages, err := ix.hub.Messages(ctx, sessionID)
+	messages, err := ix.reader.Messages(ctx, sessionID)
 	if err != nil {
 		return
 	}
 	var planContent string
-	if plan, err := ix.hub.Plan(ctx, sessionID); err == nil && plan != nil {
+	if plan, err := ix.reader.Plan(ctx, sessionID); err == nil && plan != nil {
 		planContent = plan.Markdown
 	}
 	files, err := ix.scratch.ListScratchFiles(sessionID)

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import type { Message, Session } from "./useApi";
+import type { Message, Session } from "./types";
 import { effectiveToolKind } from "../utils/toolDisplay";
+import { TOKEN_COLOR_SEGMENTS, toolKindInfo } from "../utils/toolKindTaxonomy";
 
 export interface TokenTimelinePoint {
   stepIndex: number;
@@ -43,28 +44,10 @@ export interface SessionTokenomics {
   effectiveness: EffectivenessMetrics;
 }
 
-const TOOL_KIND_COLORS: Record<string, string> = {
-  edit: "#ef4444",
-  read: "#06b6d4",
-  bash: "#eab308",
-  search: "#8b5cf6",
-  web: "#ec4899",
-  other: "#6b7280",
-};
-
-const TOOL_KIND_LABELS: Record<string, string> = {
-  edit: "Edits",
-  read: "Reads",
-  bash: "Shell",
-  search: "Search",
-  web: "Web",
-  other: "Other",
-};
-
-const TOKENS_COLOR_INPUT = "var(--color-accent)";
-const TOKENS_COLOR_OUTPUT = "var(--color-accent-secondary)";
-const TOKENS_COLOR_CACHE = "color-mix(in srgb, var(--color-accent) 50%, cyan)";
-const TOKENS_COLOR_REASONING = "color-mix(in srgb, var(--color-accent-secondary) 60%, violet)";
+export const TOKENS_COLOR_INPUT = TOKEN_COLOR_SEGMENTS.input;
+export const TOKENS_COLOR_OUTPUT = TOKEN_COLOR_SEGMENTS.output;
+export const TOKENS_COLOR_CACHE = TOKEN_COLOR_SEGMENTS.cache;
+export const TOKENS_COLOR_REASONING = TOKEN_COLOR_SEGMENTS.reasoning;
 
 export function useSessionTokenomics(messages: Message[], session: Session): SessionTokenomics {
   return useMemo(() => {
@@ -190,8 +173,8 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         totalToolCalls > 0 ? Math.round(totalStepTokens * (count / totalToolCalls)) : 0;
       toolTokenStats.push({
         kind,
-        label: TOOL_KIND_LABELS[kind] ?? kind,
-        color: TOOL_KIND_COLORS[kind] ?? "#6b7280",
+        label: toolKindInfo(kind).label,
+        color: toolKindInfo(kind).color,
         tokens,
         count,
       });
@@ -236,12 +219,3 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
     };
   }, [messages, session]);
 }
-
-export {
-  TOOL_KIND_COLORS,
-  TOOL_KIND_LABELS,
-  TOKENS_COLOR_INPUT,
-  TOKENS_COLOR_OUTPUT,
-  TOKENS_COLOR_CACHE,
-  TOKENS_COLOR_REASONING,
-};

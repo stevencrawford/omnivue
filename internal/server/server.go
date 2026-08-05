@@ -32,9 +32,9 @@ func NewHandler(dep Dep) http.Handler {
 	// API routes
 	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub))
 	mux.HandleFunc("GET /_/api/sources", handleSources(dep.Sources))
-	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, newFanout(dep.Hub, dep.Indexer, dep.Notifier, dep.Bus)))
-	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Hub, dep.Sources, dep.Bus))
-	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(newFanout(dep.Hub, dep.Indexer, dep.Notifier, dep.Bus), dep.Sources))
+	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, dep.Pipeline))
+	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Pipeline, dep.Sources))
+	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(dep.Pipeline, dep.Sources))
 	mux.HandleFunc("GET /_/api/sources/discover", handleDiscoverSources())
 	mux.HandleFunc("GET /_/api/config", handleGetConfig(dep.Config))
 	mux.HandleFunc("PUT /_/api/config", handleSetConfig(dep.Config))
@@ -92,7 +92,7 @@ func NewHandler(dep Dep) http.Handler {
 	return mux
 }
 
-func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, hub *SessionHub) http.HandlerFunc {
+func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog SessionCatalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var schemaVersion int
 		if meta != nil {
@@ -112,7 +112,7 @@ func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, hub *Se
 			"version":       version.Version,
 			"pid":           os.Getpid(),
 			"sources":       sourceCount,
-			"sessions":      len(hub.Sessions()),
+			"sessions":      len(catalog.Sessions()),
 			"schemaVersion": schemaVersion,
 		})
 	}
@@ -133,7 +133,7 @@ func handleSources(sources store.SourceStore) http.HandlerFunc {
 	}
 }
 
-func handleAddSource(sources store.SourceStore, f *fanout) http.HandlerFunc {
+func handleAddSource(sources store.SourceStore, p *Pipeline) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Path      string `json:"path"`
@@ -187,31 +187,30 @@ func handleAddSource(sources store.SourceStore, f *fanout) http.HandlerFunc {
 			if adapter, err := ingest.CreateAdapter(src); err != nil {
 				slog.Warn("failed to create adapter for new source", "source", src.Path, "error", err)
 			} else {
-				f.hub.AddAdapter(src.ID, adapter)
+				p.hub.AddAdapter(src.ID, adapter)
 			}
 		}
-		go f.refreshAndIndex(context.WithoutCancel(r.Context()))
+		go p.Refresh(context.WithoutCancel(r.Context()))
 		writeCreated(w, src)
 	}
 }
 
-func handleRemoveSource(hub *SessionHub, sources store.SourceStore, bus *EventBus) http.HandlerFunc {
+func handleRemoveSource(p *Pipeline, sources store.SourceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		hub.RemoveAdapter(id)
+		p.hub.RemoveAdapter(id)
 		if sources != nil {
 			if err := sources.RemoveSource(id); err != nil {
 				writeError(w, err)
 				return
 			}
 		}
-		hub.refreshSessions(r.Context())
-		bus.Send(sseEvent{Name: "update"})
+		go p.Refresh(context.WithoutCancel(r.Context()))
 		writeNoContent(w)
 	}
 }
 
-func handleUpdateSource(f *fanout, sources store.SourceStore) http.HandlerFunc {
+func handleUpdateSource(p *Pipeline, sources store.SourceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		var body struct {
@@ -228,7 +227,7 @@ func handleUpdateSource(f *fanout, sources store.SourceStore) http.HandlerFunc {
 			writeError(w, badRequest("path is required"))
 			return
 		}
-		f.hub.RemoveAdapter(id)
+		p.hub.RemoveAdapter(id)
 		if sources != nil {
 			if err := sources.UpdateSource(id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
 				writeError(w, err)
@@ -239,12 +238,12 @@ func handleUpdateSource(f *fanout, sources store.SourceStore) http.HandlerFunc {
 					if adapter, err := ingest.CreateAdapter(*src); err != nil {
 						slog.Warn("failed to create adapter for updated source", "source", src.Path, "error", err)
 					} else {
-						f.hub.AddAdapter(id, adapter)
+						p.hub.AddAdapter(id, adapter)
 					}
 				}
 			}
 		}
-		go f.refreshAndIndex(context.WithoutCancel(r.Context()))
+		go p.Refresh(context.WithoutCancel(r.Context()))
 		writeNoContent(w)
 	}
 }
@@ -301,15 +300,15 @@ func handleSetConfig(cfg store.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleSessions(hub *SessionHub) http.HandlerFunc {
+func handleSessions(catalog SessionCatalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeOK(w, hub.Sessions())
+		writeOK(w, catalog.Sessions())
 	}
 }
 
-func handleGetSession(hub *SessionHub) http.HandlerFunc {
+func handleGetSession(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := hub.Session(r.Context(), r.PathValue("id"))
+		session, err := reader.Session(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -318,9 +317,9 @@ func handleGetSession(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetMessages(hub *SessionHub) http.HandlerFunc {
+func handleGetMessages(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		messages, err := hub.Messages(r.Context(), r.PathValue("id"))
+		messages, err := reader.Messages(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -329,9 +328,9 @@ func handleGetMessages(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetPlan(hub *SessionHub) http.HandlerFunc {
+func handleGetPlan(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		plan, err := hub.Plan(r.Context(), r.PathValue("id"))
+		plan, err := reader.Plan(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -340,9 +339,9 @@ func handleGetPlan(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
+func handleGetDiffs(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		diffs, err := hub.Diffs(r.Context(), r.PathValue("id"))
+		diffs, err := reader.Diffs(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -354,9 +353,9 @@ func handleGetDiffs(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetEdits(hub *SessionHub) http.HandlerFunc {
+func handleGetEdits(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		edits, err := hub.Edits(r.Context(), r.PathValue("id"))
+		edits, err := reader.Edits(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
@@ -368,23 +367,23 @@ func handleGetEdits(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleGetResumeCommand(hub *SessionHub) http.HandlerFunc {
+func handleGetResumeCommand(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		dir, abs, rel, agentCmd, err := hub.ResumeCommand(r.Context(), r.PathValue("id"))
+		spec, err := reader.ResumeCommand(r.Context(), r.PathValue("id"))
 		if err != nil {
 			writeError(w, err)
 			return
 		}
 		writeOK(w, map[string]string{
-			"directory":    dir,
-			"absolute":     abs,
-			"relative":     rel,
-			"agentCommand": agentCmd,
+			"directory":    spec.Directory,
+			"absolute":     spec.Absolute,
+			"relative":     spec.Relative,
+			"agentCommand": spec.AgentCommand,
 		})
 	}
 }
 
-func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
+func handleSetSessionName(names SessionNames) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			DisplayName string `json:"displayName"`
@@ -397,7 +396,7 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 			writeError(w, badRequest("displayName is required"))
 			return
 		}
-		if err := hub.SetName(r.PathValue("id"), body.DisplayName); err != nil {
+		if err := names.SetName(r.PathValue("id"), body.DisplayName); err != nil {
 			writeError(w, err)
 			return
 		}
@@ -405,9 +404,9 @@ func handleSetSessionName(hub *SessionHub) http.HandlerFunc {
 	}
 }
 
-func handleClearSessionName(hub *SessionHub) http.HandlerFunc {
+func handleClearSessionName(names SessionNames) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := hub.ClearName(r.PathValue("id")); err != nil {
+		if err := names.ClearName(r.PathValue("id")); err != nil {
 			writeError(w, err)
 			return
 		}
@@ -597,7 +596,7 @@ func handleSetRecentSearches(cfg store.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
+func handleSearch(search store.SearchStore, catalog SessionCatalog) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		if q == "" {
@@ -620,7 +619,7 @@ func handleSearch(search store.SearchStore, hub *SessionHub) http.HandlerFunc {
 			}
 		}
 		// Enrich results with session title.
-		titles := hub.TitleMap()
+		titles := catalog.TitleMap()
 		for i := range results {
 			if title, ok := titles[results[i].SessionID]; ok {
 				results[i].SessionName = title
@@ -975,15 +974,10 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 		}
 		// If the user is enabling notifications for the first time (or after
 		// having disabled them), stamp EnabledAt so the classifier can suppress
-		// the flood of pre-existing messages.
+		// the flood of pre-existing messages. The decision lives in the notify
+		// package so the flood-suppression policy has a single home.
 		prev := notifier.LoadSettings()
-		if settings.Enabled && (!prev.Enabled || prev.EnabledAt == 0) {
-			settings.EnabledAt = time.Now().UnixMilli()
-		} else if !settings.Enabled {
-			settings.EnabledAt = 0
-		} else {
-			settings.EnabledAt = prev.EnabledAt
-		}
+		settings.EnabledAt = notify.ResolveEnabledAt(prev, settings, time.Now())
 		if err := notifier.SaveSettings(settings); err != nil {
 			writeError(w, err)
 			return
@@ -1259,7 +1253,7 @@ func handleSSE(bus *EventBus) http.HandlerFunc {
 	}
 }
 
-func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
+func handleTerminalWS(reader SessionReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessionID := r.URL.Query().Get("session_id")
 		if sessionID == "" {
@@ -1267,11 +1261,12 @@ func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
 			return
 		}
 
-		dir, _, initCmd, _, err := hub.ResumeCommand(r.Context(), sessionID)
+		spec, err := reader.ResumeCommand(r.Context(), sessionID)
 		if err != nil {
 			writeError(w, notFound("session not found"))
 			return
 		}
+		dir := spec.Directory
 		if dir == "" {
 			dir = "."
 		}
@@ -1285,7 +1280,7 @@ func handleTerminalWS(hub *SessionHub) http.HandlerFunc {
 		}
 		defer ws.Close(websocket.StatusNormalClosure, "terminal closed") //nolint:errcheck
 
-		if err := terminal.Run(r.Context(), ws, dir, initCmd); err != nil {
+		if err := terminal.Run(r.Context(), ws, dir, spec.Relative); err != nil {
 			slog.Debug("terminal: session ended", "session", sessionID, "error", err)
 		}
 	}

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ChevronRight, Check, Copy, ArrowRight, Circle } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 import type { ToolRendererDefinition } from "./types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { useSessionNav } from "../../hooks/useNav";

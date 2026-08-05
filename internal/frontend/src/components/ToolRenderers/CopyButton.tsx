@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Copy, Check, ChevronDown } from "lucide-react";
+import { STORAGE_KEYS } from "../../utils/storageKeys";
 
 type CopyMode = "input" | "output";
 
-const COPY_MODE_KEY = "omnivue-copy-mode-";
+const COPY_MODE_KEY = STORAGE_KEYS.COPY_MODE_PREFIX;
 
 function readStoredMode(kind: string | undefined, fallback: CopyMode): CopyMode {
   if (!kind) return fallback;

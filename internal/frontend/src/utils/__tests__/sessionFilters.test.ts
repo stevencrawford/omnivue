@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isStaleSession, splitStaleSessions, STALE_DAYS } from "../sessionFilters";
-import type { Session } from "../../hooks/useApi";
+import type { Session } from "../../hooks/types";
 
 const MS_PER_DAY = 86_400_000;
 

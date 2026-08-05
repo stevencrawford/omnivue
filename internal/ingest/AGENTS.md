@@ -169,9 +169,6 @@ Different agents use different naming conventions for tool calls. The frontend e
 
 Tool-name canonicalization is centralized in `internal/ingest/ingestkit/normalize.go`:
 
-- `ingestkit.CanonicalToolNames()` — the standard set (`edit`, `write`, `read`, `bash`, `grep`,
-  `glob`, `todowrite`, `delete`, `task`, `question`, `webfetch`, `websearch`, `codesearch`, …)
-- `ingestkit.IsCanonicalToolName(name)` — exact membership check
 - `ingestkit.CanonicalizeToolName(name)` — maps agent-native names to the standard set:
   1. Exact match in the cross-adapter alias table (Cursor, Pi, Claude Code, Codex spellings)
   2. Codex conventions (`exec_*`, `edit_*`, `*_patch`, `read_*` prefixes/suffixes)

@@ -1,31 +1,8 @@
 package ingestkit
 
 import (
-	"slices"
 	"strings"
 )
-
-// canonicalToolNames is the set of standard tool call names that all adapters
-// normalize to. Each adapter's normalize.go maps its native names to this set.
-var canonicalToolNames = []string{
-	"read", "write", "edit", "bash", "grep", "glob", "task",
-	"todowrite", "task_complete", "question", "websearch",
-	"webfetch", "delete", "model_switch", "compaction",
-	"codesearch", "read_lints", "exit_plan_mode",
-}
-
-// CanonicalToolNames returns the set of standard tool call names.
-func CanonicalToolNames() []string {
-	out := make([]string, len(canonicalToolNames))
-	copy(out, canonicalToolNames)
-	return out
-}
-
-// IsCanonicalToolName reports whether name is one of the standard tool call
-// names that adapters normalize to.
-func IsCanonicalToolName(name string) bool {
-	return slices.Contains(canonicalToolNames, name)
-}
 
 // toolAliases is the single declaration of every agent-native tool call name
 // that maps to a canonical ingest name. It is the union of the aliases the

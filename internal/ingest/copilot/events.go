@@ -25,7 +25,7 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 	var currentModel string
 	var subAgentStack []*subAgentState
 	var todoState = newTodoState()
-	var shutdownSnapshots []shutdownSnapshot
+	shutdowns := newShutdownParser()
 	var pendingReasoning string
 
 	scanner := ingestkit.NewJSONLScanner(f)
@@ -101,34 +101,13 @@ func (a *Adapter) messagesFromEvents(sessionID string) ([]ingest.Message, error)
 			}
 
 		case "session.shutdown":
-			if snap := parseShutdownSnapshot(event); snap != nil {
-				if len(shutdownSnapshots) > 0 {
-					prev := shutdownSnapshots[len(shutdownSnapshots)-1]
-					dInput := snap.TokensInput - prev.TokensInput
-					dOutput := snap.TokensOutput - prev.TokensOutput
-					dReasoning := snap.TokensReasoning - prev.TokensReasoning
-					dCache := snap.TokensCacheRead - prev.TokensCacheRead
-					dCost := snap.Cost - prev.Cost
-					if dInput > 0 || dOutput > 0 || dReasoning > 0 || dCache > 0 {
-						delta := ingest.StepEvent{
-							Step: ingest.StepEventFinish,
-							Tokens: ingest.StepTokens{
-								Input:     max(dInput, 0),
-								Output:    max(dOutput, 0),
-								Reasoning: max(dReasoning, 0),
-								CacheRead: max(dCache, 0),
-							},
-							Cost: max(dCost, 0),
-						}
-						for i := range slices.Backward(messages) {
-							if messages[i].Role == ingest.MessageRoleAssistant {
-								messages[i].StepEvents = append(messages[i].StepEvents, delta)
-								break
-							}
-						}
+			if step := shutdowns.record(event); step != nil {
+				for i := range slices.Backward(messages) {
+					if messages[i].Role == ingest.MessageRoleAssistant {
+						messages[i].StepEvents = append(messages[i].StepEvents, *step)
+						break
 					}
 				}
-				shutdownSnapshots = append(shutdownSnapshots, *snap)
 			}
 		}
 	}
@@ -380,42 +359,6 @@ func handleSystemReminder(event eventEnvelope) *ingest.Message {
 	}
 }
 
-// parseShutdownSnapshot extracts cumulative token/cost data from a session.shutdown event.
-func parseShutdownSnapshot(event eventEnvelope) *shutdownSnapshot {
-	var data struct {
-		ModelMetrics map[string]*struct {
-			Requests *struct {
-				Cost float64 `json:"cost"`
-			} `json:"requests"`
-			Usage *struct {
-				InputTokens      int `json:"inputTokens"`
-				OutputTokens     int `json:"outputTokens"`
-				ReasoningTokens  int `json:"reasoningTokens"`
-				CacheReadTokens  int `json:"cacheReadTokens"`
-				CacheWriteTokens int `json:"cacheWriteTokens"`
-			} `json:"usage"`
-		} `json:"modelMetrics"`
-	}
-	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return nil
-	}
-	snap := &shutdownSnapshot{
-		Timestamp: event.Timestamp,
-	}
-	for _, m := range data.ModelMetrics {
-		if m.Requests != nil {
-			snap.Cost += m.Requests.Cost
-		}
-		if m.Usage != nil {
-			snap.TokensInput += m.Usage.InputTokens
-			snap.TokensOutput += m.Usage.OutputTokens
-			snap.TokensReasoning += m.Usage.ReasoningTokens
-			snap.TokensCacheRead += m.Usage.CacheReadTokens
-		}
-	}
-	return snap
-}
-
 // updateToolCallResult finds the tool call by ID and updates its output/status.
 func updateToolCallResult(messages *[]ingest.Message, data toolCompleteData) {
 	for i := range slices.Backward(*messages) {
@@ -454,19 +397,4 @@ func stripSystemReminder(content string) (string, bool) {
 	cleaned = strings.TrimSuffix(cleaned, "</system_reminder>")
 	cleaned = strings.TrimSpace(cleaned)
 	return cleaned, true
-}
-
-// extractCopilotPatchPath extracts the file path from apply_patch text.
-// Format: "*** Begin Patch\n*** Update File: <path>\n...\n*** End Patch".
-func extractCopilotPatchPath(patch string) string {
-	for _, prefix := range []string{"*** Update File: ", "*** Add File: ", "*** Modify File: "} {
-		if _, after, found := strings.Cut(patch, prefix); found {
-			rest := after
-			if nl := strings.IndexAny(rest, "\n\r"); nl >= 0 {
-				return strings.TrimSpace(rest[:nl])
-			}
-			return strings.TrimSpace(rest)
-		}
-	}
-	return ""
 }

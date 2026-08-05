@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { Message } from "../hooks/useApi";
+import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";

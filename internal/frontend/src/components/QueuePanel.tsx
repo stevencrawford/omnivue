@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Copy, Trash2, Check, MessageSquare } from "lucide-react";
-import type { QueuedPrompt, Session } from "../hooks/useApi";
-import { fetchPrompts, deletePrompt } from "../hooks/useApi";
+import type { QueuedPrompt, Session } from "../hooks/types";
+import { fetchPrompts, deletePrompt } from "../hooks/apiClient";
 
 interface QueuePanelProps {
   sessions: Session[];

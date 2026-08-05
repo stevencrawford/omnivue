@@ -29,10 +29,11 @@ func pollInterval(liveCount int) time.Duration {
 
 // Poller drives the adaptive polling loop that watches for source changes,
 // refreshes the SessionHub, re-indexes content, and notifies via the Notifier.
-// It embeds the fanout bundle so the refresh→broadcast path is exactly the one
-// the HTTP add/update-source handlers use.
+// It depends on the AdapterProvider seam to watch sources, and drives the
+// Pipeline for every refresh so both cadences share the same orchestration.
 type Poller struct {
-	*fanout
+	pipeline *Pipeline
+	catalog  AdapterProvider
 
 	// lastMod tracks the last known modification timestamp per source so a
 	// change is only acted on once. liveCount adapts the poll cadence.
@@ -40,10 +41,11 @@ type Poller struct {
 	liveCount int
 }
 
-func NewPoller(f *fanout) *Poller {
+func NewPoller(catalog AdapterProvider, p *Pipeline) *Poller {
 	return &Poller{
-		fanout:  f,
-		lastMod: make(map[string]int64),
+		pipeline: p,
+		catalog:  catalog,
+		lastMod:  make(map[string]int64),
 	}
 }
 
@@ -68,7 +70,7 @@ func (p *Poller) Run(ctx context.Context) {
 // the poll → index → classify → SSE path without waiting on the idle cadence.
 func (p *Poller) tick(ctx context.Context) {
 	changed := false
-	for sourceID, adapter := range p.hub.Adapters() {
+	for sourceID, adapter := range p.catalog.Adapters() {
 		ts, err := adapter.LastModified(ctx)
 		if err != nil {
 			continue
@@ -82,28 +84,15 @@ func (p *Poller) tick(ctx context.Context) {
 	}
 
 	if changed {
-		ids, lc, transitions := p.hub.refreshSessions(ctx)
-		p.liveCount = lc
-		p.fanoutSessions(ctx, ids, transitions)
+		p.liveCount = p.pipeline.Refresh(ctx)
 		return
 	}
 
 	// No source-level change, but liveness windows may have expired since the
 	// last refresh (e.g. a session went idle). Re-run the heuristic to keep
-	// Status fresh without the heavier full reload cost.
+	// Status fresh without the heavier full reload cost. The pipeline broadcasts
+	// only when the live count actually moved.
 	if p.liveCount > 0 {
-		_, lc, transitions := p.hub.refreshSessions(ctx)
-		if lc != p.liveCount {
-			// Status transitions are visible to clients; push an update.
-			p.bus.Send(sseEvent{Name: "update"})
-			if len(transitions) > 0 {
-				var tids []string
-				for _, t := range transitions {
-					tids = append(tids, t.sessionID)
-				}
-				go p.notif.ClassifyChanges(ctx, tids, transitions)
-			}
-		}
-		p.liveCount = lc
+		p.liveCount = p.pipeline.RefreshLiveness(ctx, p.liveCount)
 	}
 }

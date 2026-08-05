@@ -15,7 +15,15 @@ const coerceNumber = z.coerce.number();
 // Session
 // ---------------------------------------------------------------------------
 
-const StepTokensSchema = z.object({
+export const TodoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  status: z.string(),
+  depends_on: z.array(z.string()).optional(),
+});
+
+export const StepTokensSchema = z.object({
   input: coerceNumber,
   output: coerceNumber,
   reasoning: coerceNumber,
@@ -23,7 +31,7 @@ const StepTokensSchema = z.object({
   cacheWrite: coerceNumber,
 });
 
-const StepEventSchema = z.object({
+export const StepEventSchema = z.object({
   step: z.enum(["start", "finish"]),
   snapshot: optionalString,
   reason: optionalString,
@@ -31,7 +39,7 @@ const StepEventSchema = z.object({
   tokens: StepTokensSchema.optional(),
 });
 
-const ToolCallSchema = z.object({
+export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
   input: z.string(),
@@ -81,6 +89,7 @@ export const SessionSchema = z.object({
   diffFiles: coerceNumber,
   diffAdditions: coerceNumber,
   diffDeletions: coerceNumber,
+  todos: z.array(TodoSchema).optional(),
 });
 
 export const SessionsSchema = z.array(SessionSchema);
@@ -101,7 +110,7 @@ export const SourceSchema = z.object({
 
 export const SourcesSchema = z.array(SourceSchema);
 
-const DiscoveredSourceSchema = z.object({
+export const DiscoveredSourceSchema = z.object({
   path: z.string(),
   agentType: z.string(),
   label: z.string(),
@@ -113,16 +122,22 @@ export const DiscoveredSourcesSchema = z.array(DiscoveredSourceSchema);
 // Plan
 // ---------------------------------------------------------------------------
 
-export const PlanSchema = z.object({
-  markdown: z.string(),
-  source: z.string(),
-});
+export const PlanSchema = z
+  .object({
+    markdown: z.string(),
+    source: z.string(),
+  })
+  .nullable();
 
 // ---------------------------------------------------------------------------
 // DiffFile
 // ---------------------------------------------------------------------------
 
-const DiffFileSchema = z.object({
+// ---------------------------------------------------------------------------
+// DiffFile
+// ---------------------------------------------------------------------------
+
+export const DiffFileSchema = z.object({
   path: z.string(),
   status: z.string(),
   additions: coerceNumber,
@@ -136,7 +151,7 @@ export const DiffsSchema = z.array(DiffFileSchema);
 // FileEdit
 // ---------------------------------------------------------------------------
 
-const FileEditSchema = z.object({
+export const FileEditSchema = z.object({
   filePath: z.string(),
   toolName: z.string(),
   oldStr: optionalString,
@@ -181,7 +196,7 @@ export const StatusInfoSchema = z.object({
 // SearchResult
 // ---------------------------------------------------------------------------
 
-const SearchResultSchema = z.object({
+export const SearchResultSchema = z.object({
   sessionId: z.string(),
   sessionName: optionalString,
   sourceId: z.string(),
@@ -266,6 +281,10 @@ export const NotificationKindSchema = z.enum([
   "status_error",
 ]);
 
+export const NotificationSeveritySchema = z.enum(["info", "attention"]);
+
+export const NotificationScopeSchema = z.enum(["all", "opened", "pinned"]);
+
 export const NotificationSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
@@ -273,7 +292,7 @@ export const NotificationSchema = z.object({
   kind: NotificationKindSchema,
   title: z.string(),
   preview: z.string(),
-  severity: z.enum(["info", "attention"]),
+  severity: NotificationSeveritySchema,
   payload: z.string().optional(),
   createdAt: coerceNumber,
   readAt: coerceNumber.nullable().optional(),
@@ -284,7 +303,7 @@ export const NotificationsSchema = z.array(NotificationSchema);
 export const NotificationSettingsSchema = z.object({
   enabled: z.boolean(),
   kinds: z.array(NotificationKindSchema),
-  scope: z.enum(["all", "opened", "pinned"]),
+  scope: NotificationScopeSchema,
   inAppToast: z.boolean(),
   sidebarBadge: z.boolean(),
   browserNotify: z.boolean(),

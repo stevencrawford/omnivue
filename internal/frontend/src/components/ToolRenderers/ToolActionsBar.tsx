@@ -1,5 +1,5 @@
 import { Pin, ArrowRight as ArrowRightIcon, Bookmark } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 import CopyButton from "./CopyButton";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 

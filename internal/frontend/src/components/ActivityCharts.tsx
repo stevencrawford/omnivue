@@ -3,18 +3,12 @@ import { BarChart3, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import type { DayStats } from "../utils/overviewAnalytics";
 import { formatCost, formatTokens } from "../utils/sessionUtils";
+import { TOKEN_COLOR_SEGMENTS } from "../utils/toolKindTaxonomy";
 
 interface ActivityChartsProps {
   dailyStats: DayStats[];
   hideCosts: boolean;
 }
-
-const TOKEN_COLORS = {
-  input: "var(--color-accent)",
-  output: "var(--color-accent-secondary)",
-  cache: "color-mix(in srgb, var(--color-accent) 50%, cyan)",
-  reasoning: "color-mix(in srgb, var(--color-accent-secondary) 60%, violet)",
-} as const;
 
 function formatDayLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -43,10 +37,10 @@ function TokenUsageChart({ dailyStats }: { dailyStats: DayStats[] }) {
       <div className="ov-chart-tooltip">
         <p className="ov-chart-tooltip-date">{formatDayLabel(entry.date)}</p>
         {[
-          { key: "input", label: "Input", color: TOKEN_COLORS.input },
-          { key: "output", label: "Output", color: TOKEN_COLORS.output },
-          { key: "cache", label: "Cache", color: TOKEN_COLORS.cache },
-          { key: "reasoning", label: "Reasoning", color: TOKEN_COLORS.reasoning },
+          { key: "input", label: "Input", color: TOKEN_COLOR_SEGMENTS.input },
+          { key: "output", label: "Output", color: TOKEN_COLOR_SEGMENTS.output },
+          { key: "cache", label: "Cache", color: TOKEN_COLOR_SEGMENTS.cache },
+          { key: "reasoning", label: "Reasoning", color: TOKEN_COLOR_SEGMENTS.reasoning },
         ].map(({ key, label, color }) => (
           <div key={key} className="ov-chart-tooltip-row">
             <span className="ov-chart-tooltip-swatch" style={{ background: color }} />
@@ -85,13 +79,28 @@ function TokenUsageChart({ dailyStats }: { dailyStats: DayStats[] }) {
           tickFormatter={(v: number) => formatTokens(v).replace(/ tok$/, "")}
         />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--color-ov-bg-hover)" }} />
-        <Bar dataKey="input" stackId="tokens" fill={TOKEN_COLORS.input} radius={[1, 1, 0, 0]} />
-        <Bar dataKey="output" stackId="tokens" fill={TOKEN_COLORS.output} radius={[1, 1, 0, 0]} />
-        <Bar dataKey="cache" stackId="tokens" fill={TOKEN_COLORS.cache} radius={[1, 1, 0, 0]} />
+        <Bar
+          dataKey="input"
+          stackId="tokens"
+          fill={TOKEN_COLOR_SEGMENTS.input}
+          radius={[1, 1, 0, 0]}
+        />
+        <Bar
+          dataKey="output"
+          stackId="tokens"
+          fill={TOKEN_COLOR_SEGMENTS.output}
+          radius={[1, 1, 0, 0]}
+        />
+        <Bar
+          dataKey="cache"
+          stackId="tokens"
+          fill={TOKEN_COLOR_SEGMENTS.cache}
+          radius={[1, 1, 0, 0]}
+        />
         <Bar
           dataKey="reasoning"
           stackId="tokens"
-          fill={TOKEN_COLORS.reasoning}
+          fill={TOKEN_COLOR_SEGMENTS.reasoning}
           radius={[1, 1, 0, 0]}
         />
       </BarChart>

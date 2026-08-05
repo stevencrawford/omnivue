@@ -31,9 +31,8 @@ src/
 │   ├── useBookmarks.ts        # Bookmark CRUD
 │   ├── useScratchFiles.ts     # Scratch file management
 │   ├── apiClient.ts           # Raw fetch functions + Zod validation + ApiError
-│   ├── schemas.ts             # Zod schemas for every API response
-│   ├── types.ts               # Domain types (Session, Message, ToolCall, etc.)
-│   └── useApi.ts              # Barrel re-export of apiClient + types (backward compat)
+│   ├── schemas.ts             # Zod schemas for every API response (source of truth)
+│   └── types.ts               # Domain types (Session, Message, ToolCall, etc.) derived from schemas
 ├── components/
 │   ├── AppHeader.tsx           # Top bar (logo, search, theme toggle)
 │   ├── Sidebar.tsx             # Resizable sidebar with section panels
@@ -102,8 +101,7 @@ Cancellation for one-shot fetches uses `AbortController` (e.g. `useSearchState`,
 - **Every** API response is validated at runtime via Zod schemas in `schemas.ts`.
 - Raw fetch functions live in `apiClient.ts`; `ApiError extends Error` is defined and exported there (the single app-wide error type).
 - `fetchSessions()` is the only endpoint with retry (folded into `apiClient`).
-- Barrel file `useApi.ts` re-exports everything for backward compatibility.
-- Prefer importing directly from `./apiClient` or `./types` in new code, not from the barrel.
+- Import domain types from `./types` (each `z.infer` of a schema in `schemas.ts`) and fetchers from `./apiClient`. No barrel.
 
 ```typescript
 // apiClient.ts — all functions are typed promises with Zod validation

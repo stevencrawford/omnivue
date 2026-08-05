@@ -1,4 +1,7 @@
-import type { Session } from "../hooks/useApi";
+import type { Session } from "../hooks/types";
+import { agentLabel, shortModel } from "./sessionUtils";
+
+export { agentLabel };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -127,7 +130,7 @@ export function aggregateByModel(sessions: Session[]): ModelStats[] {
     if (!entry) {
       entry = {
         model,
-        label: shortModelLabel(model),
+        label: shortModel(model),
         sessions: 0,
         cost: 0,
         tokens: 0,
@@ -190,24 +193,71 @@ export function topSessions(sessions: Session[], count = 5): TopSession[] {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function shortModelLabel(model: string): string {
-  if (!model) return "unknown";
-  return model
-    .replace("anthropic/", "")
-    .replace("openai/", "")
-    .replace("github-copilot/", "")
-    .replace("claude-", "")
-    .replace("gpt-", "");
+export interface OverviewStats {
+  totalSessions: number;
+  totalMessages: number;
+  totalCost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensCacheRead: number;
+  tokensReasoning: number;
+  agents: { agent: string; count: number }[];
+  models: { model: string; count: number; label: string }[];
+  totalWorkspaces: number;
 }
 
-function agentLabel(agent: string): string {
-  const map: Record<string, string> = {
-    opencode: "OpenCode",
-    copilot: "Copilot",
-    cursor: "Cursor",
-    codex: "Codex",
-    "claude-code": "Claude Code",
-    pi: "Pi",
+export function computeStats(sessions: Session[]): OverviewStats {
+  const agentCounts = new Map<string, number>();
+  const modelCounts = new Map<string, number>();
+  let totalMessages = 0;
+  let totalCost = 0;
+  let tokensInput = 0;
+  let tokensOutput = 0;
+  let tokensCacheRead = 0;
+  let tokensReasoning = 0;
+
+  for (const s of sessions) {
+    totalMessages += s.messageCount;
+    totalCost += s.cost;
+    tokensInput += s.tokensInput;
+    tokensOutput += s.tokensOutput;
+    tokensCacheRead += s.tokensCacheRead;
+    tokensReasoning += s.tokensReasoning;
+    if (s.agent) agentCounts.set(s.agent, (agentCounts.get(s.agent) || 0) + 1);
+    const modelKey = s.model || "unknown";
+    modelCounts.set(modelKey, (modelCounts.get(modelKey) || 0) + 1);
+  }
+
+  const agents = [...agentCounts.entries()]
+    .map(([agent, count]) => ({ agent, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const models = [...modelCounts.entries()]
+    .map(([model, count]) => ({ model, count, label: shortModel(model) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  const uniqueRepos = new Set<string>();
+  for (const s of sessions) {
+    uniqueRepos.add(s.repository || "Unknown");
+  }
+
+  return {
+    totalSessions: sessions.length,
+    totalMessages,
+    totalCost,
+    tokensInput,
+    tokensOutput,
+    tokensCacheRead,
+    tokensReasoning,
+    agents,
+    models,
+    totalWorkspaces: uniqueRepos.size,
   };
-  return map[agent] ?? agent;
+}
+
+export function sortByRecent(list: Session[]): Session[] {
+  return [...list].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  );
 }

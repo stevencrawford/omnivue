@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronRight, User, Copy, Trash2, Loader2, Check } from "lucide-react";
-import type { Session, Message, QueuedPrompt } from "../hooks/useApi";
-import { createPrompt, fetchPrompts, deletePrompt } from "../hooks/useApi";
+import type { Session, Message, QueuedPrompt } from "../hooks/types";
+import { createPrompt, fetchPrompts, deletePrompt } from "../hooks/apiClient";
 import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
+import { useHideCosts } from "../hooks/useHideCosts";
+import { useResizable } from "../hooks/useResizable";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 export function PinnedPromptBar({
   session,
@@ -27,29 +30,21 @@ export function PinnedPromptBar({
   const [submitting, setSubmitting] = useState(false);
   const [queuedId, setQueuedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [pinnedHeight, setPinnedHeight] = useState(() => {
-    try {
-      const stored = localStorage.getItem("omnivue-pinned-height");
-      if (stored) return Math.max(120, Math.min(600, Number(stored)));
-    } catch {
-      /* ignore */
-    }
-    return 300;
+  const hideCosts = useHideCosts();
+  const {
+    value: pinnedHeight,
+    isResizing: isPinnedResizing,
+    startResize: handlePinnedResizeStart,
+  } = useResizable({
+    storageKey: STORAGE_KEYS.PINNED_HEIGHT,
+    axis: "vertical",
+    min: 120,
+    max: 600,
+    defaultValue: 300,
   });
-  const [isPinnedResizing, setIsPinnedResizing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const resizeListeners = useRef<Array<[string, EventListenerOrEventListenerObject]>>([]);
   const totalTokens =
     session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
-
-  useEffect(() => {
-    return () => {
-      for (const [type, handler] of resizeListeners.current) {
-        document.removeEventListener(type, handler);
-      }
-      resizeListeners.current = [];
-    };
-  }, []);
 
   const loadPrompts = useCallback(async () => {
     try {
@@ -102,42 +97,6 @@ export function PinnedPromptBar({
     }
   }, [highlightPromptId, prompts, onHighlightDone]);
 
-  const handlePinnedResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    for (const [type, handler] of resizeListeners.current) {
-      document.removeEventListener(type, handler);
-    }
-    resizeListeners.current = [];
-    setIsPinnedResizing(true);
-    const startY = e.clientY;
-    const startHeight = pinnedHeight;
-
-    const handleMouseMove = (ev: MouseEvent) => {
-      const newHeight = Math.max(120, Math.min(600, startHeight + (startY - ev.clientY)));
-      setPinnedHeight(newHeight);
-    };
-
-    const handleMouseUp = (ev: MouseEvent) => {
-      setIsPinnedResizing(false);
-      document.removeEventListener("mousemove", handleMouseMove as EventListener);
-      document.removeEventListener("mouseup", handleMouseUp as EventListener);
-      resizeListeners.current = [];
-      const finalHeight = Math.max(120, Math.min(600, startHeight + (startY - ev.clientY)));
-      try {
-        localStorage.setItem("omnivue-pinned-height", String(finalHeight));
-      } catch {
-        /* ignore */
-      }
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    resizeListeners.current = [
-      ["mousemove", handleMouseMove as EventListener],
-      ["mouseup", handleMouseUp as EventListener],
-    ];
-  };
-
   const handleSubmit = async () => {
     const text = inputText.trim();
     if (!text || submitting) return;
@@ -189,14 +148,6 @@ export function PinnedPromptBar({
 
   const queuedCount = prompts.length;
 
-  function hideCosts(): boolean {
-    try {
-      return localStorage.getItem("omnivue-hide-costs") === "true";
-    } catch {
-      return false;
-    }
-  }
-
   return (
     <>
       <div
@@ -236,7 +187,7 @@ export function PinnedPromptBar({
               {formatTokenBreakdown(session)}
             </span>
           )}
-          {session.cost > 0 && !hideCosts() && (
+          {session.cost > 0 && !hideCosts && (
             <span className="text-[11px] text-ov-text-secondary" title="Cost">
               {formatCost(session.cost)}
             </span>

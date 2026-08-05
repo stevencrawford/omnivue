@@ -1,6 +1,6 @@
 import { ListRestart, Check, FolderOpen, Terminal, MessageSquareCode } from "lucide-react";
 import { useCopy } from "../hooks/useCopy";
-import { fetchResumeCommand } from "../hooks/useApi";
+import { fetchResumeCommand } from "../hooks/apiClient";
 import { useEffect, useRef, useState } from "react";
 
 function middleTruncate(s: string, max = 60): string {

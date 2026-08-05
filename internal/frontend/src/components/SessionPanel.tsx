@@ -1,17 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Tags, Plus, Minus, ArrowUpDown, ArrowRight, Archive } from "lucide-react";
-import type { Session } from "../hooks/useApi";
-import { buildTree } from "../utils/buildTree";
-import type { TreeNode, SortMode } from "../utils/buildTree";
-import {
-  sessionTitle,
-  sessionMetaParts,
-  relativeTime,
-  formatCost,
-  formatTokens,
-  shortDir,
-  shortModel,
-} from "../utils/sessionUtils";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpDown, Archive, Minus, Plus, Tags } from "lucide-react";
+import type { Session } from "../hooks/types";
+import { buildTree, type SortMode } from "../utils/buildTree";
+import { shortDir } from "../utils/sessionUtils";
 import {
   getDistinctValues,
   filterSessions,
@@ -21,6 +12,11 @@ import {
 import { useSessionListSettings } from "../hooks/useSessionListSettings";
 import { ContextMenu } from "./ContextMenu";
 import { ManageTagsDialog } from "./ManageTagsDialog";
+import { FilterChip } from "./FilterChip";
+import { SessionTree, type DisplayMode } from "./sessions/SessionTree";
+import { IconBtn } from "./sessions/IconBtn";
+import { SortMenu } from "./sessions/SortMenu";
+import { STORAGE_KEYS } from "../utils/storageKeys";
 
 function getAncestorChain(sessions: Session[], id: string): string[] {
   const chain: string[] = [];
@@ -40,11 +36,9 @@ interface SessionPanelProps {
   sessionUnread?: Record<string, number>;
 }
 
-const COLLAPSED_KEY = "omnivue-sidebar-collapsed";
-const SORT_KEY = "omnivue-sidebar-sort";
-const DISPLAY_KEY = "omnivue-sidebar-display";
-
-type DisplayMode = "condensed" | "verbose";
+const COLLAPSED_KEY = STORAGE_KEYS.SIDEBAR_COLLAPSED;
+const SORT_KEY = STORAGE_KEYS.SIDEBAR_SORT;
+const DISPLAY_KEY = STORAGE_KEYS.SIDEBAR_DISPLAY;
 
 function getInitialCollapsed(): Set<string> {
   try {
@@ -75,14 +69,6 @@ function getInitialDisplay(): DisplayMode {
   }
   return "condensed";
 }
-
-const SORT_LABELS: Record<SortMode, string> = {
-  recent: "Recent",
-  name: "Name",
-  agent: "Agent",
-  "cost-asc": "Cost ↑",
-  "cost-desc": "Cost ↓",
-};
 
 export function SessionPanel({
   sessions,
@@ -272,24 +258,7 @@ export function SessionPanel({
             <IconBtn title="Sort" onClick={() => setSortOpen((v) => !v)}>
               <ArrowUpDown size={14} />
             </IconBtn>
-            {sortOpen && (
-              <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
-                {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
-                      sortMode === mode
-                        ? "text-ov-text bg-ov-bg-active"
-                        : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
-                    }`}
-                    onClick={() => setSort(mode)}
-                  >
-                    {SORT_LABELS[mode]}
-                  </button>
-                ))}
-              </div>
-            )}
+            <SortMenu open={sortOpen} sortMode={sortMode} onSelect={setSort} />
           </div>
           <IconBtn
             title={displayMode === "condensed" ? "Verbose view" : "Condensed view"}
@@ -379,24 +348,19 @@ export function SessionPanel({
             </p>
           </div>
         ) : (
-          <div className="space-y-0.5">
-            {tree.map((node) => (
-              <RepoNode
-                key={node.fullPath}
-                node={node}
-                collapsed={collapsed}
-                onToggleCollapse={toggleCollapse}
-                activeSessionId={activeSessionId}
-                onSessionSelect={onSessionSelect}
-                expandedIds={expandedIds}
-                onToggleExpand={toggleExpand}
-                onContextMenu={handleContextMenu}
-                displayMode={displayMode}
-                sessionUnread={sessionUnread}
-                staleIds={staleIds}
-              />
-            ))}
-          </div>
+          <SessionTree
+            nodes={tree}
+            collapsed={collapsed}
+            onToggleCollapse={toggleCollapse}
+            activeSessionId={activeSessionId}
+            onSessionSelect={onSessionSelect}
+            expandedIds={expandedIds}
+            onToggleExpand={toggleExpand}
+            onContextMenu={handleContextMenu}
+            displayMode={displayMode}
+            sessionUnread={sessionUnread}
+            staleIds={staleIds}
+          />
         )}
       </div>
 
@@ -424,415 +388,5 @@ export function SessionPanel({
         />
       )}
     </div>
-  );
-}
-
-// ─── Filter Chip ──────────────────────────────────────────────────
-
-function FilterChip({
-  label,
-  value,
-  options,
-  onChange,
-  formatOption,
-}: {
-  label: string;
-  value: string | null;
-  options: string[];
-  onChange: (value: string | null) => void;
-  formatOption?: (opt: string) => string;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const displayLabel = value ? (formatOption ? formatOption(value) : value) : `All ${label}s`;
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`text-[11px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
-          value
-            ? "border-accent-border bg-accent-muted text-accent"
-            : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:text-ov-text"
-        }`}
-      >
-        {label}: {displayLabel}
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-40 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
-          <button
-            type="button"
-            className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors ${
-              !value
-                ? "text-ov-text bg-ov-bg-active"
-                : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
-            }`}
-            onClick={() => {
-              onChange(null);
-              setOpen(false);
-            }}
-          >
-            All {label}s
-          </button>
-          {options.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              className={`w-full text-left px-3 py-1 text-xs cursor-pointer transition-colors truncate ${
-                value === opt
-                  ? "text-ov-text bg-ov-bg-active"
-                  : "text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text"
-              }`}
-              onClick={() => {
-                onChange(opt);
-                setOpen(false);
-              }}
-            >
-              {formatOption ? formatOption(opt) : opt}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── RepoNode ─────────────────────────────────────────────────────
-
-function RepoNode({
-  node,
-  collapsed,
-  onToggleCollapse,
-  activeSessionId,
-  onSessionSelect,
-  expandedIds,
-  onToggleExpand,
-  onContextMenu,
-  displayMode,
-  sessionUnread,
-  staleIds,
-}: {
-  node: TreeNode;
-  collapsed: Set<string>;
-  onToggleCollapse: (path: string) => void;
-  activeSessionId: string | null;
-  onSessionSelect: (sessionId: string) => void;
-  expandedIds: Set<string>;
-  onToggleExpand: (id: string) => void;
-  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
-  displayMode: DisplayMode;
-  sessionUnread: Record<string, number>;
-  staleIds: Set<string>;
-}) {
-  const isCollapsed = collapsed.has(node.fullPath);
-  const [showAll, setShowAll] = useState(false);
-  const VISIBLE_LIMIT = 15;
-  const visible = showAll ? node.children : node.children.slice(0, VISIBLE_LIMIT);
-  const hasMore = node.children.length > VISIBLE_LIMIT;
-
-  return (
-    <div>
-      <button
-        type="button"
-        className="flex items-center gap-1 w-full px-1.5 py-1 rounded-md text-[11px] font-medium text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text cursor-pointer"
-        onClick={() => onToggleCollapse(node.fullPath)}
-        title={node.fullPath}
-      >
-        <ChevronRight
-          size={12}
-          className={`shrink-0 transition-transform text-ov-text-secondary ${!isCollapsed ? "rotate-90" : ""}`}
-        />
-        <span className="truncate flex-1 text-left">{node.name}</span>
-        <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
-      </button>
-      {!isCollapsed && (
-        <div className="space-y-px mt-px">
-          {visible.map((child) => {
-            const session = child.session;
-            if (!session) return null;
-            return (
-              <SessionRow
-                key={session.id}
-                session={session}
-                childNodes={child.children}
-                isActive={session.id === activeSessionId}
-                activeSessionId={activeSessionId}
-                onSessionSelect={onSessionSelect}
-                expandedIds={expandedIds}
-                onToggleExpand={onToggleExpand}
-                onContextMenu={onContextMenu}
-                displayMode={displayMode}
-                unreadCount={sessionUnread[session.id] || 0}
-                staleIds={staleIds}
-              />
-            );
-          })}
-          {hasMore && !showAll && (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              className="w-full text-center text-[11px] text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover px-1.5 py-1 rounded cursor-pointer transition-colors"
-            >
-              +{node.children.length - VISIBLE_LIMIT} more
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── SessionRow ───────────────────────────────────────────────────
-
-function SessionRow({
-  session,
-  childNodes,
-  isActive,
-  activeSessionId,
-  onSessionSelect,
-  expandedIds,
-  onToggleExpand,
-  onContextMenu,
-  displayMode,
-  unreadCount = 0,
-  compact = false,
-  staleIds,
-}: {
-  session: Session;
-  childNodes: TreeNode[];
-  isActive: boolean;
-  activeSessionId: string | null;
-  onSessionSelect: (id: string) => void;
-  expandedIds: Set<string>;
-  onToggleExpand: (id: string) => void;
-  onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
-  displayMode: DisplayMode;
-  unreadCount?: number;
-  compact?: boolean;
-  staleIds?: Set<string>;
-}) {
-  const subCount = childNodes.length;
-  const subsVisible = expandedIds.has(session.id);
-  const isStale = staleIds ? staleIds.has(session.id) : false;
-
-  const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData("text/plain", session.id);
-    e.dataTransfer.effectAllowed = "copy";
-  };
-
-  const handleClick = () => {
-    if (isActive) {
-      onToggleExpand(session.id);
-    } else {
-      onSessionSelect(session.id);
-    }
-  };
-
-  const childContent = subCount > 0 && subsVisible && (
-    <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
-      {childNodes.map((child) => {
-        const childSession = child.session;
-        if (!childSession) return null;
-        return (
-          <SessionRow
-            key={childSession.id}
-            session={childSession}
-            childNodes={child.children}
-            isActive={childSession.id === activeSessionId}
-            activeSessionId={activeSessionId}
-            onSessionSelect={onSessionSelect}
-            expandedIds={expandedIds}
-            onToggleExpand={onToggleExpand}
-            onContextMenu={onContextMenu}
-            displayMode={displayMode}
-            compact={true}
-            staleIds={staleIds}
-          />
-        );
-      })}
-    </div>
-  );
-
-  if (compact) {
-    return (
-      <div>
-        <button
-          type="button"
-          draggable
-          onDragStart={handleDragStart}
-          onClick={handleClick}
-          onContextMenu={(e) => onContextMenu(session.id, e)}
-          title={session.directory || session.repository}
-          className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-            isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-          } ${isStale && !isActive ? "sess-session-stale" : ""}`}
-        >
-          {subCount > 0 ? (
-            <ChevronRight
-              size={10}
-              className={`shrink-0 text-accent/80 transition-transform ${subsVisible ? "rotate-90" : ""}`}
-            />
-          ) : (
-            <ArrowRight size={10} className="text-accent/80 shrink-0" />
-          )}
-          <span className="text-[11px] truncate flex-1">
-            {session.subAgent ? (
-              <span className="text-ov-text-secondary">{session.subAgent}: </span>
-            ) : null}
-            {sessionTitle(session)}
-          </span>
-          <span className="text-[11px] opacity-60 tabular-nums shrink-0">
-            {relativeTime(session.updatedAt)}
-          </span>
-        </button>
-        {childContent}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        type="button"
-        draggable
-        onDragStart={handleDragStart}
-        onClick={handleClick}
-        onContextMenu={(e) => onContextMenu(session.id, e)}
-        title={session.directory || session.repository}
-        className={`session-draggable sess-parent-session w-full text-left transition-all ${
-          isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-        } ${isStale && !isActive ? "sess-session-stale" : ""}`}
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span
-            className={`sess-parent-session-title truncate flex-1 ${isActive ? "text-ov-text" : "text-ov-text"}`}
-          >
-            {sessionTitle(session)}
-          </span>
-          {subCount > 0 && !subsVisible && (
-            <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
-              {subCount}
-            </span>
-          )}
-          {unreadCount > 0 && (
-            <span
-              title={`${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`}
-              className="shrink-0 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-          <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
-            {relativeTime(session.updatedAt)}
-          </span>
-        </div>
-        {sessionMetaParts(session).length > 0 && (
-          <p className="sess-parent-session-meta truncate mt-0.5">
-            {sessionMetaParts(session).join(" · ")}
-          </p>
-        )}
-        {displayMode === "verbose" && <VerboseStats session={session} />}
-      </button>
-      {childContent}
-    </div>
-  );
-}
-
-// ─── VerboseStats ────────────────────────────────────────────────
-
-function hideCosts(): boolean {
-  try {
-    return localStorage.getItem("omnivue-hide-costs") === "true";
-  } catch {
-    return false;
-  }
-}
-
-function VerboseStats({ session }: { session: Session }) {
-  const totalTokens =
-    session.tokensInput + session.tokensOutput + session.tokensCacheRead + session.tokensCacheWrite;
-  const parts: ReactNode[] = [];
-  const costsVisible = !hideCosts();
-
-  const model = shortModel(session.model);
-  if (model) {
-    parts.push(
-      <span key="model" title="Model">
-        {model}
-      </span>,
-    );
-  }
-
-  if (totalTokens > 0) {
-    parts.push(
-      <span
-        key="tokens"
-        title={`${session.tokensInput.toLocaleString()} in / ${session.tokensCacheRead.toLocaleString()} cached / ${session.tokensOutput.toLocaleString()} out`}
-      >
-        {formatTokens(totalTokens)}
-      </span>,
-    );
-  }
-  if (session.cost > 0 && costsVisible) {
-    parts.push(
-      <span key="cost" title="Cost">
-        {formatCost(session.cost)}
-      </span>,
-    );
-  }
-
-  if (parts.length === 0) return null;
-
-  return (
-    <p className="sess-parent-session-meta truncate mt-0.5">
-      {parts.flatMap((part, i) =>
-        i === 0
-          ? [part]
-          : [
-              <span key={`dot-${i}`} className="mx-1">
-                ·
-              </span>,
-              part,
-            ],
-      )}
-    </p>
-  );
-}
-
-// ─── Small SVG icons ──────────────────────────────────────────────
-
-function IconBtn({
-  children,
-  onClick,
-  title,
-  active = false,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-  title: string;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`cursor-pointer p-0.5 rounded ${
-        active ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

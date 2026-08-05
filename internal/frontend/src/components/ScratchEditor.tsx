@@ -10,7 +10,7 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import Editor from "@monaco-editor/react";
 import { Copy, Check, Lock, Minimize2, Maximize2 } from "lucide-react";
-import { getScratchFile, updateScratchFile } from "../hooks/useApi";
+import { getScratchFile, updateScratchFile } from "../hooks/apiClient";
 import { useCopy } from "../hooks/useCopy";
 import { markdownToHtml, htmlToMarkdown } from "../utils/scratchMarkdown";
 import { useToast } from "../hooks/useToast";

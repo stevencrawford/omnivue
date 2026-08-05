@@ -1,6 +1,6 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { ChevronRight, Info } from "lucide-react";
-import type { ToolCall } from "../hooks/useApi";
+import type { ToolCall } from "../hooks/types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { detectLanguage } from "../utils/detectLanguage";
 import { MarkdownContent } from "./MarkdownContent";

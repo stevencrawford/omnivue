@@ -26,19 +26,19 @@ const activeViewWindow = 5 * time.Minute
 // the distinct store roles it needs so it can be driven in isolation from the
 // poll loop.
 type Notifier struct {
-	hub   *SessionHub
-	notif store.NotificationStore
-	cfg   store.ConfigStore
-	tags  store.TagStore
-	bus   *EventBus
+	reader SessionReader
+	notif  store.NotificationStore
+	cfg    store.ConfigStore
+	tags   store.TagStore
+	bus    *EventBus
 
 	activeViewsMu sync.Mutex
 	activeViews   map[string]time.Time
 }
 
-func NewNotifier(hub *SessionHub, notifs store.NotificationStore, cfg store.ConfigStore, tags store.TagStore, bus *EventBus) *Notifier {
+func NewNotifier(reader SessionReader, notifs store.NotificationStore, cfg store.ConfigStore, tags store.TagStore, bus *EventBus) *Notifier {
 	return &Notifier{
-		hub:         hub,
+		reader:      reader,
 		notif:       notifs,
 		cfg:         cfg,
 		tags:        tags,
@@ -91,8 +91,10 @@ func (n *Notifier) ReportActiveView(sessionID string) {
 }
 
 // ClassifyChanges inspects the changed sessions, runs the pure classifier, and
-// persists+emits any resulting notifications. It must not block the poll loop,
-// so callers always invoke it in a goroutine.
+// persists+emits any resulting notifications. It runs synchronously inside the
+// Pipeline's Refresh/RefreshLiveness passes; the Pipeline itself is invoked in
+// a goroutine by its callers, so classification never stalls a request or the
+// poll loop.
 func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, transitions []statusTransition) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -126,7 +128,7 @@ func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, tra
 
 	var emittedAny bool
 	for _, sid := range changedIDs {
-		sess, err := n.hub.Session(ctx, sid)
+		sess, err := n.reader.Session(ctx, sid)
 		if err != nil || sess == nil {
 			continue
 		}
@@ -135,7 +137,7 @@ func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, tra
 			n.AdvanceSeenCursor(ctx, sess)
 			continue
 		}
-		msgs, err := n.hub.Messages(ctx, sess.ID)
+		msgs, err := n.reader.Messages(ctx, sess.ID)
 		if err != nil {
 			continue
 		}
@@ -202,7 +204,7 @@ func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, tra
 // session without classifying. Used when notifications are disabled.
 func (n *Notifier) AdvanceSeenCursors(ctx context.Context, changedIDs []string) {
 	for _, sid := range changedIDs {
-		sess, err := n.hub.Session(ctx, sid)
+		sess, err := n.reader.Session(ctx, sid)
 		if err != nil || sess == nil {
 			continue
 		}
@@ -214,7 +216,7 @@ func (n *Notifier) AdvanceSeenCursor(ctx context.Context, sess *ingest.Session) 
 	if n.notif == nil || sess == nil {
 		return
 	}
-	msgs, err := n.hub.Messages(ctx, sess.ID)
+	msgs, err := n.reader.Messages(ctx, sess.ID)
 	if err != nil {
 		return
 	}

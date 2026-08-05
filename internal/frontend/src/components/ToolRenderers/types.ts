@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 
 export type ToolCardDisplay =
   | { type: "expandable"; defaultOpen?: boolean }

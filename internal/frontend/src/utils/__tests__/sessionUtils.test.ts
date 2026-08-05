@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentLabel, shortModel, formatTokens, sessionMetaParts, shortDir } from "../sessionUtils";
-import type { Session } from "../../hooks/useApi";
+import type { Session } from "../../hooks/types";
 
 describe("agentLabel", () => {
   it("returns OpenCode for opencode", () => {

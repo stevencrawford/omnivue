@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { Message } from "../hooks/useApi";
+import type { Message } from "../hooks/types";
 
 function highlightDomTextNodes(root: Element, q: string) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {

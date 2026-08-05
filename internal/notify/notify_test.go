@@ -300,6 +300,53 @@ func TestInQuietHours_Disabled(t *testing.T) {
 	}
 }
 
+func TestResolveEnabledAt_FirstEnableStampsNow(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	got := ResolveEnabledAt(Settings{}, Settings{Enabled: true}, now)
+	if got != now.UnixMilli() {
+		t.Errorf("ResolveEnabledAt(first enable) = %d, want %d", got, now.UnixMilli())
+	}
+}
+
+func TestResolveEnabledAt_ReenableAfterDisabledStampsNow(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	prev := Settings{Enabled: false, EnabledAt: 0}
+	got := ResolveEnabledAt(prev, Settings{Enabled: true}, now)
+	if got != now.UnixMilli() {
+		t.Errorf("ResolveEnabledAt(reenable) = %d, want %d", got, now.UnixMilli())
+	}
+}
+
+func TestResolveEnabledAt_DisableClears(t *testing.T) {
+	got := ResolveEnabledAt(Settings{Enabled: true, EnabledAt: 123}, Settings{Enabled: false}, time.Now())
+	if got != 0 {
+		t.Errorf("ResolveEnabledAt(disable) = %d, want 0", got)
+	}
+}
+
+func TestResolveEnabledAt_UnchangedSaveKeeps(t *testing.T) {
+	prev := Settings{Enabled: true, EnabledAt: 123}
+	got := ResolveEnabledAt(prev, Settings{Enabled: true}, time.Now())
+	if got != 123 {
+		t.Errorf("ResolveEnabledAt(unchanged) = %d, want 123", got)
+	}
+}
+
+func TestSettings_Suppresses(t *testing.T) {
+	enabledAt := time.UnixMilli(2_000)
+	settings := Settings{Enabled: true, EnabledAt: enabledAt.UnixMilli()}
+
+	if !settings.suppresses(time.UnixMilli(1_000)) {
+		t.Error("expected message before EnabledAt to be suppressed")
+	}
+	if settings.suppresses(time.UnixMilli(3_000)) {
+		t.Error("expected message after EnabledAt not to be suppressed")
+	}
+	if settings.suppresses(time.Time{}) {
+		t.Error("expected zero timestamp not to be suppressed")
+	}
+}
+
 func hasKind(cands []Candidate, k Kind) bool {
 	for _, c := range cands {
 		if c.Kind == k {

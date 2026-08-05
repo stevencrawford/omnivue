@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { ChevronDown, ArrowRight } from "lucide-react";
 import type { ToolRendererDefinition, ToolRendererProps } from "./types";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 import CopyButton from "./CopyButton";
 import { BookmarkButton } from "./BookmarkButton";
 import { useSessionNav } from "../../hooks/useNav";

@@ -1,4 +1,4 @@
-import type { Session } from "../hooks/useApi";
+import type { Session } from "../hooks/types";
 
 export type SortMode = "recent" | "name" | "agent" | "cost-asc" | "cost-desc";
 
