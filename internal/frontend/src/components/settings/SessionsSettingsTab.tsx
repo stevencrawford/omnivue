@@ -3,6 +3,7 @@ import {
   STALE_DAYS_MIN,
   STALE_DAYS_MAX,
 } from "../../hooks/useSessionListSettings";
+import { Toggle } from "../Toggle";
 
 export function SessionsSettingsTab() {
   const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();
@@ -16,19 +17,12 @@ export function SessionsSettingsTab() {
         Control how the session list is displayed.
       </p>
 
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={hideStale}
-          onChange={(e) => setHideStale(e.target.checked)}
-          className="accent-accent"
-        />
-        <span className="text-xs text-ov-text">Hide completed sessions</span>
-      </label>
-      <p className="text-[11px] text-ov-text-secondary mt-1 ml-5">
-        Keep the list focused on active and recent work. Older completed sessions are tucked away
-        and can be revealed from the sidebar.
-      </p>
+      <Toggle
+        checked={hideStale}
+        onChange={setHideStale}
+        label="Hide completed sessions"
+        hint="Keep the list focused on active and recent work. Older completed sessions are tucked away and can be revealed from the sidebar."
+      />
 
       <div className={`mt-4 ${hideStale ? "" : "opacity-50 pointer-events-none"}`}>
         <label

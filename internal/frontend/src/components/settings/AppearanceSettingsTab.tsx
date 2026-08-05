@@ -1,6 +1,7 @@
 import { useTheme, THEME_OPTIONS } from "../../hooks/useTheme";
 import type { ThemeName, ThemeMode, ThemeContrast } from "../../hooks/useTheme";
 import { setConfig } from "../../hooks/apiClient";
+import { Toggle } from "../Toggle";
 
 const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
   default: {
@@ -140,28 +141,13 @@ export function AppearanceSettingsTab() {
         ))}
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-ov-border px-3 py-2.5">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-ov-text">High contrast</p>
-          <p className="text-[11px] text-ov-text-secondary">
-            Stronger colors for reduced-vision accessibility. Defaults to your system preference.
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={contrast === "high"}
-          onClick={() => handleContrastChange(contrast === "high" ? "default" : "high")}
-          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors cursor-pointer ${
-            contrast === "high" ? "bg-accent" : "bg-ov-bg-active"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 size-4 rounded-full bg-ov-bg-secondary shadow transition-all ${
-              contrast === "high" ? "left-[18px]" : "left-0.5"
-            }`}
-          />
-        </button>
+      <div className="mt-4">
+        <Toggle
+          checked={contrast === "high"}
+          onChange={(high) => handleContrastChange(high ? "high" : "default")}
+          label="High contrast"
+          hint="Stronger colors for reduced-vision accessibility. Defaults to your system preference."
+        />
       </div>
     </div>
   );

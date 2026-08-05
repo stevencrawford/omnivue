@@ -2434,12 +2434,6 @@ body {
    Kept at the end and scoped with [data-mode] so it wins ties against
    the per-theme palettes above regardless of declaration order.     */
 
-.sess-icon-btn--active {
-  background: var(--color-accent-muted);
-  border-color: var(--color-accent-border);
-  color: var(--color-accent);
-}
-
 [data-contrast="high"][data-mode="light"] {
   color-scheme: light;
   --color-ov-bg: #ffffff;
