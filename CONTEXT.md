@@ -53,3 +53,17 @@ prefix stripped, and the in-harness `/resume <id>` (or opencode's `/session <id>
   and `AgentCommand(id)`.
 - **Seam:** the six adapters return their static `Spec`; the hub renders the `ResumeSpec`;
   the terminal module consumes the rendered string at the edge.
+
+## Tool-kind vocabulary
+
+The one place that says what a tool-call name *means* to consumers downstream of
+canonicalization. `CanonicalizeToolName` answers "what is this tool called?"; the vocabulary
+answers "what role does it play?" — question, permission request, task completion, or plan
+content. One name can signal more than one kind (a `task_complete` call is both a completion
+signal and searchable plan content), so a name maps to a set of kinds.
+
+- **Module:** `internal/ingest/ingestkit` — pure.
+- **Interface:** `KindsOf(name) []ToolKind` and `HasKind(name, kind) bool`, with
+  `KindQuestion`, `KindPermission`, `KindTaskComplete`, `KindPlan`.
+- **Seam:** the notifier (`internal/notify`) and the search indexer (`internal/server`) both
+  consume it; neither maintains its own tool-name literal set.
