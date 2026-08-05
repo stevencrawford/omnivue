@@ -12,11 +12,23 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/pi"
 )
 
-// TestAdapterCapabilities pins each adapter's declared capability set. The
-// Planner/Differ/Editor seams are optional: an adapter that does not implement
-// an interface must not carry a stub method, and one that does must be
-// detectable by the hub's type assertions. Adding or removing a capability is
-// an intentional change to the table and the adapter's behavior together.
+// TestAdapterCapabilities pins each adapter's declared capability set against
+// its actual behavior. The Planner/Differ/Editor seams are optional: an
+// adapter that does not implement an interface must not carry a stub method,
+// and one that does must be detectable by the hub's type assertions. Adding or
+// removing a capability is an intentional change to the table and the adapter
+// together.
+//
+// This table verifies the *method-presence* half of "actual behavior": the
+// no-stub rule means presence (or absence) of the method IS the declaration,
+// and the assertions below fail if a flag disagrees with what the adapter
+// really implements. The *data-output* half — that a flagged capability
+// returns non-empty results against real data — is proven by each adapter
+// package's own functional tests: codex and copilot run
+// TestAdapter_GetPlan/GetDiffs/GetEdits, cursor runs GetDiffs/GetEdits (no
+// plan), and claude-code runs GetDiffs/GetPlan*/GetEdits*. These suites keep
+// the seam honest with live data, so this table only must not drift from the
+// declared interface set.
 func TestAdapterCapabilities(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -59,7 +59,7 @@ func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error
 func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)       { return nil, nil }
 func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error) { return nil, nil }
 func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error) { return nil, nil }
-func (m *mockAdapter) ResumeCommand() *resumecmd.Spec { return &resumecmd.Spec{Binary: "echo", Flag: "resume"} }
+func (m *mockAdapter) ResumeCommand() resumecmd.Spec { return resumecmd.Spec{Binary: "echo", Flag: "resume"} }
 func (m *mockAdapter) LastModified(context.Context) (int64, error)              { return 0, nil }
 func (m *mockAdapter) Close() error                                             { return nil }
 

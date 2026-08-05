@@ -60,8 +60,8 @@ func New(basePath string) (*Adapter, error) {
 
 var codexResumeSpec = resumecmd.Spec{Binary: "codex", Flag: "resume"}
 
-func (a *Adapter) ResumeCommand() *resumecmd.Spec {
-	return &codexResumeSpec
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return codexResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

@@ -25,6 +25,14 @@ func TestSpecCommand(t *testing.T) {
 	}
 }
 
+// Command falls back to "." when the dir is empty.
+func TestSpecCommandEmptyDir(t *testing.T) {
+	spec := Spec{Binary: "pi", Flag: "--session"}
+	if got := spec.Command("", "abc"); got != "cd . && pi --session abc" {
+		t.Errorf("Command(\"\", ...) = %q, want %q", got, "cd . && pi --session abc")
+	}
+}
+
 func TestSpecCommandNoCD(t *testing.T) {
 	cases := []struct {
 		name string

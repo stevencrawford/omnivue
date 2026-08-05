@@ -55,8 +55,8 @@ func New(basePath string) (*Adapter, error) {
 
 var copilotResumeSpec = resumecmd.Spec{Binary: "copilot", Flag: "--resume", Sep: "="}
 
-func (a *Adapter) ResumeCommand() *resumecmd.Spec {
-	return &copilotResumeSpec
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return copilotResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

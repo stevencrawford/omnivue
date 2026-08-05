@@ -41,8 +41,8 @@ func New(basePath string) (*Adapter, error) {
 
 var opencodeResumeSpec = resumecmd.Spec{Binary: "opencode", Flag: "-s", Verb: "/session"}
 
-func (a *Adapter) ResumeCommand() *resumecmd.Spec {
-	return &opencodeResumeSpec
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return opencodeResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

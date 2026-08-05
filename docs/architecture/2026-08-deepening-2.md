@@ -299,9 +299,10 @@ re-reading the whole table.
   (hub.go:190,202,214) are now meaningful. New `TestAdapterCapabilities` table pins all six
   adapters' declared capabilities. **ATH-20:** new pure `internal/resumecmd` module owns the
   `cd %s && <bin> <flag> <id>` template (`Spec{Binary,Flag,Sep,Verb}` → `Command`/`CommandNoCD`/
-  `AgentCommand`); `SessionSource.ResumeCommand()` returns the structured `*resumecmd.Spec`; hub
+  `AgentCommand`); `SessionSource.ResumeCommand()` returns the structured `resumecmd.Spec`; hub
   renders the `ResumeSpec` and no longer imports `internal/terminal`; `terminal.ExtractCmd`
   deleted; `ResumeSpec.Absolute/Relative` renamed `Command`/`CommandNoCD` (JSON wire keys
-  unchanged); empty directory normalized to `.` in the hub. Per-adapter resume + `AgentCommand`
-  tests added for all six (opencode/copilot gained tests). Backend gates green
+  unchanged); the empty-directory → `.` fallback lives in `resumecmd.Spec.Command` and the
+  `ResumeSpec.Directory` field stays the raw session directory. Per-adapter resume +
+  `AgentCommand` tests added for all six (opencode/copilot gained tests). Backend gates green
   (`go build`, `golangci-lint`, `gostyle`, `go test`, `make test`); `resumecmd` at 100% coverage.

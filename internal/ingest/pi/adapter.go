@@ -54,8 +54,8 @@ func New(basePath string) (*Adapter, error) {
 
 var piResumeSpec = resumecmd.Spec{Binary: "pi", Flag: "--session"}
 
-func (a *Adapter) ResumeCommand() *resumecmd.Spec {
-	return &piResumeSpec
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return piResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

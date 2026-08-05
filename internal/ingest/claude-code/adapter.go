@@ -75,8 +75,8 @@ func New(basePath string) (*Adapter, error) {
 
 var claudeResumeSpec = resumecmd.Spec{Binary: "claude", Flag: "-r"}
 
-func (a *Adapter) ResumeCommand() *resumecmd.Spec {
-	return &claudeResumeSpec
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return claudeResumeSpec
 }
 
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {

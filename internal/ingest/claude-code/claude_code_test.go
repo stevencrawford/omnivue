@@ -137,8 +137,9 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 		t.Error("expected non-zero last modified")
 	}
 
+	spec := a.ResumeCommand()
 	for _, s := range sessions {
-		cmd := a.ResumeCommand().Command(s.Directory, s.ID)
+		cmd := spec.Command(s.Directory, s.ID)
 		if !strings.Contains(cmd, "claude") {
 			t.Errorf("unexpected resume command: %s", cmd)
 		}
@@ -604,12 +605,13 @@ func TestResumeCommand(t *testing.T) {
 		Directory: "/home/user/project",
 	}
 
-	cmd := a.ResumeCommand().Command(s.Directory, s.ID)
+	spec := a.ResumeCommand()
+	cmd := spec.Command(s.Directory, s.ID)
 	expected := `cd /home/user/project && claude -r sess-001`
 	if cmd != expected {
 		t.Errorf("ResumeCommand() = %q, want %q", cmd, expected)
 	}
-	if agent := a.ResumeCommand().AgentCommand(s.ID); agent != "/resume sess-001" {
+	if agent := spec.AgentCommand(s.ID); agent != "/resume sess-001" {
 		t.Errorf("AgentCommand() = %q, want %q", agent, "/resume sess-001")
 	}
 }

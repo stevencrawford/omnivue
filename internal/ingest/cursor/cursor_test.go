@@ -205,12 +205,13 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 		t.Skip("no sessions available")
 	}
 
-	cmd := adapter.ResumeCommand().Command(testSessions[0].Directory, testSessions[0].ID)
+	spec := adapter.ResumeCommand()
+	cmd := spec.Command(testSessions[0].Directory, testSessions[0].ID)
 	if cmd == "" {
 		t.Error("resume command is empty")
 	}
 	t.Logf("Resume command: %s", cmd)
-	if agent := adapter.ResumeCommand().AgentCommand(testSessions[0].ID); agent != "/resume "+testSessions[0].ID {
+	if agent := spec.AgentCommand(testSessions[0].ID); agent != "/resume "+testSessions[0].ID {
 		t.Errorf("agent command = %q, want %q", agent, "/resume "+testSessions[0].ID)
 	}
 }

@@ -223,13 +223,9 @@ func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (*Resu
 		return nil, err
 	}
 	spec := adapter.ResumeCommand()
-	dir := sess.Directory
-	if dir == "" {
-		dir = "."
-	}
 	return &ResumeSpec{
-		Directory:    dir,
-		Command:      spec.Command(dir, sess.ID),
+		Directory:    sess.Directory,
+		Command:      spec.Command(sess.Directory, sess.ID),
 		CommandNoCD:  spec.CommandNoCD(sess.ID),
 		AgentCommand: spec.AgentCommand(sess.ID),
 	}, nil

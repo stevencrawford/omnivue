@@ -319,7 +319,8 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 		t.Fatalf("Session() failed: %v", err)
 	}
 
-	cmd := adapter.ResumeCommand().Command(session.Directory, session.ID)
+	spec := adapter.ResumeCommand()
+	cmd := spec.Command(session.Directory, session.ID)
 	if !strings.HasPrefix(cmd, "cd ") {
 		t.Errorf("resume command should start with 'cd ', got %q", cmd)
 	}
@@ -329,7 +330,7 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 	if !strings.Contains(cmd, session.ID) {
 		t.Errorf("resume command should contain session ID %q, got %q", session.ID, cmd)
 	}
-	if agent := adapter.ResumeCommand().AgentCommand(session.ID); agent != "/resume "+session.ID {
+	if agent := spec.AgentCommand(session.ID); agent != "/resume "+session.ID {
 		t.Errorf("agent command = %q, want %q", agent, "/resume "+session.ID)
 	}
 }

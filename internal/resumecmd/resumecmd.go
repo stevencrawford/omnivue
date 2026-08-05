@@ -28,8 +28,12 @@ type Spec struct {
 }
 
 // Command renders the full filesystem command:
-// `cd <dir> && <binary> <flag><sep><id>`.
+// `cd <dir> && <binary> <flag><sep><id>`. An empty dir falls back to "."
+// (the current directory), matching how agents report cwd-less sessions.
 func (s *Spec) Command(dir, id string) string {
+	if dir == "" {
+		dir = "."
+	}
 	return fmt.Sprintf("cd %s && %s %s", dir, s.Binary, s.flagAndID(id))
 }
 

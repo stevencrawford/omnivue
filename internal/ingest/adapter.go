@@ -18,7 +18,7 @@ type SessionSource interface {
 	ListSessions(ctx context.Context) ([]Session, error)
 	Session(ctx context.Context, id string) (*Session, error)
 	Messages(ctx context.Context, sessionID string) ([]Message, error)
-	ResumeCommand() *resumecmd.Spec
+	ResumeCommand() resumecmd.Spec
 	LastModified(ctx context.Context) (int64, error)
 	Close() error
 }

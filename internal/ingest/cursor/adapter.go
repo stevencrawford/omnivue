@@ -63,8 +63,8 @@ func New(vscdbPath string) (*Adapter, error) {
 
 var cursorResumeSpec = resumecmd.Spec{Binary: "cursor", Flag: "--composer"}
 
-func (a *Adapter) ResumeCommand() *resumecmd.Spec {
-	return &cursorResumeSpec
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return cursorResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
