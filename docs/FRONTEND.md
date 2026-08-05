@@ -242,6 +242,7 @@ All use `omnivue-` prefix:
 |-----|---------|-----------|
 | `omnivue-theme` | Theme name | `useTheme` |
 | `omnivue-mode` | Light/dark mode | `useTheme` |
+| `omnivue-contrast` | High contrast (`default`/`high`) | `useTheme` |
 | `omnivue-hide-costs` | Hide cost display | `SettingsModal` |
 | `omnivue-sidebar-width` | Sidebar width | `Sidebar` |
 | `omnivue-sidebar-collapsed` | Collapsed repo groups | `SessionPanel` |

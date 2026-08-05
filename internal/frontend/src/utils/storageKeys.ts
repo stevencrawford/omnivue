@@ -1,6 +1,7 @@
 export const STORAGE_KEYS = {
   THEME: "omnivue-theme",
   MODE: "omnivue-mode",
+  CONTRAST: "omnivue-contrast",
   HIDE_COSTS: "omnivue-hide-costs",
   SIDEBAR_WIDTH: "omnivue-sidebar-width",
   SIDEBAR_COLLAPSED: "omnivue-sidebar-collapsed",

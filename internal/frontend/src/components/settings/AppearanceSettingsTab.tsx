@@ -1,6 +1,7 @@
 import { useTheme, THEME_OPTIONS } from "../../hooks/useTheme";
-import type { ThemeName, ThemeMode } from "../../hooks/useTheme";
+import type { ThemeName, ThemeMode, ThemeContrast } from "../../hooks/useTheme";
 import { setConfig } from "../../hooks/apiClient";
+import { Toggle } from "../Toggle";
 
 const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
   default: {
@@ -42,7 +43,7 @@ const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
 };
 
 export function AppearanceSettingsTab() {
-  const { themeName, setThemeName, themeMode, setThemeMode } = useTheme();
+  const { themeName, setThemeName, themeMode, setThemeMode, contrast, setContrast } = useTheme();
 
   const handleThemeNameChange = async (name: ThemeName) => {
     setThemeName(name);
@@ -60,6 +61,10 @@ export function AppearanceSettingsTab() {
     } catch {
       /* ignore */
     }
+  };
+
+  const handleContrastChange = (value: ThemeContrast) => {
+    setContrast(value);
   };
 
   return (
@@ -129,6 +134,15 @@ export function AppearanceSettingsTab() {
             {m}
           </button>
         ))}
+      </div>
+
+      <div className="mt-4">
+        <Toggle
+          checked={contrast === "high"}
+          onChange={(high) => handleContrastChange(high ? "high" : "default")}
+          label="High contrast"
+          hint="Stronger colors for reduced-vision accessibility. Defaults to your system preference."
+        />
       </div>
     </div>
   );
