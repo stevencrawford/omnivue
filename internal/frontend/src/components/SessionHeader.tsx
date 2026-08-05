@@ -33,6 +33,7 @@ export function SessionHeader({
   const [tagFilter, setTagFilter] = useState("");
   const [tagInitialName, setTagInitialName] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creatingTag, setCreatingTag] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const tagMenuRef = useRef<HTMLDivElement>(null);
@@ -164,6 +165,23 @@ export function SessionHeader({
       setShowCreateModal(false);
     } catch {
       /* ignore */
+    }
+  };
+
+  const handleQuickCreateTag = async () => {
+    const name = tagFilter.trim();
+    if (!name || creatingTag) return;
+    setCreatingTag(true);
+    try {
+      const tag = await createTag(name);
+      await assignTagToSession(tag.id, session.id);
+      await loadSessionTags();
+      bump();
+      setTagMenuOpen(false);
+    } catch {
+      /* ignore */
+    } finally {
+      setCreatingTag(false);
     }
   };
 
@@ -324,9 +342,21 @@ export function SessionHeader({
                 />
                 <div className="max-h-48 overflow-y-auto py-0.5">
                   {filteredTags.length === 0 ? (
-                    <div className="text-[11px] text-ov-text-secondary px-2.5 py-2 text-center">
-                      No tags yet
-                    </div>
+                    tagFilter.trim() ? (
+                      <button
+                        type="button"
+                        disabled={creatingTag}
+                        onClick={handleQuickCreateTag}
+                        className="w-full text-left flex items-center gap-2 px-2.5 py-2 text-xs text-accent hover:bg-ov-bg-hover cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus size={12} />
+                        <span className="truncate">Create "{tagFilter.trim()}"</span>
+                      </button>
+                    ) : (
+                      <div className="text-[11px] text-ov-text-secondary px-2.5 py-2 text-center">
+                        No tags yet
+                      </div>
+                    )
                   ) : (
                     filteredTags.map((tag) => {
                       const assigned = sessionTags.some((t) => t.id === tag.id);
