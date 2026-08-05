@@ -32,9 +32,9 @@ func NewHandler(dep Dep) http.Handler {
 	// API routes
 	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub))
 	mux.HandleFunc("GET /_/api/sources", handleSources(dep.Sources))
-	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, newFanout(dep.Hub, dep.Indexer, dep.Notifier, dep.Bus)))
-	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Hub, dep.Sources, dep.Bus))
-	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(newFanout(dep.Hub, dep.Indexer, dep.Notifier, dep.Bus), dep.Sources))
+	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, dep.Pipeline))
+	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Pipeline, dep.Sources))
+	mux.HandleFunc("PATCH /_/api/sources/{id}", handleUpdateSource(dep.Pipeline, dep.Sources))
 	mux.HandleFunc("GET /_/api/sources/discover", handleDiscoverSources())
 	mux.HandleFunc("GET /_/api/config", handleGetConfig(dep.Config))
 	mux.HandleFunc("PUT /_/api/config", handleSetConfig(dep.Config))
@@ -133,7 +133,7 @@ func handleSources(sources store.SourceStore) http.HandlerFunc {
 	}
 }
 
-func handleAddSource(sources store.SourceStore, f *fanout) http.HandlerFunc {
+func handleAddSource(sources store.SourceStore, p *Pipeline) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Path      string `json:"path"`
@@ -187,31 +187,30 @@ func handleAddSource(sources store.SourceStore, f *fanout) http.HandlerFunc {
 			if adapter, err := ingest.CreateAdapter(src); err != nil {
 				slog.Warn("failed to create adapter for new source", "source", src.Path, "error", err)
 			} else {
-				f.hub.AddAdapter(src.ID, adapter)
+				p.hub.AddAdapter(src.ID, adapter)
 			}
 		}
-		go f.refreshAndIndex(context.WithoutCancel(r.Context()))
+		go p.Refresh(context.WithoutCancel(r.Context()))
 		writeCreated(w, src)
 	}
 }
 
-func handleRemoveSource(hub *SessionHub, sources store.SourceStore, bus *EventBus) http.HandlerFunc {
+func handleRemoveSource(p *Pipeline, sources store.SourceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		hub.RemoveAdapter(id)
+		p.hub.RemoveAdapter(id)
 		if sources != nil {
 			if err := sources.RemoveSource(id); err != nil {
 				writeError(w, err)
 				return
 			}
 		}
-		hub.refreshSessions(r.Context())
-		bus.Send(sseEvent{Name: "update"})
+		go p.Refresh(context.WithoutCancel(r.Context()))
 		writeNoContent(w)
 	}
 }
 
-func handleUpdateSource(f *fanout, sources store.SourceStore) http.HandlerFunc {
+func handleUpdateSource(p *Pipeline, sources store.SourceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		var body struct {
@@ -228,7 +227,7 @@ func handleUpdateSource(f *fanout, sources store.SourceStore) http.HandlerFunc {
 			writeError(w, badRequest("path is required"))
 			return
 		}
-		f.hub.RemoveAdapter(id)
+		p.hub.RemoveAdapter(id)
 		if sources != nil {
 			if err := sources.UpdateSource(id, body.Path, body.AgentType, body.Label, body.Enabled); err != nil {
 				writeError(w, err)
@@ -239,12 +238,12 @@ func handleUpdateSource(f *fanout, sources store.SourceStore) http.HandlerFunc {
 					if adapter, err := ingest.CreateAdapter(*src); err != nil {
 						slog.Warn("failed to create adapter for updated source", "source", src.Path, "error", err)
 					} else {
-						f.hub.AddAdapter(id, adapter)
+						p.hub.AddAdapter(id, adapter)
 					}
 				}
 			}
 		}
-		go f.refreshAndIndex(context.WithoutCancel(r.Context()))
+		go p.Refresh(context.WithoutCancel(r.Context()))
 		writeNoContent(w)
 	}
 }

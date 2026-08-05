@@ -40,7 +40,7 @@ Goals / Files / Seam / Acceptance / Tests card.
 
 | # | Task | Rank | Wave | Status |
 |----|------|------|------|--------|
-| ATH-18 | One refresh pipeline (kill the poller's split-brain) | H | 0 | open |
+| ATH-18 | One refresh pipeline (kill the poller's split-brain) | H | 0 | done |
 | ATH-19 | Collapse the ingest `Adapter`'s vestigial optionality | H | 1 | open |
 | ATH-20 | Resume-command module (domain stops importing the PTY) | M | 1 | open |
 | ATH-21 | Single tool-kind vocabulary (notify + indexer) | M | 2 | open |
@@ -270,3 +270,16 @@ re-reading the whole table.
   `architecture-review-1785877277.html`). All tasks `open`.
 - 2026-08-04 — ATH-18 plan locked: synchronous `Pipeline` (`Refresh` + `RefreshLiveness`),
   remove-source routed through it, term recorded in `CONTEXT.md`. Card updated.
+- 2026-08-04 — ATH-18 done. `fanout` renamed to `Pipeline` in `state.go`; single synchronous
+  refresh→index→classify→broadcast path with caller-owned `go`; `RefreshLiveness` drops the
+  poller's idle/live split-brain (caller-supplied previous live count); Poller + `handleAddSource`/
+  `handleRemoveSource`/`handleUpdateSource` route through it on the shared `Dep.Pipeline`
+  instance; remove-source refresh now async like add/update. Integration test rewritten to drive
+  the pipeline synchronously (no deadline polling) + new `RefreshLiveness` determinism test.
+  Backend gates green (`go build`, `golangci-lint`, `gostyle`, `go test`, `make test`).
+- 2026-08-05 — ATH-18 follow-up: `Pipeline.Refresh` now broadcasts `update` + `session-changed`
+  immediately after `refreshSessions` instead of after the full `IndexSessions` pass. The locked
+  plan had broadcast last; in practice the synchronous index pass gated session discovery on a
+  15s re-index over a large store, so startup felt slow. Broadcast-first keeps the single
+  synchronous pipeline (index passes still serialized) while serving the hub cache to clients
+  right away. Verified: first SSE `update` at ~2s vs ~17s before, search still fully indexed.

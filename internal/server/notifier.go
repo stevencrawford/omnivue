@@ -91,8 +91,10 @@ func (n *Notifier) ReportActiveView(sessionID string) {
 }
 
 // ClassifyChanges inspects the changed sessions, runs the pure classifier, and
-// persists+emits any resulting notifications. It must not block the poll loop,
-// so callers always invoke it in a goroutine.
+// persists+emits any resulting notifications. It runs synchronously inside the
+// Pipeline's Refresh/RefreshLiveness passes; the Pipeline itself is invoked in
+// a goroutine by its callers, so classification never stalls a request or the
+// poll loop.
 func (n *Notifier) ClassifyChanges(ctx context.Context, changedIDs []string, transitions []statusTransition) {
 	defer func() {
 		if r := recover(); r != nil {
