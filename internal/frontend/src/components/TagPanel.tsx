@@ -12,6 +12,7 @@ import {
 } from "../hooks/apiClient";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
+import { EditTagModal } from "./EditTagModal";
 import { TagListHeader, type TagSort } from "./tags/TagListHeader";
 import { TagFilterBar } from "./tags/TagFilterBar";
 import { TagRow } from "./tags/TagRow";
@@ -65,8 +66,7 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
     initialExpandedRef.current = getInitialExpanded();
   }
   const [creating, setCreating] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [assigningTag, setAssigningTag] = useState<string | null>(null);
   const [tagSort, setTagSort] = useState<TagSort>(() => {
     try {
@@ -79,7 +79,6 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
   });
   const [tagSortOpen, setTagSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
-  const editRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     saveExpanded(expandedTags);
   }, [expandedTags]);
@@ -137,10 +136,6 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
     });
   }, [filterTag, tags]);
 
-  useEffect(() => {
-    if (editingId) editRef.current?.focus();
-  }, [editingId]);
-
   const handleCreate = async (name: string, color?: string) => {
     try {
       await createTag(name, color);
@@ -152,14 +147,14 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
     bump();
   };
 
-  const handleRename = async (id: string) => {
-    if (!editName.trim()) return;
+  const handleEdit = async (name: string, color?: string) => {
+    if (!editingTag) return;
     try {
-      await updateTag(id, editName.trim());
+      await updateTag(editingTag.id, name, color);
     } catch (err) {
-      console.error("Failed to rename tag:", err);
+      console.error("Failed to update tag:", err);
     }
-    setEditingId(null);
+    setEditingTag(null);
     loadTags();
     bump();
   };
@@ -321,19 +316,10 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
             sessions={sessions}
             tagSessionIds={tagSessions[tag.id] || []}
             expanded={expandedTags.has(tag.id)}
-            editing={editingId === tag.id}
-            editName={editName}
             assigning={assigningTag === tag.id}
             activeSessionId={activeSessionId}
-            editRef={editRef}
             onToggleExpand={() => toggleExpand(tag.id)}
-            onStartEdit={() => {
-              setEditingId(tag.id);
-              setEditName(tag.name);
-            }}
-            onEditNameChange={setEditName}
-            onRename={() => handleRename(tag.id)}
-            onCancelEdit={() => setEditingId(null)}
+            onEdit={() => setEditingTag(tag)}
             onDelete={() => handleDelete(tag.id)}
             onToggleAssign={() => setAssigningTag(assigningTag === tag.id ? null : tag.id)}
             onAssign={(sid) => handleAssign(tag.id, sid)}
@@ -349,6 +335,13 @@ export function TagPanel({ sessions, activeSessionId, onSessionSelect }: TagPane
         isOpen={creating}
         onClose={() => setCreating(false)}
         onCreate={handleCreate}
+      />
+
+      <EditTagModal
+        isOpen={editingTag !== null}
+        tag={editingTag}
+        onClose={() => setEditingTag(null)}
+        onSave={handleEdit}
       />
     </div>
   );
