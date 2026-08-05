@@ -157,7 +157,7 @@ function SessionRow({
   );
 }
 
-function RepoNode({
+function GroupNode({
   node,
   collapsed,
   onToggleCollapse,
@@ -230,15 +230,28 @@ export function SessionTree({
 }) {
   return (
     <div className="space-y-0.5">
-      {nodes.map((node) => (
-        <RepoNode
-          key={node.fullPath}
-          node={node}
-          collapsed={collapsed}
-          onToggleCollapse={onToggleCollapse}
-          {...shared}
-        />
-      ))}
+      {nodes.map((node) =>
+        node.isGroup ? (
+          <GroupNode
+            key={node.fullPath}
+            node={node}
+            collapsed={collapsed}
+            onToggleCollapse={onToggleCollapse}
+            {...shared}
+          />
+        ) : (
+          node.session && (
+            <SessionRow
+              key={node.session.id}
+              session={node.session}
+              childNodes={node.children}
+              isActive={node.session.id === shared.activeSessionId}
+              unreadCount={shared.sessionUnread[node.session.id] || 0}
+              {...shared}
+            />
+          )
+        ),
+      )}
     </div>
   );
 }
