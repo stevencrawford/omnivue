@@ -9,14 +9,10 @@ interface ToggleProps {
 
 export function Toggle({ checked, onChange, label, hint, disabled, className }: ToggleProps) {
   return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-lg border border-ov-border px-3 py-2.5 ${
-        className ?? ""
-      }`}
-    >
+    <div className={`flex items-center justify-between gap-3 ${className ?? ""}`}>
       <div className="min-w-0">
         <p className="text-xs font-medium text-ov-text">{label}</p>
-        {hint && <p className="text-[11px] text-ov-text-secondary">{hint}</p>}
+        {hint && <p className="text-[11px] text-ov-text-secondary mt-0.5">{hint}</p>}
       </div>
       <button
         type="button"
