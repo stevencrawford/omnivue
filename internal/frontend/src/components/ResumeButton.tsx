@@ -1,7 +1,7 @@
 import { ListRestart, Check, FolderOpen, Terminal, MessageSquareCode } from "lucide-react";
 import { useCopy } from "../hooks/useCopy";
 import { fetchResumeCommand } from "../hooks/apiClient";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 function middleTruncate(s: string, max = 60): string {
   if (s.length <= max) return s;
@@ -38,7 +38,7 @@ function OptionPreview({
 
 export function ResumeButton({ sessionId }: { sessionId: string }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [options, setOptions] = useState<{
     absolute: string;
     relative: string;
@@ -48,6 +48,34 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
   const { copied, copy } = useCopy(2000);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRectRef = useRef<{ top: number; right: number; bottom: number } | null>(null);
+  const appliedPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Keep the popup fully on screen: flip above the trigger when it would
+  // overflow the bottom, and clamp horizontally within the viewport.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const menu = menuRef.current;
+    const trigger = triggerRectRef.current;
+    if (!menu || !trigger) return;
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    const gap = 6;
+    let x = trigger.right;
+    let y = trigger.bottom + gap;
+    if (y + mh > window.innerHeight - gap) {
+      y = trigger.top - gap - mh;
+    }
+    // With translateX(-100%), x is the popup's right edge: [x - mw, x].
+    x = Math.min(Math.max(x, gap + mw), window.innerWidth - gap);
+    y = Math.min(Math.max(y, gap), window.innerHeight - gap - mh);
+    const next = { x: Math.round(x), y: Math.round(y) };
+    const applied = appliedPosRef.current;
+    if (!applied || applied.x !== next.x || applied.y !== next.y) {
+      appliedPosRef.current = next;
+      setMenuPos(next);
+    }
+  }, [open, options, loading]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,11 +102,13 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
   }, [open]);
 
   const handleClick = async () => {
-    if (!open && wrapperRef.current) {
-      const rect = wrapperRef.current.getBoundingClientRect();
-      setPos({ x: rect.right, y: rect.bottom + 4 });
-    }
-    setOpen((prev) => !prev);
+    setOpen((prev) => {
+      if (!prev && wrapperRef.current) {
+        const rect = wrapperRef.current.getBoundingClientRect();
+        triggerRectRef.current = { top: rect.top, right: rect.right, bottom: rect.bottom };
+      }
+      return !prev;
+    });
     if (!options && !loading) {
       setLoading(true);
       try {
@@ -108,8 +138,8 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
       {open && (
         <div
           ref={menuRef}
-          className="fixed z-[100] min-w-[300px] bg-surface-elevated border border-ov-border rounded-lg shadow-xl py-1"
-          style={{ left: pos.x, top: pos.y, transform: "translateX(-100%)" }}
+          className="fixed z-[100] min-w-[220px] max-w-[340px] bg-surface-elevated border border-ov-border rounded-lg shadow-xl py-1"
+          style={{ left: menuPos.x, top: menuPos.y, transform: "translateX(-100%)" }}
         >
           {loading ? (
             <div className="px-3 py-2 text-xs text-ov-text-secondary">Loading...</div>
