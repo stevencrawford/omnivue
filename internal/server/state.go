@@ -183,22 +183,27 @@ func newPipeline(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventB
 }
 
 // Refresh runs a full refresh pass: re-read sessions from every adapter,
-// re-index search content, classify notifications, and broadcast "update" +
-// "session-changed" events. It returns the current live session count so the
-// Poller can adapt its cadence.
+// broadcast "update" + "session-changed" so clients can discover the fresh
+// cache immediately, then re-index search content and classify notifications.
+// It returns the current live session count so the Poller can adapt its
+// cadence.
 func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
 	ids, liveCount, transitions := p.hub.refreshSessions(ctx)
-	p.indexer.IndexSessions(ctx)
+
+	// Broadcast right after the refresh: the hub cache that /api/sessions
+	// serves is already populated, so clients must not wait on the heavier
+	// index + classify passes before their session list appears.
 	p.bus.Send(sseEvent{Name: "update"})
-	if len(ids) == 0 {
-		return liveCount
+	if len(ids) > 0 {
+		data, err := json.Marshal(map[string]any{"ids": ids})
+		if err != nil {
+			slog.Warn("failed to marshal session change event", "error", err)
+		} else {
+			p.bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
+		}
 	}
-	data, err := json.Marshal(map[string]any{"ids": ids})
-	if err != nil {
-		slog.Warn("failed to marshal session change event", "error", err)
-	} else {
-		p.bus.Send(sseEvent{Name: "session-changed", Data: string(data)})
-	}
+
+	p.indexer.IndexSessions(ctx)
 	p.notif.ClassifyChanges(ctx, ids, transitions)
 	return liveCount
 }

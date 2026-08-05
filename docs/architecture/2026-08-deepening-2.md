@@ -277,3 +277,9 @@ re-reading the whole table.
   instance; remove-source refresh now async like add/update. Integration test rewritten to drive
   the pipeline synchronously (no deadline polling) + new `RefreshLiveness` determinism test.
   Backend gates green (`go build`, `golangci-lint`, `gostyle`, `go test`, `make test`).
+- 2026-08-05 — ATH-18 follow-up: `Pipeline.Refresh` now broadcasts `update` + `session-changed`
+  immediately after `refreshSessions` instead of after the full `IndexSessions` pass. The locked
+  plan had broadcast last; in practice the synchronous index pass gated session discovery on a
+  15s re-index over a large store, so startup felt slow. Broadcast-first keeps the single
+  synchronous pipeline (index passes still serialized) while serving the hub cache to clients
+  right away. Verified: first SSE `update` at ~2s vs ~17s before, search still fully indexed.
