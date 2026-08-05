@@ -19,21 +19,22 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 // Kind identifies the type of a notification.
 type Kind string
 
 const (
-	KindQuestion           Kind = "question"
-	KindPermissionRequest  Kind = "permission_request"
-	KindExitPlanMode       Kind = "exit_plan_mode"
-	KindTaskComplete       Kind = "task_complete"
-	KindNewMessages        Kind = "new_messages"
-	KindNewToolCall        Kind = "new_tool_call"
-	KindStatusActive       Kind = "status_active"
-	KindStatusDone         Kind = "status_completed"
-	KindStatusError        Kind = "status_error"
+	KindQuestion          Kind = "question"
+	KindPermissionRequest Kind = "permission_request"
+	KindExitPlanMode      Kind = "exit_plan_mode"
+	KindTaskComplete      Kind = "task_complete"
+	KindNewMessages       Kind = "new_messages"
+	KindNewToolCall       Kind = "new_tool_call"
+	KindStatusActive      Kind = "status_active"
+	KindStatusDone        Kind = "status_completed"
+	KindStatusError       Kind = "status_error"
 )
 
 // Severity indicates how prominently a notification should be surfaced.
@@ -47,18 +48,18 @@ const (
 // Settings mirrors the frontend notification settings form. It is persisted as a
 // JSON blob in the config table under key "notifications.settings".
 type Settings struct {
-	Enabled           bool     `json:"enabled"`
-	Kinds             []Kind   `json:"kinds"`
-	Scope             string   `json:"scope"` // "all" | "opened" | "pinned"
-	InAppToast        bool     `json:"inAppToast"`
-	SidebarBadge      bool     `json:"sidebarBadge"`
-	BrowserNotify     bool     `json:"browserNotify"`
-	QuietHoursEnabled bool     `json:"quietHoursEnabled"`
-	QuietHoursStart   string   `json:"quietHoursStart"` // "22:00"
-	QuietHoursEnd     string   `json:"quietHoursEnd"`   // "08:00"
-	AutoDismissSec    int      `json:"autoDismissSec"`
-	ExcludeActiveView bool     `json:"excludeActiveView"`
-	EnabledAt         int64    `json:"enabledAt"` // unix ms when notifications were enabled
+	Enabled           bool   `json:"enabled"`
+	Kinds             []Kind `json:"kinds"`
+	Scope             string `json:"scope"` // "all" | "opened" | "pinned"
+	InAppToast        bool   `json:"inAppToast"`
+	SidebarBadge      bool   `json:"sidebarBadge"`
+	BrowserNotify     bool   `json:"browserNotify"`
+	QuietHoursEnabled bool   `json:"quietHoursEnabled"`
+	QuietHoursStart   string `json:"quietHoursStart"` // "22:00"
+	QuietHoursEnd     string `json:"quietHoursEnd"`   // "08:00"
+	AutoDismissSec    int    `json:"autoDismissSec"`
+	ExcludeActiveView bool   `json:"excludeActiveView"`
+	EnabledAt         int64  `json:"enabledAt"` // unix ms when notifications were enabled
 }
 
 // DefaultSettings returns the default settings: everything off (opt-in). The
@@ -106,28 +107,6 @@ func (s *Settings) suppresses(t time.Time) bool {
 // has reports whether the given kind is enabled in settings.
 func (s *Settings) has(k Kind) bool {
 	return slices.Contains(s.Kinds, k)
-}
-
-// QuestionToolNames is the set of tool-call names that count as the agent asking
-// the human a question. Centralized here so adding a new agent is a one-line
-// change. Names are lowercased before lookup.
-var QuestionToolNames = map[string]struct{}{
-	"question": {},
-	"ask":      {},
-}
-
-// PermissionToolNames is the set of tool-call names that count as the agent
-// requesting permission to perform an action. Names are lowercased before lookup.
-var PermissionToolNames = map[string]struct{}{
-	"permission_request": {},
-}
-
-// TaskCompleteToolNames is the set of tool-call names signaling task
-// completion.
-var TaskCompleteToolNames = map[string]struct{}{
-	"task_complete":  {},
-	"task-complete":  {},
-	"taskcomplete":   {},
 }
 
 // Candidate is a classification result. The caller persists one notification
@@ -178,7 +157,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 
 		for _, tc := range m.ToolCalls {
 			name := strings.ToLower(tc.Name)
-			if _, ok := QuestionToolNames[name]; ok {
+			if ingestkit.HasKind(name, ingestkit.KindQuestion) {
 				// When the tool name is "question", check if it's actually a
 				// permission request (choices contain Allow/Deny) and route to
 				// KindPermissionRequest instead.
@@ -229,7 +208,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 				})
 				continue
 			}
-			if _, ok := PermissionToolNames[name]; ok {
+			if ingestkit.HasKind(name, ingestkit.KindPermission) {
 				if settings.has(KindPermissionRequest) {
 					candidates = append(candidates, Candidate{
 						Kind:     KindPermissionRequest,
@@ -247,7 +226,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 				}
 				continue
 			}
-			if _, ok := TaskCompleteToolNames[name]; ok {
+			if ingestkit.HasKind(name, ingestkit.KindTaskComplete) {
 				if settings.has(KindTaskComplete) {
 					candidates = append(candidates, Candidate{
 						Kind:     KindTaskComplete,
@@ -429,7 +408,7 @@ func questionTextFromInput(data map[string]any) string {
 // request — a question-like tool call whose choices contain "Allow"/"Deny".
 func isPermissionInput(input string) bool {
 	var raw struct {
-		Choices  []string `json:"choices"`
+		Choices   []string `json:"choices"`
 		Questions []struct {
 			Question string `json:"question"`
 			Options  []struct {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 	"github.com/stevencrawford/omnivue/internal/store"
 )
 
@@ -43,16 +44,6 @@ func retryOnBusy(fn func() error) error {
 		}
 	}
 	return err
-}
-
-// isPlanTool returns true for tool call names whose Input should be included
-// in the search index.
-func isPlanTool(name string) bool {
-	switch name {
-	case "todowrite", "task", "task_complete", "task-complete":
-		return true
-	}
-	return false
 }
 
 // IndexSessions indexes session content into the FTS5 search index. It runs
@@ -276,7 +267,7 @@ func writeToolCalls(b *strings.Builder, calls []ingest.ToolCall) {
 	for _, tc := range calls {
 		b.WriteString(tc.Name)
 		b.WriteString(" ")
-		if isPlanTool(tc.Name) && tc.Input != "" {
+		if ingestkit.HasKind(tc.Name, ingestkit.KindPlan) && tc.Input != "" {
 			b.WriteString(tc.Input)
 			b.WriteString(" ")
 		}
