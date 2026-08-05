@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, Plus, X, Check } from "lucide-react";
+import { Pencil, Plus, Tag as TagIcon, X, Check } from "lucide-react";
 import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
@@ -306,7 +306,7 @@ export function SessionHeader({
               title="Tag this session"
             >
               <Plus size={10} />
-              <span className="sess-tag-name">Tag</span>
+              <TagIcon size={10} />
             </button>
 
             {tagMenuOpen && (
