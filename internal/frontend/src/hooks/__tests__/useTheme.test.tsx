@@ -58,16 +58,16 @@ describe("useTheme contrast", () => {
     expect(result.current.contrast).toBe("default");
   });
 
-  it("toggles contrast", () => {
+  it("updates contrast", () => {
     vi.stubGlobal("matchMedia", matchMediaStub(false));
     const { result } = renderTheme();
     expect(result.current.contrast).toBe("default");
     act(() => {
-      result.current.toggleContrast();
+      result.current.setContrast("high");
     });
     expect(result.current.contrast).toBe("high");
     act(() => {
-      result.current.toggleContrast();
+      result.current.setContrast("default");
     });
     expect(result.current.contrast).toBe("default");
   });

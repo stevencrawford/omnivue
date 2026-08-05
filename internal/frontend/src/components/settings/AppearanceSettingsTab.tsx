@@ -63,13 +63,8 @@ export function AppearanceSettingsTab() {
     }
   };
 
-  const handleContrastChange = async (value: ThemeContrast) => {
+  const handleContrastChange = (value: ThemeContrast) => {
     setContrast(value);
-    try {
-      await setConfig("theme-contrast", value);
-    } catch {
-      /* ignore */
-    }
   };
 
   return (

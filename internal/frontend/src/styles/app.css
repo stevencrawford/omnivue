@@ -2486,13 +2486,11 @@ body {
   -webkit-backdrop-filter: none;
 }
 
-[data-contrast="high"] .sess-user-turn,
-[data-contrast="high"][data-mode="light"] .sess-user-turn {
+[data-contrast="high"] .sess-user-turn {
   background: rgba(0, 0, 238, 0.1);
 }
 
-[data-contrast="high"] .sess-user-turn-label,
-[data-contrast="high"][data-mode="light"] .sess-user-turn-label {
+[data-contrast="high"] .sess-user-turn-label {
   color: #0000ee;
 }
 
@@ -2517,6 +2515,35 @@ body {
   border-color: #f5c400;
   background: rgba(245, 196, 0, 0.12);
   color: #f5c400;
+}
+
+/* Status accents (todos / plans / steps) */
+[data-contrast="high"] .text-emerald-400,
+[data-contrast="high"] .text-green-500 {
+  color: #006a18;
+}
+[data-contrast="high"] .text-amber-400 {
+  color: #9a4d00;
+}
+[data-contrast="high"] .text-red-400 {
+  color: #b30000;
+}
+[data-contrast="high"] .bg-emerald-400 {
+  background-color: #007a2b;
+}
+
+[data-contrast="high"][data-mode="dark"] .text-emerald-400,
+[data-contrast="high"][data-mode="dark"] .text-green-500 {
+  color: #2cff78;
+}
+[data-contrast="high"][data-mode="dark"] .text-amber-400 {
+  color: #ffc53d;
+}
+[data-contrast="high"][data-mode="dark"] .text-red-400 {
+  color: #ff6b6b;
+}
+[data-contrast="high"][data-mode="dark"] .bg-emerald-400 {
+  background-color: #10c65c;
 }
 
 /* Search highlight */
@@ -2647,8 +2674,7 @@ body {
 }
 
 /* Agent badges */
-[data-contrast="high"] .sess-agent-badge--opencode,
-[data-contrast="high"][data-mode="dark"] .sess-agent-badge--opencode {
+[data-contrast="high"] .sess-agent-badge--opencode {
   color: #4b0bbf;
   background: rgba(75, 11, 191, 0.16);
   border-color: rgba(75, 11, 191, 0.7);
@@ -2657,8 +2683,7 @@ body {
   color: #c9a6ff;
   border-color: rgba(201, 166, 255, 0.75);
 }
-[data-contrast="high"] .sess-agent-badge--copilot,
-[data-contrast="high"][data-mode="dark"] .sess-agent-badge--copilot {
+[data-contrast="high"] .sess-agent-badge--copilot {
   color: #0b5c74;
   background: rgba(11, 92, 116, 0.16);
   border-color: rgba(11, 92, 116, 0.7);
@@ -2667,8 +2692,7 @@ body {
   color: #9ff0fb;
   border-color: rgba(159, 240, 251, 0.75);
 }
-[data-contrast="high"] .sess-agent-badge--cursor,
-[data-contrast="high"][data-mode="dark"] .sess-agent-badge--cursor {
+[data-contrast="high"] .sess-agent-badge--cursor {
   color: #0a6719;
   background: rgba(10, 103, 25, 0.16);
   border-color: rgba(10, 103, 25, 0.7);
@@ -2677,8 +2701,7 @@ body {
   color: #9bffb0;
   border-color: rgba(155, 255, 176, 0.75);
 }
-[data-contrast="high"] .sess-agent-badge--pi,
-[data-contrast="high"][data-mode="dark"] .sess-agent-badge--pi {
+[data-contrast="high"] .sess-agent-badge--pi {
   color: #7a5200;
   background: rgba(122, 82, 0, 0.16);
   border-color: rgba(122, 82, 0, 0.7);
@@ -2687,8 +2710,7 @@ body {
   color: #ffd774;
   border-color: rgba(255, 215, 116, 0.75);
 }
-[data-contrast="high"] .sess-agent-badge--codex,
-[data-contrast="high"][data-mode="dark"] .sess-agent-badge--codex {
+[data-contrast="high"] .sess-agent-badge--codex {
   color: #8a2f00;
   background: rgba(138, 47, 0, 0.16);
   border-color: rgba(138, 47, 0, 0.7);
@@ -2697,8 +2719,7 @@ body {
   color: #ffb37a;
   border-color: rgba(255, 179, 122, 0.75);
 }
-[data-contrast="high"] .sess-agent-badge--claude-code,
-[data-contrast="high"][data-mode="dark"] .sess-agent-badge--claude-code {
+[data-contrast="high"] .sess-agent-badge--claude-code {
   color: #4b0b8f;
   background: rgba(75, 11, 143, 0.16);
   border-color: rgba(75, 11, 143, 0.7);

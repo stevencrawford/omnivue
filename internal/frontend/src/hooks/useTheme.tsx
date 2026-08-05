@@ -75,7 +75,6 @@ interface ThemeContextValue {
   setThemeMode: (mode: ThemeMode) => void;
   setContrast: (contrast: ThemeContrast) => void;
   toggleTheme: () => void;
-  toggleContrast: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -99,7 +98,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [themeName, themeMode, contrast]);
 
   const toggleTheme = () => setThemeMode((t) => (t === "dark" ? "light" : "dark"));
-  const toggleContrast = () => setContrast((c) => (c === "high" ? "default" : "high"));
 
   return (
     <ThemeContext.Provider
@@ -111,7 +109,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setThemeMode,
         setContrast,
         toggleTheme,
-        toggleContrast,
       }}
     >
       {children}
