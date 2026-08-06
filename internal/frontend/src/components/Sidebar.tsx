@@ -19,7 +19,7 @@ interface SidebarProps {
   sidebarOpen: boolean;
   onSidebarToggle: () => void;
   bookmarks: Bookmark[];
-  onBookmarkSelect: (sessionId: string, messageIndex: number, toolCallId?: string) => void;
+  onBookmarkSelect: (bookmark: Bookmark) => void;
   onBookmarkDelete: (id: string) => void;
   notifications: AppNotification[];
   notificationUnreadCount: number;

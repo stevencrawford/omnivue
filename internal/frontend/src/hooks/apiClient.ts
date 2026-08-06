@@ -392,6 +392,7 @@ export async function createBookmark(data: {
   messageIndex: number;
   toolCallId?: string;
   label: string;
+  kind?: "message" | "plan";
 }): Promise<{ action: "created" | "deleted"; bookmark?: Bookmark; id?: string }> {
   return fetchJson("/_/api/bookmarks", BookmarkToggleSchema, {
     method: "POST",
