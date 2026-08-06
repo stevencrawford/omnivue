@@ -40,6 +40,7 @@ func NewHandler(dep Dep) http.Handler {
 	mux.HandleFunc("PUT /_/api/config", handleSetConfig(dep.Config))
 	mux.HandleFunc("GET /_/api/sessions", handleSessions(dep.Hub))
 	mux.HandleFunc("GET /_/api/sessions/{id}", handleGetSession(dep.Hub))
+	mux.HandleFunc("GET /_/api/analytics", handleAnalytics(dep.Hub))
 	mux.HandleFunc("GET /_/api/sessions/{id}/messages", handleGetMessages(dep.Hub))
 	mux.HandleFunc("GET /_/api/sessions/{id}/plan", handleGetPlan(dep.Hub))
 	mux.HandleFunc("GET /_/api/sessions/{id}/diffs", handleGetDiffs(dep.Hub))

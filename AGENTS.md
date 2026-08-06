@@ -183,6 +183,7 @@ Before applying any migration to a database that already holds application data 
 | GET | `/_/api/config` | Get all config key-value pairs |
 | PUT | `/_/api/config` | Set a config key-value pair |
 | GET | `/_/api/sessions` | List all sessions |
+| GET | `/_/api/analytics` | Per-day tool-call aggregation (reads/edits/shell/search/web) for a time window (`?from=&to=`, unix ms) |
 | GET | `/_/api/sessions/{id}` | Get session details |
 | GET | `/_/api/sessions/{id}/messages` | Get session messages with tool calls |
 | GET | `/_/api/sessions/{id}/plan` | Get session plan/checkpoint items |

@@ -22,12 +22,31 @@ type SessionHub struct {
 
 	// names persists session display-name overrides used during refresh.
 	names store.SessionNameStore
+
+	// toolCounts caches per-session tool-call aggregations keyed by the
+	// UpdatedAt snapshot they were computed from, so analytics requests never
+	// re-scan unchanged transcripts.
+	toolCountsMu     sync.Mutex
+	toolCounts       map[string]cachedToolCounts
+	toolCountsInsert []string
+}
+
+// toolCountCacheCap bounds the analytics tool-count cache. The session list is
+// effectively unbounded over time, so a FIFO eviction keeps memory flat.
+const toolCountCacheCap = 4096
+
+// cachedToolCounts holds a session's aggregated tool counts together with the
+// UpdatedAt they were derived from, making staleness checkable by comparison.
+type cachedToolCounts struct {
+	updatedAt time.Time
+	counts    ToolCounts
 }
 
 func NewSessionHub(names store.SessionNameStore) *SessionHub {
 	return &SessionHub{
-		adapters: make(map[string]ingest.Adapter),
-		names:    names,
+		adapters:   make(map[string]ingest.Adapter),
+		names:      names,
+		toolCounts: make(map[string]cachedToolCounts),
 	}
 }
 
@@ -214,6 +233,38 @@ func (h *SessionHub) Edits(ctx context.Context, sessionID string) ([]ingest.File
 		return es.Edits(ctx, sessionID)
 	}
 	return []ingest.FileEdit{}, nil
+}
+
+// ToolCounts returns the aggregated tool-call counts for a session, computing
+// them from the session's messages on first access and caching by the session's
+// UpdatedAt so unchanged sessions are not re-scanned on every analytics request.
+func (h *SessionHub) ToolCounts(ctx context.Context, sess *ingest.Session) (*ToolCounts, error) {
+	key := sess.SourceID + "/" + sess.ID
+	h.toolCountsMu.Lock()
+	if c, ok := h.toolCounts[key]; ok && c.updatedAt.Equal(sess.UpdatedAt) {
+		counts := c.counts
+		h.toolCountsMu.Unlock()
+		return &counts, nil
+	}
+	h.toolCountsMu.Unlock()
+
+	msgs, err := h.Messages(ctx, sess.ID)
+	if err != nil {
+		return nil, err
+	}
+	counts := countToolCalls(msgs)
+
+	h.toolCountsMu.Lock()
+	if h.toolCounts == nil {
+		h.toolCounts = make(map[string]cachedToolCounts)
+	}
+	if prev, ok := h.toolCounts[key]; !ok || !prev.updatedAt.Equal(sess.UpdatedAt) {
+		h.toolCountsInsert = append(h.toolCountsInsert, key)
+	}
+	h.toolCounts[key] = cachedToolCounts{updatedAt: sess.UpdatedAt, counts: counts}
+	h.trimToolCounts()
+	h.toolCountsMu.Unlock()
+	return &counts, nil
 }
 
 // ResumeCommand returns the CLI resume data for a session.
@@ -411,4 +462,14 @@ type statusTransition struct {
 	sessionID string
 	from      string
 	to        string
+}
+
+// trimToolCounts evicts the oldest inserted entries once the cache exceeds the
+// cap, skipping keys already overwritten or evicted.
+func (h *SessionHub) trimToolCounts() {
+	for len(h.toolCountsInsert) > 0 && len(h.toolCounts) > toolCountCacheCap {
+		key := h.toolCountsInsert[0]
+		h.toolCountsInsert = h.toolCountsInsert[1:]
+		delete(h.toolCounts, key)
+	}
 }
