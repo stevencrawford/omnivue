@@ -67,3 +67,21 @@ signal and searchable plan content), so a name maps to a set of kinds.
   `KindQuestion`, `KindPermission`, `KindTaskComplete`, `KindPlan`.
 - **Seam:** the notifier (`internal/notify`) and the search indexer (`internal/server`) both
   consume it; neither maintains its own tool-name literal set.
+
+## Navigation intent (frontend)
+
+The frontend's answer to "where am I, and where am I going?" — which session is selected,
+which view/tab/section is showing, and the message-jump focus target. Owns every navigation
+state transition so callers cross one seam with intent verbs instead of wiring raw setters.
+
+- **Module:** `internal/frontend/src/hooks/navigationReducer.ts` (pure transition table) bound
+  by `internal/frontend/src/hooks/useNavigation.tsx` (React + URL hash + notification
+  side-effects).
+- **Interface:** a `NavigationState` and typed actions — `SESSION_SELECT`, `JUMP_TO_MESSAGE`,
+  `BOOKMARK_SELECT`, `NOTIFICATION_SELECT`, `SEARCH_HIT_SELECT`, `GO_HOME`, `NAV_SESSION_DELTA`,
+  `OPEN_TAG`, plus the raw setters. The binding exposes the verbs (navigateToSession,
+  jumpToMessage, goHome, …) through a single `NavigationContext`.
+- **Seam:** every entry point into a selected session crosses it — Sidebar, SearchPanel,
+  notifications, bookmarks, the prompt queue, keyboard shortcuts, and the URL hash (deep
+  links and back/forward). Leaf consumers (`ConversationView`, tool-call renderers) read the
+  same context instead of separate focus/nav providers.
