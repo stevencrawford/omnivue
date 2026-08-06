@@ -3,7 +3,7 @@ import { ChevronRight, Check, Copy, ArrowRight, Circle } from "lucide-react";
 import type { ToolCall } from "../../hooks/types";
 import type { ToolRendererDefinition } from "./types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
-import { useSessionNav } from "../../hooks/useNav";
+import { useNavigation } from "../../hooks/useNavigation";
 import { useCopy } from "../../hooks/useCopy";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
@@ -111,7 +111,7 @@ export function ToolCallRow({
   isBookmarked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const { navigateToSession } = useSessionNav();
+  const { navigateToSession } = useNavigation();
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
 

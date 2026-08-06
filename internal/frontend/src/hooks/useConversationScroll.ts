@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useSessionNav } from "./useNav";
+import { useNavigation } from "./useNavigation";
 
 interface UseConversationScrollOptions {
   sessionId: string;
@@ -25,7 +25,7 @@ export function useConversationScroll({
 }: UseConversationScrollOptions) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
-  const { scrollPositions, saveScrollPosition } = useSessionNav();
+  const { scrollPositions, saveScrollPosition } = useNavigation();
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);

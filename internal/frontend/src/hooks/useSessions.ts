@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Session } from "./types";
 import { useSSE } from "./useSSE";
 import { fetchSessions, ApiError } from "./apiClient";
@@ -7,11 +7,8 @@ import { runCatching } from "../utils/errors";
 export interface SessionsState {
   sessions: Session[];
   loading: boolean;
-  activeSessionId: string | null;
   liveChangedIds: Set<string>;
-  activeSession: Session | null;
   loadSessions: () => Promise<void>;
-  setActiveSessionId: (id: string | null) => void;
 }
 
 // Global callback for prompt-queue-changed SSE events.
@@ -24,7 +21,6 @@ export function setOnPromptQueueChanged(cb: (() => void) | null) {
 export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
 
   const loadSessions = useCallback(async () => {
@@ -58,22 +54,10 @@ export function useSessions(): SessionsState {
     },
   });
 
-  const activeSession = useMemo(
-    () => sessions.find((s) => s.id === activeSessionId) || null,
-    [sessions, activeSessionId],
-  );
-
-  useEffect(() => {
-    document.title = activeSession ? `Omnivue \u2014 ${activeSession.title}` : "Omnivue";
-  }, [activeSession]);
-
   return {
     sessions,
     loading,
-    activeSessionId,
     liveChangedIds,
-    activeSession,
     loadSessions,
-    setActiveSessionId,
   };
 }
