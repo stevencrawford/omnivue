@@ -580,6 +580,26 @@ body {
   opacity: 1;
 }
 
+/* Subtle pulsing dot beside sessions the backend considers active */
+.sess-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--color-accent);
+  animation: sess-live-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sess-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 .sess-empty-state {
   display: flex;
   flex-direction: column;
