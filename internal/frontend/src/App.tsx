@@ -20,7 +20,7 @@ import { TagsContext } from "./hooks/useTags";
 import { ThemeProvider } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
 import { type AppKeyboardConfig, useAppKeyboard } from "./hooks/useAppKeyboard";
-import { useSessionRouting } from "./hooks/useSessionRouting";
+import { HOME_ROUTE, sessionRoute, sectionRoute, useRouteSync } from "./hooks/useRouteSync";
 import { useSearchScope } from "./hooks/useSearchScope";
 import { useSearchState } from "./hooks/useSearchState";
 import { useRecentSearches } from "./hooks/useRecentSearches";
@@ -99,6 +99,18 @@ export function App() {
   const [promptVersion, setPromptVersion] = useState(0);
   const [highlightPromptId, setHighlightPromptId] = useState<string | null>(null);
 
+  // ---- URL hash routing ----
+  // The route is the single source of truth for the active session, overview,
+  // and icon-channel section. navigateTo() pushes a history entry so browser
+  // Back/Forward undo navigation; back/forward re-applies the prior route.
+  const { navigateTo } = useRouteSync({
+    sessions,
+    setActiveSessionId,
+    setShowOverview,
+    setActiveSection,
+    setFocusStepIndex,
+  });
+
   const fetchQueueCount = useCallback(async () => {
     try {
       const prompts = await fetchPrompts("queued");
@@ -119,11 +131,14 @@ export function App() {
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
   const bumpTags = useCallback(() => setTagsVersion((v) => v + 1), []);
-  const openTag = useCallback((name: string) => {
-    setFilterTag(name);
-    setActiveSection("tags");
-    setSidebarOpen(true);
-  }, []);
+  const openTag = useCallback(
+    (name: string) => {
+      setFilterTag(name);
+      navigateTo(sectionRoute("tags"));
+      setSidebarOpen(true);
+    },
+    [navigateTo],
+  );
   const clearFilterTag = useCallback(() => setFilterTag(null), []);
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
@@ -141,12 +156,11 @@ export function App() {
   } = useSearchState(
     addSearch,
     searchSessionScope,
-    setActiveSessionId,
+    (id: string) => navigateTo(sessionRoute(id)),
     setActiveTab,
     setSearchHighlightQuery,
     setFocusStepIndex,
     setFocusMessageIndex,
-    setShowOverview,
     openTag,
   );
 
@@ -173,16 +187,14 @@ export function App() {
   } = usePinMessage();
 
   // ---- Keyboard shortcuts ----
-  // Wrap setActiveSessionId as a dispatch to support functional updaters used in useAppKeyboard.
+  // Route the previous/next-session keys through navigation so the selected
+  // session stays in addressable history and can be undone with Back.
   const setActiveSessionIdDispatch = useCallback(
     (action: React.SetStateAction<string | null>) => {
-      if (typeof action === "function") {
-        setActiveSessionId(action(activeSessionId));
-      } else {
-        setActiveSessionId(action);
-      }
+      const next = typeof action === "function" ? action(activeSessionId) : action;
+      navigateTo(next ? sessionRoute(next) : HOME_ROUTE);
     },
-    [activeSessionId, setActiveSessionId],
+    [activeSessionId, navigateTo],
   );
 
   const keyboardConfig: AppKeyboardConfig = {
@@ -200,20 +212,12 @@ export function App() {
     setActiveTab,
     setActiveSessionId: setActiveSessionIdDispatch,
     setFocusMessageIndex,
-    setShowOverview,
+    setShowOverview: (v: boolean) => {
+      if (v) navigateTo(HOME_ROUTE);
+    },
     onOpenShortcuts: () => setShortcutsOpen(true),
   };
   useAppKeyboard(keyboardConfig);
-
-  // ---- URL hash routing ----
-  useSessionRouting(
-    sessions,
-    activeSessionId,
-    (id: string | null) => setActiveSessionId(id),
-    setFocusStepIndex,
-    showOverview,
-    setShowOverview,
-  );
 
   // ---- Scroll position persistence ----
   const scrollPositions = useRef(new Map<string, number>());
@@ -232,8 +236,7 @@ export function App() {
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
       setHighlightPromptId(null);
-      setShowOverview(false);
-      setActiveSessionId(sessionId);
+      navigateTo(sessionRoute(sessionId));
       setActiveTab("session");
       setSearchHighlightQuery(null);
       // Reset any in-flight jump so a fresh session starts unhighlighted.
@@ -259,7 +262,7 @@ export function App() {
         }
       }
     },
-    [notifications, markNotificationRead, jumpToMessage],
+    [notifications, markNotificationRead, jumpToMessage, navigateTo],
   );
 
   const handlePromptClick = useCallback(
@@ -281,21 +284,18 @@ export function App() {
   }, []);
 
   const handleGoHome = useCallback(() => {
-    setShowOverview(true);
-    setActiveSessionId(null);
+    navigateTo(HOME_ROUTE);
     setHighlightPromptId(null);
     setFocusStepIndex(undefined);
     setFocusMessageIndex(undefined);
     setSearchHighlightQuery(null);
     setActiveTab("session");
-  }, []);
+  }, [navigateTo]);
 
   const handleBookmarkSelect = useCallback(
     (bookmark: Bookmark) => {
-      setShowOverview(false);
-      setActiveSessionId(bookmark.sessionId);
+      navigateTo(sessionRoute(bookmark.sessionId));
       setSearchHighlightQuery(null);
-      setActiveSection("sessions");
       if (bookmark.kind === "plan") {
         setActiveTab("plan");
       } else {
@@ -303,7 +303,7 @@ export function App() {
         setActiveTab("session");
       }
     },
-    [jumpToMessage],
+    [jumpToMessage, navigateTo],
   );
 
   const handleDiffNavigateToMessage = useCallback(
@@ -316,17 +316,15 @@ export function App() {
 
   const handleNotificationClick = useCallback(
     (n: AppNotification) => {
-      setShowOverview(false);
-      setActiveSessionId(n.sessionId);
+      navigateTo(sessionRoute(n.sessionId));
       setActiveTab("session");
       setSearchHighlightQuery(null);
       markNotificationRead([n.id]);
-      setActiveSection("sessions");
       // Parse the payload for a message index to jump directly to
       // the message that triggered the notification.
       jumpToMessage(parseMessageTarget(n.payload));
     },
-    [markNotificationRead, jumpToMessage],
+    [markNotificationRead, jumpToMessage, navigateTo],
   );
 
   // ---- Render ----
@@ -400,7 +398,7 @@ export function App() {
                       activeSessionId={activeSessionId}
                       onSessionSelect={handleSessionSelect}
                       activeSection={activeSection}
-                      onSectionChange={setActiveSection}
+                      onSectionChange={(section: Section) => navigateTo(sectionRoute(section))}
                       onSettingsOpen={() => setSettingsOpen(true)}
                       sidebarOpen={sidebarOpen}
                       onSidebarToggle={() => setSidebarOpen((v) => !v)}
