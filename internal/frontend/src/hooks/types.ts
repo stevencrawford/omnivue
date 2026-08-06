@@ -5,6 +5,8 @@
 
 import type { z } from "zod/v4";
 import type {
+  AnalyticsDailySchema,
+  AnalyticsResponseSchema,
   BookmarkSchema,
   DiffFileSchema,
   DiscoveredSourceSchema,
@@ -52,6 +54,8 @@ export type NotificationScope = z.infer<typeof NotificationScopeSchema>;
 export type AppNotification = z.infer<typeof NotificationSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type QueuedPrompt = z.infer<typeof QueuedPromptSchema>;
+export type AnalyticsDaily = z.infer<typeof AnalyticsDailySchema>;
+export type AnalyticsResponse = z.infer<typeof AnalyticsResponseSchema>;
 
 // Decoding target for AppNotification.payload (an opaque JSON string stored in
 // the wire format). Not runtime-validated, so it stays a hand-written shape.

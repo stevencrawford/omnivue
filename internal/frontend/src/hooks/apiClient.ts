@@ -18,6 +18,7 @@ import type {
   AppNotification,
   NotificationSettings,
   QueuedPrompt,
+  AnalyticsDaily,
 } from "./types";
 import {
   SessionsSchema,
@@ -45,6 +46,7 @@ import {
   QueuedPromptsSchema,
   QueuedPromptSchema,
   DispatchResponseSchema,
+  AnalyticsResponseSchema,
 } from "./schemas";
 
 // ---------------------------------------------------------------------------
@@ -118,6 +120,18 @@ async function fetchVoid(url: string, init?: RequestInit): Promise<void> {
 
 export async function fetchSessions(): Promise<Session[]> {
   return withRetry(() => fetchJson("/_/api/sessions", SessionsSchema), 3);
+}
+
+// fetchAnalytics returns the per-day tool-call aggregation for sessions whose
+// last update falls within [from, to). A null from means all time. Both bounds
+// are unix milliseconds and derive from the overview's time range so the
+// analytics tab and the overview cover exactly the same sessions.
+export async function fetchAnalytics(from: number | null, to: number): Promise<AnalyticsDaily[]> {
+  const params = new URLSearchParams();
+  if (from !== null) params.set("from", String(from));
+  params.set("to", String(to));
+  const res = await fetchJson(`/_/api/analytics?${params.toString()}`, AnalyticsResponseSchema);
+  return res.daily;
 }
 
 export async function fetchSession(id: string): Promise<Session> {

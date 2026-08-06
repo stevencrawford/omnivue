@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Bot, Coins, Sparkles, Zap } from "lucide-react";
 import { SessionsIcon } from "./IconChannel";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { ActivityCharts } from "./ActivityCharts";
 import { ModelAgentBreakdown } from "./ModelAgentBreakdown";
+import { AnalyticsTab } from "./analytics/AnalyticsTab";
 import { StatCard } from "./overview/StatCard";
 import { RepoCard } from "./overview/RepoCard";
 import type { Session } from "../hooks/types";
@@ -22,6 +23,8 @@ import {
 } from "../utils/overviewAnalytics";
 import { TOKEN_COLOR_SEGMENTS } from "../utils/toolKindTaxonomy";
 
+type OverviewView = "overview" | "analytics";
+
 interface OverviewScreenProps {
   sessions: Session[];
   onSessionSelect: (sessionId: string) => void;
@@ -30,6 +33,7 @@ interface OverviewScreenProps {
 export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProps) {
   const hideCosts = useHideCosts();
   const { range, startDate, endDate, label, setPreset, setCustomRange } = useTimeRange();
+  const [view, setView] = useState<OverviewView>("overview");
 
   // ---- Time-filtered sessions ----
   const rangeFilter = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
@@ -136,73 +140,105 @@ export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProp
               onCustomRangeChange={setCustomRange}
             />
           </div>
+
+          {/* ---- View tabs ---- */}
+          <div className="sess-overview-tabs mt-5">
+            <button
+              type="button"
+              className={view === "overview" ? "sess-overview-tab is-active" : "sess-overview-tab"}
+              onClick={() => setView("overview")}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              className={view === "analytics" ? "sess-overview-tab is-active" : "sess-overview-tab"}
+              onClick={() => setView("analytics")}
+            >
+              Analytics
+            </button>
+          </div>
         </header>
 
-        {/* ---- Stat cards ---- */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <StatCard
-            icon={SessionsIcon}
-            label="Sessions"
-            value={String(stats.totalSessions)}
-            sub={`${stats.totalMessages.toLocaleString()} messages`}
+        {view === "analytics" ? (
+          <AnalyticsTab
+            sessions={filteredSessions}
+            startDate={startDate}
+            endDate={endDate}
+            hideCosts={hideCosts}
+            rangeLabel={label}
           />
-          <StatCard
-            icon={Zap}
-            label="Tokens"
-            value={(formatTokens(totalTokens) || "—").replace(/ tok$/, "")}
-            sub={
-              tokenSegments.length > 0 ? tokenSegments.map((s) => s.label).join(" · ") : undefined
-            }
-          />
-          <StatCard
-            icon={Coins}
-            label="Spend"
-            value={!hideCosts && stats.totalCost > 0 ? formatCost(stats.totalCost) : "***"}
-            sub="In selected range"
-          />
-          <StatCard
-            icon={Bot}
-            label="Agents"
-            value={String(stats.agents.length)}
-            sub={stats.agents.map((a) => agentLabel(a.agent)).join(", ")}
-          />
-        </div>
+        ) : (
+          <>
+            {/* ---- Stat cards ---- */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+              <StatCard
+                icon={SessionsIcon}
+                label="Sessions"
+                value={String(stats.totalSessions)}
+                sub={`${stats.totalMessages.toLocaleString()} messages`}
+              />
+              <StatCard
+                icon={Zap}
+                label="Tokens"
+                value={(formatTokens(totalTokens) || "—").replace(/ tok$/, "")}
+                sub={
+                  tokenSegments.length > 0
+                    ? tokenSegments.map((s) => s.label).join(" · ")
+                    : undefined
+                }
+              />
+              <StatCard
+                icon={Coins}
+                label="Spend"
+                value={!hideCosts && stats.totalCost > 0 ? formatCost(stats.totalCost) : "***"}
+                sub="In selected range"
+              />
+              <StatCard
+                icon={Bot}
+                label="Agents"
+                value={String(stats.agents.length)}
+                sub={stats.agents.map((a) => agentLabel(a.agent)).join(", ")}
+              />
+            </div>
 
-        {/* ---- Recent sessions (repo cards) ---- */}
-        {repoGroups.length > 0 && (
-          <section className="mb-8">
-            <div className="sess-overview-section-header">
-              <SessionsIcon width={14} height={14} />
-              <h3>Recent Sessions</h3>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {repoGroups.map(({ path, label: repoLabel, sessions: repoSessions }) => (
-                <RepoCard
-                  key={path}
-                  repoLabel={repoLabel}
-                  repoPath={path}
-                  sessions={repoSessions}
-                  onSessionSelect={onSessionSelect}
-                />
-              ))}
-            </div>
-          </section>
+            {/* ---- Recent sessions (repo cards) ---- */}
+            {repoGroups.length > 0 && (
+              <section className="mb-8">
+                <div className="sess-overview-section-header">
+                  <SessionsIcon width={14} height={14} />
+                  <h3>Recent Sessions</h3>
+                </div>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {repoGroups.map(({ path, label: repoLabel, sessions: repoSessions }) => (
+                    <RepoCard
+                      key={path}
+                      repoLabel={repoLabel}
+                      repoPath={path}
+                      sessions={repoSessions}
+                      onSessionSelect={onSessionSelect}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ---- Activity charts ---- */}
+            <ActivityCharts dailyStats={dailyStats} hideCosts={hideCosts} />
+
+            {/* ---- Model & Agent breakdown ---- */}
+            <ModelAgentBreakdown
+              models={modelStats}
+              agents={agentStats}
+              hideCosts={hideCosts}
+              maxModelTokens={maxModelTokens}
+              maxAgentTokens={maxAgentTokens}
+              tokenSegments={tokenSegments}
+              latestSessionTokens={latestSessionTokens}
+              latestSessionCost={latestSessionCost}
+            />
+          </>
         )}
-
-        {/* ---- Activity charts ---- */}
-        <ActivityCharts dailyStats={dailyStats} hideCosts={hideCosts} />
-
-        {/* ---- Model & Agent breakdown ---- */}
-        <ModelAgentBreakdown
-          models={modelStats}
-          agents={agentStats}
-          hideCosts={hideCosts}
-          maxModelTokens={maxModelTokens}
-          maxAgentTokens={maxAgentTokens}
-          tokenSegments={tokenSegments}
-          latestSessionTokens={latestSessionTokens}
-          latestSessionCost={latestSessionCost}
-        />
       </div>
     </div>
   );

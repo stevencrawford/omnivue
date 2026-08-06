@@ -119,6 +119,29 @@ export const DiscoveredSourceSchema = z.object({
 export const DiscoveredSourcesSchema = z.array(DiscoveredSourceSchema);
 
 // ---------------------------------------------------------------------------
+// Analytics
+// ---------------------------------------------------------------------------
+
+export const AnalyticsDailySchema = z.object({
+  date: z.string(),
+  reads: coerceNumber,
+  edits: coerceNumber,
+  bash: coerceNumber,
+  search: coerceNumber,
+  web: coerceNumber,
+  other: coerceNumber,
+  total: coerceNumber,
+  failed: coerceNumber,
+  sessions: coerceNumber,
+});
+
+export const AnalyticsResponseSchema = z.object({
+  from: coerceNumber,
+  to: coerceNumber,
+  daily: z.array(AnalyticsDailySchema),
+});
+
+// ---------------------------------------------------------------------------
 // Plan
 // ---------------------------------------------------------------------------
 

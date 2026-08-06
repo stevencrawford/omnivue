@@ -48,6 +48,18 @@ export function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }
 
+// formatDurationMs renders a millisecond span compactly (e.g. "45m", "3h 20m",
+// "1d 4h"). Used by the analytics session-length charts.
+export function formatDurationMs(ms: number): string {
+  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s`;
+  const totalMin = Math.round(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
+
 export function formatTokens(tokens: number): string {
   if (tokens === 0) return "";
   if (tokens >= 1_000_000_000_000) return `${(tokens / 1_000_000_000_000).toFixed(2)}T tok`;

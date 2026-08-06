@@ -174,6 +174,143 @@ export function aggregateByAgent(sessions: Session[]): AgentStats[] {
   return Array.from(byAgent.values()).sort((a, b) => b.tokens - a.tokens);
 }
 
+export interface DailyAnalyticsPoint {
+  date: string; // YYYY-MM-DD
+  sessions: number;
+  avgTokensPerSession: number;
+  avgInput: number;
+  avgOutput: number;
+  avgCache: number;
+  avgReasoning: number;
+  avgDurationMs: number | null;
+  avgCostPerSession: number;
+  avgCacheHitRate: number | null;
+  avgEfficiency: number | null;
+  avgMessagesPerSession: number;
+  avgDiffFilesPerSession: number;
+}
+
+interface DailyAccumulator {
+  date: string;
+  sessions: number;
+  inputSum: number;
+  outputSum: number;
+  cacheSum: number;
+  reasoningSum: number;
+  durationSum: number;
+  durationCount: number;
+  costSum: number;
+  cacheHitSum: number;
+  cacheHitCount: number;
+  effSum: number;
+  effCount: number;
+  messagesSum: number;
+  diffSum: number;
+}
+
+// ---------------------------------------------------------------------------
+// Session-length & efficiency helpers
+// ---------------------------------------------------------------------------
+
+// sessionDurationMs returns the wall-clock span between a session's first and
+// last update, or null when the session is still active (its length is not yet
+// meaningful) or when the timestamps are degenerate.
+export function sessionDurationMs(s: Session): number | null {
+  if (s.status === "active") return null;
+  const start = new Date(s.createdAt).getTime();
+  const end = new Date(s.updatedAt).getTime();
+  return end - start > 0 ? end - start : null;
+}
+
+function emptyAccumulator(date: string): DailyAccumulator {
+  return {
+    date,
+    sessions: 0,
+    inputSum: 0,
+    outputSum: 0,
+    cacheSum: 0,
+    reasoningSum: 0,
+    durationSum: 0,
+    durationCount: 0,
+    costSum: 0,
+    cacheHitSum: 0,
+    cacheHitCount: 0,
+    effSum: 0,
+    effCount: 0,
+    messagesSum: 0,
+    diffSum: 0,
+  };
+}
+
+// aggregateDailyAnalytics builds a per-day series of per-session averages from
+// the session list, mirroring aggregateByDay's day-bucketing (updatedAt, UTC
+// date strings) so the series aligns with the overview's daily charts. The
+// range's days are pre-filled with zero activity so quiet days still appear.
+export function aggregateDailyAnalytics(
+  sessions: Session[],
+  range: DateRange,
+): DailyAnalyticsPoint[] {
+  const byDay = new Map<string, DailyAccumulator>();
+  if (range.start) {
+    const cursor = new Date(range.start);
+    const end = range.end;
+    while (cursor < end) {
+      const date = cursor.toISOString().slice(0, 10);
+      byDay.set(date, emptyAccumulator(date));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  for (const s of sessions) {
+    const day = s.updatedAt.slice(0, 10);
+    let acc = byDay.get(day);
+    if (!acc) {
+      acc = emptyAccumulator(day);
+      byDay.set(day, acc);
+    }
+    acc.sessions += 1;
+    acc.inputSum += s.tokensInput;
+    acc.outputSum += s.tokensOutput;
+    acc.cacheSum += s.tokensCacheRead;
+    acc.reasoningSum += s.tokensReasoning;
+    const durationMs = sessionDurationMs(s);
+    if (durationMs !== null) {
+      acc.durationSum += durationMs;
+      acc.durationCount += 1;
+    }
+    acc.costSum += s.cost;
+    if (s.tokensInput + s.tokensCacheRead > 0) {
+      acc.cacheHitSum += s.tokensCacheRead / (s.tokensInput + s.tokensCacheRead);
+      acc.cacheHitCount += 1;
+    }
+    if (s.tokensInput > 0) {
+      acc.effSum += s.tokensOutput / s.tokensInput;
+      acc.effCount += 1;
+    }
+    acc.messagesSum += s.messageCount;
+    acc.diffSum += s.diffFiles;
+  }
+
+  return Array.from(byDay.values())
+    .map((a) => ({
+      date: a.date,
+      sessions: a.sessions,
+      avgTokensPerSession:
+        a.sessions > 0 ? (a.inputSum + a.outputSum + a.cacheSum + a.reasoningSum) / a.sessions : 0,
+      avgInput: a.sessions > 0 ? a.inputSum / a.sessions : 0,
+      avgOutput: a.sessions > 0 ? a.outputSum / a.sessions : 0,
+      avgCache: a.sessions > 0 ? a.cacheSum / a.sessions : 0,
+      avgReasoning: a.sessions > 0 ? a.reasoningSum / a.sessions : 0,
+      avgDurationMs: a.durationCount > 0 ? a.durationSum / a.durationCount : null,
+      avgCostPerSession: a.sessions > 0 ? a.costSum / a.sessions : 0,
+      avgCacheHitRate: a.cacheHitCount > 0 ? (a.cacheHitSum / a.cacheHitCount) * 100 : null,
+      avgEfficiency: a.effCount > 0 ? a.effSum / a.effCount : null,
+      avgMessagesPerSession: a.sessions > 0 ? a.messagesSum / a.sessions : 0,
+      avgDiffFilesPerSession: a.sessions > 0 ? a.diffSum / a.sessions : 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // ---------------------------------------------------------------------------
 // Top sessions
 // ---------------------------------------------------------------------------
