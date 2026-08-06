@@ -10,6 +10,7 @@ export interface SessionsState {
   activeSessionId: string | null;
   liveChangedIds: Set<string>;
   activeSession: Session | null;
+  connected: boolean;
   loadSessions: () => Promise<void>;
   setActiveSessionId: (id: string | null) => void;
 }
@@ -26,6 +27,7 @@ export function useSessions(): SessionsState {
   const [loading, setLoading] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
+  const [connected, setConnected] = useState(false);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -56,6 +58,7 @@ export function useSessions(): SessionsState {
     onPromptQueueChanged: () => {
       onPromptQueueChanged?.();
     },
+    onConnectionChange: setConnected,
   });
 
   const activeSession = useMemo(
@@ -73,6 +76,7 @@ export function useSessions(): SessionsState {
     activeSessionId,
     liveChangedIds,
     activeSession,
+    connected,
     loadSessions,
     setActiveSessionId,
   };

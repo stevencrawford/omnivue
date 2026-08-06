@@ -4,6 +4,7 @@ import { ThemeToggle } from "./ThemeToggle";
 interface AppHeaderProps {
   showOverview: boolean;
   searchHighlightQuery: string | null;
+  connected: boolean;
   onGoHome: () => void;
   onOpenSearch: () => void;
   onClearSearchHighlight: () => void;
@@ -12,6 +13,7 @@ interface AppHeaderProps {
 export function AppHeader({
   showOverview,
   searchHighlightQuery,
+  connected,
   onGoHome,
   onOpenSearch,
   onClearSearchHighlight,
@@ -83,6 +85,11 @@ export function AppHeader({
       </button>
 
       <div className="flex items-center justify-end gap-2">
+        <span
+          aria-hidden="true"
+          title={connected ? "Connected to omnivue server" : "Server unreachable - reconnecting"}
+          className={`sess-conn-dot ${connected ? "sess-conn-dot--on" : "sess-conn-dot--off"}`}
+        />
         <ThemeToggle />
       </div>
     </header>

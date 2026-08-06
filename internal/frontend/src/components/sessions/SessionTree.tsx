@@ -96,6 +96,9 @@ function SessionRow({
           ) : (
             <ArrowRight size={10} className="text-accent/80 shrink-0" />
           )}
+          {session.status === "active" && (
+            <span className="sess-live-dot shrink-0" title="Session active" />
+          )}
           <span className="text-[11px] truncate flex-1">
             {session.subAgent ? (
               <span className="text-ov-text-secondary">{session.subAgent}: </span>
@@ -125,6 +128,9 @@ function SessionRow({
         } ${isStale && !isActive ? "sess-session-stale" : ""}`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
+          {session.status === "active" && (
+            <span className="sess-live-dot shrink-0" title="Session active" />
+          )}
           <span className="sess-parent-session-title truncate flex-1 text-ov-text">
             {sessionTitle(session)}
           </span>

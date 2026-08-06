@@ -580,6 +580,42 @@ body {
   opacity: 1;
 }
 
+/* Subtle pulsing dot beside sessions the backend considers active */
+.sess-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--color-accent);
+  animation: sess-live-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sess-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Header connection indicator (piggybacks on the SSE EventSource) */
+.sess-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.sess-conn-dot--on {
+  background-color: var(--color-accent-secondary);
+}
+
+.sess-conn-dot--off {
+  background-color: #ef4444;
+  animation: sess-live-pulse 1.6s ease-in-out infinite;
+}
+
 .sess-empty-state {
   display: flex;
   flex-direction: column;
