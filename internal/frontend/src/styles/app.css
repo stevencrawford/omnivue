@@ -600,6 +600,22 @@ body {
   }
 }
 
+/* Header connection indicator (piggybacks on the SSE EventSource) */
+.sess-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.sess-conn-dot--on {
+  background-color: var(--color-accent-secondary);
+}
+
+.sess-conn-dot--off {
+  background-color: #ef4444;
+  animation: sess-live-pulse 1.6s ease-in-out infinite;
+}
+
 .sess-empty-state {
   display: flex;
   flex-direction: column;

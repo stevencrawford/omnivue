@@ -46,6 +46,7 @@ export function App() {
     activeSessionId,
     liveChangedIds,
     activeSession,
+    connected,
     setActiveSessionId,
     loadSessions,
   } = useSessions();
@@ -338,6 +339,7 @@ export function App() {
             <AppHeader
               showOverview={showOverview}
               searchHighlightQuery={searchHighlightQuery}
+              connected={connected}
               onGoHome={handleGoHome}
               onOpenSearch={() => {
                 if (searchHighlightQuery) setSearchQuery(searchHighlightQuery);
