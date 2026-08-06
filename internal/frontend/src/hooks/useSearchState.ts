@@ -7,12 +7,11 @@ import { isAbortError } from "../utils/errors";
 export function useSearchState(
   addSearch: (q: string) => void,
   searchSessionScope: string | null,
-  setActiveSessionId: (id: string | null) => void,
+  navigateToSession: (id: string) => void,
   setActiveTab: (tab: Tab) => void,
   setSearchHighlightQuery: (q: string | null) => void,
   setFocusStepIndex: (idx: number | undefined) => void,
   setFocusMessageIndex: (idx: number | undefined) => void,
-  setShowOverview: (v: boolean) => void,
   onOpenTag: (name: string) => void,
 ) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -57,8 +56,7 @@ export function useSearchState(
         setDrawerOpen(false);
         return;
       }
-      setShowOverview(false);
-      setActiveSessionId(sessionId);
+      navigateToSession(sessionId);
       const tabMap: Record<string, Tab> = {
         name: "session",
         message: "session",
@@ -77,12 +75,11 @@ export function useSearchState(
     },
     [
       addSearch,
-      setActiveSessionId,
+      navigateToSession,
       setActiveTab,
       setSearchHighlightQuery,
       setFocusStepIndex,
       setFocusMessageIndex,
-      setShowOverview,
       onOpenTag,
     ],
   );
