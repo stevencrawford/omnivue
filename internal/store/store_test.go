@@ -416,8 +416,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 6 {
-		t.Fatalf("expected schema version 6 on fresh install, got %d", v)
+	if v != 7 {
+		t.Fatalf("expected schema version 7 on fresh install, got %d", v)
 	}
 }
 
@@ -463,8 +463,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 6 {
-		t.Fatalf("expected legacy db stamped to version 6, got %d", v)
+	if v != 7 {
+		t.Fatalf("expected legacy db stamped to version 7, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -488,8 +488,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 6 {
-		t.Fatalf("expected version 6 after first open, got %d", v1)
+	if v1 != 7 {
+		t.Fatalf("expected version 7 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -502,7 +502,81 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 6 {
-		t.Fatalf("expected version 6 after second open, got %d", v2)
+	if v2 != 7 {
+		t.Fatalf("expected version 7 after second open, got %d", v2)
+	}
+}
+
+func TestStore_BookmarkCRUD(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	s, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	msg := store.Bookmark{
+		ID:           "bm-msg",
+		SessionID:    "s-1",
+		MessageIndex: 2,
+		ToolCallID:   "",
+		Label:        "Fix sidebar",
+		Kind:         "message",
+		CreatedAt:    time.Now(),
+	}
+	plan := store.Bookmark{
+		ID:           "bm-plan",
+		SessionID:    "s-1",
+		MessageIndex: -1,
+		ToolCallID:   "",
+		Label:        "Plan",
+		Kind:         "plan",
+		CreatedAt:    time.Now(),
+	}
+	if err := s.CreateBookmark(msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateBookmark(plan); err != nil {
+		t.Fatal(err)
+	}
+
+	bookmarks, err := s.ListBookmarks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bookmarks) != 2 {
+		t.Fatalf("expected 2 bookmarks, got %d", len(bookmarks))
+	}
+
+	byID := map[string]store.Bookmark{}
+	for _, b := range bookmarks {
+		byID[b.ID] = b
+	}
+	if got := byID["bm-msg"].Kind; got != "message" {
+		t.Fatalf("expected message kind, got %q", got)
+	}
+	if got := byID["bm-plan"].Kind; got != "plan" {
+		t.Fatalf("expected plan kind, got %q", got)
+	}
+
+	found, err := s.BookmarkByRef("s-1", -1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found == nil || found.ID != "bm-plan" {
+		t.Fatalf("expected plan bookmark by ref, got %+v", found)
+	}
+
+	if err := s.DeleteBookmark("bm-plan"); err != nil {
+		t.Fatal(err)
+	}
+	bookmarks, err = s.ListBookmarks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bookmarks) != 1 || bookmarks[0].ID != "bm-msg" {
+		t.Fatalf("expected only bm-msg after delete, got %+v", bookmarks)
 	}
 }

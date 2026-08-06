@@ -59,9 +59,11 @@ func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error
 func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)       { return nil, nil }
 func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error) { return nil, nil }
 func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error) { return nil, nil }
-func (m *mockAdapter) ResumeCommand() resumecmd.Spec { return resumecmd.Spec{Binary: "echo", Flag: "resume"} }
-func (m *mockAdapter) LastModified(context.Context) (int64, error)              { return 0, nil }
-func (m *mockAdapter) Close() error                                             { return nil }
+func (m *mockAdapter) ResumeCommand() resumecmd.Spec {
+	return resumecmd.Spec{Binary: "echo", Flag: "resume"}
+}
+func (m *mockAdapter) LastModified(context.Context) (int64, error) { return 0, nil }
+func (m *mockAdapter) Close() error                                { return nil }
 
 // tickingAdapter wraps mockAdapter and lets a test inject a LastModified
 // implementation, so we can simulate a source that bumps on every call.
@@ -841,7 +843,56 @@ func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	return dep
 }
 
-// TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
+// TestHandleCreateBookmark_Kind verifies plan bookmarks are created with their
+// kind, that a missing kind defaults to 'message', that an invalid kind is
+// rejected, and that creating the same ref again toggles it off.
+func TestHandleCreateBookmark_Kind(t *testing.T) {
+	dep := newTestDep(t, &fakeTagStore{})
+	fakes := newFakeBookmarkStore()
+	dep.Bookmarks = fakes
+
+	var bm store.Bookmark
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "plan",
+		},
+		http.StatusCreated, &bm)
+	if bm.Kind != "plan" {
+		t.Errorf("expected kind plan, got %q", bm.Kind)
+	}
+	if bm.MessageIndex != -1 {
+		t.Errorf("expected messageIndex -1, got %d", bm.MessageIndex)
+	}
+
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-2", "messageIndex": 0, "toolCallId": "tc-1", "label": "Output",
+		},
+		http.StatusCreated, &bm)
+	if bm.Kind != "message" {
+		t.Errorf("expected default kind message, got %q", bm.Kind)
+	}
+
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "scratch",
+		},
+		http.StatusBadRequest, nil)
+
+	// Same ref again toggles off (deletes the plan bookmark created above).
+	var toggled map[string]any
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "plan",
+		},
+		http.StatusOK, &toggled)
+	if toggled["deleted"] != true {
+		t.Errorf("expected toggle to delete, got %v", toggled)
+	}
+	if len(fakes.bookmarks) != 1 {
+		t.Errorf("expected 1 bookmark after toggle, got %d", len(fakes.bookmarks))
+	}
+} // TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
 // into the role interfaces: an interface wrapping a nil pointer is non-nil, so
 // every `!= nil` guard would pass and the call would panic on the nil receiver.
 func TestStoreRoles_NilStoreStaysNil(t *testing.T) {

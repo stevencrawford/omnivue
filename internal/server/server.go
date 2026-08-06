@@ -814,6 +814,7 @@ type createBookmarkRequest struct {
 	MessageIndex int    `json:"messageIndex"`
 	ToolCallID   string `json:"toolCallId"`
 	Label        string `json:"label"`
+	Kind         string `json:"kind"`
 }
 
 func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
@@ -828,6 +829,13 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 		}
 		if req.SessionID == "" {
 			writeError(w, badRequest("sessionId is required"))
+			return
+		}
+		if req.Kind == "" {
+			req.Kind = "message"
+		}
+		if req.Kind != "message" && req.Kind != "plan" {
+			writeError(w, badRequest("kind must be 'message' or 'plan'"))
 			return
 		}
 		// Toggle: if a bookmark exists at this reference, remove it.
@@ -845,6 +853,7 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			MessageIndex: req.MessageIndex,
 			ToolCallID:   req.ToolCallID,
 			Label:        req.Label,
+			Kind:         req.Kind,
 			CreatedAt:    time.Now(),
 		}
 		if err := bookmarks.CreateBookmark(b); err != nil {
