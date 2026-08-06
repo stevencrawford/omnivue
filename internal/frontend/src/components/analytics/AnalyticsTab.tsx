@@ -167,18 +167,6 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
               ]}
             />
           </ChartCard>
-          <ChartCard title="Avg tokens by kind" icon={<Gauge size={12} />}>
-            <TrendChart
-              data={daily}
-              yFormatter={stripTok}
-              lines={[
-                { key: "avgInput", name: "Input", color: TOKEN_COLOR_SEGMENTS.input },
-                { key: "avgOutput", name: "Output", color: TOKEN_COLOR_SEGMENTS.output },
-                { key: "avgCache", name: "Cache", color: TOKEN_COLOR_SEGMENTS.cache },
-                { key: "avgReasoning", name: "Reasoning", color: TOKEN_COLOR_SEGMENTS.reasoning },
-              ]}
-            />
-          </ChartCard>
           <ChartCard title="Avg activity per session" icon={<Activity size={12} />}>
             <TrendChart
               data={daily}
@@ -196,13 +184,6 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
               lines={[
                 { key: "avgCacheHitRate", name: "Cache hit", color: TOKEN_COLOR_SEGMENTS.cache },
               ]}
-            />
-          </ChartCard>
-          <ChartCard title="Output / input efficiency" icon={<Gauge size={12} />}>
-            <TrendChart
-              data={daily}
-              yFormatter={(v) => v.toFixed(2)}
-              lines={[{ key: "avgEfficiency", name: "Output per input", color: "#a78bfa" }]}
             />
           </ChartCard>
         </div>
