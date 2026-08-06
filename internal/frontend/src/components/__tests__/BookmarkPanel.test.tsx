@@ -6,15 +6,27 @@ import type { Bookmark, Session } from "../../hooks/types";
 
 const session: Session = {
   id: "s-1",
+  sourceId: "src-1",
   title: "My session",
   repository: "omnivue",
-  directory: "/repo",
-  sourceId: "src-1",
+  branch: "main",
+  agent: "opencode",
   model: "gpt-4o",
-  agentType: "opencode",
+  cost: 0.1,
+  directory: "/repo",
+  status: "done",
   createdAt: "2024-01-01T00:00:00Z",
   updatedAt: "2024-01-01T00:00:00Z",
-} as Session;
+  tokensInput: 100,
+  tokensOutput: 200,
+  tokensReasoning: 0,
+  tokensCacheRead: 0,
+  tokensCacheWrite: 0,
+  messageCount: 10,
+  diffFiles: 0,
+  diffAdditions: 0,
+  diffDeletions: 0,
+};
 
 const messageBookmark: Bookmark = {
   id: "bm-msg",
