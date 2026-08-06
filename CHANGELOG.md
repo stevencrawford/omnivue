@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Bookmark plans from the Plan tab (bookmark type "plan", alongside existing
+  message/tool-call bookmarks). Plan bookmarks open the Plan tab on click and
+  are distinguished in the LHS Bookmarks panel with a todo icon; the panel
+  gains a type filter (All / Messages / Plans). LHS queue section renamed to
+  "Queued Prompts" with a Layers icon. Schema migration `0007_bookmark_kind`
+  adds `bookmarks.kind` (backfilled to `message` for existing rows); the
+  `schemaVersion` reported by `GET /_/api/status` is now 7.
+
 ## [v0.2.0](https://github.com/stevencrawford/omnivue/compare/v0.1.2...v0.2.0) - 2026-08-05
 
 ### Dependency Updates ⬆️
