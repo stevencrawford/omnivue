@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Activity, BarChart3, Coins, Flame, Gauge, Timer, Zap } from "lucide-react";
+import { Activity, BarChart3, Coins, Flame, Gauge, PenLine, Timer, Zap } from "lucide-react";
 import { TrendChart, type TrendLine } from "./TrendChart";
 import { StatCard } from "../overview/StatCard";
 import { useAnalytics } from "../../hooks/useAnalytics";
@@ -60,6 +60,7 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
     let cost = 0;
     let durationMs = 0;
     let durationCount = 0;
+    let linesChanged = 0;
     for (const s of sessions) {
       tokens += s.tokensInput + s.tokensOutput + s.tokensCacheRead + s.tokensReasoning;
       cost += s.cost;
@@ -68,14 +69,13 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
         durationMs += d;
         durationCount += 1;
       }
+      linesChanged += (s.diffAdditions || 0) + (s.diffDeletions || 0);
     }
-    const toolSessions = toolDaily.reduce((sum, d) => sum + d.sessions, 0);
-    const reads = toolDaily.reduce((sum, d) => sum + d.reads, 0);
     return {
       avgTokens: tokens / n,
       avgCost: cost / n,
       avgDuration: durationCount > 0 ? durationMs / durationCount : null,
-      avgReads: toolSessions > 0 ? reads / toolSessions : 0,
+      avgLinesChanged: linesChanged / n,
     };
   }, [sessions, toolDaily]);
 
@@ -137,10 +137,10 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
           sub={!hideCosts ? "Average across sessions" : undefined}
         />
         <StatCard
-          icon={Activity}
-          label="Reads / session"
-          value={summary.avgReads > 0 ? summary.avgReads.toFixed(1) : "—"}
-          sub={hasToolData ? "Tool calls" : "No tool data"}
+          icon={PenLine}
+          label="Lines changed / session"
+          value={summary.avgLinesChanged > 0 ? Math.round(summary.avgLinesChanged).toString() : "—"}
+          sub="Additions + deletions"
         />
       </div>
 
@@ -170,6 +170,7 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
           <ChartCard title="Avg activity per session" icon={<Activity size={12} />}>
             <TrendChart
               data={daily}
+              yFormatter={(v) => String(Math.round(v))}
               lines={[
                 { key: "avgMessagesPerSession", name: "Messages", color: "#58a6ff" },
                 { key: "avgDiffFilesPerSession", name: "Files changed", color: "#10b981" },
@@ -220,7 +221,6 @@ export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: Analyt
               <TrendChart
                 data={failureData}
                 yFormatter={(v) => `${Math.round(v)}%`}
-                yDomain={[0, 100]}
                 lines={[{ key: "rate", name: "Failed %", color: "#ef4444" }]}
               />
             </ChartCard>

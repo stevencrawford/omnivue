@@ -27,6 +27,32 @@ function formatDayLabel(dateStr: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// autoDomain derives a min/max-based y domain so low-magnitude series (like a
+// percent failure rate) are not flattened onto a 0-100 axis. Returns undefined
+// when the data has no variation worth exaggerating, letting the chart fall back
+// to a standard zero-based axis.
+function autoDomain<T extends { date: string }>(
+  data: T[],
+  lines: TrendLine[],
+): [number, number] | undefined {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const d of data) {
+    for (const l of lines) {
+      const v = (d as Record<string, unknown>)[l.key];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return undefined;
+  const range = max - min;
+  if (max === 0 || range <= max * 0.02) return undefined;
+  const pad = range * 0.15;
+  return [Math.max(0, min - pad), max + pad];
+}
+
 // TrendChart renders a small multi-line time series over date-keyed data. It is
 // deliberately chart-only: the analytics tab owns titles, layouts, and empty
 // states so this stays a reusable primitive.
@@ -56,6 +82,8 @@ export function TrendChart<T extends { date: string }>({
     );
   };
 
+  const domain = yDomain ?? autoDomain(data, lines);
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -73,7 +101,7 @@ export function TrendChart<T extends { date: string }>({
           tickLine={false}
           axisLine={false}
           width={48}
-          domain={yDomain}
+          domain={domain}
           tickFormatter={(v: number) => (yFormatter ? yFormatter(v) : String(v))}
         />
         <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--color-ov-border)" }} />
