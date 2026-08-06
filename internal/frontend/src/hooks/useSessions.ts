@@ -8,6 +8,7 @@ export interface SessionsState {
   sessions: Session[];
   loading: boolean;
   liveChangedIds: Set<string>;
+  connected: boolean;
   loadSessions: () => Promise<void>;
 }
 
@@ -22,6 +23,7 @@ export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
+  const [connected, setConnected] = useState(false);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -52,12 +54,14 @@ export function useSessions(): SessionsState {
     onPromptQueueChanged: () => {
       onPromptQueueChanged?.();
     },
+    onConnectionChange: setConnected,
   });
 
   return {
     sessions,
     loading,
     liveChangedIds,
+    connected,
     loadSessions,
   };
 }

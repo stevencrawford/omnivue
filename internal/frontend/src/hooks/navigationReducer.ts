@@ -70,6 +70,7 @@ export type NavigationAction =
   | { type: "SET_TAB"; tab: Tab }
   | { type: "SET_SECTION"; section: Section }
   | { type: "SET_OVERVIEW"; overview: boolean }
+  | { type: "SET_FOCUS_STEP"; stepIndex: number | undefined }
   | { type: "SET_SEARCH_HIGHLIGHT"; query: string | null }
   | { type: "CLEAR_SEARCH_HIGHLIGHT" }
   | { type: "NAV_SESSION_DELTA"; delta: 1 | -1; sessions: Session[] }
@@ -107,6 +108,29 @@ function jumpFields(
     focusMessageKey: state.focusMessageKey + 1,
     focusMessageId: target.messageId,
   };
+}
+
+// nextSessionId returns the session id delta=1/-1 moves to from prevId. This is
+// the shared navigation-policy source for both the NAV_SESSION_DELTA transition
+// and the URL-aware verb (useNavigation), so a keyboard jump and its URL stay
+// in lockstep.
+export function nextSessionId(
+  sessions: Session[],
+  prevId: string | null,
+  delta: 1 | -1,
+): string | null {
+  const idx =
+    prevId === null
+      ? delta === 1
+        ? -1
+        : sessions.length
+      : sessions.findIndex((s) => s.id === prevId);
+  if (delta === 1) {
+    return idx < sessions.length - 1
+      ? (sessions[idx + 1]?.id ?? null)
+      : (prevId ?? sessions[0]?.id ?? null);
+  }
+  return idx > 0 ? (sessions[idx - 1]?.id ?? null) : (prevId ?? sessions[0]?.id ?? null);
 }
 
 export function navigationReducer(
@@ -210,31 +234,17 @@ export function navigationReducer(
       return { ...state, activeSection: action.section };
     case "SET_OVERVIEW":
       return { ...state, showOverview: action.overview };
+    case "SET_FOCUS_STEP":
+      return { ...state, focusStepIndex: action.stepIndex };
     case "SET_SEARCH_HIGHLIGHT":
       return { ...state, searchHighlightQuery: action.query };
     case "CLEAR_SEARCH_HIGHLIGHT":
       return { ...state, searchHighlightQuery: null, focusMessageIndex: undefined };
     case "NAV_SESSION_DELTA": {
       const sessions = action.sessions;
-      const prev = state.activeSessionId;
-      const idx =
-        prev === null
-          ? action.delta === 1
-            ? -1
-            : sessions.length
-          : sessions.findIndex((s) => s.id === prev);
-      let nextId: string | null;
-      if (action.delta === 1) {
-        nextId =
-          idx < sessions.length - 1
-            ? (sessions[idx + 1]?.id ?? null)
-            : (prev ?? sessions[0]?.id ?? null);
-      } else {
-        nextId = idx > 0 ? (sessions[idx - 1]?.id ?? null) : (prev ?? sessions[0]?.id ?? null);
-      }
       return {
         ...state,
-        activeSessionId: nextId,
+        activeSessionId: nextSessionId(sessions, state.activeSessionId, action.delta),
         showOverview: false,
         searchHighlightQuery: null,
       };

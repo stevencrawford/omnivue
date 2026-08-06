@@ -36,7 +36,13 @@ import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
 
 export function App() {
   // ---- Data hooks ----
-  const { sessions, loading: sessionsLoading, liveChangedIds, loadSessions } = useSessions();
+  const {
+    sessions,
+    loading: sessionsLoading,
+    liveChangedIds,
+    connected,
+    loadSessions,
+  } = useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
 
@@ -98,6 +104,12 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
   const [promptVersion, setPromptVersion] = useState(0);
+
+  // ---- URL hash routing ----
+  // Owned by useNavigationState above: useRouteSync (react-router) feeds the
+  // navigation reducer, and every intent verb projects onto the hash through
+  // navigateTo. Browser Back/Forward undo navigation because each destination
+  // is a distinct history entry.
 
   const fetchQueueCount = useCallback(async () => {
     try {
@@ -196,6 +208,7 @@ export function App() {
             <AppHeader
               showOverview={showOverview}
               searchHighlightQuery={searchHighlightQuery}
+              connected={connected}
               onGoHome={goHome}
               onOpenSearch={() => {
                 if (searchHighlightQuery) setSearchInput(searchHighlightQuery);

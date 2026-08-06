@@ -11,10 +11,12 @@ import type { AppNotification, Bookmark, Session } from "./types";
 import {
   initialNavigationState,
   navigationReducer,
+  nextSessionId,
   parseMessageTarget,
   type FocusTarget,
   type NavigationState,
 } from "./navigationReducer";
+import { HOME_ROUTE, sectionRoute, sessionRoute, useRouteSync } from "./useRouteSync";
 import type { Tab } from "../components/SessionViewer";
 import type { Section } from "../components/IconChannel";
 
@@ -22,21 +24,17 @@ import type { Section } from "../components/IconChannel";
 // Navigation intent — React binding
 //
 // The pure transition table lives in navigationReducer.ts; this hook wires it
-// to React (useReducer), to the URL hash (deep links, back/forward), and to
-// the notification side-effects (mark-read + jump to the earliest unread).
+// to React (useReducer) and to react-router (through useRouteSync, the app's
+// single adapter for the URL hash). The router is *not* a competing state
+// model: every URL-affecting transition is declared here first as an intent
+// verb that dispatches into the reducer, then projected onto the hash via
+// navigateTo. Browser back/forward re-applies the prior hash through the same
+// reducer (via HYDRATE/SET_* actions), so the URL never writes state behind
+// the reducer's back.
+//
 // Callers cross the seam with intent verbs — navigateToSession, jumpToMessage,
 // goHome — never with raw setters.
 // ---------------------------------------------------------------------------
-
-const SESSION_HASH = /^#\/session\/([^/]+)(?:\/step\/(\d+))?/;
-
-// The canonical URL hash for an app state. Overview ("#/") wins over a selected
-// session; an empty string means "no hash, no overview" (initial load).
-function serializeHash(activeSessionId: string | null, showOverview: boolean): string {
-  if (showOverview) return "#/";
-  if (activeSessionId) return `#/session/${encodeURIComponent(activeSessionId)}`;
-  return "";
-}
 
 export interface SearchHitTarget {
   sessionId: string;
@@ -128,63 +126,44 @@ export function useNavigationState({
     map.set(id, pos);
   }, []);
 
-  // ---- URL hash sync ----
-  // True once the URL hash has been read into state, so the writer effect does
-  // not push an un-read (initial/empty) state over a deep-link hash.
-  const hashAppliedRef = useRef(false);
+  // ---- Router feeds the reducer ----
+  // useRouteSync owns the URL hash and its history entries (back/forward undo).
+  // Its four state-setters are bridged into the reducer so that a hash applied
+  // on load, on in-app navigateTo, or on browser back/forward is always
+  // replayed through the reducer's transition table. The reducer is the single
+  // source of truth; the router is the adapter that feeds it.
+  const applySection = useCallback(
+    (section: Section) => dispatch({ type: "SET_SECTION", section }),
+    [],
+  );
+  const applyOverview = useCallback(
+    (overview: boolean) => dispatch({ type: "SET_OVERVIEW", overview }),
+    [],
+  );
+  const applySessionId = useCallback((id: string | null) => {
+    dispatch(
+      id === null
+        ? { type: "HYDRATE_OVERVIEW" }
+        : { type: "HYDRATE_SESSION", id, stepIndex: undefined },
+    );
+  }, []);
+  const applyFocusStep = useCallback(
+    (stepIndex: number | undefined) => dispatch({ type: "SET_FOCUS_STEP", stepIndex }),
+    [],
+  );
 
-  const applyHash = useCallback(() => {
-    const hash = window.location.hash;
-    const match = hash.match(SESSION_HASH);
-    if (match) {
-      const id = decodeURIComponent(match[1]);
-      if (sessions.some((s) => s.id === id)) {
-        dispatch({
-          type: "HYDRATE_SESSION",
-          id,
-          stepIndex: match[2] ? parseInt(match[2], 10) : undefined,
-        });
-      }
-    } else if (hash === "#/" || hash === "" || hash === "#") {
-      dispatch({ type: "HYDRATE_OVERVIEW" });
-    }
-    hashAppliedRef.current = true;
-  }, [sessions]);
+  const { navigateTo } = useRouteSync({
+    sessions,
+    setActiveSection: applySection,
+    setShowOverview: applyOverview,
+    setActiveSessionId: applySessionId,
+    setFocusStepIndex: applyFocusStep,
+  });
 
-  // One-time: apply the URL hash (deep link) once sessions are available and
-  // before the writer effect gets a chance to overwrite it.
-  useEffect(() => {
-    if (hashAppliedRef.current) return;
-    if (sessions.length === 0) return;
-    applyHash();
-  }, [sessions, applyHash]);
+  const { activeSessionId } = state;
 
-  const { activeSessionId, showOverview } = state;
-
-  // Push internal state changes to the URL. Idempotent guard: when the URL
-  // already matches, do nothing, so an internal change never clobbers a hash
-  // that the listener just applied from back/forward. replaceState does not
-  // emit `hashchange`, so there is no echo loop.
-  useEffect(() => {
-    if (!hashAppliedRef.current) return;
-    const target = serializeHash(activeSessionId, showOverview);
-    const current = window.location.hash;
-    if (target === "#/") {
-      if (current === "#/" || current === "" || current === "#") return;
-    } else if (current === target) {
-      return;
-    }
-    history.replaceState(null, "", target);
-  }, [activeSessionId, showOverview]);
-
-  // Browser back/forward or manual URL edits → state.
-  useEffect(() => {
-    window.addEventListener("hashchange", applyHash);
-    return () => window.removeEventListener("hashchange", applyHash);
-  }, [applyHash]);
-
-  // When the selected session changes, clear step focus so a previously
-  // deep-linked step does not stay pinned on the next session.
+  // When the selected session changes (e.g. via keyboard), clear any step focus
+  // so a previously deep-linked step does not stay pinned on the next session.
   const isInitialIdRef = useRef(true);
   useEffect(() => {
     if (isInitialIdRef.current) {
@@ -211,6 +190,7 @@ export function useNavigationState({
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
       dispatch({ type: "SESSION_SELECT", id: sessionId });
+      navigateTo(sessionRoute(sessionId));
       // Mark all unread notifications for this session as read and jump to the
       // first notification's message if one exists. If the user has already
       // scrolled past that message (saved scroll), skip the jump and let normal
@@ -227,7 +207,7 @@ export function useNavigationState({
         }
       }
     },
-    [notifications, markNotificationRead],
+    [notifications, markNotificationRead, navigateTo],
   );
 
   const handlePromptClick = useCallback(
@@ -238,48 +218,77 @@ export function useNavigationState({
     [handleSessionSelect],
   );
 
-  const handleBookmarkSelect = useCallback((bookmark: Bookmark) => {
-    dispatch({ type: "BOOKMARK_SELECT", bookmark });
-  }, []);
+  const handleBookmarkSelect = useCallback(
+    (bookmark: Bookmark) => {
+      dispatch({ type: "BOOKMARK_SELECT", bookmark });
+      navigateTo(sessionRoute(bookmark.sessionId));
+    },
+    [navigateTo],
+  );
 
   const handleNotificationClick = useCallback(
     (n: AppNotification) => {
       dispatch({ type: "NOTIFICATION_SELECT", sessionId: n.sessionId, payload: n.payload });
+      navigateTo(sessionRoute(n.sessionId));
       markNotificationRead([n.id]);
     },
-    [markNotificationRead],
+    [markNotificationRead, navigateTo],
   );
 
   const handleDiffNavigateToMessage = useCallback((messageIndex: number, messageId?: string) => {
     dispatch({ type: "DIFF_NAV_TO_MESSAGE", messageIndex, messageId });
   }, []);
 
-  const selectSearchHit = useCallback((target: SearchHitTarget) => {
-    dispatch({ type: "SEARCH_HIT_SELECT", ...target });
-  }, []);
+  const selectSearchHit = useCallback(
+    (target: SearchHitTarget) => {
+      dispatch({ type: "SEARCH_HIT_SELECT", ...target });
+      navigateTo(sessionRoute(target.sessionId));
+    },
+    [navigateTo],
+  );
 
   const setTab = useCallback((tab: Tab) => dispatch({ type: "SET_TAB", tab }), []);
   const setSection = useCallback(
-    (section: Section) => dispatch({ type: "SET_SECTION", section }),
-    [],
+    (section: Section) => {
+      dispatch({ type: "SET_SECTION", section });
+      navigateTo(sectionRoute(section));
+    },
+    [navigateTo],
   );
   const setShowOverview = useCallback(
-    (v: boolean) => dispatch({ type: "SET_OVERVIEW", overview: v }),
-    [],
+    (v: boolean) => {
+      if (v) navigateTo(HOME_ROUTE);
+      dispatch({ type: "SET_OVERVIEW", overview: v });
+    },
+    [navigateTo],
   );
   const setSearchHighlightQuery = useCallback(
     (q: string | null) => dispatch({ type: "SET_SEARCH_HIGHLIGHT", query: q }),
     [],
   );
   const clearSearchHighlight = useCallback(() => dispatch({ type: "CLEAR_SEARCH_HIGHLIGHT" }), []);
-  const goHome = useCallback(() => dispatch({ type: "GO_HOME" }), []);
-  const openTag = useCallback((name: string) => dispatch({ type: "OPEN_TAG", name }), []);
+  const goHome = useCallback(() => {
+    dispatch({ type: "GO_HOME" });
+    navigateTo(HOME_ROUTE);
+  }, [navigateTo]);
+  const openTag = useCallback(
+    (name: string) => {
+      dispatch({ type: "OPEN_TAG", name });
+      navigateTo(sectionRoute("tags"));
+    },
+    [navigateTo],
+  );
   const clearFilterTag = useCallback(() => dispatch({ type: "CLEAR_TAG" }), []);
   const clearFocus = useCallback(() => dispatch({ type: "CLEAR_FOCUS" }), []);
   const handleHighlightDone = useCallback(() => dispatch({ type: "HIGHLIGHT_DONE" }), []);
-  const navigateSession = useCallback((delta: 1 | -1, sessions: Session[]) => {
-    dispatch({ type: "NAV_SESSION_DELTA", delta, sessions });
-  }, []);
+  const navigateSession = useCallback(
+    (delta: 1 | -1, sessions: Session[]) => {
+      const next = nextSessionId(sessions, activeSessionId, delta);
+      dispatch({ type: "NAV_SESSION_DELTA", delta, sessions });
+      navigateTo(next === null ? HOME_ROUTE : sessionRoute(next));
+    },
+    [activeSessionId, navigateTo],
+  );
 
   const value = useMemo<NavigationValue>(
     () => ({
