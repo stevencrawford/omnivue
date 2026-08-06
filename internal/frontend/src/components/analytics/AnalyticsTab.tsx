@@ -13,7 +13,6 @@ interface AnalyticsTabProps {
   startDate: Date | null;
   endDate: Date;
   hideCosts: boolean;
-  rangeLabel: string;
 }
 
 const TOOL_LINES: TrendLine[] = [
@@ -46,13 +45,7 @@ function ChartCard({
   );
 }
 
-export function AnalyticsTab({
-  sessions,
-  startDate,
-  endDate,
-  hideCosts,
-  rangeLabel,
-}: AnalyticsTabProps) {
+export function AnalyticsTab({ sessions, startDate, endDate, hideCosts }: AnalyticsTabProps) {
   const range = useMemo(() => ({ start: startDate, end: endDate }), [startDate, endDate]);
   const daily = useMemo(() => aggregateDailyAnalytics(sessions, range), [sessions, range]);
 
@@ -124,9 +117,6 @@ export function AnalyticsTab({
   return (
     <div className="space-y-8">
       {/* ---- Summary ---- */}
-      <p className="text-[11px] text-ov-text-secondary -mt-4 mb-3">
-        Per-session averages · {rangeLabel}
-      </p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={Zap}

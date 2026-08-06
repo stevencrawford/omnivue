@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bot, Coins, Sparkles, Zap } from "lucide-react";
+import { Bot, Coins, Zap } from "lucide-react";
 import { SessionsIcon } from "./IconChannel";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { ActivityCharts } from "./ActivityCharts";
@@ -114,22 +114,28 @@ export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProp
   return (
     <div className="flex-1 overflow-y-auto sess-overview">
       <div className="sess-overview-inner">
-        {/* ---- Hero header with time range selector ---- */}
+        {/* ---- Header: view tabs + time range selector ---- */}
         <header className="sess-overview-hero">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0">
-              <div className="sess-overview-hero-icon shrink-0">
-                <Sparkles size={18} />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">Overview</h2>
-                <p className="text-sm text-ov-text-secondary mt-0.5">
-                  {label} · {stats.totalSessions} session
-                  {stats.totalSessions !== 1 ? "s" : ""} across {stats.agents.length} agent
-                  {stats.agents.length !== 1 ? "s" : ""} and {stats.totalWorkspaces} workspace
-                  {stats.totalWorkspaces !== 1 ? "s" : ""}
-                </p>
-              </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="sess-overview-tabs">
+              <button
+                type="button"
+                className={
+                  view === "overview" ? "sess-overview-tab is-active" : "sess-overview-tab"
+                }
+                onClick={() => setView("overview")}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                className={
+                  view === "analytics" ? "sess-overview-tab is-active" : "sess-overview-tab"
+                }
+                onClick={() => setView("analytics")}
+              >
+                Analytics
+              </button>
             </div>
             <TimeRangeSelector
               preset={range.preset}
@@ -140,24 +146,6 @@ export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProp
               onCustomRangeChange={setCustomRange}
             />
           </div>
-
-          {/* ---- View tabs ---- */}
-          <div className="sess-overview-tabs mt-5">
-            <button
-              type="button"
-              className={view === "overview" ? "sess-overview-tab is-active" : "sess-overview-tab"}
-              onClick={() => setView("overview")}
-            >
-              Overview
-            </button>
-            <button
-              type="button"
-              className={view === "analytics" ? "sess-overview-tab is-active" : "sess-overview-tab"}
-              onClick={() => setView("analytics")}
-            >
-              Analytics
-            </button>
-          </div>
         </header>
 
         {view === "analytics" ? (
@@ -166,7 +154,6 @@ export function OverviewScreen({ sessions, onSessionSelect }: OverviewScreenProp
             startDate={startDate}
             endDate={endDate}
             hideCosts={hideCosts}
-            rangeLabel={label}
           />
         ) : (
           <>
