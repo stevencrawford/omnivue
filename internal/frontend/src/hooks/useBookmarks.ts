@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Bookmark } from "./types";
+import type { Bookmark, BookmarkKind } from "./types";
 import { fetchBookmarks, createBookmark, deleteBookmark } from "./apiClient";
 import { runCatching } from "../utils/errors";
+
+/**
+ * Sentinel messageIndex used for plan bookmarks. Plans are not anchored to a
+ * message, so the ref key is `${sessionId}:-1:`. Message bookmarks always use
+ * messageIndex >= 0, so this never collides with them.
+ */
+export const PLAN_BOOKMARK_INDEX = -1;
 
 export interface BookmarksState {
   bookmarks: Bookmark[];
@@ -13,6 +20,7 @@ export interface BookmarksState {
     messageIndex: number,
     toolCallId: string | undefined,
     label: string,
+    kind?: BookmarkKind,
   ) => Promise<void>;
   handleBookmarkDelete: (id: string) => Promise<void>;
 }
@@ -45,9 +53,10 @@ export function useBookmarks(): BookmarksState {
       messageIndex: number,
       toolCallId: string | undefined,
       label: string,
+      kind: BookmarkKind = "message",
     ) => {
       await runCatching(
-        () => createBookmark({ sessionId, messageIndex, toolCallId, label }),
+        () => createBookmark({ sessionId, messageIndex, toolCallId, label, kind }),
         (err) =>
           console.error("Failed to create bookmark:", err instanceof Error ? err.message : err),
       );

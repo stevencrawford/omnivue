@@ -384,6 +384,7 @@ List all bookmarks.
     "messageIndex": 5,
     "toolCallId": "tc_456",
     "label": "Interesting output",
+    "kind": "message",
     "createdAt": "2026-06-01T12:00:00Z"
   }
 ]
@@ -393,14 +394,14 @@ List all bookmarks.
 POST /_/api/bookmarks
 ```
 
-Create or toggle a bookmark. If a bookmark for the same `sessionId`+`messageIndex`+`toolCallId` already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, and optional `label`.
+Create or toggle a bookmark. If a bookmark for the same `sessionId`+`messageIndex`+`toolCallId` already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, `kind` (either `message` or `plan`; defaults to `message`), and optional `label`. Plan bookmarks use `messageIndex: -1` and no `toolCallId`.
 
 ```json
 {
   "sessionId": "sess_123",
-  "messageIndex": 5,
-  "toolCallId": "tc_456",
-  "label": "Interesting output"
+  "messageIndex": -1,
+  "label": "Plan",
+  "kind": "plan"
 }
 ```
 

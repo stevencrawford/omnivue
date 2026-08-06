@@ -30,7 +30,7 @@ import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
-import type { AppNotification, NotificationSettings } from "./hooks/types";
+import type { AppNotification, Bookmark, NotificationSettings } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 
@@ -291,13 +291,17 @@ export function App() {
   }, []);
 
   const handleBookmarkSelect = useCallback(
-    (sessionId: string, messageIndex: number, _toolCallId?: string) => {
+    (bookmark: Bookmark) => {
       setShowOverview(false);
-      setActiveSessionId(sessionId);
-      jumpToMessage({ messageIndex });
-      setActiveTab("session");
+      setActiveSessionId(bookmark.sessionId);
       setSearchHighlightQuery(null);
       setActiveSection("sessions");
+      if (bookmark.kind === "plan") {
+        setActiveTab("plan");
+      } else {
+        jumpToMessage({ messageIndex: bookmark.messageIndex });
+        setActiveTab("session");
+      }
     },
     [jumpToMessage],
   );

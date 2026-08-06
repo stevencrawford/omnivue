@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import type { Session, Message } from "../hooks/types";
+import type { Session, Message, BookmarkKind } from "../hooks/types";
 import { fetchMessages } from "../hooks/apiClient";
 import { isAbortError } from "../utils/errors";
 import { useToast } from "../hooks/useToast";
@@ -45,6 +45,7 @@ interface SessionViewerProps {
     messageIndex: number,
     toolCallId: string | undefined,
     label: string,
+    kind?: BookmarkKind,
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
   searchHighlightQuery?: string | null;
@@ -203,6 +204,8 @@ export function SessionViewer({
                 sessionId={session.id}
                 refreshKey={refreshKey}
                 searchHighlightQuery={searchHighlightQuery}
+                onBookmark={onBookmark}
+                bookmarkIdByRef={bookmarkIdByRef}
               />
             </div>
           </div>

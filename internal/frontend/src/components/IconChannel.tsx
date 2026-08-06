@@ -1,5 +1,5 @@
 import React from "react";
-import { Tags, Bookmark, Bell, Settings, ListTodo, type LucideProps } from "lucide-react";
+import { Tags, Bookmark, Bell, Settings, Layers, type LucideProps } from "lucide-react";
 
 export type Section = "sessions" | "queue" | "tags" | "bookmarks" | "notifications";
 
@@ -38,7 +38,7 @@ const sections: {
   Icon: React.ComponentType<LucideProps>;
 }[] = [
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
-  { id: "queue", label: "Queue", Icon: ListTodo },
+  { id: "queue", label: "Queued Prompts", Icon: Layers },
   { id: "tags", label: "Tags", Icon: Tags },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
   { id: "notifications", label: "Notifications", Icon: Bell },
@@ -68,6 +68,7 @@ export function IconChannel({
             }
           }}
           title={label}
+          aria-label={label}
           className={`relative flex items-center justify-center w-full h-10 transition-colors ${
             activeSection === id
               ? "text-accent cursor-pointer"

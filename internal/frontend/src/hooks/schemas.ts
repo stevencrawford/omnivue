@@ -237,6 +237,7 @@ export const BookmarkSchema = z.object({
   messageIndex: coerceNumber,
   toolCallId: optionalString,
   label: z.string(),
+  kind: z.enum(["message", "plan"]),
   createdAt: z.string(),
 });
 

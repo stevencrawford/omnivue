@@ -45,6 +45,7 @@ export type FileEdit = z.infer<typeof FileEditSchema>;
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 export type Tag = z.infer<typeof TagSchema>;
 export type Bookmark = z.infer<typeof BookmarkSchema>;
+export type BookmarkKind = "message" | "plan";
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 export type NotificationSeverity = z.infer<typeof NotificationSeveritySchema>;
 export type NotificationScope = z.infer<typeof NotificationScopeSchema>;
