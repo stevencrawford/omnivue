@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
@@ -67,6 +68,7 @@ func (a *Adapter) loadMessages(fpath string) ([]ingest.Message, error) {
 	}
 
 	toolCallsByID := make(map[string]*ingest.ToolCall)
+	toolCallStart := make(map[string]time.Time)
 	var toolResults []ingest.Message
 	for i := range parsed {
 		msg := &parsed[i]
@@ -74,6 +76,7 @@ func (a *Adapter) loadMessages(fpath string) ([]ingest.Message, error) {
 			for j := range msg.ToolCalls {
 				tc := &msg.ToolCalls[j]
 				toolCallsByID[tc.ID] = tc
+				toolCallStart[tc.ID] = msg.Timestamp
 			}
 		}
 		if msg.Role == "toolResult" {
@@ -94,6 +97,13 @@ func (a *Adapter) loadMessages(fpath string) ([]ingest.Message, error) {
 		if isErr, ok := tr.Metadata["isError"]; ok && isErr == "true" {
 			if tc.Metadata == "" {
 				tc.Metadata = `{"isError":true}`
+			}
+		}
+		// Duration spans from the assistant message that issued the tool call to
+		// the toolResult that closed it.
+		if start, ok := toolCallStart[tcID]; ok {
+			if d := tr.Timestamp.Sub(start); d > 0 {
+				tc.Duration = d.Milliseconds()
 			}
 		}
 	}
@@ -136,6 +146,29 @@ func parseMessage(env piMessageEnvelope, currentModel string) ingest.Message {
 		if env.Message.Usage != nil {
 			msg.TokensInput = env.Message.Usage.Input
 			msg.TokensOutput = env.Message.Usage.Output
+
+			// Attribute the message's token/cost usage down to the tool calls it
+			// carries. Pi records usage per assistant message, not per tool call.
+			if len(msg.ToolCalls) > 0 {
+				var cost float64
+				if env.Message.Usage.Cost != nil {
+					cost = env.Message.Usage.Cost.Total
+				}
+				usage := ingest.ToolUsage{
+					Tokens: ingest.StepTokens{
+						Input:      env.Message.Usage.Input,
+						Output:     env.Message.Usage.Output,
+						Reasoning:  env.Message.Usage.Reasoning,
+						CacheRead:  env.Message.Usage.CacheRead,
+						CacheWrite: env.Message.Usage.CacheWrite,
+					},
+					Cost:   cost,
+					Source: ingest.UsageMessage,
+				}
+				for i := range msg.ToolCalls {
+					msg.ToolCalls[i].Usage = &usage
+				}
+			}
 		}
 
 	default:

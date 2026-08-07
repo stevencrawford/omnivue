@@ -39,6 +39,12 @@ export const StepEventSchema = z.object({
   tokens: StepTokensSchema.optional(),
 });
 
+export const ToolUsageSchema = z.object({
+  tokens: StepTokensSchema.optional(),
+  cost: coerceNumber.optional(),
+  source: z.string(),
+});
+
 export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -47,6 +53,7 @@ export const ToolCallSchema = z.object({
   status: z.string(),
   duration: coerceNumber.optional(),
   metadata: z.string().optional(),
+  usage: ToolUsageSchema.optional(),
 });
 
 export const MessageSchema = z.object({

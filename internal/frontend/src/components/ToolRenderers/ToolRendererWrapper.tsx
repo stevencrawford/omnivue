@@ -4,6 +4,7 @@ import type { ToolRendererDefinition, ToolRendererProps } from "./types";
 import type { ToolCall } from "../../hooks/types";
 import CopyButton from "./CopyButton";
 import { BookmarkButton } from "./BookmarkButton";
+import { ToolUsageInfo } from "./ToolUsageInfo";
 import { useNavigation } from "../../hooks/useNavigation";
 
 const DEFAULT_OUTPUT_MAX_LINES = 50;
@@ -128,6 +129,7 @@ export function ToolRendererWrapper({
                 className="mr-1"
               />
             )}
+            <ToolUsageInfo tool={tool} />
           </div>
         </div>
       );
@@ -200,6 +202,7 @@ export function ToolRendererWrapper({
               className="mr-1"
             />
           )}
+          <ToolUsageInfo tool={tool} />
         </div>
         {showContent && (
           <div className="border-t border-ov-border">

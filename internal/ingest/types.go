@@ -77,6 +77,26 @@ const (
 	StepEventFinish StepEventType = "finish"
 )
 
+// UsageSource indicates how a tool call's usage data was obtained. Agents record
+// token/cost usage at the model-turn, step, or message level, never per tool call,
+// so adapters attribute that usage down to the tool calls they cover.
+type UsageSource string
+
+const (
+	// UsageMessage marks usage attributed from the enclosing message's usage totals.
+	UsageMessage UsageSource = "message"
+	// UsageStep marks usage attributed from the containing step's totals.
+	UsageStep UsageSource = "step"
+)
+
+// ToolUsage captures optional per-tool-call resource usage. The zero value (absent
+// Usage pointer on ToolCall) means the adapter records no usage for the tool call.
+type ToolUsage struct {
+	Tokens StepTokens `json:"tokens,omitzero"`
+	Cost   float64    `json:"cost,omitempty"`
+	Source UsageSource `json:"source"`
+}
+
 // PlanItemStatus represents the completion state of a plan item.
 type PlanItemStatus string
 
@@ -205,6 +225,10 @@ type ToolCall struct {
 	Status   ToolCallStatus `json:"status"`
 	Duration int64          `json:"duration,omitempty"` // milliseconds
 	Metadata string         `json:"metadata,omitempty"` // tool-specific metadata (JSON)
+
+	// Usage captures optional per-tool-call token/cost data when the adapter can
+	// attribute it. Absent means the agent records no usage for this tool call.
+	Usage *ToolUsage `json:"usage,omitempty"`
 }
 
 // PlanItem represents a task/todo within a session plan.
