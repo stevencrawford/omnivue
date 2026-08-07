@@ -239,6 +239,40 @@ func TestMessagesFromEvents_SubAgentFailedReleasesStack(t *testing.T) {
 	}
 }
 
+func TestMessagesFromEvents_ToolCallUsageAttribution(t *testing.T) {
+	dir := t.TempDir()
+	writeEventsJSONL(t, dir, "sess-1", []string{
+		`{"type":"user.message","data":{"content":"refactor it"},"id":"u1","timestamp":"2025-01-01T00:00:00Z"}`,
+		`{"type":"assistant.message","data":{"content":"","messageId":"a1","outputTokens":120,"toolRequests":[{"toolCallId":"tool-1","name":"edit","arguments":{"filePath":"a.go"}},{"toolCallId":"tool-2","name":"bash","arguments":{"command":"go vet"}}]},"id":"e2","timestamp":"2025-01-01T00:00:01Z"}`,
+	})
+	a := &Adapter{basePath: dir, syntheticSessions: make(map[string]*syntheticSession)}
+
+	messages, err := a.messagesFromEvents("sess-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var usageCalls int
+	for _, msg := range messages {
+		for _, tc := range msg.ToolCalls {
+			if tc.Usage == nil {
+				t.Errorf("tool call %s missing attributed usage", tc.ID)
+				continue
+			}
+			usageCalls++
+			if tc.Usage.Source != ingest.UsageMessage {
+				t.Errorf("tool call %s usage source = %q, want %q", tc.ID, tc.Usage.Source, ingest.UsageMessage)
+			}
+			if tc.Usage.Tokens.Output != 120 {
+				t.Errorf("tool call %s output tokens = %d, want 120", tc.ID, tc.Usage.Tokens.Output)
+			}
+		}
+	}
+	if usageCalls != 2 {
+		t.Errorf("expected 2 tool calls with usage, got %d", usageCalls)
+	}
+}
+
 // TestMessagesFromEvents_MainAgentMessagesSurviveSubAgentInterleave reproduces
 // the case where a background sub-agent (e.g. Copilot's github-context-memory
 // sidekick) runs concurrently with the main agent. Main-agent messages that
