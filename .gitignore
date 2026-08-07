@@ -6,3 +6,4 @@ coverage.out
 omnivue
 .opencode/plans
 .idea/
+.agents/
