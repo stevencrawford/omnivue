@@ -7,6 +7,7 @@ import { useNavigation } from "../../hooks/useNavigation";
 import { useCopy } from "../../hooks/useCopy";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
+import { ToolUsageInfo } from "./ToolUsageInfo";
 import { DefaultToolDiff } from "./builtin/DefaultToolDiff";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
 
@@ -255,15 +256,9 @@ export function ToolCallRow({
           >
             {summary}
           </span>
-          {!isTask && tool.duration && tool.duration > 0 ? (
-            <span className="text-[11px] text-ov-text-secondary shrink-0">
-              {tool.duration < 1000
-                ? `${tool.duration}ms`
-                : `${(tool.duration / 1000).toFixed(1)}s`}
-            </span>
-          ) : null}
         </button>
         {!isTask && <NonCompactCopyBtn tool={tool} />}
+        <ToolUsageInfo tool={tool} />
         {childSessionId && (
           <button
             type="button"
