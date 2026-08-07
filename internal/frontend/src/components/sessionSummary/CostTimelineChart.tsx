@@ -1,4 +1,4 @@
-import { DollarSign } from "lucide-react";
+import { ArrowRight, DollarSign } from "lucide-react";
 import {
   ResponsiveContainer,
   CartesianGrid,
@@ -14,12 +14,15 @@ import { formatCost } from "../../utils/sessionUtils";
 function CostTimelineTooltip({
   active,
   payload,
+  onNavigateToMessage,
 }: {
   active?: boolean;
   payload?: { payload: TokenTimelinePoint }[];
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
+  const linkable = onNavigateToMessage && (p.messageIndex !== undefined || p.messageId);
   return (
     <div className="ov-chart-tooltip">
       <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
@@ -31,6 +34,19 @@ function CostTimelineTooltip({
         <span>Total</span>
         <span className="ml-auto tabular-nums">{formatCost(p.cumulativeCost)}</span>
       </div>
+      {linkable && (
+        <>
+          <div className="ov-chart-tooltip-divider" />
+          <button
+            type="button"
+            onClick={() => onNavigateToMessage(p.messageIndex!, p.messageId)}
+            className="ov-chart-tooltip-row w-full items-center gap-1 text-left text-accent hover:text-accent cursor-pointer"
+          >
+            <span>View message</span>
+            <ArrowRight size={12} className="ml-auto" />
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -38,9 +54,11 @@ function CostTimelineTooltip({
 export function CostTimelineChart({
   timeline,
   hideCosts,
+  onNavigateToMessage,
 }: {
   timeline: TokenTimelinePoint[];
   hideCosts: boolean;
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }) {
   if (timeline.length === 0 || hideCosts) return null;
   const hasCost = timeline.some((p) => p.cost > 0);
@@ -71,7 +89,7 @@ export function CostTimelineChart({
             tickFormatter={(v: number) => (v < 0.01 ? `<${0.01}` : `$${v.toFixed(2)}`)}
           />
           <Tooltip
-            content={<CostTimelineTooltip />}
+            content={<CostTimelineTooltip onNavigateToMessage={onNavigateToMessage} />}
             cursor={{ fill: "var(--color-ov-bg-hover)" }}
           />
           <Line

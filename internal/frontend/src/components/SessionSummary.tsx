@@ -14,9 +14,10 @@ import { formatDuration } from "./sessionSummary/format";
 interface SessionSummaryProps {
   session: Session;
   messages: Message[];
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }
 
-export function SessionSummary({ session, messages }: SessionSummaryProps) {
+export function SessionSummary({ session, messages, onNavigateToMessage }: SessionSummaryProps) {
   const hideCosts = useHideCosts();
   const { categories, totalCount, totalDuration, hasTiming } = useSessionSummary(messages);
   const { tokenTimeline, effectiveness } = useSessionTokenomics(messages, session);
@@ -56,12 +57,19 @@ export function SessionSummary({ session, messages }: SessionSummaryProps) {
               />
             </div>
             <div className="col-span-3">
-              <TokenTimelineChart timeline={tokenTimeline} />
+              <TokenTimelineChart
+                timeline={tokenTimeline}
+                onNavigateToMessage={onNavigateToMessage}
+              />
             </div>
           </div>
         </section>
 
-        <CostTimelineChart timeline={tokenTimeline} hideCosts={hideCosts} />
+        <CostTimelineChart
+          timeline={tokenTimeline}
+          hideCosts={hideCosts}
+          onNavigateToMessage={onNavigateToMessage}
+        />
       </div>
 
       {(session.cost > 0 || totalDuration > 0 || totalCount > 0) && (
