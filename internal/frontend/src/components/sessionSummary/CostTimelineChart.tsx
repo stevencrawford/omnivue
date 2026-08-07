@@ -1,4 +1,4 @@
-import { ArrowRight, DollarSign } from "lucide-react";
+import { DollarSign } from "lucide-react";
 import {
   ResponsiveContainer,
   CartesianGrid,
@@ -10,19 +10,17 @@ import {
 } from "recharts";
 import type { TokenTimelinePoint } from "../../hooks/useSessionTokenomics";
 import { formatCost } from "../../utils/sessionUtils";
+import { ChartActivePinDot } from "./ChartActivePinDot";
 
 function CostTimelineTooltip({
   active,
   payload,
-  onNavigateToMessage,
 }: {
   active?: boolean;
   payload?: { payload: TokenTimelinePoint }[];
-  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
-  const linkable = onNavigateToMessage && (p.messageIndex !== undefined || p.messageId);
   return (
     <div className="ov-chart-tooltip">
       <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
@@ -34,19 +32,9 @@ function CostTimelineTooltip({
         <span>Total</span>
         <span className="ml-auto tabular-nums">{formatCost(p.cumulativeCost)}</span>
       </div>
-      {linkable && (
-        <>
-          <div className="ov-chart-tooltip-divider" />
-          <button
-            type="button"
-            onClick={() => onNavigateToMessage(p.messageIndex!, p.messageId)}
-            className="ov-chart-tooltip-row w-full items-center gap-1 text-left text-accent hover:text-accent cursor-pointer"
-          >
-            <span>View message</span>
-            <ArrowRight size={12} className="ml-auto" />
-          </button>
-        </>
-      )}
+      <p className="ov-chart-tooltip-row text-[11px] text-ov-text-secondary">
+        Click a point to view the message
+      </p>
     </div>
   );
 }
@@ -89,7 +77,7 @@ export function CostTimelineChart({
             tickFormatter={(v: number) => (v < 0.01 ? `<${0.01}` : `$${v.toFixed(2)}`)}
           />
           <Tooltip
-            content={<CostTimelineTooltip onNavigateToMessage={onNavigateToMessage} />}
+            content={<CostTimelineTooltip />}
             cursor={{ fill: "var(--color-ov-bg-hover)" }}
           />
           <Line
@@ -98,6 +86,13 @@ export function CostTimelineChart({
             stroke="var(--color-accent-secondary)"
             strokeWidth={2}
             dot={false}
+            activeDot={(props: any) => (
+              <ChartActivePinDot
+                {...props}
+                fill="var(--color-accent-secondary)"
+                onNavigateToMessage={onNavigateToMessage}
+              />
+            )}
             isAnimationActive={false}
           />
         </LineChart>
