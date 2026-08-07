@@ -210,6 +210,19 @@ func handleAssistantMessage(event eventEnvelope, currentModel string) *ingest.Me
 		msg.ToolCalls = append(msg.ToolCalls, tc)
 	}
 
+	// Attribute the assistant message's output-token count down to its tool calls.
+	// Copilot records only per-message output tokens, no cost or input tokens, so
+	// that is all we surface.
+	if data.OutputTokens > 0 && len(msg.ToolCalls) > 0 {
+		usage := ingest.ToolUsage{
+			Tokens: ingest.StepTokens{Output: data.OutputTokens},
+			Source: ingest.UsageMessage,
+		}
+		for i := range msg.ToolCalls {
+			msg.ToolCalls[i].Usage = &usage
+		}
+	}
+
 	return &msg
 }
 

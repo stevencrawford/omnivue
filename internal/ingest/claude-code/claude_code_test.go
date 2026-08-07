@@ -374,6 +374,56 @@ func TestMessageParsing_ToolCalls(t *testing.T) {
 	}
 }
 
+func TestToolCallUsageAttribution(t *testing.T) {
+	start := time.Now().UTC().Add(-5 * time.Second)
+	end := time.Now().UTC()
+	inputJSON := `{"file_path":"src/main.go","old_str":"foo","new_str":"bar"}`
+	lines := []json.RawMessage{
+		json.RawMessage(`{"type":"assistant","uuid":"a1","timestamp":"` + start.Format(time.RFC3339) + `","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Edit","input":` + inputJSON + `}],"model":"anthropic/claude-sonnet-4-5-20250929","usage":{"input_tokens":50,"output_tokens":100,"cache_creation_input_tokens":10,"cache_read_input_tokens":5}}}`),
+		json.RawMessage(`{"type":"tool_result","tool_use_id":"tu1","content":"done","timestamp":"` + end.Format(time.RFC3339) + `"}`),
+	}
+
+	a := setupAdapter(t, "proj", "sid-usage.jsonl", lines)
+	ctx := context.Background()
+
+	msgs, err := a.Messages(ctx, "sid-usage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if len(msgs[0].ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(msgs[0].ToolCalls))
+	}
+
+	tc := msgs[0].ToolCalls[0]
+	if tc.Usage == nil {
+		t.Fatal("expected attributed usage on tool call")
+	}
+	if tc.Usage.Source != ingest.UsageMessage {
+		t.Errorf("usage source = %q, want %q", tc.Usage.Source, ingest.UsageMessage)
+	}
+	if tc.Usage.Tokens.Input != 50 {
+		t.Errorf("input tokens = %d, want 50", tc.Usage.Tokens.Input)
+	}
+	if tc.Usage.Tokens.Output != 100 {
+		t.Errorf("output tokens = %d, want 100", tc.Usage.Tokens.Output)
+	}
+	if tc.Usage.Tokens.CacheRead != 5 {
+		t.Errorf("cache read tokens = %d, want 5", tc.Usage.Tokens.CacheRead)
+	}
+	if tc.Usage.Tokens.CacheWrite != 10 {
+		t.Errorf("cache write tokens = %d, want 10", tc.Usage.Tokens.CacheWrite)
+	}
+	if tc.Usage.Cost <= 0 {
+		t.Errorf("usage cost = %v, want > 0", tc.Usage.Cost)
+	}
+	if tc.Duration < 4000 || tc.Duration > 6000 {
+		t.Errorf("tool call duration = %dms, want ~5000ms", tc.Duration)
+	}
+}
+
 func TestToolResultMatching(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	lines := []json.RawMessage{

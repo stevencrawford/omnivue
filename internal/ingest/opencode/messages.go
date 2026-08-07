@@ -78,6 +78,23 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	var pendingCompaction *ingest.ToolCall
 	var prevModel string
 
+	// Step-attributed token/cost tracking. OpenCode records token usage at the
+	// step level (step-finish parts), not per tool call. We assign each tool part
+	// to the step open when it was emitted, then back-fill that step's totals once
+	// its step-finish arrives. toolStep maps a tool callID to its step; stepUsage
+	// holds the totals for each closed step.
+	type stepUsageT struct {
+		tokens ingest.StepTokens
+		cost   float64
+		has    bool
+	}
+	type stepTracker struct {
+		curStep   int
+		toolStep  map[string]int
+		stepUsage map[int]stepUsageT
+	}
+	trk := stepTracker{toolStep: make(map[string]int, len(msgRows)*2), stepUsage: make(map[int]stepUsageT)}
+
 	for _, m := range msgRows {
 		msg := ingest.Message{
 			ID:        m.id,
@@ -118,6 +135,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					msg.Reasoning += "\n" + p.Text
 				}
 			case "step-start":
+				trk.curStep++
 				msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
 					Step:     ingest.StepEventStart,
 					Snapshot: p.Snapshot,
@@ -129,6 +147,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					Reason:   p.Reason,
 					Cost:     p.Cost,
 				}
+				su := stepUsageT{cost: p.Cost, has: p.Cost != 0}
 				if p.Tokens != nil {
 					se.Tokens = ingest.StepTokens{
 						Input:     p.Tokens.Input,
@@ -139,9 +158,17 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 						se.Tokens.CacheRead = p.Tokens.Cache.Read
 						se.Tokens.CacheWrite = p.Tokens.Cache.Write
 					}
+					su.tokens = se.Tokens
+					if se.Tokens.Input != 0 || se.Tokens.Output != 0 || se.Tokens.CacheRead != 0 || se.Tokens.CacheWrite != 0 {
+						su.has = true
+					}
+				}
+				if su.has {
+					trk.stepUsage[trk.curStep] = su
 				}
 				msg.StepEvents = append(msg.StepEvents, se)
 			case "tool":
+				trk.toolStep[p.CallID] = trk.curStep
 				tc := ingest.ToolCall{
 					ID:     p.CallID,
 					Name:   p.Tool,
@@ -206,6 +233,23 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		}
 
 		messages = append(messages, msg)
+	}
+
+	// Back-fill per-tool-call usage from the closed step totals recorded above.
+	for mi := range messages {
+		for ci := range messages[mi].ToolCalls {
+			tc := &messages[mi].ToolCalls[ci]
+			step, ok := trk.toolStep[tc.ID]
+			if !ok {
+				continue
+			}
+			su, ok := trk.stepUsage[step]
+			if !ok {
+				continue
+			}
+			usage := ingest.ToolUsage{Tokens: su.tokens, Cost: su.cost, Source: ingest.UsageStep}
+			tc.Usage = &usage
+		}
 	}
 
 	return messages, nil

@@ -203,6 +203,58 @@ func TestAdapter_ToolCallOutputMerging(t *testing.T) {
 	}
 }
 
+func TestAdapter_ToolCallUsage(t *testing.T) {
+	adapter, err := codex.New(testdataPath())
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer adapter.Close()
+
+	ctx := context.Background()
+	messages, err := adapter.Messages(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	if err != nil {
+		t.Fatalf("Messages() failed: %v", err)
+	}
+
+	var sawUsage bool
+	for _, msg := range messages {
+		for _, tc := range msg.ToolCalls {
+			if tc.Usage == nil {
+				continue
+			}
+			sawUsage = true
+			if tc.Usage.Source != ingest.UsageMessage {
+				t.Errorf("tool call %s usage source = %q, want %q", tc.ID, tc.Usage.Source, ingest.UsageMessage)
+			}
+			if tc.Usage.Tokens.Input != 100 {
+				t.Errorf("tool call %s input tokens = %d, want 100", tc.ID, tc.Usage.Tokens.Input)
+			}
+			if tc.Usage.Tokens.Output != 50 {
+				t.Errorf("tool call %s output tokens = %d, want 50", tc.ID, tc.Usage.Tokens.Output)
+			}
+			if tc.Usage.Tokens.CacheRead != 20 {
+				t.Errorf("tool call %s cached tokens = %d, want 20", tc.ID, tc.Usage.Tokens.CacheRead)
+			}
+		}
+	}
+	if !sawUsage {
+		t.Error("expected at least one tool call with attributed usage")
+	}
+
+	// task_complete carries an exact Duration from duration_ms.
+	var sawTaskDuration bool
+	for _, msg := range messages {
+		for _, tc := range msg.ToolCalls {
+			if tc.Name == "task_complete" && tc.Duration > 0 {
+				sawTaskDuration = true
+			}
+		}
+	}
+	if !sawTaskDuration {
+		t.Error("expected task_complete tool call to carry a duration")
+	}
+}
+
 func TestAdapter_GetPlan(t *testing.T) {
 	adapter, err := codex.New(testdataPath())
 	if err != nil {
