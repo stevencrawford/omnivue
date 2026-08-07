@@ -2,9 +2,25 @@ import { useState } from "react";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { HOME_ROUTE, pathToRoute, sectionRoute, sessionRoute, useRouteSync } from "../useRouteSync";
+import {
+  HOME_ROUTE,
+  pathToRoute,
+  sectionRoute,
+  sessionRoute,
+  sessionRouteWithSection,
+  useRouteSync,
+} from "../useRouteSync";
 import type { Session } from "../types";
 import type { Section } from "../../components/IconChannel";
+
+// pathToRoute now reads a route object. This shim keeps call sites terse and
+// splits any query string out of the path argument.
+const r = (route: string): ReturnType<typeof pathToRoute> => {
+  const q = route.indexOf("?");
+  return q === -1
+    ? pathToRoute({ pathname: route, search: "" })
+    : pathToRoute({ pathname: route.slice(0, q), search: route.slice(q) });
+};
 
 const sessions = [
   { id: "sess-1", title: "One" },
@@ -13,13 +29,13 @@ const sessions = [
 
 describe("pathToRoute", () => {
   it("maps home and sessions page to the overview state", () => {
-    expect(pathToRoute("/")).toEqual({
+    expect(r("/")).toEqual({
       sessionId: null,
       step: undefined,
       showOverview: true,
       section: "sessions",
     });
-    expect(pathToRoute("/sessions")).toEqual({
+    expect(r("/sessions")).toEqual({
       sessionId: null,
       step: undefined,
       showOverview: true,
@@ -28,14 +44,14 @@ describe("pathToRoute", () => {
   });
 
   it("maps each icon-channel section to its own route", () => {
-    expect(pathToRoute("/queue").section).toBe("queue");
-    expect(pathToRoute("/tags").section).toBe("tags");
-    expect(pathToRoute("/bookmarks").section).toBe("bookmarks");
-    expect(pathToRoute("/notifications").section).toBe("notifications");
+    expect(r("/queue").section).toBe("queue");
+    expect(r("/tags").section).toBe("tags");
+    expect(r("/bookmarks").section).toBe("bookmarks");
+    expect(r("/notifications").section).toBe("notifications");
   });
 
   it("maps a session path to its id with overview off", () => {
-    expect(pathToRoute("/session/sess-1")).toEqual({
+    expect(r("/session/sess-1")).toEqual({
       sessionId: "sess-1",
       step: undefined,
       showOverview: false,
@@ -43,17 +59,37 @@ describe("pathToRoute", () => {
     });
   });
 
+  it("keeps an open session when a section rides on the session route", () => {
+    expect(r("/session/sess-1?section=queue")).toEqual({
+      sessionId: "sess-1",
+      step: undefined,
+      showOverview: false,
+      section: "queue",
+    });
+  });
+
+  it("keeps the overview when a section rides on the home route", () => {
+    expect(r("/?section=queue")).toEqual({
+      sessionId: null,
+      step: undefined,
+      showOverview: true,
+      section: "queue",
+    });
+  });
+
   it("maps a session step deep link to its step focus", () => {
-    expect(pathToRoute("/session/sess-1/step/3").step).toBe(3);
+    expect(r("/session/sess-1/step/3").step).toBe(3);
   });
 
   it("falls back to overview for unknown paths", () => {
-    expect(pathToRoute("/nonsense").showOverview).toBe(true);
+    expect(r("/nonsense").showOverview).toBe(true);
   });
 
   it("round-trips route helpers", () => {
-    expect(pathToRoute(sessionRoute("sess 1")).sessionId).toBe("sess 1");
-    expect(pathToRoute(sectionRoute("tags")).section).toBe("tags");
+    expect(r(sessionRoute("sess 1")).sessionId).toBe("sess 1");
+    expect(r(sectionRoute("tags")).section).toBe("tags");
+    expect(r(sessionRouteWithSection("sess 1", "queue")).sessionId).toBe("sess 1");
+    expect(r(sessionRouteWithSection("sess 1", "queue")).section).toBe("queue");
   });
 });
 
@@ -82,6 +118,7 @@ function Harness() {
       <button onClick={() => navigateTo(sessionRoute("sess-1"))}>sess1</button>
       <button onClick={() => navigateTo(sessionRoute("sess-2"))}>sess2</button>
       <button onClick={() => navigateTo(sectionRoute("tags"))}>tags</button>
+      <button onClick={() => navigateTo(sessionRouteWithSection("sess-1", "queue"))}>queue</button>
       <button onClick={() => navigateTo(HOME_ROUTE)}>home</button>
       <button onClick={() => navigate(-1)}>back</button>
     </div>
@@ -131,6 +168,22 @@ describe("useRouteSync", () => {
     expect(screen.getByTestId("path").textContent).toBe("/tags");
 
     fireEvent.click(screen.getByText("back"));
+    expect(screen.getByTestId("section").textContent).toBe("sessions");
+  });
+
+  it("preserves the open session when switching to a section", () => {
+    renderHarness(["/session/sess-1"]);
+    expect(screen.getByTestId("session").textContent).toBe("sess-1");
+
+    fireEvent.click(screen.getByText("queue"));
+    // RHS keeps the session, section flips, and the URL carries both.
+    expect(screen.getByTestId("session").textContent).toBe("sess-1");
+    expect(screen.getByTestId("overview").textContent).toBe("false");
+    expect(screen.getByTestId("section").textContent).toBe("queue");
+
+    // Back returns to the original session view with the sessions section.
+    fireEvent.click(screen.getByText("back"));
+    expect(screen.getByTestId("session").textContent).toBe("sess-1");
     expect(screen.getByTestId("section").textContent).toBe("sessions");
   });
 

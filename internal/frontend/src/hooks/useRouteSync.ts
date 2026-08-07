@@ -27,44 +27,68 @@ export interface RouteState {
 export const HOME_ROUTE = "/";
 export const SESSIONS_ROUTE = "/sessions";
 
+// The query param that carries the active icon-channel section. The section is
+// orthogonal to the RHS view: any session or overview route can be paired with
+// any section, so switching sidebar sections never closes the open session.
+const SECTION_PARAM = "section";
+
 export function sessionRoute(sessionId: string): string {
   return `/session/${encodeURIComponent(sessionId)}`;
 }
 
-export function sectionRoute(section: Section): string {
-  return section === "sessions" ? SESSIONS_ROUTE : `/${section}`;
+export function sessionRouteWithSection(sessionId: string, section: Section): string {
+  return section === "sessions"
+    ? sessionRoute(sessionId)
+    : `${sessionRoute(sessionId)}?${SECTION_PARAM}=${section}`;
 }
 
-// Decode a pathname into the app state it represents. Anything unrecognised
-// falls back to the Overview so a stale or hand-edited hash still opens a
-// safe page.
-export function pathToRoute(pathname: string): RouteState {
-  const stepMatch = pathname.match(SESSION_WITH_STEP);
+export function sectionRoute(section: Section): string {
+  // A bare section route means "this section with no session open" (overview).
+  if (section === "sessions") return SESSIONS_ROUTE;
+  return `/${section}`;
+}
+
+// Read the section out of the query string. Missing or invalid values fall back
+// to "sessions" so an old/external URL still lands somewhere sensible.
+function sectionFromSearch(search: string): Section {
+  const section = new URLSearchParams(search).get(SECTION_PARAM);
+  if (section && section in SECTION_ROUTES) return section as Section;
+  return "sessions";
+}
+
+// Decode a route into the app state it represents. The session/overview
+// dimension comes from the pathname; the icon-channel section comes from the
+// query string (falling back to a bare /:section path for legacy deep links).
+// Anything unrecognised falls back to the Overview so a stale or hand-edited
+// hash still opens a safe page.
+export function pathToRoute(location: { pathname: string; search: string }): RouteState {
+  const section = sectionFromSearch(location.search);
+  const stepMatch = location.pathname.match(SESSION_WITH_STEP);
   if (stepMatch) {
     return {
       sessionId: decodeURIComponent(stepMatch[1]),
       step: parseInt(stepMatch[2], 10),
       showOverview: false,
-      section: "sessions",
+      section,
     };
   }
-  const sessionMatch = pathname.match(SESSION_PATH);
+  const sessionMatch = location.pathname.match(SESSION_PATH);
   if (sessionMatch) {
     return {
       sessionId: decodeURIComponent(sessionMatch[1]),
       step: undefined,
       showOverview: false,
-      section: "sessions",
+      section,
     };
   }
-  if (pathname === HOME_ROUTE || pathname === SESSIONS_ROUTE) {
-    return { sessionId: null, step: undefined, showOverview: true, section: "sessions" };
-  }
-  const section = SECTION_ROUTES[pathname.replace(/^\//, "")];
-  if (section) {
+  if (location.pathname === HOME_ROUTE || location.pathname === SESSIONS_ROUTE) {
     return { sessionId: null, step: undefined, showOverview: true, section };
   }
-  return { sessionId: null, step: undefined, showOverview: true, section: "sessions" };
+  const bareSection = SECTION_ROUTES[location.pathname.replace(/^\//, "")];
+  if (bareSection) {
+    return { sessionId: null, step: undefined, showOverview: true, section: bareSection };
+  }
+  return { sessionId: null, step: undefined, showOverview: true, section };
 }
 
 interface UseRouteSyncOptions {
@@ -92,42 +116,44 @@ export function useRouteSync(options: UseRouteSyncOptions): RouteSync {
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
+  const pathKey = `${location.pathname}${location.search}`;
 
-  // Whether the current pathname has been read into state yet, so navigateTo
+  // Whether the current route has been read into state yet, so navigateTo
   // never pushes an un-read (initial/empty) state over a deep-link route.
   const appliedRef = useRef(false);
 
-  // Apply the current pathname to app state on every change (initial load,
+  // Apply the current route to app state on every change (initial load,
   // in-app push, and back/forward). The router never reacts to these setters,
   // so there is no echo loop.
   useEffect(() => {
-    const route = pathToRoute(pathname);
+    const route = pathToRoute(location);
     setActiveSection(route.section);
     setShowOverview(route.showOverview);
     setActiveSessionId(route.sessionId);
     setFocusStepIndex(route.step);
     appliedRef.current = true;
-  }, [pathname, setActiveSection, setShowOverview, setActiveSessionId, setFocusStepIndex]);
+  }, [location, setActiveSection, setShowOverview, setActiveSessionId, setFocusStepIndex]);
 
   // Resolve a deep-linked session id once sessions are available. An id that
   // is not in the list (stale hash) falls back to Overview instead of
   // stranding the user on a blank session view.
   useEffect(() => {
-    const route = pathToRoute(pathname);
+    const route = pathToRoute(location);
     if (!route.sessionId || !appliedRef.current) return;
     if (sessions.length > 0 && !sessions.some((s) => s.id === route.sessionId)) {
       navigate(HOME_ROUTE, { replace: true });
     }
-  }, [sessions, pathname, navigate]);
+  }, [sessions, location, navigate]);
 
   const navigateTo = useCallback(
     (path: string) => {
       // Skip duplicate navigations so re-clicking the current destination does
-      // not pile up identical history entries.
-      if (appliedRef.current && path === pathname) return;
+      // not pile up identical history entries. Compare against the full route
+      // (pathname + search) since a section can ride on a session route.
+      if (appliedRef.current && path === pathKey) return;
       navigate(path);
     },
-    [navigate, pathname],
+    [navigate, pathKey],
   );
 
   return { navigateTo, currentPath: pathname };

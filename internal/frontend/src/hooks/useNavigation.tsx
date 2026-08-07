@@ -16,7 +16,13 @@ import {
   type FocusTarget,
   type NavigationState,
 } from "./navigationReducer";
-import { HOME_ROUTE, sectionRoute, sessionRoute, useRouteSync } from "./useRouteSync";
+import {
+  HOME_ROUTE,
+  sectionRoute,
+  sessionRoute,
+  sessionRouteWithSection,
+  useRouteSync,
+} from "./useRouteSync";
 import type { Tab } from "../components/SessionViewer";
 import type { Section } from "../components/IconChannel";
 
@@ -251,9 +257,16 @@ export function useNavigationState({
   const setSection = useCallback(
     (section: Section) => {
       dispatch({ type: "SET_SECTION", section });
-      navigateTo(sectionRoute(section));
+      // Switching the sidebar section must never close the open session. When a
+      // session is showing, carry the new section on the session route so the
+      // RHS keeps the conversation; only a bare section route when on overview.
+      if (state.activeSessionId !== null && !state.showOverview) {
+        navigateTo(sessionRouteWithSection(state.activeSessionId, section));
+      } else {
+        navigateTo(sectionRoute(section));
+      }
     },
-    [navigateTo],
+    [navigateTo, state.activeSessionId, state.showOverview],
   );
   const setShowOverview = useCallback(
     (v: boolean) => {
