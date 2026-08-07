@@ -1,3 +1,5 @@
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
 import type { ToolCall } from "../../hooks/types";
 
@@ -21,12 +23,27 @@ function formatTokens(value: number | undefined): string {
  * Header-area info affordance for a tool call. Rendered only when the tool call
  * carries real usage data (duration, attributed tokens, or cost). Hovering
  * reveals a tooltip with whichever of those the adapter actually recorded.
+ *
+ * The tooltip is rendered through a portal because tool-call cards clip their
+ * content (`overflow-hidden`); an in-flow tooltip would be cut off on collapsed
+ * cards. Portal + fixed positioning keeps it visible regardless of card state.
  */
 export function ToolUsageInfo({ tool }: { tool: Pick<ToolCall, "duration" | "usage"> }) {
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [popup, setPopup] = useState<{ top: number; left: number } | null>(null);
+
   const hasDuration = tool.duration != null && tool.duration > 0;
   const hasUsage = !!tool.usage;
 
   if (!hasDuration && !hasUsage) return null;
+
+  const showPopup = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPopup({ top: rect.bottom + 6, left: rect.right });
+  };
+
+  const hidePopup = () => setPopup(null);
 
   const tokens = tool.usage?.tokens;
   const rows: { label: string; value: string }[] = [];
@@ -56,24 +73,39 @@ export function ToolUsageInfo({ tool }: { tool: Pick<ToolCall, "duration" | "usa
         : "";
 
   return (
-    <span className="relative shrink-0 group/info px-1" aria-label="Tool usage details">
-      <Info
-        size={12}
-        className="text-ov-text-secondary/50 hover:text-ov-text-secondary cursor-help transition-colors"
-      />
-      <span className="pointer-events-none absolute right-0 top-6 z-30 hidden w-max max-w-xs flex-col gap-1 rounded-lg border border-ov-border bg-ov-bg-secondary px-2.5 py-2 text-[11px] text-ov-text shadow-lg group-hover/info:flex">
-        {rows.length > 0 && (
-          <span className="flex flex-col gap-0.5">
-            {rows.map((row) => (
-              <span key={row.label} className="flex justify-between gap-4">
-                <span className="text-ov-text-secondary">{row.label}</span>
-                <span className="font-mono text-ov-text">{row.value}</span>
-              </span>
-            ))}
-          </span>
-        )}
-        {caption && <span className="text-[10px] text-ov-text-secondary/70">{caption}</span>}
+    <>
+      <span
+        ref={triggerRef}
+        className="shrink-0 px-1 cursor-default"
+        onMouseEnter={showPopup}
+        onMouseLeave={hidePopup}
+        aria-label="Tool usage details"
+      >
+        <Info
+          size={12}
+          className="text-ov-text-secondary/50 hover:text-ov-text-secondary transition-colors"
+        />
       </span>
-    </span>
+      {popup &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-50 flex w-max min-w-52 flex-col gap-1 rounded-lg border border-ov-border bg-ov-bg-secondary px-2.5 py-2 text-[11px] text-ov-text shadow-lg"
+            style={{ top: popup.top, left: popup.left, transform: "translateX(-100%)" }}
+          >
+            {rows.length > 0 && (
+              <span className="flex flex-col gap-0.5">
+                {rows.map((row) => (
+                  <span key={row.label} className="flex justify-between gap-4">
+                    <span className="text-ov-text-secondary">{row.label}</span>
+                    <span className="font-mono text-ov-text">{row.value}</span>
+                  </span>
+                ))}
+              </span>
+            )}
+            {caption && <span className="text-[10px] text-ov-text-secondary/70">{caption}</span>}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
