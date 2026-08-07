@@ -15,19 +15,11 @@ import {
   TOKENS_COLOR_REASONING,
 } from "../../hooks/useSessionTokenomics";
 import { formatTokens } from "../../utils/sessionUtils";
+import { ChartActivePinDot } from "./ChartActivePinDot";
 
-function TokenStepTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { payload: TokenTimelinePoint }[];
-}) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0].payload;
+function TokenBreakdown({ p }: { p: TokenTimelinePoint }) {
   return (
-    <div className="ov-chart-tooltip">
-      <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
+    <>
       {[
         { key: "tokensInput", label: "Input", color: TOKENS_COLOR_INPUT },
         { key: "tokensOutput", label: "Output", color: TOKENS_COLOR_OUTPUT },
@@ -47,12 +39,42 @@ function TokenStepTooltip({
           {formatTokens(p.tokensInput + p.tokensOutput + p.tokensCached + p.tokensReasoning)}
         </span>
       </div>
+    </>
+  );
+}
+
+function TokenStepTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: { payload: TokenTimelinePoint }[];
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="ov-chart-tooltip">
+      <p className="ov-chart-tooltip-date">Step {p.stepIndex + 1}</p>
+      <TokenBreakdown p={p} />
+      <p className="ov-chart-tooltip-row text-[11px] text-ov-text-secondary">
+        Click a point to view the message
+      </p>
     </div>
   );
 }
 
-export function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[] }) {
+export function TokenTimelineChart({
+  timeline,
+  onNavigateToMessage,
+}: {
+  timeline: TokenTimelinePoint[];
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
+}) {
   if (timeline.length === 0) return null;
+
+  const activeDot = (color: string) => (props: any) => (
+    <ChartActivePinDot {...props} fill={color} onNavigateToMessage={onNavigateToMessage} />
+  );
 
   return (
     <div className="sess-overview-card">
@@ -81,6 +103,7 @@ export function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[
             stroke={TOKENS_COLOR_INPUT}
             strokeWidth={1.5}
             dot={false}
+            activeDot={activeDot(TOKENS_COLOR_INPUT)}
             isAnimationActive={false}
           />
           <Line
@@ -89,6 +112,7 @@ export function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[
             stroke={TOKENS_COLOR_OUTPUT}
             strokeWidth={1.5}
             dot={false}
+            activeDot={activeDot(TOKENS_COLOR_OUTPUT)}
             isAnimationActive={false}
           />
           <Line
@@ -97,6 +121,7 @@ export function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[
             stroke={TOKENS_COLOR_CACHE}
             strokeWidth={1.5}
             dot={false}
+            activeDot={activeDot(TOKENS_COLOR_CACHE)}
             isAnimationActive={false}
           />
           <Line
@@ -105,6 +130,7 @@ export function TokenTimelineChart({ timeline }: { timeline: TokenTimelinePoint[
             stroke={TOKENS_COLOR_REASONING}
             strokeWidth={1.5}
             dot={false}
+            activeDot={activeDot(TOKENS_COLOR_REASONING)}
             isAnimationActive={false}
           />
         </LineChart>

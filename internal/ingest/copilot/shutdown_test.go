@@ -101,6 +101,51 @@ func TestShutdownParser_NoDeltaWhenTotalsFlat(t *testing.T) {
 	}
 }
 
+func TestShutdownParser_ReBasedTotalsEmitRawValue(t *testing.T) {
+	p := newShutdownParser()
+
+	// A real Copilot session can re-base its usage counters after a context
+	// compaction or resume, so a later snapshot is SMALLER than the prior one
+	// (observed: in=3,877,462 -> in=1,516,378 -> in=4,564,713). The parser must
+	// not clamp the negative difference to zero and drop a whole interval's
+	// usage, otherwise the token timeline appears to reset on resume.
+	p.record(shutdownEvent(t, "", 0.05, 3877462, 31111, 2901, 3551254))
+	step := p.record(shutdownEvent(t, "", 0.02, 1516378, 8522, 1337, 1393457))
+	if step == nil {
+		t.Fatal("record() after a re-base = nil, want a step event")
+	}
+	// Because the counters only grew (in absolute terms) for the second
+	// snapshot, the interval emits the current value for each field rather than
+	// clamping a negative delta to zero.
+	if step.Tokens.Input != 1516378 {
+		t.Errorf("step.Tokens.Input = %d, want 1516378 (raw value, not 0)", step.Tokens.Input)
+	}
+	if step.Tokens.Output != 8522 {
+		t.Errorf("step.Tokens.Output = %d, want 8522", step.Tokens.Output)
+	}
+	if step.Tokens.Reasoning != 1337 {
+		t.Errorf("step.Tokens.Reasoning = %d, want 1337", step.Tokens.Reasoning)
+	}
+	if step.Tokens.CacheRead != 1393457 {
+		t.Errorf("step.Tokens.CacheRead = %d, want 1393457", step.Tokens.CacheRead)
+	}
+	if !approxEq(step.Cost, 0.02) {
+		t.Errorf("step.Cost = %f, want 0.02", step.Cost)
+	}
+
+	// A final higher snapshot resumes normal delta behavior.
+	step = p.record(shutdownEvent(t, "", 0.04, 4564713, 12467, 2901, 4290922))
+	if step == nil {
+		t.Fatal("record() after recovery = nil, want a step")
+	}
+	if step.Tokens.Input != 3048335 {
+		t.Errorf("step.Tokens.Input = %d, want 3048335 (4564713-1516378)", step.Tokens.Input)
+	}
+	if step.Tokens.Output != 3945 {
+		t.Errorf("step.Tokens.Output = %d, want 3945 (12467-8522)", step.Tokens.Output)
+	}
+}
+
 func TestShutdownParser_CodeChangesLastPresentWins(t *testing.T) {
 	p := newShutdownParser()
 

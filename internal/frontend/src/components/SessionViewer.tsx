@@ -49,7 +49,7 @@ interface SessionViewerProps {
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
   searchHighlightQuery?: string | null;
-  onNavigateToMessage?: (messageIndex: number) => void;
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
@@ -212,7 +212,11 @@ export function SessionViewer({
         )}
         {(summaryLoaded || activeTab === "summary") && (
           <div className={`absolute inset-0 ${activeTab !== "summary" ? "hidden" : ""}`}>
-            <SessionSummary session={session} messages={messages} />
+            <SessionSummary
+              session={session}
+              messages={messages}
+              onNavigateToMessage={onNavigateToMessage}
+            />
           </div>
         )}
         {activeTab === "todos" && session.todos && (

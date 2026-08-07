@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import type { TokenTimelinePoint } from "../../hooks/useSessionTokenomics";
 import { formatCost } from "../../utils/sessionUtils";
+import { ChartActivePinDot } from "./ChartActivePinDot";
 
 function CostTimelineTooltip({
   active,
@@ -31,6 +32,9 @@ function CostTimelineTooltip({
         <span>Total</span>
         <span className="ml-auto tabular-nums">{formatCost(p.cumulativeCost)}</span>
       </div>
+      <p className="ov-chart-tooltip-row text-[11px] text-ov-text-secondary">
+        Click a point to view the message
+      </p>
     </div>
   );
 }
@@ -38,9 +42,11 @@ function CostTimelineTooltip({
 export function CostTimelineChart({
   timeline,
   hideCosts,
+  onNavigateToMessage,
 }: {
   timeline: TokenTimelinePoint[];
   hideCosts: boolean;
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
 }) {
   if (timeline.length === 0 || hideCosts) return null;
   const hasCost = timeline.some((p) => p.cost > 0);
@@ -80,6 +86,13 @@ export function CostTimelineChart({
             stroke="var(--color-accent-secondary)"
             strokeWidth={2}
             dot={false}
+            activeDot={(props: any) => (
+              <ChartActivePinDot
+                {...props}
+                fill="var(--color-accent-secondary)"
+                onNavigateToMessage={onNavigateToMessage}
+              />
+            )}
             isAnimationActive={false}
           />
         </LineChart>
