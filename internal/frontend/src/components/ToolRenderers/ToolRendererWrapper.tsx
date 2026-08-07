@@ -101,13 +101,6 @@ export function ToolRendererWrapper({
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
             </div>
-            {tool.duration != null && tool.duration > 0 && (
-              <span className="text-[10px] font-mono text-ov-text-secondary/40 shrink-0 mr-2.5">
-                {tool.duration < 1000
-                  ? `${tool.duration}ms`
-                  : `${(tool.duration / 1000).toFixed(1)}s`}
-              </span>
-            )}
             {childSessionId && (
               <button
                 type="button"
@@ -173,13 +166,6 @@ export function ToolRendererWrapper({
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
             </div>
-            {tool.duration != null && tool.duration > 0 && (
-              <span className="text-[10px] font-mono text-ov-text-secondary/40 shrink-0 mr-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                {tool.duration < 1000
-                  ? `${tool.duration}ms`
-                  : `${(tool.duration / 1000).toFixed(1)}s`}
-              </span>
-            )}
           </button>
           {childSessionId && (
             <button
