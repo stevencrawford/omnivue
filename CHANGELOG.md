@@ -1,5 +1,27 @@
 # Changelog
 
+## [v0.2.1](https://github.com/stevencrawford/omnivue/compare/v0.2.0...v0.2.1) - 2026-08-07
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group with 2 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/121
+- chore(deps): bump the dependencies group in /internal/frontend with 19 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/122
+- chore(deps): bump modernc.org/sqlite from 1.55.0 to 1.56.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/120
+### Other Changes
+- refactor: Wave 1 — collapse adapter seam + resume-command module (ATH-19, ATH-20) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/106
+- feat(frontend): replace session sort with group-by option by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/110
+- refactor: Wave 2 — tool-kind vocabulary + structured diff pipeline by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/108
+- chore: advertise Homebrew install in README by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/111
+- feat(frontend): single-click create tag from session tag menu by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/112
+- feat(frontend): high contrast mode + unify settings toggles by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/113
+- feat: Bookmark plans from the Plan tab by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/115
+- feat(frontend): make browser back/forward undo navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/116
+- feat: Session liveness indicators by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/118
+- refactor(frontend): Collapse navigation into one intent module by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/119
+- feat(ingest): attribute usage down to tool calls by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/124
+- refactor(tool): Remove inline duration from tool row by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/125
+- feat(session): timeline step navigation + Copilot re-based totals fix by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/123
+- fix(nav): Keep open session when switching sidebar section by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/126
+
 ## [Unreleased]
 
 ### Added
