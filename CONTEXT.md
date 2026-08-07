@@ -68,6 +68,94 @@ signal and searchable plan content), so a name maps to a set of kinds.
 - **Seam:** the notifier (`internal/notify`) and the search indexer (`internal/server`) both
   consume it; neither maintains its own tool-name literal set.
 
+## Plan vs Todo
+
+Two distinct concepts that agents often pick a single native word for ("todo"), which is
+why they get blurred. **A Plan is not a Todo and a Todo is not a Plan**; a session can have
+either, both, or neither, independently.
+
+**Plan**:
+The document of what a session is going to do, captured in the Plan tab. The top-level
+concept for plan content. Produced from a plan artifact the agent left (`file`) or
+synthesized from plan-like agent tables (`synthesized`); `Plan.Source` records which feed
+produced it, because agents differ in what they leave behind.
+_Avoid_: roadmap, checklist (as a destination for "plan" meaning)
+
+**Todo**:
+The agent's live task ticker — the tasks the agent updates as it works (e.g. via its
+`todowrite` tool). Consumption value is *live*: watching the agent tick tasks off while
+streaming a session, not reading a finished document. It is **not** the Plan.
+_Avoid_: plan (they are not the same)
+
+## File-change vocabulary
+
+One conversation event, one focused projection, one change summary. These must not collapse
+into each other.
+
+**ToolCall**:
+A single tool invocation in a message (edit, write, read, bash, …). The conversation record.
+_Avoid_: treating an edit/write tool call as itself a "file edit" meaning a change summary
+
+**FileEdit**:
+A projection of an edit/write `ToolCall` into file-change evidence (old/new content for a
+path). Not an independent concept — derived from a `ToolCall`, never from source of truth.
+_Avoid_: diff, change summary (FileEdit is evidence, not a summary)
+
+**DiffFile**:
+The change summary for one file: path, status, additions/deletions, optional patch. A
+top-level concept. Fed from agent-native diff tracking where available, else synthesized
+from `FileEdit`s; the synthesized form is a trusted stand-in, so it carries no provenance
+tag and the UI renders it like any other change.
+_Avoid_: file edit (a DiffFile is a summary, an edit is evidence)
+
+## Agent and sub-agent identity
+
+Who produced the work — the parent agent or a subordinate. Modeled as first-class identity,
+not an ad-hoc string, because most agent sessions have a parent/child split.
+
+**Parent**:
+The top-level agent driving a session (opencode, copilot, …). Identified as itself, never
+by a "main" sentinel string.
+_Avoid_: "main" as a magic string meaning the parent
+
+**Sub-agent** (child):
+A subordinate agent invoked within a parent session (research, code-review, agent-sub-1).
+A session and each message mention which sub-agent (or none = the parent) produced it.
+_Avoid_: parent/child only at the session level — messages need it too
+
+**Parent session**:
+The relation that links a sub-agent session back to the parent that spawned it (a session
+with a sub-agent has a parent session; `ParentID`)
+_Avoid_: calling a parent session a "sub-agent"
+
+## Metadata vocabulary
+
+A normalized set of semantic keys that per-adapter detail maps into, so consumers match
+**not** per-adapter literals. The same discipline as tool-name canonicalization, but for
+message/tool-call detail keys.
+
+**Metadata**:
+Canonical, vocabulary-governed attribute keys attached to messages and tool calls
+(the clean set — status codes, fallibility, privacy, commands), each with a single agreed
+shape per type. Raw agent detail is mapped to these in the ingest layer, never leaked as
+adapter-specific key names.
+_Avoid_: arbitrary key-value grab-bags of per-adapter literals
+
+## Model attribution
+
+Which model produced which work. The session's model is the *current* one; the effective
+model at the moment each message was generated lives on the message, because a session can
+switch models mid-flight (an in-session `/model` switch).
+
+**Current model**:
+The model a session is running as of its latest update (surfaced on the `Session`).
+_Avoid_: implying it was true for earlier messages
+
+**Message model**:
+The model that generated a particular message, recorded when the message is produced.
+Authoritative signal of the session's model *over time*, so per-adapter details never have to
+be guessed from the session's current model alone.
+
 ## Navigation intent (frontend)
 
 The frontend's answer to "where am I, and where am I going?" — which session is selected,

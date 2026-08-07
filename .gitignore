@@ -7,3 +7,5 @@ omnivue
 .opencode/plans
 .idea/
 .agents/
+CONTEXT*.md
+docs/adr/**
