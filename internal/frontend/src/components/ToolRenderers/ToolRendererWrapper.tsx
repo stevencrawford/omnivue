@@ -4,7 +4,7 @@ import type { ToolRendererDefinition, ToolRendererProps } from "./types";
 import type { ToolCall } from "../../hooks/types";
 import CopyButton from "./CopyButton";
 import { BookmarkButton } from "./BookmarkButton";
-import { useSessionNav } from "../../hooks/useNav";
+import { useNavigation } from "../../hooks/useNavigation";
 
 const DEFAULT_OUTPUT_MAX_LINES = 50;
 
@@ -49,7 +49,7 @@ export function ToolRendererWrapper({
   onBookmark?: () => void;
   isBookmarked?: boolean;
 }) {
-  const { navigateToSession } = useSessionNav();
+  const { navigateToSession } = useNavigation();
 
   const childSessionId = useMemo(() => {
     if (!tool.metadata) return null;

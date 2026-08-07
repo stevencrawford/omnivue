@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SearchResult } from "./types";
 import type { Tab } from "../components/SessionViewer";
+import type { SearchHitTarget } from "./useNavigation";
 import { fetchSearch } from "./apiClient";
 import { isAbortError } from "../utils/errors";
 
-export function useSearchState(
-  addSearch: (q: string) => void,
-  searchSessionScope: string | null,
-  navigateToSession: (id: string) => void,
-  setActiveTab: (tab: Tab) => void,
-  setSearchHighlightQuery: (q: string | null) => void,
-  setFocusStepIndex: (idx: number | undefined) => void,
-  setFocusMessageIndex: (idx: number | undefined) => void,
-  onOpenTag: (name: string) => void,
-) {
+export interface UseSearchStateOptions {
+  addSearch: (q: string) => void;
+  searchSessionScope: string | null;
+  onSelectHit: (target: SearchHitTarget) => void;
+  onOpenTag: (name: string) => void;
+}
+
+export function useSearchState({
+  addSearch,
+  searchSessionScope,
+  onSelectHit,
+  onOpenTag,
+}: UseSearchStateOptions) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerQuery, setDrawerQuery] = useState("");
   const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
@@ -56,32 +60,18 @@ export function useSearchState(
         setDrawerOpen(false);
         return;
       }
-      navigateToSession(sessionId);
       const tabMap: Record<string, Tab> = {
         name: "session",
         message: "session",
         messages: "session",
         plan: "plan",
       };
-      if (chunkType === "scratch" && fileId) {
-        setActiveTab(`scratch:${fileId}`);
-      } else {
-        setActiveTab(tabMap[chunkType] || "session");
-      }
-      setSearchHighlightQuery(query || null);
-      setFocusStepIndex(undefined);
-      setFocusMessageIndex(messageIndex);
+      const tab: Tab =
+        chunkType === "scratch" && fileId ? `scratch:${fileId}` : tabMap[chunkType] || "session";
+      onSelectHit({ sessionId, tab, query: query || null, messageIndex });
       setDrawerOpen(false);
     },
-    [
-      addSearch,
-      navigateToSession,
-      setActiveTab,
-      setSearchHighlightQuery,
-      setFocusStepIndex,
-      setFocusMessageIndex,
-      onOpenTag,
-    ],
+    [addSearch, onSelectHit, onOpenTag],
   );
 
   const handleSearchOpenDrawer = useCallback(

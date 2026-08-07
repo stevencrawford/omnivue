@@ -9,15 +9,14 @@ import { MessageBlock } from "./MessageBlock";
 
 import { useConversationScroll } from "../hooks/useConversationScroll";
 import { useSearchHighlight } from "../hooks/useSearchHighlight";
-import { useSessionNav } from "../hooks/useNav";
-import { useFocus } from "../hooks/useFocus";
+import { useNavigation } from "../hooks/useNavigation";
 
 import { groupMessages } from "../utils/conversationGrouping";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./Spinner";
 
 function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
-  const { navigateToSession } = useSessionNav();
+  const { navigateToSession } = useNavigation();
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -99,7 +98,7 @@ export function ConversationView({
   onHighlightDone?: () => void;
 }) {
   const { focusStepIndex, focusMessageIndex, focusMessageKey, focusMessageId, clearFocus } =
-    useFocus();
+    useNavigation();
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
       sessionId: session.id,
