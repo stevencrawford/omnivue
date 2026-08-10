@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   HOME_ROUTE,
   pathToRoute,
+  searchRoute,
   sectionRoute,
   sessionRoute,
   sessionRouteWithSection,
@@ -90,6 +91,12 @@ describe("pathToRoute", () => {
     expect(r(sectionRoute("tags")).section).toBe("tags");
     expect(r(sessionRouteWithSection("sess 1", "queue")).sessionId).toBe("sess 1");
     expect(r(sessionRouteWithSection("sess 1", "queue")).section).toBe("queue");
+  });
+
+  it("maps the search deep link to the overview with the query preserved", () => {
+    const url = searchRoute("omnivue status");
+    expect(r(url).showOverview).toBe(true);
+    expect(new URLSearchParams(url.slice(url.indexOf("?"))).get("q")).toBe("omnivue status");
   });
 });
 

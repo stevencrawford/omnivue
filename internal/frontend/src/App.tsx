@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { SessionViewer, type Tab } from "./components/SessionViewer";
 import { SearchPanel } from "./components/SearchPanel";
@@ -29,6 +30,7 @@ import type { AppNotification, NotificationSettings } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
+import { SEARCH_ROUTE } from "./hooks/useRouteSync";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -156,6 +158,17 @@ export function App() {
     onSelectHit: selectSearchHit,
     onOpenTag: openTag,
   });
+
+  // ---- Search deep link ----
+  // `#/search?q=...` opens the full-search drawer pre-filled with the query.
+  // The bare /search route resolves to the overview view (see useRouteSync).
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname !== SEARCH_ROUTE) return;
+    const q = new URLSearchParams(location.search).get("q");
+    if (q) handleSearchOpenDrawer(q);
+  }, [location.pathname, location.search, handleSearchOpenDrawer]);
 
   // ---- Scratch files ----
   const {
