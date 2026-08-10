@@ -27,6 +27,14 @@ export interface RouteState {
 export const HOME_ROUTE = "/";
 export const SESSIONS_ROUTE = "/sessions";
 
+// Deep link for the full-search drawer: `#/search?q=<query>`. The bare route
+// resolves to the overview view; App.tsx reads `q` and opens the drawer.
+export const SEARCH_ROUTE = "/search";
+
+export function searchRoute(query: string): string {
+  return `${SEARCH_ROUTE}?q=${encodeURIComponent(query)}`;
+}
+
 // The query param that carries the active icon-channel section. The section is
 // orthogonal to the RHS view: any session or overview route can be paired with
 // any section, so switching sidebar sections never closes the open session.
@@ -82,6 +90,11 @@ export function pathToRoute(location: { pathname: string; search: string }): Rou
     };
   }
   if (location.pathname === HOME_ROUTE || location.pathname === SESSIONS_ROUTE) {
+    return { sessionId: null, step: undefined, showOverview: true, section };
+  }
+  if (location.pathname === SEARCH_ROUTE) {
+    // The search route rides on the overview; App.tsx drives the drawer from
+    // the `q` query param so the URL still lands on a safe page.
     return { sessionId: null, step: undefined, showOverview: true, section };
   }
   const bareSection = SECTION_ROUTES[location.pathname.replace(/^\//, "")];
