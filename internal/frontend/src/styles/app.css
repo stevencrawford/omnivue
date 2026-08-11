@@ -1834,24 +1834,30 @@ body {
   padding: 0 2px;
 }
 
-/* ─── Scrollbar (webkit) ────────────────────────────────────────── */
+/* ─── Scrollbar (webkit; excluded from Firefox) ───────────────────
+   Recent Firefox honors non-zero ::-webkit-scrollbar width/height and
+   responds by disabling its native overlay (auto-hide) scrollbars,
+   forcing always-visible classic ones. Gate these rules to non-Firefox
+   browsers so Firefox keeps its native macOS overlay behavior. */
 
-[data-mode="dark"] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+@supports not (-moz-appearance: none) {
+  [data-mode="dark"] ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-[data-mode="dark"] ::-webkit-scrollbar-track {
-  background: transparent;
-}
+  [data-mode="dark"] ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-[data-mode="dark"] ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-}
+  [data-mode="dark"] ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+  }
 
-[data-mode="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  [data-mode="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
 }
 
 /* ─── TipTap editor ─────────────────────────────────────────────── */
