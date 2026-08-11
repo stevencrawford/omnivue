@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.2.2](https://github.com/stevencrawford/omnivue/compare/v0.2.1...v0.2.2) - 2026-08-11
+
+### Other Changes
+- feat(search): deep link that opens full search for a query by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/127
+- fix(session): Deep links to large sessions no longer spin by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/129
+- feat: Add version and upgrade subcommands by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/51
+- fix(ui): Restore Firefox overlay scrollbars in dark mode by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/132
+- feat(about): Cross-sell Omnivue Status App by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/130
+- fix(session): Keep live transcript refresh armed after ack by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/131
+
 ## [v0.2.1](https://github.com/stevencrawford/omnivue/compare/v0.2.0...v0.2.1) - 2026-08-07
 
 ### Dependency Updates ⬆️
