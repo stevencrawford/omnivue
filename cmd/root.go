@@ -56,6 +56,8 @@ Management:
   omnivue --status                  Show running Omnivue servers
   omnivue --shutdown                Stop the server
   omnivue --restart                 Restart the server
+  omnivue version                   Print the current version
+  omnivue upgrade                   Upgrade to the latest release
 
 The server runs in the background by default. Use --foreground to keep it
 in the foreground.`,
