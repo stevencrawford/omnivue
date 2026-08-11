@@ -10,6 +10,8 @@ export interface SessionsState {
   liveChangedIds: Set<string>;
   connected: boolean;
   loadSessions: () => Promise<void>;
+  /** Remove a session id from the pending live-change set once handled. */
+  ackSessionChange: (id: string) => void;
 }
 
 // Global callback for prompt-queue-changed SSE events.
@@ -42,14 +44,37 @@ export function useSessions(): SessionsState {
     loadSessions();
   }, [loadSessions]);
 
+  const ackSessionChange = useCallback((id: string) => {
+    setLiveChangedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   useSSE({
     onUpdate: () => {
       loadSessions();
     },
     onSessionChanged: (ids) => {
-      if (ids.length > 0) {
-        setLiveChangedIds(new Set(ids));
-      }
+      if (ids.length === 0) return;
+      const next = new Set(ids);
+      // Only replace the set when its contents differ so consumers' effects do
+      // not re-run (and re-arm their reload debounce) on every SSE duplicate.
+      setLiveChangedIds((prev) => {
+        if (prev.size === next.size) {
+          let same = true;
+          for (const id of prev) {
+            if (!next.has(id)) {
+              same = false;
+              break;
+            }
+          }
+          if (same) return prev;
+        }
+        return next;
+      });
     },
     onPromptQueueChanged: () => {
       onPromptQueueChanged?.();
@@ -63,5 +88,6 @@ export function useSessions(): SessionsState {
     liveChangedIds,
     connected,
     loadSessions,
+    ackSessionChange,
   };
 }

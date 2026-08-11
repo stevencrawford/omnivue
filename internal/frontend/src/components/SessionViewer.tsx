@@ -31,6 +31,8 @@ interface SessionViewerProps {
   session: Session;
   childSessions?: Session[];
   liveChangedIds: Set<string>;
+  /** Acknowledge a live-change notification for this session as handled. */
+  ackSessionChange?: (id: string) => void;
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
   onNameChanged?: () => void;
@@ -59,6 +61,7 @@ export function SessionViewer({
   session,
   childSessions,
   liveChangedIds,
+  ackSessionChange,
   activeTab: activeTabProp,
   onTabChange,
   onNameChanged,
@@ -90,25 +93,32 @@ export function SessionViewer({
   const [summaryLoaded, setSummaryLoaded] = useState(false);
   const { showErrorToast } = useToast();
 
-  const cancelLoadRef = useRef<AbortController | null>(null);
+  // Tracks the in-flight message request. Only the newest request may write
+  // messages or clear loading; a request superseded by a newer one or aborted
+  // on unmount must not clobber the fresher state.
+  const loadRef = useRef<{ id: number; controller: AbortController | null }>({
+    id: 0,
+    controller: null,
+  });
 
-  const loadMessages = useCallback(() => {
-    cancelLoadRef.current?.abort();
+  const loadMessages = useCallback(async () => {
+    const id = loadRef.current.id + 1;
+    loadRef.current.controller?.abort();
     const controller = new AbortController();
-    cancelLoadRef.current = controller;
+    loadRef.current = { id, controller };
     setLoading(true);
-    fetchMessages(session.id, controller.signal)
-      .then((data) => {
-        setMessages(data || []);
-      })
-      .catch((err: unknown) => {
-        if (isAbortError(err)) return;
-        showErrorToast(err, "Failed to load messages");
-        setMessages([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    try {
+      const data = await fetchMessages(session.id, controller.signal);
+      if (loadRef.current.id !== id) return;
+      setMessages(data || []);
+    } catch (err: unknown) {
+      if (isAbortError(err)) return;
+      if (loadRef.current.id !== id) return;
+      showErrorToast(err, "Failed to load messages");
+      setMessages([]);
+    } finally {
+      if (loadRef.current.id === id) setLoading(false);
+    }
   }, [session.id, showErrorToast]);
 
   useEffect(() => {
@@ -116,13 +126,25 @@ export function SessionViewer({
   }, [loadMessages]);
 
   useEffect(() => {
+    return () => {
+      loadRef.current.controller?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!liveChangedIds.has(session.id)) return;
+    ackSessionChange?.(session.id);
+    // A deep link mounts this view with a slow full-transcript fetch in flight;
+    // interrupting it on a live SSE event strands the spinner. Let the initial
+    // load finish untouched; live refreshes only replace an already-rendered
+    // conversation.
+    if (messages.length === 0 && loading) return;
     const handle = setTimeout(() => {
       loadMessages();
       setRefreshKey((k) => k + 1);
     }, 300);
     return () => clearTimeout(handle);
-  }, [liveChangedIds, session.id, loadMessages]);
+  }, [liveChangedIds, session.id, loadMessages, messages.length, loading, ackSessionChange]);
 
   const messageCount = useMemo(() => {
     const user = messages.filter((m) => m.role === "user").length;
@@ -215,6 +237,7 @@ export function SessionViewer({
             <SessionSummary
               session={session}
               messages={messages}
+              loading={loading}
               onNavigateToMessage={onNavigateToMessage}
             />
           </div>

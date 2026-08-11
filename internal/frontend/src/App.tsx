@@ -44,6 +44,7 @@ export function App() {
     liveChangedIds,
     connected,
     loadSessions,
+    ackSessionChange,
   } = useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
@@ -302,6 +303,7 @@ export function App() {
                             session={activeSession}
                             childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
                             liveChangedIds={liveChangedIds}
+                            ackSessionChange={ackSessionChange}
                             activeTab={activeTab}
                             onTabChange={setTab}
                             onNameChanged={loadSessions}
