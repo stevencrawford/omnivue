@@ -1,11 +1,14 @@
-import { useMemo } from "react";
-import { Bookmark, Trash2, MessageSquareText } from "lucide-react";
-import type { Bookmark as BookmarkType, Session } from "../hooks/useApi";
+import { useMemo, useState } from "react";
+import { Bookmark, Trash2, MessageSquareText, ListTodo } from "lucide-react";
+import type { Bookmark as BookmarkType, Session } from "../hooks/types";
+import { FilterChip } from "./FilterChip";
+
+const PLAN_KIND = "plan";
 
 interface BookmarkPanelProps {
   bookmarks: BookmarkType[];
   sessions: Session[];
-  onBookmarkSelect: (sessionId: string, messageIndex: number, toolCallId?: string) => void;
+  onBookmarkSelect: (bookmark: BookmarkType) => void;
   onBookmarkDelete: (id: string) => void;
 }
 
@@ -29,6 +32,8 @@ export function BookmarkPanel({
   onBookmarkSelect,
   onBookmarkDelete,
 }: BookmarkPanelProps) {
+  const [filter, setFilter] = useState<string | null>(null);
+
   const sessionMap = useMemo(() => {
     const map: Record<string, Session> = {};
     for (const s of sessions) {
@@ -36,6 +41,11 @@ export function BookmarkPanel({
     }
     return map;
   }, [sessions]);
+
+  const filtered = useMemo(
+    () => (filter ? bookmarks.filter((bm) => bm.kind === filter) : bookmarks),
+    [bookmarks, filter],
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -53,32 +63,39 @@ export function BookmarkPanel({
           </span>
         </div>
       </div>
+      <div className="px-1.5 pb-1 shrink-0">
+        <FilterChip
+          label="Type"
+          value={filter}
+          options={["message", "plan"]}
+          formatOption={(opt) => (opt === PLAN_KIND ? "Plans" : "Messages")}
+          onChange={setFilter}
+        />
+      </div>
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
-        {bookmarks.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <Bookmark size={24} className="text-ov-text-secondary/40 mb-3" />
             <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
-              Bookmark tool calls and messages to jump back to them later.
+              Bookmark messages, tool calls, and plans to jump back to them later.
             </p>
           </div>
         ) : (
-          bookmarks.map((bm) => {
+          filtered.map((bm) => {
             const session = sessionMap[bm.sessionId];
+            const TypeIcon = bm.kind === PLAN_KIND ? ListTodo : MessageSquareText;
             return (
               <div
                 key={bm.id}
                 className="group flex items-start gap-2 px-3 py-2 border-b border-ov-border/50 hover:bg-ov-bg-hover transition-colors cursor-pointer"
-                onClick={() => onBookmarkSelect(bm.sessionId, bm.messageIndex, bm.toolCallId)}
+                onClick={() => onBookmarkSelect(bm)}
               >
-                <Bookmark size={12} className="mt-0.5 shrink-0 text-accent" fill="currentColor" />
+                <TypeIcon size={12} className="mt-0.5 shrink-0 text-accent" />
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] font-medium text-ov-text truncate">{bm.label}</div>
                   <div className="text-[10px] text-ov-text-secondary/60 truncate mt-0.5">
                     {session ? (
-                      <span className="flex items-center gap-1">
-                        <MessageSquareText size={10} className="shrink-0" />
-                        <span className="truncate">{session.title || session.repository}</span>
-                      </span>
+                      <span className="truncate">{session.title || session.repository}</span>
                     ) : (
                       <span className="italic">Unknown session</span>
                     )}

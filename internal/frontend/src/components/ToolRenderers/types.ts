@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 
 export type ToolCardDisplay =
   | { type: "expandable"; defaultOpen?: boolean }
@@ -42,4 +42,12 @@ export interface ToolRendererDefinition {
   truncateOutput?: number;
   cardClassName?: string;
   suppressCopy?: boolean;
+  /**
+   * Returns the "input" text to copy for this tool kind. When set, the copy
+   * button gains an input/output toggle so users can switch between copying
+   * the tool's input and its output.
+   */
+  copyInput?: (tool: ToolCall) => string;
+  /** Which side the copy button copies by default. Defaults to "output". */
+  defaultCopyMode?: "input" | "output";
 }

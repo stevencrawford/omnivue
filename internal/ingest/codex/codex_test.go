@@ -14,20 +14,13 @@ func testdataPath() string {
 	return filepath.Join("testdata")
 }
 
-func TestAdapter_Detect(t *testing.T) {
-	adapter, err := codex.New(testdataPath())
-	if err != nil {
-		t.Fatalf("New() failed: %v", err)
-	}
-	defer adapter.Close()
-
-	if !adapter.Detect(testdataPath()) {
-		t.Error("Detect() should return true for testdata directory")
+func TestAdapter_New_ValidatesIndex(t *testing.T) {
+	if _, err := codex.New(testdataPath()); err != nil {
+		t.Fatalf("New(testdataPath()) failed: %v", err)
 	}
 
-	tmpDir := t.TempDir()
-	if adapter.Detect(tmpDir) {
-		t.Error("Detect() should return false for empty directory")
+	if _, err := codex.New(t.TempDir()); err == nil {
+		t.Error("New() should error for a directory without session_index.jsonl")
 	}
 }
 
@@ -210,6 +203,58 @@ func TestAdapter_ToolCallOutputMerging(t *testing.T) {
 	}
 }
 
+func TestAdapter_ToolCallUsage(t *testing.T) {
+	adapter, err := codex.New(testdataPath())
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer adapter.Close()
+
+	ctx := context.Background()
+	messages, err := adapter.Messages(ctx, "019ee1dc-d721-7933-adff-18b07b510043")
+	if err != nil {
+		t.Fatalf("Messages() failed: %v", err)
+	}
+
+	var sawUsage bool
+	for _, msg := range messages {
+		for _, tc := range msg.ToolCalls {
+			if tc.Usage == nil {
+				continue
+			}
+			sawUsage = true
+			if tc.Usage.Source != ingest.UsageMessage {
+				t.Errorf("tool call %s usage source = %q, want %q", tc.ID, tc.Usage.Source, ingest.UsageMessage)
+			}
+			if tc.Usage.Tokens.Input != 100 {
+				t.Errorf("tool call %s input tokens = %d, want 100", tc.ID, tc.Usage.Tokens.Input)
+			}
+			if tc.Usage.Tokens.Output != 50 {
+				t.Errorf("tool call %s output tokens = %d, want 50", tc.ID, tc.Usage.Tokens.Output)
+			}
+			if tc.Usage.Tokens.CacheRead != 20 {
+				t.Errorf("tool call %s cached tokens = %d, want 20", tc.ID, tc.Usage.Tokens.CacheRead)
+			}
+		}
+	}
+	if !sawUsage {
+		t.Error("expected at least one tool call with attributed usage")
+	}
+
+	// task_complete carries an exact Duration from duration_ms.
+	var sawTaskDuration bool
+	for _, msg := range messages {
+		for _, tc := range msg.ToolCalls {
+			if tc.Name == "task_complete" && tc.Duration > 0 {
+				sawTaskDuration = true
+			}
+		}
+	}
+	if !sawTaskDuration {
+		t.Error("expected task_complete tool call to carry a duration")
+	}
+}
+
 func TestAdapter_GetPlan(t *testing.T) {
 	adapter, err := codex.New(testdataPath())
 	if err != nil {
@@ -326,7 +371,8 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 		t.Fatalf("Session() failed: %v", err)
 	}
 
-	cmd := adapter.ResumeCommand(session)
+	spec := adapter.ResumeCommand()
+	cmd := spec.Command(session.Directory, session.ID)
 	if !strings.HasPrefix(cmd, "cd ") {
 		t.Errorf("resume command should start with 'cd ', got %q", cmd)
 	}
@@ -335,6 +381,9 @@ func TestAdapter_ResumeCommand(t *testing.T) {
 	}
 	if !strings.Contains(cmd, session.ID) {
 		t.Errorf("resume command should contain session ID %q, got %q", session.ID, cmd)
+	}
+	if agent := spec.AgentCommand(session.ID); agent != "/resume "+session.ID {
+		t.Errorf("agent command = %q, want %q", agent, "/resume "+session.ID)
 	}
 }
 

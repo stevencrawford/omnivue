@@ -19,21 +19,22 @@ import (
 	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 // Kind identifies the type of a notification.
 type Kind string
 
 const (
-	KindQuestion           Kind = "question"
-	KindPermissionRequest  Kind = "permission_request"
-	KindExitPlanMode       Kind = "exit_plan_mode"
-	KindTaskComplete       Kind = "task_complete"
-	KindNewMessages        Kind = "new_messages"
-	KindNewToolCall        Kind = "new_tool_call"
-	KindStatusActive       Kind = "status_active"
-	KindStatusDone         Kind = "status_completed"
-	KindStatusError        Kind = "status_error"
+	KindQuestion          Kind = "question"
+	KindPermissionRequest Kind = "permission_request"
+	KindExitPlanMode      Kind = "exit_plan_mode"
+	KindTaskComplete      Kind = "task_complete"
+	KindNewMessages       Kind = "new_messages"
+	KindNewToolCall       Kind = "new_tool_call"
+	KindStatusActive      Kind = "status_active"
+	KindStatusDone        Kind = "status_completed"
+	KindStatusError       Kind = "status_error"
 )
 
 // Severity indicates how prominently a notification should be surfaced.
@@ -47,18 +48,18 @@ const (
 // Settings mirrors the frontend notification settings form. It is persisted as a
 // JSON blob in the config table under key "notifications.settings".
 type Settings struct {
-	Enabled           bool     `json:"enabled"`
-	Kinds             []Kind   `json:"kinds"`
-	Scope             string   `json:"scope"` // "all" | "opened" | "pinned"
-	InAppToast        bool     `json:"inAppToast"`
-	SidebarBadge      bool     `json:"sidebarBadge"`
-	BrowserNotify     bool     `json:"browserNotify"`
-	QuietHoursEnabled bool     `json:"quietHoursEnabled"`
-	QuietHoursStart   string   `json:"quietHoursStart"` // "22:00"
-	QuietHoursEnd     string   `json:"quietHoursEnd"`   // "08:00"
-	AutoDismissSec    int      `json:"autoDismissSec"`
-	ExcludeActiveView bool     `json:"excludeActiveView"`
-	EnabledAt         int64    `json:"enabledAt"` // unix ms when notifications were enabled
+	Enabled           bool   `json:"enabled"`
+	Kinds             []Kind `json:"kinds"`
+	Scope             string `json:"scope"` // "all" | "opened" | "pinned"
+	InAppToast        bool   `json:"inAppToast"`
+	SidebarBadge      bool   `json:"sidebarBadge"`
+	BrowserNotify     bool   `json:"browserNotify"`
+	QuietHoursEnabled bool   `json:"quietHoursEnabled"`
+	QuietHoursStart   string `json:"quietHoursStart"` // "22:00"
+	QuietHoursEnd     string `json:"quietHoursEnd"`   // "08:00"
+	AutoDismissSec    int    `json:"autoDismissSec"`
+	ExcludeActiveView bool   `json:"excludeActiveView"`
+	EnabledAt         int64  `json:"enabledAt"` // unix ms when notifications were enabled
 }
 
 // DefaultSettings returns the default settings: everything off (opt-in). The
@@ -80,31 +81,32 @@ func DefaultSettings() Settings {
 	}
 }
 
+// ResolveEnabledAt decides the EnabledAt value for a settings save. The first
+// time the user enables notifications (or re-enables after disabling), now is
+// stamped so the classifier can suppress the flood of pre-existing messages;
+// disabling clears the boundary; an unchanged save keeps the previous one. The
+// HTTP handler calls this instead of embedding the rule.
+func ResolveEnabledAt(prev, next Settings, now time.Time) int64 {
+	switch {
+	case next.Enabled && (!prev.Enabled || prev.EnabledAt == 0):
+		return now.UnixMilli()
+	case !next.Enabled:
+		return 0
+	default:
+		return prev.EnabledAt
+	}
+}
+
+// suppresses reports whether a message timestamp is older than the moment
+// notifications were enabled and should therefore be skipped by the first-run
+// flood suppression.
+func (s *Settings) suppresses(t time.Time) bool {
+	return !t.IsZero() && s.EnabledAt > 0 && t.Before(time.UnixMilli(s.EnabledAt))
+}
+
 // has reports whether the given kind is enabled in settings.
 func (s *Settings) has(k Kind) bool {
 	return slices.Contains(s.Kinds, k)
-}
-
-// QuestionToolNames is the set of tool-call names that count as the agent asking
-// the human a question. Centralized here so adding a new agent is a one-line
-// change. Names are lowercased before lookup.
-var QuestionToolNames = map[string]struct{}{
-	"question": {},
-	"ask":      {},
-}
-
-// PermissionToolNames is the set of tool-call names that count as the agent
-// requesting permission to perform an action. Names are lowercased before lookup.
-var PermissionToolNames = map[string]struct{}{
-	"permission_request": {},
-}
-
-// TaskCompleteToolNames is the set of tool-call names signaling task
-// completion.
-var TaskCompleteToolNames = map[string]struct{}{
-	"task_complete":  {},
-	"task-complete":  {},
-	"taskcomplete":   {},
 }
 
 // Candidate is a classification result. The caller persists one notification
@@ -132,7 +134,6 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		return nil
 	}
 
-	enabledAt := time.UnixMilli(settings.EnabledAt)
 	if lastSeenCount > len(msgs) {
 		lastSeenCount = len(msgs)
 	}
@@ -149,14 +150,14 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 		// First-run flood suppression: ignore messages older than the moment
 		// notifications were enabled. (Status transitions below are not
 		// suppressed, since they reflect current state.)
-		if !m.Timestamp.IsZero() && settings.EnabledAt > 0 && m.Timestamp.Before(enabledAt) {
+		if settings.suppresses(m.Timestamp) {
 			continue
 		}
 		newMessageCount++
 
 		for _, tc := range m.ToolCalls {
 			name := strings.ToLower(tc.Name)
-			if _, ok := QuestionToolNames[name]; ok {
+			if ingestkit.HasKind(name, ingestkit.KindQuestion) {
 				// When the tool name is "question", check if it's actually a
 				// permission request (choices contain Allow/Deny) and route to
 				// KindPermissionRequest instead.
@@ -207,7 +208,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 				})
 				continue
 			}
-			if _, ok := PermissionToolNames[name]; ok {
+			if ingestkit.HasKind(name, ingestkit.KindPermission) {
 				if settings.has(KindPermissionRequest) {
 					candidates = append(candidates, Candidate{
 						Kind:     KindPermissionRequest,
@@ -225,7 +226,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 				}
 				continue
 			}
-			if _, ok := TaskCompleteToolNames[name]; ok {
+			if ingestkit.HasKind(name, ingestkit.KindTaskComplete) {
 				if settings.has(KindTaskComplete) {
 					candidates = append(candidates, Candidate{
 						Kind:     KindTaskComplete,
@@ -340,53 +341,74 @@ func previewText(content, fallback string) string {
 }
 
 // previewForQuestion builds a preview for question tool call notifications.
-// It prefers the message content, then tries to extract text from the tool
-// input JSON (which may contain a "question", "text", "prompt", or "message"
-// field), and falls back to a descriptive default.
+// It prefers the question text carried by the tool input (the actual ask),
+// then the message content, and falls back to a descriptive default. Some
+// agents (e.g. OpenCode) embed the question in the tool input while the
+// message content holds the assistant's preceding narrative.
 func previewForQuestion(content, input string) string {
-	if s := strings.TrimSpace(content); s != "" && s != "{}" {
-		return previewText(s, "")
-	}
 	var data map[string]any
 	if json.Unmarshal([]byte(input), &data) == nil {
-		for _, key := range []string{"question", "text", "prompt", "message"} {
-			if s, ok := data[key].(string); ok && s != "" {
-				return previewText(s, "")
-			}
+		if s := questionTextFromInput(data); s != "" {
+			return previewText(s, "")
 		}
+	}
+	if s := strings.TrimSpace(content); s != "" && s != "{}" {
+		return previewText(s, "")
 	}
 	return "Agent asked you a question"
 }
 
 // previewForPermission builds a preview for permission request notifications.
-// It prefers the message content, then tries to extract a "command" or
-// "questions[0].question" field from the tool input JSON, and falls back to
-// a descriptive default.
+// It prefers the requested "command" or the question text from the tool input,
+// then the message content, and falls back to a descriptive default.
 func previewForPermission(content, input string) string {
-	if s := strings.TrimSpace(content); s != "" && s != "{}" {
-		return previewText(s, "")
-	}
 	var data map[string]any
 	if json.Unmarshal([]byte(input), &data) == nil {
 		if s, ok := data["command"].(string); ok && s != "" {
 			return previewText(s, "")
 		}
-		if qs, ok := data["questions"].([]any); ok && len(qs) > 0 {
-			if q, ok := qs[0].(map[string]any); ok {
-				if s, ok := q["question"].(string); ok && s != "" {
-					return previewText(s, "")
+		if s := questionTextFromInput(data); s != "" {
+			return previewText(s, "")
+		}
+	}
+	if s := strings.TrimSpace(content); s != "" && s != "{}" {
+		return previewText(s, "")
+	}
+	return "Session is blocked awaiting permissions"
+}
+
+// questionTextFromInput extracts the text of the first question from a
+// question/permission tool input. Supported shapes:
+//
+//   - a top-level "question" string,
+//   - a "questions" array whose first entry has "question" or "header", or
+//   - top-level "text", "prompt", or "message" strings.
+func questionTextFromInput(data map[string]any) string {
+	if s, ok := data["question"].(string); ok && s != "" {
+		return s
+	}
+	if qs, ok := data["questions"].([]any); ok && len(qs) > 0 {
+		if q, ok := qs[0].(map[string]any); ok {
+			for _, key := range []string{"question", "header"} {
+				if s, ok := q[key].(string); ok && s != "" {
+					return s
 				}
 			}
 		}
 	}
-	return "Session is blocked awaiting permissions"
+	for _, key := range []string{"text", "prompt", "message"} {
+		if s, ok := data[key].(string); ok && s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // isPermissionInput reports whether the tool input represents a permission
 // request — a question-like tool call whose choices contain "Allow"/"Deny".
 func isPermissionInput(input string) bool {
 	var raw struct {
-		Choices  []string `json:"choices"`
+		Choices   []string `json:"choices"`
 		Questions []struct {
 			Question string `json:"question"`
 			Options  []struct {

@@ -8,51 +8,14 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
-import { marked } from "marked";
-import TurndownService from "turndown";
 import Editor from "@monaco-editor/react";
 import { Copy, Check, Lock, Minimize2, Maximize2 } from "lucide-react";
-import { getScratchFile, updateScratchFile } from "../hooks/useApi";
+import { getScratchFile, updateScratchFile } from "../hooks/apiClient";
 import { useCopy } from "../hooks/useCopy";
+import { markdownToHtml, htmlToMarkdown } from "../utils/scratchMarkdown";
+import { useToast } from "../hooks/useToast";
 
-marked.use({ gfm: true, breaks: true });
 const lowlight = createLowlight(common);
-
-const turndownService = new TurndownService({
-  headingStyle: "atx",
-  codeBlockStyle: "fenced",
-});
-
-turndownService.addRule("table", {
-  filter: "table",
-  replacement: function (_content, node) {
-    if (!node) return _content;
-    const table = node as HTMLElement;
-    const rows = table.querySelectorAll("tr");
-    if (rows.length === 0) return _content;
-    const lines: string[][] = [];
-    let maxCols = 0;
-    for (const row of rows) {
-      const cells = row.querySelectorAll("th, td");
-      const rowCells: string[] = [];
-      for (const cell of cells) {
-        rowCells.push(cell.textContent?.trim() || "");
-      }
-      maxCols = Math.max(maxCols, rowCells.length);
-      lines.push(rowCells);
-    }
-    if (lines.length === 0) return _content;
-    const headerRow = lines[0];
-    const separator = Array(maxCols).fill("---").join(" | ");
-    const resultLines: string[] = [headerRow.join(" | "), separator];
-    for (let i = 1; i < lines.length; i++) {
-      const row = lines[i];
-      while (row.length < maxCols) row.push("");
-      resultLines.push(row.join(" | "));
-    }
-    return "\n" + resultLines.join("\n") + "\n";
-  },
-});
 
 const monacoEditorOptions = (readOnly: boolean) =>
   ({
@@ -90,6 +53,7 @@ interface ScratchEditorProps {
 }
 
 export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
+  const { showErrorToast } = useToast();
   const [sourceContent, setSourceContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [editorMode, setEditorMode] = useState<"wysiwyg" | "source">("wysiwyg");
@@ -110,12 +74,12 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
       originalTitleRef.current = f.title;
       lastSavedMarkdownRef.current = f.content;
       setIsReadOnly(f.mode === "readonly");
-    } catch {
-      /* ignore */
+    } catch (err) {
+      showErrorToast(err, "Failed to load scratch note");
     } finally {
       setLoading(false);
     }
-  }, [sessionId, fileId]);
+  }, [sessionId, fileId, showErrorToast]);
 
   useEffect(() => {
     loadFile();
@@ -124,7 +88,7 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2] },
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
         codeBlock: false,
         link: false,
       }),
@@ -140,7 +104,7 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
     immediatelyRender: false,
     onUpdate: () => {
       if (!isUpdatingRef.current && editor) {
-        const md = turndownService.turndown(editor.getHTML());
+        const md = htmlToMarkdown(editor.getHTML());
         setSourceContent(md);
       }
     },
@@ -182,7 +146,7 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
     if (!editor || loading) return;
     isUpdatingRef.current = true;
     editor.setEditable(!isReadOnly);
-    const html = marked.parse(sourceContent) as string;
+    const html = markdownToHtml(sourceContent);
     editor.commands.setContent(html);
     isUpdatingRef.current = false;
   }, [fileId, editor, loading, isReadOnly]);
@@ -190,7 +154,7 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
   // Auto-save WYSIWYG mode
   useEffect(() => {
     if (!fileId || !editor || editorMode !== "wysiwyg" || isReadOnly) return;
-    const md = turndownService.turndown(editor.getHTML());
+    const md = htmlToMarkdown(editor.getHTML());
     if (md === lastSavedMarkdownRef.current) return;
     const timer = setTimeout(() => {
       doSave(fileId, md);
@@ -280,13 +244,13 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
 
   const toggleMode = () => {
     if (editorMode === "wysiwyg" && editor) {
-      const md = turndownService.turndown(editor.getHTML());
+      const md = htmlToMarkdown(editor.getHTML());
       setSourceContent(md);
       setEditorMode("source");
     } else {
       if (editor) {
         isUpdatingRef.current = true;
-        const html = marked.parse(sourceContent) as string;
+        const html = markdownToHtml(sourceContent);
         editor.commands.setContent(html);
         isUpdatingRef.current = false;
       }
@@ -455,7 +419,7 @@ export function ScratchEditor({ sessionId, fileId }: ScratchEditorProps) {
             options={monacoEditorOptions(isReadOnly)}
           />
         ) : (
-          <div className="h-full overflow-y-auto px-4 py-2">
+          <div className="markdown-body markdown-body--wide h-full overflow-y-auto px-4 py-2">
             <EditorContent editor={editor} />
           </div>
         )}

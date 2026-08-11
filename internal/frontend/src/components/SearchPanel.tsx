@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Folder, X, Clock } from "lucide-react";
-import type { SearchResult } from "../hooks/useApi";
-import { fetchSearch } from "../hooks/useApi";
+import { Search, Folder, X, Clock, Tag } from "lucide-react";
+import type { SearchResult } from "../hooks/types";
+import { fetchSearch } from "../hooks/apiClient";
 import { relativeTime } from "../utils/sessionUtils";
 import { renderSnippet } from "../utils/searchUtils";
+import { useToast } from "../hooks/useToast";
+import { Spinner } from "./Spinner";
+import { groupSearchSections, type SearchSection } from "../utils/searchSections";
 
 interface SearchPanelProps {
   query: string;
@@ -14,6 +17,7 @@ interface SearchPanelProps {
     query: string,
     fileId?: string,
     messageIndex?: number,
+    tagName?: string,
   ) => void;
   onOpenDrawer: (query: string) => void;
   onClose: () => void;
@@ -23,34 +27,6 @@ interface SearchPanelProps {
   recentSearches: string[];
   onClearRecentSearches: () => void;
 }
-
-const CHUNK_LABELS: Record<string, { label: string; badge: string }> = {
-  name: { label: "Session Name", badge: "bg-accent-muted text-accent border-accent-border" },
-  plan: {
-    label: "Plan Content",
-    badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-  },
-  message: {
-    label: "Session Messages",
-    badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
-  },
-  messages: {
-    label: "Session Messages",
-    badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
-  },
-  scratch: {
-    label: "Scratch Notes",
-    badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-  },
-};
-
-type Section = {
-  chunkType: string;
-  label: string;
-  badge: string;
-  results: SearchResult[];
-  globalStartIndex: number;
-};
 
 export function SearchPanel({
   query,
@@ -64,6 +40,7 @@ export function SearchPanel({
   recentSearches,
   onClearRecentSearches,
 }: SearchPanelProps) {
+  const { showErrorToast } = useToast();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -74,27 +51,8 @@ export function SearchPanel({
   const showRecent = !query.trim() && recentSearches.length > 0;
   const totalItems = showRecent ? recentSearches.length : results.length;
 
-  const sections: Section[] = useMemo(() => {
-    const groups = new Map<string, SearchResult[]>();
-    for (const r of results) {
-      const ct = r.chunkType === "messages" ? "message" : r.chunkType || "message";
-      if (!groups.has(ct)) groups.set(ct, []);
-      groups.get(ct)!.push(r);
-    }
-    const order = ["name", "plan", "message", "scratch"];
-    const out: Section[] = [];
-    let globalIdx = 0;
-    for (const ct of order) {
-      const group = groups.get(ct);
-      if (!group || group.length === 0) continue;
-      const meta = CHUNK_LABELS[ct] || {
-        label: ct,
-        badge: "bg-ov-bg-hover text-ov-text-secondary border-ov-border",
-      };
-      out.push({ chunkType: ct, ...meta, results: group, globalStartIndex: globalIdx });
-      globalIdx += group.length;
-    }
-    return out;
+  const sections: SearchSection[] = useMemo(() => {
+    return groupSearchSections(results);
   }, [results]);
 
   const allFlatResults = useMemo(() => {
@@ -129,13 +87,13 @@ export function SearchPanel({
         const data = await fetchSearch(q.trim(), 50, scope ?? undefined);
         setResults(data);
       } catch (err) {
-        console.error("Search failed:", err);
+        showErrorToast(err, "Search failed");
         setResults([]);
       } finally {
         setLoading(false);
       }
     },
-    [searchScope],
+    [searchScope, showErrorToast],
   );
 
   const handleSelectRecentSearch = useCallback(
@@ -187,6 +145,7 @@ export function SearchPanel({
           query,
           r.chunkType === "scratch" ? r.fileId : undefined,
           r.messageIndex,
+          r.tagName,
         );
         onClose();
       } else if (results.length > 0) {
@@ -263,7 +222,7 @@ export function SearchPanel({
           <div className="flex-1 overflow-y-auto max-h-[50vh]">
             {loading && (
               <div className="flex items-center justify-center gap-2 text-xs text-ov-text-secondary p-6">
-                <span className="size-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <Spinner className="size-3" />
                 Searching...
               </div>
             )}
@@ -317,7 +276,7 @@ export function SearchPanel({
                     const globalIdx = section.globalStartIndex + i;
                     return (
                       <button
-                        key={`${r.sessionId}-${section.chunkType}-${i}`}
+                        key={`${r.sessionId}-${section.chunkType}-${r.tagName ?? r.snippet}-${i}`}
                         type="button"
                         className={`w-full text-left px-4 py-3 border-b border-ov-border cursor-pointer transition-colors ${
                           globalIdx === selectedIndex
@@ -331,13 +290,20 @@ export function SearchPanel({
                             query,
                             r.chunkType === "scratch" ? r.fileId : undefined,
                             r.messageIndex,
+                            r.tagName,
                           );
                           onClose();
                         }}
                       >
                         <div className="mb-1">
                           <div className="flex items-center gap-2">
-                            {r.repository && (
+                            {r.chunkType === "tag" && (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent">
+                                <Tag size={12} />
+                                {r.tagName || r.snippet}
+                              </span>
+                            )}
+                            {r.chunkType !== "tag" && r.repository && (
                               <span className="text-[11px] font-mono text-ov-text-secondary truncate">
                                 {r.repository}
                               </span>
@@ -348,7 +314,7 @@ export function SearchPanel({
                               </span>
                             )}
                           </div>
-                          {r.sessionName && (
+                          {r.chunkType !== "tag" && r.sessionName && (
                             <div className="text-[11px] font-semibold text-ov-text truncate leading-snug mt-0.5">
                               {r.sessionName}
                             </div>
@@ -359,9 +325,15 @@ export function SearchPanel({
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-ov-text line-clamp-2 search-result">
-                          {renderSnippet(r.snippet)}
-                        </div>
+                        {r.chunkType === "tag" ? (
+                          <div className="text-xs text-ov-text-secondary">
+                            Show all sessions with this tag
+                          </div>
+                        ) : (
+                          <div className="text-xs text-ov-text line-clamp-2 search-result">
+                            {renderSnippet(r.snippet)}
+                          </div>
+                        )}
                       </button>
                     );
                   })}

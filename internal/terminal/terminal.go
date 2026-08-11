@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 
 	"github.com/coder/websocket"
@@ -134,16 +133,6 @@ func killProcess(cmd *exec.Cmd) {
 	if cmd != nil && cmd.Process != nil {
 		cmd.Process.Kill() //nolint:errcheck
 	}
-}
-
-// ExtractCmd extracts the agent command portion from a resume command string.
-// Resume commands follow the pattern: "cd <dir> && <command>".
-func ExtractCmd(resumeCmd string) string {
-	prefix, cmd, ok := strings.Cut(resumeCmd, " && ")
-	if ok && strings.HasPrefix(prefix, "cd ") {
-		return cmd
-	}
-	return resumeCmd
 }
 
 func writeMsg(ctx context.Context, ws *websocket.Conn, typ, data string) error {

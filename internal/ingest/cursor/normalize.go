@@ -7,43 +7,37 @@ import (
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
+// cursorRenameRules holds Cursor's conservative field-rename rules per
+// canonical tool kind. They are applied by ingestkit.RenameToolKeys; only
+// the rules are adapter-local so per-adapter behavior is preserved.
+var cursorRenameRules = map[string]ingestkit.RenameRules{
+	"read": {
+		FilePath: []string{"targetFile", "effectiveUri", "relativeWorkspacePath", "path"},
+		Drop:     []string{"charsLimit"},
+	},
+	"edit": {
+		FilePath:  []string{"relativeWorkspacePath", "path"},
+		NewString: []string{"contents", "streamingContent", "newStr", "new_string"},
+		OldString: []string{"oldStr", "old_string"},
+	},
+	"grep": {
+		Query: []string{"pattern"},
+	},
+	"glob": {
+		Pattern:   []string{"globPattern"},
+		Directory: []string{"targetDirectory"},
+	},
+}
+
 // normalizeToolCall maps Cursor-native tool call names and field names to the
-// standard conventions expected by the frontend's tool renderers.
+// standard conventions expected by the frontend's tool renderers. Name
+// mapping is centralized in ingestkit.CanonicalizeToolName; field renaming is
+// applied through the shared ingestkit.RenameToolKeys mechanism.
 func normalizeToolCall(tc *ingest.ToolCall) {
-	switch tc.Name {
-	case "edit_file_v2", "edit_file":
-		tc.Name = "edit"
-	case "read_file_v2", "read_file":
-		tc.Name = "read"
-	case "glob_file_search", "list_dir":
-		tc.Name = "glob"
-	case "ripgrep_raw_search", "grep_search":
-		tc.Name = "grep"
-	case "run_terminal_command_v2", "run_terminal_command":
-		tc.Name = "bash"
-	case "delete_file":
-		tc.Name = "delete"
-	case "Read":
-		tc.Name = "read"
-	case "Grep", "GrepSearch":
-		tc.Name = "grep"
-	case "Glob":
-		tc.Name = "glob"
-	case "Shell":
-		tc.Name = "bash"
-	case "Write":
-		tc.Name = "write"
-	case "StrReplace":
-		tc.Name = "edit"
-	case "Task", "task_v2", "explore:task_v2":
-		tc.Name = "task"
-	case "ReadLints":
-		tc.Name = "read_lints"
-	case "UpdateCurrentStep":
-		tc.Name = "task_complete"
-	default:
+	if tc.Name == "" {
 		return
 	}
+	tc.Name = ingestkit.CanonicalizeToolName(tc.Name)
 
 	// Output formatting — must happen before the Input parsing guard since
 	// legacy tool calls may have non-JSON or empty Input fields.
@@ -71,111 +65,17 @@ func normalizeToolCall(tc *ingest.ToolCall) {
 		}
 	}
 
+	if tc.Input == "" {
+		return
+	}
+
 	var p map[string]any
 	if err := json.Unmarshal([]byte(tc.Input), &p); err != nil {
 		return
 	}
 
-	// Input field name normalization
-	switch tc.Name {
-	case "read":
-		if v, ok := p["targetFile"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "targetFile")
-		}
-		if v, ok := p["effectiveUri"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "effectiveUri")
-		}
-		if v, ok := p["relativeWorkspacePath"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "relativeWorkspacePath")
-		}
-		if v, ok := p["path"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "path")
-		}
-		delete(p, "charsLimit")
-
-	case "edit":
-		if v, ok := p["relativeWorkspacePath"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "relativeWorkspacePath")
-		}
-		if v, ok := p["path"]; ok {
-			if _, exists := p["filePath"]; !exists {
-				p["filePath"] = v
-			}
-			delete(p, "path")
-		}
-		if v, ok := p["contents"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-			delete(p, "contents")
-		}
-		if v, ok := p["streamingContent"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-			delete(p, "streamingContent")
-		}
-		if v, ok := p["newStr"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-			delete(p, "newStr")
-		}
-		if v, ok := p["new_string"]; ok {
-			if _, exists := p["newString"]; !exists {
-				p["newString"] = v
-			}
-			delete(p, "new_string")
-		}
-		if v, ok := p["oldStr"]; ok {
-			if _, exists := p["oldString"]; !exists {
-				p["oldString"] = v
-			}
-			delete(p, "oldStr")
-		}
-		if v, ok := p["old_string"]; ok {
-			if _, exists := p["oldString"]; !exists {
-				p["oldString"] = v
-			}
-			delete(p, "old_string")
-		}
-
-	case "grep":
-		if v, ok := p["pattern"]; ok {
-			if _, exists := p["query"]; !exists {
-				p["query"] = v
-			}
-			delete(p, "pattern")
-		}
-
-	case "glob":
-		if v, ok := p["globPattern"]; ok {
-			if _, exists := p["pattern"]; !exists {
-				p["pattern"] = v
-			}
-			delete(p, "globPattern")
-		}
-		if v, ok := p["targetDirectory"]; ok {
-			if _, exists := p["directory"]; !exists {
-				p["directory"] = v
-			}
-			delete(p, "targetDirectory")
-		}
+	if rules, ok := cursorRenameRules[tc.Name]; ok {
+		ingestkit.RenameToolKeys(p, rules)
 	}
 
 	if out, err := json.Marshal(p); err == nil {

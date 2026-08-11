@@ -16,7 +16,7 @@ Returns server status with schema version.
   "pid": 12345,
   "sources": 3,
   "sessions": 42,
-  "schemaVersion": 2
+  "schemaVersion": 5
 }
 ```
 
@@ -297,23 +297,20 @@ POST /_/api/recent-searches
 
 Save recent search queries. Accepts `[]string` body.
 
-## Folders
+## Tags
 
 ```http
-GET /_/api/folders
+GET /_/api/tags
 ```
 
-List all folders.
+List all tags, ordered by name.
 
 ```json
 [
   {
-    "id": "folder_1234",
-    "name": "Frontend bugs",
-    "parentId": null,
-    "sortOrder": 0,
-    "color": "#ff0000",
-    "icon": "bug",
+    "id": "tag_1234",
+    "name": "frontend",
+    "color": "#3178c6",
     "createdAt": "2026-06-01T12:00:00Z",
     "updatedAt": "2026-06-01T12:00:00Z"
   }
@@ -321,50 +318,55 @@ List all folders.
 ```
 
 ```http
-POST /_/api/folders
+POST /_/api/tags
 ```
 
-Create a new folder.
+Create a new tag. Names must be unique.
 
 ```json
 {
-  "name": "Frontend bugs",
-  "color": "#ff0000",
-  "icon": "bug"
+  "name": "frontend",
+  "color": "#3178c6"
 }
 ```
 
-Returns the created folder with `201`.
+Returns the created tag with `201`.
 
 ```http
-PATCH /_/api/folders/{id}
+PATCH /_/api/tags/{id}
 ```
 
-Update folder name, color, or icon. Returns `204`.
+Update a tag's name or color. Returns `204`.
 
 ```http
-DELETE /_/api/folders/{id}
+DELETE /_/api/tags/{id}
 ```
 
-Delete a folder and its session assignments (cascade). Returns `204`.
+Delete a tag and its session assignments (cascade). Returns `204`.
 
 ```http
-GET /_/api/folders/{id}/sessions
+GET /_/api/tags/{id}/sessions
 ```
 
-List session IDs assigned to a folder.
+List session IDs carrying a tag.
 
 ```http
-POST /_/api/folders/{id}/sessions/{sessionId}
+POST /_/api/tags/{id}/sessions/{sessionId}
 ```
 
-Assign a session to a folder. Returns `204`.
+Apply a tag to a session. Idempotent. Returns `204`.
 
 ```http
-DELETE /_/api/folders/{id}/sessions/{sessionId}
+DELETE /_/api/tags/{id}/sessions/{sessionId}
 ```
 
-Remove a session from a folder. Returns `204`.
+Remove a tag from a session. Returns `204`.
+
+```http
+GET /_/api/sessions/{id}/tags
+```
+
+List the tags applied to a session (as `Tag` objects).
 
 ## Bookmarks
 
@@ -382,6 +384,7 @@ List all bookmarks.
     "messageIndex": 5,
     "toolCallId": "tc_456",
     "label": "Interesting output",
+    "kind": "message",
     "createdAt": "2026-06-01T12:00:00Z"
   }
 ]
@@ -391,14 +394,14 @@ List all bookmarks.
 POST /_/api/bookmarks
 ```
 
-Create or toggle a bookmark. If a bookmark for the same `sessionId`+`messageIndex`+`toolCallId` already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, and optional `label`.
+Create or toggle a bookmark. If a bookmark for the same `sessionId`+`messageIndex`+`toolCallId` already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, `kind` (either `message` or `plan`; defaults to `message`), and optional `label`. Plan bookmarks use `messageIndex: -1` and no `toolCallId`.
 
 ```json
 {
   "sessionId": "sess_123",
-  "messageIndex": 5,
-  "toolCallId": "tc_456",
-  "label": "Interesting output"
+  "messageIndex": -1,
+  "label": "Plan",
+  "kind": "plan"
 }
 ```
 
@@ -551,7 +554,7 @@ Restart the server. The server spawns a new process before shutting down. Return
 POST /_/api/reset
 ```
 
-Reset all user data: sources, folders, search index, session names, scratch files, config, bookmarks, and notifications. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
+Reset all user data: sources, tags, search index, session names, scratch files, config, bookmarks, and notifications. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
 
 ```json
 {"status": "ok"}

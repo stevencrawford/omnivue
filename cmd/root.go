@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 	Use:   "omnivue [flags]",
 	Short: "Omnivue is an AI/LLM session manager for coding agents",
 	Long: `Omnivue watches AI coding agent sessions (OpenCode, Copilot, Cursor, Codex, Pi, Claude Code) and
-presents them in a browser UI for easy browsing, searching, and management.
+presents them in a browser UI for review, searching, and management.
 
 Quick Start:
   omnivue init                      Discover and configure agent sources
@@ -151,7 +151,7 @@ func startServer(ctx context.Context, addr string) error {
 	defer cleanup()
 
 	state := server.NewState(ctx)
-	handler := server.NewHandler(state)
+	handler := server.NewHandler(state.Deps())
 
 	srv := &http.Server{
 		Addr:              addr,

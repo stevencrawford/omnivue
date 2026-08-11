@@ -1,12 +1,13 @@
 import { useState, useMemo } from "react";
 import { ChevronRight, Check, Copy, ArrowRight, Circle } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
 import type { ToolRendererDefinition } from "./types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
-import { useSessionNav } from "../../hooks/useNav";
+import { useNavigation } from "../../hooks/useNavigation";
 import { useCopy } from "../../hooks/useCopy";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
+import { ToolUsageInfo } from "./ToolUsageInfo";
 import { DefaultToolDiff } from "./builtin/DefaultToolDiff";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
 
@@ -111,7 +112,7 @@ export function ToolCallRow({
   isBookmarked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const { navigateToSession } = useSessionNav();
+  const { navigateToSession } = useNavigation();
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
 
@@ -255,15 +256,9 @@ export function ToolCallRow({
           >
             {summary}
           </span>
-          {!isTask && tool.duration && tool.duration > 0 ? (
-            <span className="text-[11px] text-ov-text-secondary shrink-0">
-              {tool.duration < 1000
-                ? `${tool.duration}ms`
-                : `${(tool.duration / 1000).toFixed(1)}s`}
-            </span>
-          ) : null}
         </button>
         {!isTask && <NonCompactCopyBtn tool={tool} />}
+        <ToolUsageInfo tool={tool} />
         {childSessionId && (
           <button
             type="button"

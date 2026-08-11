@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Effect } from "effect";
-import type { Bookmark } from "./types";
-import { BookmarkService, ApiError } from "../services";
-import { runPromise } from "../lib/effect";
+import type { Bookmark, BookmarkKind } from "./types";
+import { fetchBookmarks, createBookmark, deleteBookmark } from "./apiClient";
+import { runCatching } from "../utils/errors";
+
+/**
+ * Sentinel messageIndex used for plan bookmarks. Plans are not anchored to a
+ * message, so the ref key is `${sessionId}:-1:`. Message bookmarks always use
+ * messageIndex >= 0, so this never collides with them.
+ */
+export const PLAN_BOOKMARK_INDEX = -1;
 
 export interface BookmarksState {
   bookmarks: Bookmark[];
@@ -14,41 +20,9 @@ export interface BookmarksState {
     messageIndex: number,
     toolCallId: string | undefined,
     label: string,
+    kind?: BookmarkKind,
   ) => Promise<void>;
   handleBookmarkDelete: (id: string) => Promise<void>;
-}
-
-function listBookmarksEffect() {
-  return BookmarkService.pipe(
-    Effect.flatMap((svc) => svc.list()),
-    Effect.catchAll((err: ApiError) => {
-      console.error("[bookmarks] failed to load:", err.message);
-      return Effect.succeed([] as Bookmark[]);
-    }),
-  );
-}
-
-function createBookmarkEffect(
-  sessionId: string,
-  messageIndex: number,
-  toolCallId: string | undefined,
-  label: string,
-) {
-  return BookmarkService.pipe(
-    Effect.flatMap((svc) => svc.create({ sessionId, messageIndex, toolCallId, label })),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to create bookmark:", err.message)),
-    ),
-  );
-}
-
-function deleteBookmarkEffect(id: string) {
-  return BookmarkService.pipe(
-    Effect.flatMap((svc) => svc.remove(id)),
-    Effect.catchAll((err: ApiError) =>
-      Effect.sync(() => console.error("Failed to delete bookmark:", err.message)),
-    ),
-  );
 }
 
 export function useBookmarks(): BookmarksState {
@@ -64,7 +38,12 @@ export function useBookmarks(): BookmarksState {
   }, [bookmarks]);
 
   const loadBookmarks = useCallback(async () => {
-    const data = await runPromise(listBookmarksEffect());
+    const data = await runCatching(
+      () => fetchBookmarks(),
+      (err) => {
+        console.error("[bookmarks] failed to load:", err instanceof Error ? err.message : err);
+      },
+    );
     setBookmarks(data ?? []);
   }, []);
 
@@ -74,8 +53,13 @@ export function useBookmarks(): BookmarksState {
       messageIndex: number,
       toolCallId: string | undefined,
       label: string,
+      kind: BookmarkKind = "message",
     ) => {
-      await runPromise(createBookmarkEffect(sessionId, messageIndex, toolCallId, label));
+      await runCatching(
+        () => createBookmark({ sessionId, messageIndex, toolCallId, label, kind }),
+        (err) =>
+          console.error("Failed to create bookmark:", err instanceof Error ? err.message : err),
+      );
       await loadBookmarks();
     },
     [loadBookmarks],
@@ -83,7 +67,11 @@ export function useBookmarks(): BookmarksState {
 
   const handleBookmarkDelete = useCallback(
     async (id: string) => {
-      await runPromise(deleteBookmarkEffect(id));
+      await runCatching(
+        () => deleteBookmark(id),
+        (err) =>
+          console.error("Failed to delete bookmark:", err instanceof Error ? err.message : err),
+      );
       await loadBookmarks();
     },
     [loadBookmarks],

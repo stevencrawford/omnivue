@@ -572,6 +572,50 @@ body {
   color: var(--color-ov-text) !important;
 }
 
+.sess-session-stale {
+  opacity: 0.45;
+}
+
+.sess-session-stale:hover {
+  opacity: 1;
+}
+
+/* Subtle pulsing dot beside sessions the backend considers active */
+.sess-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--color-accent);
+  animation: sess-live-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sess-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Header connection indicator (piggybacks on the SSE EventSource) */
+.sess-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.sess-conn-dot--on {
+  background-color: var(--color-accent-secondary);
+}
+
+.sess-conn-dot--off {
+  background-color: #ef4444;
+  animation: sess-live-pulse 1.6s ease-in-out infinite;
+}
+
 .sess-empty-state {
   display: flex;
   flex-direction: column;
@@ -651,6 +695,15 @@ body {
   text-transform: uppercase;
   color: #58a6ff;
   margin-bottom: 0.375rem;
+}
+
+/* Off-screen conversation blocks are skipped during layout/render so large
+   sessions mount quickly; each message box still reserves its estimated size
+   until scrolled into view. */
+.sess-agent-stream,
+.sess-user-turn {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
 }
 
 .sess-system-notice {
@@ -782,6 +835,121 @@ body {
   background: rgba(161, 98, 7, 0.08);
 }
 
+.sess-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(139, 148, 158, 0.35);
+  background: rgba(139, 148, 158, 0.12);
+  color: #c9d1d9;
+}
+
+[data-mode="light"] .sess-tag {
+  border-color: rgba(110, 118, 129, 0.35);
+  background: rgba(110, 118, 129, 0.1);
+  color: #24292f;
+}
+
+.sess-tag-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.sess-tag-body {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sess-tag-chip {
+  max-width: 12rem;
+  flex-shrink: 0;
+}
+
+.sess-tag-more {
+  position: relative;
+  cursor: default;
+}
+
+.sess-tag-popover {
+  display: flex;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 0.375rem;
+  z-index: 30;
+  min-width: 10rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  border: 1px solid var(--color-ov-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface-elevated);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.sess-tag-pop-item {
+  justify-content: space-between;
+}
+
+.sess-tag-name {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sess-tag-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.sess-tag-remove:hover {
+  opacity: 1;
+}
+
+.sess-tag-add {
+  cursor: pointer;
+  color: #8b949e;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.sess-tag-add:hover {
+  color: #c9d1d9;
+  border-color: rgba(88, 166, 255, 0.4);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+[data-mode="light"] .sess-tag-add {
+  color: #57606a;
+}
+
+[data-mode="light"] .sess-tag-add:hover {
+  color: #24292f;
+}
+
 .sess-parent-session {
   padding: 0.375rem 0.5rem 0.4375rem;
   border-radius: 0.375rem;
@@ -837,6 +1005,22 @@ body {
   }
   100% {
     background-color: transparent;
+  }
+}
+
+/* Brief flash when navigating to a queued prompt from the Queue panel */
+.queued-prompt-flash {
+  animation: queued-prompt-flash 800ms ease-out forwards;
+}
+
+@keyframes queued-prompt-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-color: var(--color-accent);
+  }
+  100% {
+    background-color: transparent;
+    border-color: transparent;
   }
 }
 
@@ -2288,4 +2472,340 @@ body {
 
 .ov-breakdown-expand-chevron--open {
   transform: rotate(180deg);
+}
+
+/* ─── High contrast overlay ───────────────────────────────────────
+   Applied via <html data-contrast="high"> on top of any theme/mode.
+   Kept at the end and scoped with [data-mode] so it wins ties against
+   the per-theme palettes above regardless of declaration order.     */
+
+[data-contrast="high"][data-mode="light"] {
+  color-scheme: light;
+  --color-ov-bg: #ffffff;
+  --color-ov-bg-secondary: #f2f2f2;
+  --color-ov-bg-sidebar: #e8e8e8;
+  --color-ov-bg-hover: #d8d8d8;
+  --color-ov-bg-active: #c6c6c6;
+  --color-ov-text: #000000;
+  --color-ov-text-secondary: #1a1a1a;
+  --color-ov-border: #000000;
+  --color-ov-header-bg: #ffffff;
+  --color-ov-header-text: #000000;
+  --color-ov-header-border: #000000;
+  --color-accent: #0000ee;
+  --color-accent-secondary: #007300;
+  --color-accent-muted: rgba(0, 0, 238, 0.28);
+  --color-accent-border: rgba(0, 0, 238, 0.7);
+  --color-surface-elevated: #ffffff;
+  --color-glow: rgba(0, 0, 238, 0.25);
+}
+
+[data-contrast="high"][data-mode="dark"] {
+  color-scheme: dark;
+  --color-ov-bg: #000000;
+  --color-ov-bg-secondary: #0f0f0f;
+  --color-ov-bg-sidebar: #080808;
+  --color-ov-bg-hover: #1e1e1e;
+  --color-ov-bg-active: #2e2e2e;
+  --color-ov-text: #ffffff;
+  --color-ov-text-secondary: #e6e6e6;
+  --color-ov-border: #9a9a9a;
+  --color-ov-header-bg: #000000;
+  --color-ov-header-text: #ffffff;
+  --color-ov-header-border: #9a9a9a;
+  --color-accent: #8ab4ff;
+  --color-accent-secondary: #00ff7f;
+  --color-accent-muted: rgba(138, 180, 255, 0.32);
+  --color-accent-border: rgba(138, 180, 255, 0.8);
+  --color-surface-elevated: #0f0f0f;
+  --color-glow: rgba(138, 180, 255, 0.28);
+}
+
+/* Flatten translucent/vignette effects that muddy contrast */
+[data-contrast="high"] .sess-main-canvas {
+  background-image: none;
+}
+
+[data-contrast="high"] .sess-glass {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-contrast="high"] .sess-user-turn {
+  background: rgba(0, 0, 238, 0.1);
+}
+
+[data-contrast="high"] .sess-user-turn-label {
+  color: #0000ee;
+}
+
+[data-contrast="high"][data-mode="dark"] .sess-user-turn {
+  background: rgba(138, 180, 255, 0.16);
+}
+
+[data-contrast="high"][data-mode="dark"] .sess-user-turn-label {
+  color: #8ab4ff;
+}
+
+/* System notices & system message cards */
+[data-contrast="high"] .sess-system-notice,
+[data-contrast="high"] .sess-message-card--system {
+  border-color: rgba(0, 0, 0, 0.85);
+  background: #000000;
+  color: #ffffff;
+}
+
+[data-contrast="high"][data-mode="dark"] .sess-system-notice,
+[data-contrast="high"][data-mode="dark"] .sess-message-card--system {
+  border-color: #f5c400;
+  background: rgba(245, 196, 0, 0.12);
+  color: #f5c400;
+}
+
+/* Status accents (todos / plans / steps) */
+[data-contrast="high"] .text-emerald-400,
+[data-contrast="high"] .text-green-500 {
+  color: #006a18;
+}
+[data-contrast="high"] .text-amber-400 {
+  color: #9a4d00;
+}
+[data-contrast="high"] .text-red-400 {
+  color: #b30000;
+}
+[data-contrast="high"] .bg-emerald-400 {
+  background-color: #007a2b;
+}
+
+[data-contrast="high"][data-mode="dark"] .text-emerald-400,
+[data-contrast="high"][data-mode="dark"] .text-green-500 {
+  color: #2cff78;
+}
+[data-contrast="high"][data-mode="dark"] .text-amber-400 {
+  color: #ffc53d;
+}
+[data-contrast="high"][data-mode="dark"] .text-red-400 {
+  color: #ff6b6b;
+}
+[data-contrast="high"][data-mode="dark"] .bg-emerald-400 {
+  background-color: #10c65c;
+}
+
+/* Search highlight */
+[data-contrast="high"] .search-highlight mark,
+[data-contrast="high"] .markdown-body mark.search-highlight {
+  background: #0000ee;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+[data-contrast="high"][data-mode="dark"] .search-highlight mark,
+[data-contrast="high"][data-mode="dark"] .markdown-body mark.search-highlight {
+  background: #8ab4ff;
+  color: #000000;
+}
+
+/* Diff add/remove */
+[data-contrast="high"] .diff-line-add .diff-prefix {
+  color: #008000;
+}
+[data-contrast="high"] .diff-line-add {
+  background: color-mix(in srgb, #008000 22%, transparent);
+}
+[data-contrast="high"] .diff-line-add .diff-line-num {
+  background: color-mix(in srgb, #008000 26%, var(--color-ov-bg-secondary));
+}
+
+[data-contrast="high"] .diff-line-del .diff-prefix {
+  color: #c50000;
+}
+[data-contrast="high"] .diff-line-del {
+  background: color-mix(in srgb, #c50000 22%, transparent);
+}
+[data-contrast="high"] .diff-line-del .diff-line-num {
+  background: color-mix(in srgb, #c50000 26%, var(--color-ov-bg-secondary));
+}
+
+[data-contrast="high"][data-mode="dark"] .diff-line-add .diff-prefix {
+  color: #39ff6e;
+}
+[data-contrast="high"][data-mode="dark"] .diff-line-add {
+  background: color-mix(in srgb, #00b544 22%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] .diff-line-add .diff-line-num {
+  background: color-mix(in srgb, #00b544 26%, var(--color-ov-bg-secondary));
+}
+
+[data-contrast="high"][data-mode="dark"] .diff-line-del .diff-prefix {
+  color: #ff5c5c;
+}
+[data-contrast="high"][data-mode="dark"] .diff-line-del {
+  background: color-mix(in srgb, #d60000 24%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] .diff-line-del .diff-line-num {
+  background: color-mix(in srgb, #d60000 28%, var(--color-ov-bg-secondary));
+}
+
+/* Syntax highlighting (markdown + diff, light) */
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs {
+  color: #111111;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-comment,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-quote {
+  color: #4a4a4a;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-keyword,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-selector-tag {
+  color: #0000ee;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-string,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-addition {
+  color: #006600;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-number,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-literal {
+  color: #7b1fa2;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-built_in,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-type,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-title,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-section,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-name {
+  color: #0058b0;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-attr,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-attribute,
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-meta {
+  color: #8a5000;
+}
+[data-contrast="high"][data-mode="light"] :is(.markdown-body, .diff-file-view) .hljs-deletion {
+  color: #c50000;
+}
+
+/* Syntax highlighting (markdown + diff, dark) */
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs {
+  color: #ffffff;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-comment,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-quote {
+  color: #c9c9c9;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-keyword,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-selector-tag {
+  color: #8ab4ff;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-string,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-addition {
+  color: #7af07a;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-number,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-literal {
+  color: #d29cff;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-built_in,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-type,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-title,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-section,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-name {
+  color: #94d0ff;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-attr,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-attribute,
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-meta {
+  color: #ffd26b;
+}
+[data-contrast="high"][data-mode="dark"] :is(.markdown-body, .diff-file-view) .hljs-deletion {
+  color: #ff7a7a;
+}
+
+/* Agent badges */
+[data-contrast="high"] .sess-agent-badge--opencode {
+  color: #4b0bbf;
+  background: rgba(75, 11, 191, 0.16);
+  border-color: rgba(75, 11, 191, 0.7);
+}
+[data-contrast="high"][data-mode="dark"] .sess-agent-badge--opencode {
+  color: #c9a6ff;
+  border-color: rgba(201, 166, 255, 0.75);
+}
+[data-contrast="high"] .sess-agent-badge--copilot {
+  color: #0b5c74;
+  background: rgba(11, 92, 116, 0.16);
+  border-color: rgba(11, 92, 116, 0.7);
+}
+[data-contrast="high"][data-mode="dark"] .sess-agent-badge--copilot {
+  color: #9ff0fb;
+  border-color: rgba(159, 240, 251, 0.75);
+}
+[data-contrast="high"] .sess-agent-badge--cursor {
+  color: #0a6719;
+  background: rgba(10, 103, 25, 0.16);
+  border-color: rgba(10, 103, 25, 0.7);
+}
+[data-contrast="high"][data-mode="dark"] .sess-agent-badge--cursor {
+  color: #9bffb0;
+  border-color: rgba(155, 255, 176, 0.75);
+}
+[data-contrast="high"] .sess-agent-badge--pi {
+  color: #7a5200;
+  background: rgba(122, 82, 0, 0.16);
+  border-color: rgba(122, 82, 0, 0.7);
+}
+[data-contrast="high"][data-mode="dark"] .sess-agent-badge--pi {
+  color: #ffd774;
+  border-color: rgba(255, 215, 116, 0.75);
+}
+[data-contrast="high"] .sess-agent-badge--codex {
+  color: #8a2f00;
+  background: rgba(138, 47, 0, 0.16);
+  border-color: rgba(138, 47, 0, 0.7);
+}
+[data-contrast="high"][data-mode="dark"] .sess-agent-badge--codex {
+  color: #ffb37a;
+  border-color: rgba(255, 179, 122, 0.75);
+}
+[data-contrast="high"] .sess-agent-badge--claude-code {
+  color: #4b0b8f;
+  background: rgba(75, 11, 143, 0.16);
+  border-color: rgba(75, 11, 143, 0.7);
+}
+[data-contrast="high"][data-mode="dark"] .sess-agent-badge--claude-code {
+  color: #d5a6ff;
+  border-color: rgba(213, 166, 255, 0.75);
+}
+
+/* Privacy badge */
+[data-contrast="high"] .sess-privacy-badge {
+  color: #7a5200;
+  border-color: rgba(122, 82, 0, 0.7);
+  background: rgba(122, 82, 0, 0.14);
+}
+[data-contrast="high"][data-mode="dark"] .sess-privacy-badge {
+  color: #ffd774;
+  border-color: rgba(255, 215, 116, 0.75);
+  background: rgba(255, 215, 116, 0.12);
+}
+
+/* Tags */
+[data-contrast="high"] .sess-tag {
+  border-color: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.12);
+  color: #000000;
+}
+[data-contrast="high"][data-mode="dark"] .sess-tag {
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+[data-contrast="high"] .sess-tag-add {
+  color: #000000;
+}
+[data-contrast="high"] .sess-tag-add:hover {
+  color: #0000ee;
+}
+[data-contrast="high"][data-mode="dark"] .sess-tag-add {
+  color: #ffffff;
+}
+[data-contrast="high"][data-mode="dark"] .sess-tag-add:hover {
+  color: #8ab4ff;
 }

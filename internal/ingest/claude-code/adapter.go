@@ -2,7 +2,6 @@ package claudecode
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 )
 
 type Adapter struct {
@@ -73,37 +73,10 @@ func New(basePath string) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentClaudeCode }
+var claudeResumeSpec = resumecmd.Spec{Binary: "claude", Flag: "-r"}
 
-func (a *Adapter) Detect(path string) bool {
-	projectsPath := filepath.Join(path, projectDir)
-	fi, err := os.Stat(projectsPath)
-	if err != nil || !fi.IsDir() {
-		return false
-	}
-	ents, err := os.ReadDir(projectsPath)
-	if err != nil {
-		return false
-	}
-	for _, ent := range ents {
-		if !ent.IsDir() {
-			continue
-		}
-		sessionEnts, err := os.ReadDir(filepath.Join(projectsPath, ent.Name()))
-		if err != nil {
-			continue
-		}
-		for _, se := range sessionEnts {
-			if !se.IsDir() && strings.HasSuffix(se.Name(), ".jsonl") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && claude -r %s", session.Directory, session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return claudeResumeSpec
 }
 
 func (a *Adapter) LastModified(_ context.Context) (int64, error) {

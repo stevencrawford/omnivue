@@ -1,111 +1,67 @@
 package copilot
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
-	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	eventsPath := filepath.Join(a.basePath, "session-state", sessionID, "events.jsonl")
-	f, err := os.Open(eventsPath)
+	msgs, err := a.Messages(ctx, sessionID)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
-	defer f.Close()
+	return ingest.ExtractEdits(msgs, parseCopilotEdit), nil
+}
 
-	var edits []ingest.FileEdit
-	var msgCounter int
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
-
-	for scanner.Scan() {
-		var event eventEnvelope
-		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-			continue
-		}
-
-		switch event.Type {
-		case "user.message":
-			msgCounter++
-			continue
-		case "assistant.message":
-			msgCounter++
-		default:
-			continue
-		}
-
-		var data assistantMessageData
-		if err := json.Unmarshal(event.Data, &data); err != nil {
-			continue
-		}
-
-		for _, req := range data.ToolRequests {
-			ts := ingestkit.ParseTime(event.Timestamp)
-
-			if req.Name == "apply_patch" {
-				var patchText string
-				if err := json.Unmarshal(req.Arguments, &patchText); err != nil || patchText == "" {
-					continue
-				}
-				filePath := extractCopilotPatchPath(patchText)
-				if filePath == "" {
-					continue
-				}
-				edits = append(edits, ingest.FileEdit{
-					FilePath:     filePath,
-					ToolName:     "edit",
-					Content:      patchText,
-					Timestamp:    ts,
-					MessageIndex: msgCounter - 1,
-					MessageID:    data.MessageID,
-				})
-				continue
-			}
-
-			var args toolEditArgs
-			if err := json.Unmarshal(req.Arguments, &args); err != nil {
-				continue
-			}
-
-			switch req.Name {
-			case "create":
-				if args.Path == "" {
-					continue
-				}
-				edits = append(edits, ingest.FileEdit{
-					FilePath:     args.Path,
-					ToolName:     "write",
-					Content:      args.FileText,
-					Timestamp:    ts,
-					MessageIndex: msgCounter - 1,
-					MessageID:    data.MessageID,
-				})
-			case "edit":
-				if args.Path == "" && args.OldStr == "" && args.NewStr == "" {
-					continue
-				}
-				edits = append(edits, ingest.FileEdit{
-					FilePath:     args.Path,
-					ToolName:     "edit",
-					OldStr:       args.OldStr,
-					NewStr:       args.NewStr,
-					Timestamp:    ts,
-					MessageIndex: msgCounter - 1,
-					MessageID:    data.MessageID,
-				})
-			}
-		}
+// parseCopilotEdit extracts a FileEdit from a normalized Copilot tool call.
+// Normalization rewrites apply_patch→edit and create→write into the
+// {filePath, content} shape; a native edit retains {path, old_str, new_str}.
+func parseCopilotEdit(tc ingest.ToolCall, mi int, m ingest.Message) *ingest.FileEdit {
+	if tc.Name != "edit" && tc.Name != "write" {
+		return nil
 	}
 
-	return edits, scanner.Err()
+	var input struct {
+		FilePath string `json:"filePath"`
+		Path     string `json:"path"`
+		Content  string `json:"content"`
+		OldStr   string `json:"old_str"`
+		NewStr   string `json:"new_str"`
+		FileText string `json:"file_text"`
+	}
+	if err := json.Unmarshal([]byte(tc.Input), &input); err != nil {
+		return nil
+	}
+	fp := input.FilePath
+	if fp == "" {
+		fp = input.Path
+	}
+	if fp == "" {
+		return nil
+	}
+
+	e := &ingest.FileEdit{
+		FilePath:     fp,
+		ToolName:     tc.Name,
+		Timestamp:    m.Timestamp,
+		MessageIndex: mi,
+		MessageID:    m.ID,
+	}
+	if input.OldStr != "" || input.NewStr != "" {
+		e.OldStr = input.OldStr
+		e.NewStr = input.NewStr
+		return e
+	}
+	content := input.FileText
+	if content == "" {
+		content = input.Content
+	}
+	e.Content = content
+	return e
 }
 
 func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {

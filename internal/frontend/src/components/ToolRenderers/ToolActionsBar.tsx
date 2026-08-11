@@ -1,25 +1,7 @@
-import { useState } from "react";
-import { Copy, Check, Pin, ArrowRight as ArrowRightIcon, Bookmark } from "lucide-react";
-import type { ToolCall } from "../../hooks/useApi";
-
-function CopyOutputBtn({ tool, copyText }: { tool: ToolCall; copyText?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(copyText ?? tool.output ?? "");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }}
-      className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-      title="Copy output"
-    >
-      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-    </button>
-  );
-}
+import { Pin, ArrowRight as ArrowRightIcon, Bookmark } from "lucide-react";
+import type { ToolCall } from "../../hooks/types";
+import CopyButton from "./CopyButton";
+import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 
 export function ToolActionsBar({
   tool,
@@ -32,6 +14,9 @@ export function ToolActionsBar({
   showCopy = true,
   copyText,
   pinText,
+  screenshotText,
+  inputText,
+  copyKind,
 }: {
   tool: ToolCall;
   onPin?: (content: string) => void;
@@ -43,21 +28,36 @@ export function ToolActionsBar({
   showCopy?: boolean;
   copyText?: string;
   pinText?: string;
+  screenshotText?: string;
+  inputText?: string;
+  copyKind?: string;
 }) {
+  // Screenshots only ever capture markdown content, which must be supplied
+  // explicitly (never the possibly-truncated raw tool.output).
+  const markdownContent = screenshotText ?? pinText;
+
   return (
     <div className="flex items-center gap-0.5 shrink-0">
       {showPin && (pinText || tool.output) && onPin && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPin(pinText ?? tool.output!);
-          }}
-          className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-          title="Pin as scratch note"
-        >
-          <Pin size={12} />
-        </button>
+        <>
+          {markdownContent && (
+            <MarkdownScreenshotButton
+              content={markdownContent}
+              className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
+            />
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPin(pinText ?? tool.output!);
+            }}
+            className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
+            title="Pin as scratch note"
+          >
+            <Pin size={12} />
+          </button>
+        </>
       )}
       {childSessionId && navigateToSession && (
         <button
@@ -71,7 +71,13 @@ export function ToolActionsBar({
           <ArrowRightIcon size={12} className="inline" /> View session
         </button>
       )}
-      {showCopy && <CopyOutputBtn tool={tool} copyText={copyText} />}
+      {showCopy && (
+        <CopyButton
+          outputText={copyText ?? tool.output ?? ""}
+          inputText={inputText}
+          kind={copyKind}
+        />
+      )}
       {onBookmark && (
         <button
           type="button"

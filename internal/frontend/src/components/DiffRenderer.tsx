@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { createLowlight, common } from "lowlight";
+import { renderHunk, type DiffHunk } from "../utils/diff";
 
 const lowlight = createLowlight(common);
 
@@ -74,65 +75,38 @@ export function FileRenderer({
   );
 }
 
-export function PatchRenderer({ patch, lang }: { patch: string; lang?: string }) {
-  const lines = patch.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-
-  let oldLine = 0;
-  let newLine = 0;
+export function HunkRenderer({ hunk, lang }: { hunk: DiffHunk; lang?: string }) {
+  const rows = renderHunk(hunk);
 
   return (
     <div className="diff-file-view">
       <table className="diff-table">
         <tbody>
-          {lines.map((line, i) => {
-            if (line.startsWith("---") || line.startsWith("+++")) {
-              return null;
-            }
-
-            if (line.startsWith("@@")) {
-              const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-              if (match) {
-                oldLine = parseInt(match[1]) - 1;
-                newLine = parseInt(match[3]) - 1;
-              }
+          {rows.map((row, i) => {
+            if (row.kind === "header") {
               return (
                 <tr key={i} className="diff-line diff-line-hunk-header">
                   <td className="diff-line-num diff-line-num-empty" />
                   <td className="diff-line-num diff-line-num-empty" />
-                  <td className="diff-line-content">{line}</td>
+                  <td className="diff-line-content">{row.text}</td>
                 </tr>
               );
             }
 
-            const prefix = line.charAt(0);
-            const content = line.slice(1);
-            let lineClass = "diff-line-ctx";
-            let oldNum = "";
-            let newNum = "";
-
-            if (prefix === "+") {
-              lineClass = "diff-line-add";
-              newLine++;
-              newNum = String(newLine);
-            } else if (prefix === "-") {
-              lineClass = "diff-line-del";
-              oldLine++;
-              oldNum = String(oldLine);
-            } else {
-              oldLine++;
-              newLine++;
-              oldNum = String(oldLine);
-              newNum = String(newLine);
-            }
+            const lineClass =
+              row.kind === "add"
+                ? "diff-line-add"
+                : row.kind === "del"
+                  ? "diff-line-del"
+                  : "diff-line-ctx";
 
             return (
               <tr key={i} className={`diff-line ${lineClass}`}>
-                <td className="diff-line-num">{oldNum}</td>
-                <td className="diff-line-num">{newNum}</td>
+                <td className="diff-line-num">{row.oldNum}</td>
+                <td className="diff-line-num">{row.newNum}</td>
                 <td className="diff-line-content">
-                  <span className="diff-prefix">{prefix}</span>
-                  <span className="diff-text">{highlightLine(content, lang)}</span>
+                  <span className="diff-prefix">{row.prefix}</span>
+                  <span className="diff-text">{highlightLine(row.text, lang)}</span>
                 </td>
               </tr>
             );

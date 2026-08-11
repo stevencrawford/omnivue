@@ -26,8 +26,8 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 
 	ctx := context.Background()
 
-	if !a.Detect(basePath) {
-		t.Fatal("Detect() returned false on expected directory")
+	if detectPath(basePath) == nil {
+		t.Fatal("detectPath() returned nil on expected directory")
 	}
 
 	sessions, err := a.ListSessions(ctx)
@@ -137,8 +137,9 @@ func TestAdapter_WithRealSessions(t *testing.T) {
 		t.Error("expected non-zero last modified")
 	}
 
+	spec := a.ResumeCommand()
 	for _, s := range sessions {
-		cmd := a.ResumeCommand(&s)
+		cmd := spec.Command(s.Directory, s.ID)
 		if !strings.Contains(cmd, "claude") {
 			t.Errorf("unexpected resume command: %s", cmd)
 		}
@@ -193,15 +194,10 @@ func TestDetect(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			tc.setup(t, dir)
-			a, err := New(dir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer a.Close()
 
-			got := a.Detect(dir)
+			got := detectPath(dir) != nil
 			if got != tc.want {
-				t.Errorf("Detect() = %v, want %v", got, tc.want)
+				t.Errorf("detectPath() = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -375,6 +371,56 @@ func TestMessageParsing_ToolCalls(t *testing.T) {
 	}
 	if tc.Status != ingest.ToolCallRunning {
 		t.Errorf("ToolCall Status = %q, want %v", tc.Status, ingest.ToolCallRunning)
+	}
+}
+
+func TestToolCallUsageAttribution(t *testing.T) {
+	start := time.Now().UTC().Add(-5 * time.Second)
+	end := time.Now().UTC()
+	inputJSON := `{"file_path":"src/main.go","old_str":"foo","new_str":"bar"}`
+	lines := []json.RawMessage{
+		json.RawMessage(`{"type":"assistant","uuid":"a1","timestamp":"` + start.Format(time.RFC3339) + `","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Edit","input":` + inputJSON + `}],"model":"anthropic/claude-sonnet-4-5-20250929","usage":{"input_tokens":50,"output_tokens":100,"cache_creation_input_tokens":10,"cache_read_input_tokens":5}}}`),
+		json.RawMessage(`{"type":"tool_result","tool_use_id":"tu1","content":"done","timestamp":"` + end.Format(time.RFC3339) + `"}`),
+	}
+
+	a := setupAdapter(t, "proj", "sid-usage.jsonl", lines)
+	ctx := context.Background()
+
+	msgs, err := a.Messages(ctx, "sid-usage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if len(msgs[0].ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(msgs[0].ToolCalls))
+	}
+
+	tc := msgs[0].ToolCalls[0]
+	if tc.Usage == nil {
+		t.Fatal("expected attributed usage on tool call")
+	}
+	if tc.Usage.Source != ingest.UsageMessage {
+		t.Errorf("usage source = %q, want %q", tc.Usage.Source, ingest.UsageMessage)
+	}
+	if tc.Usage.Tokens.Input != 50 {
+		t.Errorf("input tokens = %d, want 50", tc.Usage.Tokens.Input)
+	}
+	if tc.Usage.Tokens.Output != 100 {
+		t.Errorf("output tokens = %d, want 100", tc.Usage.Tokens.Output)
+	}
+	if tc.Usage.Tokens.CacheRead != 5 {
+		t.Errorf("cache read tokens = %d, want 5", tc.Usage.Tokens.CacheRead)
+	}
+	if tc.Usage.Tokens.CacheWrite != 10 {
+		t.Errorf("cache write tokens = %d, want 10", tc.Usage.Tokens.CacheWrite)
+	}
+	if tc.Usage.Cost <= 0 {
+		t.Errorf("usage cost = %v, want > 0", tc.Usage.Cost)
+	}
+	if tc.Duration < 4000 || tc.Duration > 6000 {
+		t.Errorf("tool call duration = %dms, want ~5000ms", tc.Duration)
 	}
 }
 
@@ -609,10 +655,14 @@ func TestResumeCommand(t *testing.T) {
 		Directory: "/home/user/project",
 	}
 
-	cmd := a.ResumeCommand(s)
+	spec := a.ResumeCommand()
+	cmd := spec.Command(s.Directory, s.ID)
 	expected := `cd /home/user/project && claude -r sess-001`
 	if cmd != expected {
 		t.Errorf("ResumeCommand() = %q, want %q", cmd, expected)
+	}
+	if agent := spec.AgentCommand(s.ID); agent != "/resume sess-001" {
+		t.Errorf("AgentCommand() = %q, want %q", agent, "/resume sess-001")
 	}
 }
 

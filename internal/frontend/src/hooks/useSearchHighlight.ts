@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { Message } from "../hooks/useApi";
+import type { Message } from "../hooks/types";
 
 function highlightDomTextNodes(root: Element, q: string) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -56,8 +56,25 @@ export function useSearchHighlight(
   focusMessageId: string | undefined,
   messagesWithoutReminders: Message[],
   onClearFocus?: () => void,
+  renderIndexResolver?: (
+    rawIndex: number | undefined,
+    messageId: string | undefined,
+  ) => number | undefined,
 ) {
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
+  // Tracks the last jump that has been scrolled to. A focus jump (notification
+  // click, session select, ...) should scroll the target into view exactly
+  // once: live message reloads and SSE-driven re-renders rebuild the resolver
+  // and message list, which re-runs the effect below, and re-applying the
+  // scroll on each run yanks the user back to the target while an active
+  // session streams — making it impossible to scroll to the bottom. Guarding
+  // on the full target (key + index + id) lets the same notification be
+  // clicked again after focus clears.
+  const appliedFocusRef = useRef<{
+    key: number | undefined;
+    index: number | undefined;
+    id: string | undefined;
+  } | null>(null);
 
   const scrollToMessageEl = useCallback(
     (el: Element) => {
@@ -91,13 +108,38 @@ export function useSearchHighlight(
   }, [focusStepIndex, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
 
   useEffect(() => {
-    if (focusMessageIndex === undefined && focusMessageId === undefined) return;
+    if (focusMessageIndex === undefined && focusMessageId === undefined) {
+      appliedFocusRef.current = null;
+      return;
+    }
     if (!scrollRef.current || messagesWithoutReminders.length === 0) return;
-    const el = focusMessageId
-      ? scrollRef.current.querySelector(`[data-message-id="${focusMessageId}"]`)
-      : scrollRef.current.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    const container = scrollRef.current;
+    let el: Element | null = null;
+    const resolved = renderIndexResolver
+      ? renderIndexResolver(focusMessageIndex, focusMessageId)
+      : undefined;
+    if (resolved !== undefined) {
+      el = container.querySelector(`[data-message-index="${resolved}"]`);
+    } else if (focusMessageId) {
+      el = container.querySelector(`[data-message-id="${focusMessageId}"]`);
+    } else if (!renderIndexResolver && focusMessageIndex !== undefined) {
+      el = container.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    }
     if (el) {
-      scrollToMessageEl(el);
+      const applied = appliedFocusRef.current;
+      const sameJump =
+        applied !== null &&
+        applied.key === focusMessageKey &&
+        applied.index === focusMessageIndex &&
+        applied.id === focusMessageId;
+      if (!sameJump) {
+        scrollToMessageEl(el);
+        appliedFocusRef.current = {
+          key: focusMessageKey,
+          index: focusMessageIndex,
+          id: focusMessageId,
+        };
+      }
       el.classList.add("sess-message-highlight");
       const timer = setTimeout(() => {
         el.classList.remove("sess-message-highlight");
@@ -105,6 +147,7 @@ export function useSearchHighlight(
       }, 2000);
       return () => clearTimeout(timer);
     }
+    appliedFocusRef.current = null;
   }, [
     focusMessageKey,
     focusMessageIndex,
@@ -112,6 +155,7 @@ export function useSearchHighlight(
     messagesWithoutReminders.length,
     scrollToMessageEl,
     scrollRef,
+    renderIndexResolver,
   ]);
 
   useEffect(() => {

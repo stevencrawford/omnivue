@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
+	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
 // normalizeToolCall normalizes copilot-native tool names and input fields to
@@ -29,7 +30,7 @@ func normalizeToolCall(tc *ingest.ToolCall, rawArgs json.RawMessage) {
 		tc.Name = "edit"
 		var patchText string
 		if err := json.Unmarshal(rawArgs, &patchText); err == nil && patchText != "" {
-			filePath := extractCopilotPatchPath(patchText)
+			filePath, _ := ingestkit.ParseApplyPatch(patchText)
 			if filePath != "" {
 				newInput, err := json.Marshal(map[string]string{
 					"filePath": filePath,

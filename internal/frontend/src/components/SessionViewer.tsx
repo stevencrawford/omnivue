@@ -1,25 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  Bot,
-  FileText,
-  ListTodo,
-  File,
-  Lock,
-  X,
-  Plus,
-  FilePlus,
-  Check,
-  Copy,
-  BarChart3,
-  Terminal,
-} from "lucide-react";
-import { Effect } from "effect";
-import type { Session, Message } from "../hooks/useApi";
-import { deleteScratchFile } from "../hooks/useApi";
-import { runFork } from "../lib/effect";
-import { SessionService } from "../services";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
+import type { Session, Message, BookmarkKind } from "../hooks/types";
+import { fetchMessages } from "../hooks/apiClient";
+import { isAbortError } from "../utils/errors";
+import { useToast } from "../hooks/useToast";
 import { MarkdownContent } from "./MarkdownContent";
 import { Modal } from "./Modal";
+import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
 import { useCopy } from "../hooks/useCopy";
 import { DiffView } from "./DiffView";
 import { PlanView } from "./PlanView";
@@ -29,7 +16,7 @@ import { TerminalPanel } from "./TerminalPanel";
 import { SessionHeader } from "./SessionHeader";
 import { ConversationView } from "./ConversationView";
 import { SessionSummary } from "./SessionSummary";
-import { ResumeButton } from "./ResumeButton";
+import { SessionTabBar } from "./SessionTabBar";
 
 export type Tab =
   | "session"
@@ -44,6 +31,8 @@ interface SessionViewerProps {
   session: Session;
   childSessions?: Session[];
   liveChangedIds: Set<string>;
+  /** Acknowledge a live-change notification for this session as handled. */
+  ackSessionChange?: (id: string) => void;
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
   onNameChanged?: () => void;
@@ -58,33 +47,21 @@ interface SessionViewerProps {
     messageIndex: number,
     toolCallId: string | undefined,
     label: string,
+    kind?: BookmarkKind,
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
-  focusStepIndex?: number;
-  focusMessageIndex?: number;
-  focusMessageKey?: number;
-  focusMessageId?: string;
-  onClearFocus?: () => void;
   searchHighlightQuery?: string | null;
-  onNavigateToMessage?: (messageIndex: number) => void;
+  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
+  onQueueChanged?: () => void;
+  highlightPromptId?: string | null;
+  onHighlightDone?: () => void;
 }
-
-const MAIN_TABS: {
-  tab: "session" | "diff" | "plan" | "summary" | "todos";
-  label: string;
-  icon: ReactNode;
-}[] = [
-  { tab: "session", label: "Session", icon: <Bot size={14} /> },
-  { tab: "diff", label: "Diff", icon: <FileText size={14} /> },
-  { tab: "plan", label: "Plan", icon: <ListTodo size={14} /> },
-  { tab: "summary", label: "Summary", icon: <BarChart3 size={14} /> },
-  { tab: "todos", label: "TODOs", icon: <BarChart3 size={14} /> },
-];
 
 export function SessionViewer({
   session,
   childSessions,
   liveChangedIds,
+  ackSessionChange,
   activeTab: activeTabProp,
   onTabChange,
   onNameChanged,
@@ -96,13 +73,11 @@ export function SessionViewer({
   onPinMessage,
   onBookmark,
   bookmarkIdByRef,
-  focusStepIndex,
-  focusMessageIndex,
-  focusMessageKey,
-  focusMessageId,
-  onClearFocus,
   searchHighlightQuery,
   onNavigateToMessage,
+  onQueueChanged,
+  highlightPromptId,
+  onHighlightDone,
 }: SessionViewerProps) {
   const [localTab, setLocalTab] = useState<Tab>("session");
   const activeTab = activeTabProp ?? localTab;
@@ -112,50 +87,64 @@ export function SessionViewer({
   const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
     null,
   );
-  const [createFileOpen, setCreateFileOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [diffLoaded, setDiffLoaded] = useState(false);
   const [planLoaded, setPlanLoaded] = useState(false);
   const [summaryLoaded, setSummaryLoaded] = useState(false);
-  const [deleteConfirmFileId, setDeleteConfirmFileId] = useState<string | null>(null);
-  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const { showErrorToast } = useToast();
 
-  const cancelLoadRef = useRef<(() => void) | null>(null);
+  // Tracks the in-flight message request. Only the newest request may write
+  // messages or clear loading; a request superseded by a newer one or aborted
+  // on unmount must not clobber the fresher state.
+  const loadRef = useRef<{ id: number; controller: AbortController | null }>({
+    id: 0,
+    controller: null,
+  });
 
-  const loadMessages = useCallback(() => {
-    cancelLoadRef.current?.();
+  const loadMessages = useCallback(async () => {
+    const id = loadRef.current.id + 1;
+    loadRef.current.controller?.abort();
+    const controller = new AbortController();
+    loadRef.current = { id, controller };
     setLoading(true);
-    const cancel = runFork(
-      SessionService.pipe(
-        Effect.flatMap((svc) => svc.getMessages(session.id)),
-        Effect.map((data) => {
-          setMessages(data || []);
-        }),
-        Effect.catchAll((err) =>
-          Effect.sync(() => {
-            console.error("Failed to load messages:", err.message);
-            setMessages([]);
-          }),
-        ),
-        Effect.ensuring(Effect.sync(() => setLoading(false))),
-      ),
-    );
-    cancelLoadRef.current = cancel;
-  }, [session.id]);
+    try {
+      const data = await fetchMessages(session.id, controller.signal);
+      if (loadRef.current.id !== id) return;
+      setMessages(data || []);
+    } catch (err: unknown) {
+      if (isAbortError(err)) return;
+      if (loadRef.current.id !== id) return;
+      showErrorToast(err, "Failed to load messages");
+      setMessages([]);
+    } finally {
+      if (loadRef.current.id === id) setLoading(false);
+    }
+  }, [session.id, showErrorToast]);
 
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
 
   useEffect(() => {
+    return () => {
+      loadRef.current.controller?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!liveChangedIds.has(session.id)) return;
+    ackSessionChange?.(session.id);
+    // A deep link mounts this view with a slow full-transcript fetch in flight;
+    // interrupting it on a live SSE event strands the spinner. Let the initial
+    // load finish untouched; live refreshes only replace an already-rendered
+    // conversation.
+    if (messages.length === 0 && loading) return;
     const handle = setTimeout(() => {
       loadMessages();
       setRefreshKey((k) => k + 1);
     }, 300);
     return () => clearTimeout(handle);
-  }, [liveChangedIds, session.id, loadMessages]);
+  }, [liveChangedIds, session.id, loadMessages, messages.length, loading, ackSessionChange]);
 
   const messageCount = useMemo(() => {
     const user = messages.filter((m) => m.role === "user").length;
@@ -174,21 +163,6 @@ export function SessionViewer({
     }
   }, [activeTab, openScratchTabs]);
 
-  const tabIcon = (tab: Tab): ReactNode => {
-    if (tab === "session") return <Bot size={14} />;
-    if (tab === "diff") return <FileText size={14} />;
-    if (tab === "plan") return <ListTodo size={14} />;
-    if (tab === "summary") return <BarChart3 size={14} />;
-    if (tab === "terminal") return <Terminal size={14} />;
-    if (tab.startsWith("scratch:")) return <File size={14} />;
-    return null;
-  };
-
-  const scratchTabLabel = (fileId: string): string => {
-    const info = scratchFileMap[fileId];
-    return info?.title || "Untitled";
-  };
-
   const isScratchTab = (tab: Tab): tab is `scratch:${string}` => tab.startsWith("scratch:");
   const scratchFileIdFromTab = (tab: Tab): string | null =>
     isScratchTab(tab) ? tab.slice(8) : null;
@@ -197,136 +171,22 @@ export function SessionViewer({
     <div className="flex flex-col h-full">
       <SessionHeader session={session} hasPrivacy={hasPrivacy} onNameChanged={onNameChanged} />
 
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-ov-border shrink-0 overflow-x-auto">
-        {MAIN_TABS.map(
-          (meta) =>
-            (meta.tab !== "diff" || !session.parentId) &&
-            (meta.tab !== "todos" || (session.todos && session.todos.length > 0)) && (
-              <button
-                key={meta.tab}
-                type="button"
-                className={`sess-tab-pill shrink-0 ${activeTab === meta.tab ? "sess-tab-pill--active" : ""}`}
-                onClick={() => {
-                  if (meta.tab === "diff") setDiffLoaded(true);
-                  if (meta.tab === "plan") setPlanLoaded(true);
-                  if (meta.tab === "summary") setSummaryLoaded(true);
-                  setActiveTab(meta.tab);
-                }}
-              >
-                {meta.icon}
-                {meta.label}
-                {meta.tab === "session" && messageCount.total > 0 && (
-                  <span className="text-[11px] opacity-70 tabular-nums">{messageCount.total}</span>
-                )}
-                {meta.tab === "diff" && session.diffFiles > 0 && (
-                  <span className="text-[11px] opacity-70 tabular-nums">
-                    {session.diffFiles}f
-                    {session.diffAdditions > 0 && (
-                      <span className="text-green-500 ml-0.5">+{session.diffAdditions}</span>
-                    )}
-                    {session.diffDeletions > 0 && (
-                      <span className="text-red-500 ml-0.5">-{session.diffDeletions}</span>
-                    )}
-                  </span>
-                )}
-              </button>
-            ),
-        )}
-        {(openScratchTabs.length > 0 || !session.parentId) && (
-          <div className="w-px h-4 bg-ov-border mx-1 shrink-0" />
-        )}
-        {openScratchTabs.map((fid) => {
-          const tab: Tab = `scratch:${fid}`;
-          const info = scratchFileMap[fid];
-          const isReadOnly = info?.mode === "readonly";
-          const isRenaming = renamingFileId === fid;
-          return (
-            <button
-              key={fid}
-              type="button"
-              className={`sess-tab-pill shrink-0 ${activeTab === tab ? "sess-tab-pill--active" : ""}`}
-              onClick={() => {
-                if (!isRenaming) setActiveTab(tab);
-              }}
-            >
-              {isReadOnly ? <Lock size={12} /> : tabIcon(tab)}
-              {isRenaming ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={() => {
-                    const trimmed = renameValue.trim();
-                    if (trimmed && trimmed !== scratchTabLabel(fid)) {
-                      onRenameScratchFile?.(fid, trimmed);
-                    }
-                    setRenamingFileId(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      (e.target as HTMLInputElement).blur();
-                    } else if (e.key === "Escape") {
-                      setRenamingFileId(null);
-                    }
-                    e.stopPropagation();
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-20 text-[11px] bg-ov-bg-hover border border-accent-border rounded px-1 outline-none"
-                />
-              ) : (
-                <span
-                  className="truncate max-w-28"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setRenameValue(scratchTabLabel(fid));
-                    setRenamingFileId(fid);
-                  }}
-                >
-                  {scratchTabLabel(fid)}
-                </span>
-              )}
-              <span
-                role="button"
-                className="ml-1 text-ov-text-secondary hover:text-ov-text cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteConfirmFileId(fid);
-                }}
-              >
-                <X size={12} />
-              </span>
-            </button>
-          );
-        })}
-        {!session.parentId && (
-          <button
-            type="button"
-            onClick={() => setCreateFileOpen(true)}
-            className="sess-tab-pill text-ov-text-secondary hover:text-ov-text shrink-0"
-            title="New file"
-          >
-            <Plus size={14} />
-          </button>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          <ResumeButton sessionId={session.id} />
-          {!session.parentId && (
-            <button
-              type="button"
-              className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${
-                activeTab === "terminal"
-                  ? "sess-tab-pill--active"
-                  : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-              }`}
-              onClick={() => setActiveTab("terminal")}
-              title="Terminal"
-            >
-              <Terminal size={14} />
-            </button>
-          )}
-        </div>
-      </div>
+      <SessionTabBar
+        session={session}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          if (tab === "diff") setDiffLoaded(true);
+          if (tab === "plan") setPlanLoaded(true);
+          if (tab === "summary") setSummaryLoaded(true);
+          setActiveTab(tab);
+        }}
+        openScratchTabs={openScratchTabs}
+        scratchFileMap={scratchFileMap}
+        onCloseScratchTab={onCloseScratchTab}
+        onNewScratchFile={onNewScratchFile}
+        onRenameScratchFile={onRenameScratchFile}
+        messageCount={messageCount}
+      />
 
       {/* Tab content — all panels are always mounted, inactive ones hidden */}
       <div className="relative flex-1 min-h-0">
@@ -340,12 +200,10 @@ export function SessionViewer({
             onPin={onPinMessage}
             onBookmark={onBookmark}
             bookmarkIdByRef={bookmarkIdByRef}
-            focusStepIndex={focusStepIndex}
-            focusMessageIndex={focusMessageIndex}
-            focusMessageKey={focusMessageKey}
-            focusMessageId={focusMessageId}
-            onClearFocus={onClearFocus}
             searchHighlightQuery={searchHighlightQuery ?? undefined}
+            onQueueChanged={onQueueChanged}
+            highlightPromptId={highlightPromptId}
+            onHighlightDone={onHighlightDone}
           />
         </div>
         {(diffLoaded || activeTab === "diff") && (
@@ -368,13 +226,20 @@ export function SessionViewer({
                 sessionId={session.id}
                 refreshKey={refreshKey}
                 searchHighlightQuery={searchHighlightQuery}
+                onBookmark={onBookmark}
+                bookmarkIdByRef={bookmarkIdByRef}
               />
             </div>
           </div>
         )}
         {(summaryLoaded || activeTab === "summary") && (
           <div className={`absolute inset-0 ${activeTab !== "summary" ? "hidden" : ""}`}>
-            <SessionSummary session={session} messages={messages} />
+            <SessionSummary
+              session={session}
+              messages={messages}
+              loading={loading}
+              onNavigateToMessage={onNavigateToMessage}
+            />
           </div>
         )}
         {activeTab === "todos" && session.todos && (
@@ -412,81 +277,20 @@ export function SessionViewer({
         title={markdownModal?.title}
         size="xl"
       >
-        {markdownModal && <ModalMarkdownWrapper content={markdownModal.content} />}
-      </Modal>
-
-      {/* Create file dialog */}
-      <Modal
-        isOpen={createFileOpen}
-        onClose={() => setCreateFileOpen(false)}
-        title="Create new file"
-        size="md"
-      >
-        <div className="p-3 space-y-1">
-          <button
-            type="button"
-            onClick={() => {
-              setCreateFileOpen(false);
-              onNewScratchFile?.();
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
-          >
-            <FilePlus size={20} className="shrink-0 text-accent" />
-            <div className="flex flex-col">
-              <span className="font-medium">Markdown</span>
-              <span className="text-[11px] text-ov-text-secondary">.md — Rich text file</span>
-            </div>
-          </button>
-        </div>
-      </Modal>
-
-      {/* Delete scratch file confirmation */}
-      <Modal
-        isOpen={deleteConfirmFileId !== null}
-        onClose={() => setDeleteConfirmFileId(null)}
-        title="Delete file"
-        size="md"
-      >
-        <div className="p-3 space-y-3">
-          <p className="text-sm text-ov-text-secondary">
-            Are you sure you want to delete this file? This action cannot be undone.
-          </p>
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDeleteConfirmFileId(null)}
-              className="px-3 py-1.5 text-xs rounded-md text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!deleteConfirmFileId) return;
-                try {
-                  await deleteScratchFile(session.id, deleteConfirmFileId);
-                } catch {
-                  /* ignore */
-                }
-                onCloseScratchTab(deleteConfirmFileId);
-                setDeleteConfirmFileId(null);
-              }}
-              className="px-3 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-500 cursor-pointer transition-colors"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
+        {markdownModal && (
+          <ModalMarkdownWrapper content={markdownModal.content} title={markdownModal.title} />
+        )}
       </Modal>
     </div>
   );
 }
 
-function ModalMarkdownWrapper({ content }: { content: string }) {
+function ModalMarkdownWrapper({ content, title }: { content: string; title?: string }) {
   const { copied, copy } = useCopy(2000);
   return (
     <div className="relative group">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <MarkdownScreenshotButton content={content} title={title} />
         <button
           type="button"
           onClick={() => copy(content)}

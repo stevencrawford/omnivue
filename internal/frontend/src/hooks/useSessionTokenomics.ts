@@ -1,9 +1,12 @@
 import { useMemo } from "react";
-import type { Message, Session } from "./useApi";
+import type { Message, Session } from "./types";
 import { effectiveToolKind } from "../utils/toolDisplay";
+import { TOKEN_COLOR_SEGMENTS, toolKindInfo } from "../utils/toolKindTaxonomy";
 
 export interface TokenTimelinePoint {
   stepIndex: number;
+  messageIndex?: number;
+  messageId?: string;
   timestamp: string;
   tokensInput: number;
   tokensOutput: number;
@@ -43,28 +46,10 @@ export interface SessionTokenomics {
   effectiveness: EffectivenessMetrics;
 }
 
-const TOOL_KIND_COLORS: Record<string, string> = {
-  edit: "#ef4444",
-  read: "#06b6d4",
-  bash: "#eab308",
-  search: "#8b5cf6",
-  web: "#ec4899",
-  other: "#6b7280",
-};
-
-const TOOL_KIND_LABELS: Record<string, string> = {
-  edit: "Edits",
-  read: "Reads",
-  bash: "Shell",
-  search: "Search",
-  web: "Web",
-  other: "Other",
-};
-
-const TOKENS_COLOR_INPUT = "var(--color-accent)";
-const TOKENS_COLOR_OUTPUT = "var(--color-accent-secondary)";
-const TOKENS_COLOR_CACHE = "color-mix(in srgb, var(--color-accent) 50%, cyan)";
-const TOKENS_COLOR_REASONING = "color-mix(in srgb, var(--color-accent-secondary) 60%, violet)";
+export const TOKENS_COLOR_INPUT = TOKEN_COLOR_SEGMENTS.input;
+export const TOKENS_COLOR_OUTPUT = TOKEN_COLOR_SEGMENTS.output;
+export const TOKENS_COLOR_CACHE = TOKEN_COLOR_SEGMENTS.cache;
+export const TOKENS_COLOR_REASONING = TOKEN_COLOR_SEGMENTS.reasoning;
 
 export function useSessionTokenomics(messages: Message[], session: Session): SessionTokenomics {
   return useMemo(() => {
@@ -76,7 +61,7 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
     let cumCost = 0;
     let stepCounter = 0;
 
-    for (const msg of messages) {
+    for (const [mi, msg] of messages.entries()) {
       if (!msg.stepEvents) continue;
       for (const ev of msg.stepEvents) {
         if (ev.step !== "finish" || !ev.tokens) continue;
@@ -88,6 +73,8 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         cumCost += ev.cost ?? 0;
         timeline.push({
           stepIndex: stepCounter,
+          messageIndex: mi,
+          messageId: msg.id,
           timestamp: msg.timestamp,
           tokensInput: t.input,
           tokensOutput: t.output,
@@ -107,7 +94,7 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
 
     // Fallback: build timeline from message-level tokens when no step events exist
     if (timeline.length === 0) {
-      for (const msg of messages) {
+      for (const [mi, msg] of messages.entries()) {
         if (msg.role !== "assistant") continue;
         const input = msg.tokensInput ?? 0;
         const output = msg.tokensOutput ?? 0;
@@ -116,6 +103,8 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         cumOutput += output;
         timeline.push({
           stepIndex: stepCounter,
+          messageIndex: mi,
+          messageId: msg.id,
           timestamp: msg.timestamp,
           tokensInput: input,
           tokensOutput: output,
@@ -190,8 +179,8 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         totalToolCalls > 0 ? Math.round(totalStepTokens * (count / totalToolCalls)) : 0;
       toolTokenStats.push({
         kind,
-        label: TOOL_KIND_LABELS[kind] ?? kind,
-        color: TOOL_KIND_COLORS[kind] ?? "#6b7280",
+        label: toolKindInfo(kind).label,
+        color: toolKindInfo(kind).color,
         tokens,
         count,
       });
@@ -236,12 +225,3 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
     };
   }, [messages, session]);
 }
-
-export {
-  TOOL_KIND_COLORS,
-  TOOL_KIND_LABELS,
-  TOKENS_COLOR_INPUT,
-  TOKENS_COLOR_OUTPUT,
-  TOKENS_COLOR_CACHE,
-  TOKENS_COLOR_REASONING,
-};

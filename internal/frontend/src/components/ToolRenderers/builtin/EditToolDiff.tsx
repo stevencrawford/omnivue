@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { File, FilePen } from "lucide-react";
 import type { ToolRendererProps } from "../types";
+import type { ToolCall } from "../../../hooks/types";
 import { detectLanguage } from "../../../utils/detectLanguage";
-import { computeDiff } from "../../../utils/diff";
-import { PatchRenderer, FileRenderer } from "../../DiffRenderer";
+import { computeDiff, parseUnifiedDiff, type DiffHunk } from "../../../utils/diff";
+import { HunkRenderer, FileRenderer } from "../../DiffRenderer";
 
 const UNIFIED_DIFF_RE = /^@@\s+-\d+,\d+\s+\+\d+,\d+\s+@@/m;
 
@@ -22,6 +23,34 @@ interface EditInput {
   view_range?: [number, number];
 }
 
+export interface EditInputValues {
+  filePath: string;
+  oldStr: string;
+  newStr: string;
+  content: string;
+  viewRange?: [number, number];
+  isWrite: boolean;
+}
+
+/** Parses a tool call's input JSON into its edit/write fields. */
+export function editInputFromTool(tool: ToolCall): EditInputValues {
+  let input: EditInput = {};
+  try {
+    input = JSON.parse(tool.input);
+  } catch {
+    /* ignore */
+  }
+  return {
+    filePath: input.filePath || input.file_path || input.path || "",
+    oldStr: input.old_str || input.old_string || input.oldString || "",
+    newStr: input.new_str || input.new_string || input.newString || "",
+    content: input.content || input.file_text || "",
+    viewRange: input.view_range,
+    isWrite:
+      (tool.name === "write" || tool.name === "create") && !!(input.content || input.file_text),
+  };
+}
+
 export function EditToolDiff({
   tool,
   variant,
@@ -29,18 +58,7 @@ export function EditToolDiff({
   onBookmark: _onBookmark,
   isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
-  let input: EditInput = {};
-  try {
-    input = JSON.parse(tool.input);
-  } catch {
-    /* ignore */
-  }
-
-  const filePath = input.filePath || input.file_path || input.path || "";
-  const oldStr = input.old_str || input.old_string || input.oldString || "";
-  const newStr = input.new_str || input.new_string || input.newString || "";
-  const content = input.content || input.file_text || "";
-  const viewRange = input.view_range;
+  const { filePath, oldStr, newStr, content, viewRange } = editInputFromTool(tool);
   const lang = detectLanguage(filePath);
 
   const isWrite = (tool.name === "write" || tool.name === "create") && !!content;
@@ -80,27 +98,23 @@ export function EditToolDiff({
     return c.length > 10 && UNIFIED_DIFF_RE.test(c);
   }, [displayContent]);
 
-  let diffPatch: string | null = null;
+  let hunks: DiffHunk[] | null = null;
   if (!isAddition && oldStr && newStr && !skipDiff) {
     try {
-      const hunks = computeDiff(oldStr, newStr);
-      if (hunks.length > 0) {
-        const header = `--- a/${filePath}\n+++ b/${filePath}\n`;
-        diffPatch = header + hunks.flatMap((h) => h.lines).join("\n") + "\n";
-      }
+      hunks = computeDiff(oldStr, newStr);
     } catch {
       /* ignore */
     }
   } else if (isUnifiedDiff) {
-    diffPatch = displayContent.startsWith("---")
-      ? displayContent
-      : `--- a/${filePath}\n+++ b/${filePath}\n${displayContent}`;
+    hunks = parseUnifiedDiff(displayContent);
   }
 
-  if (diffPatch) {
+  if (hunks && hunks.length > 0) {
     return (
       <div className="relative group max-h-[80vh] overflow-y-auto">
-        <PatchRenderer patch={diffPatch} lang={lang} />
+        {hunks.map((hunk, i) => (
+          <HunkRenderer key={i} hunk={hunk} lang={lang} />
+        ))}
       </div>
     );
   }

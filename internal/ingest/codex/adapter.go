@@ -10,6 +10,7 @@ import (
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 )
 
 func init() {
@@ -57,16 +58,10 @@ func New(basePath string) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentCodex }
+var codexResumeSpec = resumecmd.Spec{Binary: "codex", Flag: "resume"}
 
-func (a *Adapter) Detect(path string) bool {
-	indexPath := filepath.Join(path, "session_index.jsonl")
-	_, err := os.Stat(indexPath)
-	return err == nil
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && codex resume %s", session.Directory, session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return codexResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

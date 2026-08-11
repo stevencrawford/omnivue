@@ -3,11 +3,11 @@ package opencode
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 
 	_ "modernc.org/sqlite"
 )
@@ -39,16 +39,10 @@ func New(basePath string) (*Adapter, error) {
 	return &Adapter{db: db, basePath: basePath}, nil
 }
 
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentOpenCode }
+var opencodeResumeSpec = resumecmd.Spec{Binary: "opencode", Flag: "-s", Verb: "/session"}
 
-func (a *Adapter) Detect(path string) bool {
-	dbPath := filepath.Join(path, "opencode.db")
-	_, err := os.Stat(dbPath)
-	return err == nil
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && opencode -s %s", session.Directory, session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return opencodeResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

@@ -1,47 +1,49 @@
-import { useCallback, useRef, useState } from "react";
-import { Effect } from "effect";
-import type { SearchResult } from "./useApi";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SearchResult } from "./types";
 import type { Tab } from "../components/SessionViewer";
-import { runFork } from "../lib/effect";
-import { SearchService } from "../services";
+import type { SearchHitTarget } from "./useNavigation";
+import { fetchSearch } from "./apiClient";
+import { isAbortError } from "../utils/errors";
 
-export function useSearchState(
-  addSearch: (q: string) => void,
-  searchSessionScope: string | null,
-  setActiveSessionId: (id: string | null) => void,
-  setActiveTab: (tab: Tab) => void,
-  setSearchHighlightQuery: (q: string | null) => void,
-  setFocusStepIndex: (idx: number | undefined) => void,
-  setFocusMessageIndex: (idx: number | undefined) => void,
-  setShowOverview: (v: boolean) => void,
-) {
+export interface UseSearchStateOptions {
+  addSearch: (q: string) => void;
+  searchSessionScope: string | null;
+  onSelectHit: (target: SearchHitTarget) => void;
+  onOpenTag: (name: string) => void;
+}
+
+export function useSearchState({
+  addSearch,
+  searchSessionScope,
+  onSelectHit,
+  onOpenTag,
+}: UseSearchStateOptions) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerQuery, setDrawerQuery] = useState("");
   const [drawerResults, setDrawerResults] = useState<SearchResult[]>([]);
 
-  const cancelSearch = useRef<(() => void) | null>(null);
+  const cancelSearch = useRef<AbortController | null>(null);
 
   function runSearch(query: string, limit: number, scope: string | undefined): void {
-    cancelSearch.current?.();
+    cancelSearch.current?.abort();
+    const controller = new AbortController();
+    cancelSearch.current = controller;
 
-    const cancel = runFork(
-      SearchService.pipe(
-        Effect.flatMap((svc) => svc.search(query, limit, scope)),
-        Effect.map((results) => {
-          setDrawerQuery(query);
-          setDrawerResults(results || []);
-          setDrawerOpen(true);
-        }),
-        Effect.catchAll(() =>
-          Effect.sync(() => {
-            setDrawerResults([]);
-          }),
-        ),
-      ),
-    );
-
-    cancelSearch.current = cancel;
+    fetchSearch(query, limit, scope, controller.signal)
+      .then((results) => {
+        setDrawerQuery(query);
+        setDrawerResults(results || []);
+        setDrawerOpen(true);
+      })
+      .catch((err: unknown) => {
+        if (isAbortError(err)) return;
+        setDrawerResults([]);
+      });
   }
+
+  useEffect(() => {
+    return () => cancelSearch.current?.abort();
+  }, []);
 
   const handleSearchSelect = useCallback(
     (
@@ -50,35 +52,26 @@ export function useSearchState(
       query: string,
       fileId?: string,
       messageIndex?: number,
+      tagName?: string,
     ) => {
       if (query.trim()) addSearch(query);
-      setShowOverview(false);
-      setActiveSessionId(sessionId);
+      if (chunkType === "tag") {
+        onOpenTag((tagName || query).trim());
+        setDrawerOpen(false);
+        return;
+      }
       const tabMap: Record<string, Tab> = {
         name: "session",
         message: "session",
         messages: "session",
         plan: "plan",
       };
-      if (chunkType === "scratch" && fileId) {
-        setActiveTab(`scratch:${fileId}`);
-      } else {
-        setActiveTab(tabMap[chunkType] || "session");
-      }
-      setSearchHighlightQuery(query || null);
-      setFocusStepIndex(undefined);
-      setFocusMessageIndex(messageIndex);
+      const tab: Tab =
+        chunkType === "scratch" && fileId ? `scratch:${fileId}` : tabMap[chunkType] || "session";
+      onSelectHit({ sessionId, tab, query: query || null, messageIndex });
       setDrawerOpen(false);
     },
-    [
-      addSearch,
-      setActiveSessionId,
-      setActiveTab,
-      setSearchHighlightQuery,
-      setFocusStepIndex,
-      setFocusMessageIndex,
-      setShowOverview,
-    ],
+    [addSearch, onSelectHit, onOpenTag],
   );
 
   const handleSearchOpenDrawer = useCallback(

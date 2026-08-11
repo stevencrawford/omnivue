@@ -228,6 +228,48 @@ func TestClassify_NewToolCallSkipsQuestionAndTask(t *testing.T) {
 	}
 }
 
+func TestPreviewForQuestion_PrefersToolInput(t *testing.T) {
+	// OpenCode stores the ask in the tool input; the message content holds the
+	// assistant's preceding narrative and must not win.
+	input := `{"questions":[{"question":"What flash crash threshold?","header":"Choose threshold","options":[{"label":"3.0x"}]}]}`
+	content := "I reviewed the current settings before asking."
+	if got := previewForQuestion(content, input); got != "What flash crash threshold?" {
+		t.Errorf("expected question text from tool input, got %q", got)
+	}
+}
+
+func TestPreviewForQuestion_MultipleQuestionsUsesFirst(t *testing.T) {
+	input := `{"questions":[{"header":"Scope","question":"Which files should I change?","options":[{"label":"All"}]},{"question":"Any constraints?","options":[{"label":"No"}]}]}`
+	if got := previewForQuestion("", input); got != "Which files should I change?" {
+		t.Errorf("expected first question, got %q", got)
+	}
+}
+
+func TestPreviewForQuestion_FallsBackToContent(t *testing.T) {
+	// No usable input (invalid JSON) -> message content is used.
+	if got := previewForQuestion("should I refactor?", "pick a plan"); got != "should I refactor?" {
+		t.Errorf("expected content fallback, got %q", got)
+	}
+	// Empty input and empty content -> default.
+	if got := previewForQuestion("", ""); got != "Agent asked you a question" {
+		t.Errorf("expected default preview, got %q", got)
+	}
+}
+
+func TestPreviewForPermission_PrefersCommand(t *testing.T) {
+	input := `{"command":"rm -rf /tmp/build","choices":["Allow","Deny"]}`
+	if got := previewForPermission("cleaning up the build directory", input); got != "rm -rf /tmp/build" {
+		t.Errorf("expected command from tool input, got %q", got)
+	}
+}
+
+func TestPreviewForPermission_PrefersQuestionText(t *testing.T) {
+	input := `{"questions":[{"question":"Allow running this script?","options":[{"label":"Allow once","description":"runs the script"}]}]}`
+	if got := previewForPermission("the assistant wants to run a script", input); got != "Allow running this script?" {
+		t.Errorf("expected question text from tool input, got %q", got)
+	}
+}
+
 func TestInQuietHours_Overnight(t *testing.T) {
 	settings := Settings{QuietHoursEnabled: true, QuietHoursStart: "22:00", QuietHoursEnd: "08:00"}
 	if !InQuietHours(time.Date(2026, 7, 4, 23, 30, 0, 0, time.Local), settings) {
@@ -255,6 +297,53 @@ func TestInQuietHours_Disabled(t *testing.T) {
 	settings := Settings{QuietHoursEnabled: false}
 	if InQuietHours(time.Now(), settings) {
 		t.Error("expected false when quiet hours disabled")
+	}
+}
+
+func TestResolveEnabledAt_FirstEnableStampsNow(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	got := ResolveEnabledAt(Settings{}, Settings{Enabled: true}, now)
+	if got != now.UnixMilli() {
+		t.Errorf("ResolveEnabledAt(first enable) = %d, want %d", got, now.UnixMilli())
+	}
+}
+
+func TestResolveEnabledAt_ReenableAfterDisabledStampsNow(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	prev := Settings{Enabled: false, EnabledAt: 0}
+	got := ResolveEnabledAt(prev, Settings{Enabled: true}, now)
+	if got != now.UnixMilli() {
+		t.Errorf("ResolveEnabledAt(reenable) = %d, want %d", got, now.UnixMilli())
+	}
+}
+
+func TestResolveEnabledAt_DisableClears(t *testing.T) {
+	got := ResolveEnabledAt(Settings{Enabled: true, EnabledAt: 123}, Settings{Enabled: false}, time.Now())
+	if got != 0 {
+		t.Errorf("ResolveEnabledAt(disable) = %d, want 0", got)
+	}
+}
+
+func TestResolveEnabledAt_UnchangedSaveKeeps(t *testing.T) {
+	prev := Settings{Enabled: true, EnabledAt: 123}
+	got := ResolveEnabledAt(prev, Settings{Enabled: true}, time.Now())
+	if got != 123 {
+		t.Errorf("ResolveEnabledAt(unchanged) = %d, want 123", got)
+	}
+}
+
+func TestSettings_Suppresses(t *testing.T) {
+	enabledAt := time.UnixMilli(2_000)
+	settings := Settings{Enabled: true, EnabledAt: enabledAt.UnixMilli()}
+
+	if !settings.suppresses(time.UnixMilli(1_000)) {
+		t.Error("expected message before EnabledAt to be suppressed")
+	}
+	if settings.suppresses(time.UnixMilli(3_000)) {
+		t.Error("expected message after EnabledAt not to be suppressed")
+	}
+	if settings.suppresses(time.Time{}) {
+		t.Error("expected zero timestamp not to be suppressed")
 	}
 }
 

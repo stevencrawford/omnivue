@@ -82,6 +82,7 @@ export function TaskCompleteToolDiff({
               childSessionId={childSessionId}
               navigateToSession={navigateToSession}
               showPin
+              pinText={summary || outputLabel || undefined}
             />
           </div>
         </div>

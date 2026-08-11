@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import type { Session, SearchResult } from "./useApi";
-import { fetchSearch } from "./useApi";
+import type { Session, SearchResult } from "./types";
+import { fetchSearch } from "./apiClient";
 
 export function useSearchScope(sessions: Session[]) {
   const [searchSessionScope, setSearchSessionScope] = useState<string | null>(null);

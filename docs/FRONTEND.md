@@ -36,19 +36,18 @@ The root component manages global state:
 
 ### Sidebar (`Sidebar.tsx`)
 
-Resizable panel showing session tree grouped by repository. Uses `omnivue-sidebar-width` localStorage key for width persistence. Has three navigation sections:
+Resizable panel showing session tree grouped by repository. Uses `omnivue-sidebar-width` localStorage key for width persistence. Has navigation sections:
 - **Sessions** — group by repo using `buildTree()`
-- **Projects** — folder-based organization via `FolderPanel`
+- **Tags** — tag-based organization via `TagPanel`
+- **Bookmarks** — bookmarked sessions via `BookmarkPanel`
 - **Notifications** — notification list with filters via `NotificationPanel`
 
-### Session list panels (`SessionPanel.tsx`, `ProjectPanel.tsx`)
+### Session list panels (`SessionPanel.tsx`, `TagPanel.tsx`)
 
-Virtualized list of sessions within each repo/folder group. Uses localStorage for:
+Virtualized list of sessions within each repo/tag group. Uses localStorage for:
 - `omnivue-sidebar-collapsed` — collapsed parent group names
 - `omnivue-sidebar-sort` — session sort order
 - `omnivue-sidebar-display` — condensed vs verbose mode
-- `omnivue-project-folders-expanded` — expanded folder IDs
-- `omnivue-project-folder-sort` — folder sort order
 
 ### Overview screen (`OverviewScreen.tsx`)
 
@@ -111,9 +110,9 @@ Modal with multiple tabs:
 
 Light/dark toggle + theme picker. Persisted in localStorage as `omnivue-theme` and `omnivue-mode`. Uses `data-theme` attribute on document.
 
-### Folders (`FolderPanel.tsx`, `AddToProjectDialog.tsx`)
+### Tags (`TagPanel.tsx`, `CreateTagModal.tsx`, `ManageTagsDialog.tsx`)
 
-CRUD UI for virtual folders. Supports nesting, color labels, and icons.
+Tag-based session organization. Supports unique names, optional colors, and session assignment.
 
 ### Notifications (`NotificationPanel.tsx`, `NotificationRow.tsx`, `NotificationToaster` inline)
 
@@ -150,7 +149,7 @@ Connected via a `ResumeButton` that opens a terminal tab for the session.
 - `ContextMenu` — Right-click context menus
 - `Toast` — Toast notification component (used by NotificationToaster)
 - `ErrorBoundary` — Graceful error recovery
-- `IconChannel` — Section navigation toggle (sessions/projects/notifications)
+- `IconChannel` — Section navigation toggle (sessions/tags/bookmarks/notifications)
 
 ## API integration
 
@@ -169,7 +168,7 @@ interface Source { id, path, agentType, label, enabled, createdAt }
 interface Bookmark { id, sessionId, messageIndex, toolCallId?, label, createdAt }
 interface AppNotification { id, sessionId, sourceId, kind, title, preview, severity, payload?, createdAt, readAt? }
 interface NotificationSettings { enabled, kinds, scope, inAppToast, sidebarBadge, browserNotify, quietHoursEnabled, quietHoursStart, quietHoursEnd, autoDismissSec, excludeActiveView }
-interface Folder { id, name, parentId?, sortOrder, color?, icon?, createdAt, updatedAt }
+interface Tag { id, name, color?, createdAt, updatedAt }
 interface ScratchFile { id, sessionId, title, content, mode, createdAt, updatedAt }
 interface SearchResult { sessionId, sessionName?, sourceId, chunkType, repository, snippet, updatedAt?, fileTitle?, fileId?, messageIndex? }
 ```
@@ -212,7 +211,6 @@ No external state library. Core state lives in `App.tsx`:
 - `sessions` — Session[]
 - `activeSessionId` — string | null
 - `searchQuery` / `searchResults` — search state
-- `folderSessions` — sessions by folder
 - `liveChangedSessionIds` — SSE-driven dirty list
 - `bookmarks` — Bookmark[]
 - `notifications` / `notificationSettings` — Notification state
@@ -244,14 +242,13 @@ All use `omnivue-` prefix:
 |-----|---------|-----------|
 | `omnivue-theme` | Theme name | `useTheme` |
 | `omnivue-mode` | Light/dark mode | `useTheme` |
+| `omnivue-contrast` | High contrast (`default`/`high`) | `useTheme` |
 | `omnivue-hide-costs` | Hide cost display | `SettingsModal` |
 | `omnivue-sidebar-width` | Sidebar width | `Sidebar` |
 | `omnivue-sidebar-collapsed` | Collapsed repo groups | `SessionPanel` |
 | `omnivue-sidebar-sort` | Session sort order | `SessionPanel` |
 | `omnivue-sidebar-display` | Condensed/verbose | `SessionPanel` |
 | `omnivue-pinned-height` | Pinned prompt bar height | `PinnedPromptBar` |
-| `omnivue-project-folders-expanded` | Expanded folder IDs | `ProjectPanel` |
-| `omnivue-project-folder-sort` | Folder sort order | `ProjectPanel` |
 | `omnivue-diff-tree-width` | Diff tree panel width | `DiffView` |
 | `omnivue-disable-custom-renderers` | Disable custom tool renderers | `ToolRendererWrapper` |
 | `omnivue-overview-timerange` | Overview time range selection | `TimeRangeSelector` |

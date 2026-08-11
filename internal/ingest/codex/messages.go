@@ -32,6 +32,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	var messages []ingest.Message
 	toolCallsByID := make(map[string]*ingest.ToolCall)
 	hasDeveloperContent := false
+	var pendingUsage *ingest.ToolUsage
 
 	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
@@ -94,7 +95,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			case "function_call":
 				tc := &ingest.ToolCall{
 					ID:     pl.CallID,
-					Name:   normalizeToolName(pl.Name),
+					Name:   ingestkit.CanonicalizeToolName(pl.Name),
 					Input:  pl.Arguments,
 					Status: ingest.ToolCallRunning,
 				}
@@ -111,7 +112,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 			case "custom_tool_call":
 				tc := &ingest.ToolCall{
 					ID:     pl.CallID,
-					Name:   normalizeToolName(pl.Name),
+					Name:   ingestkit.CanonicalizeToolName(pl.Name),
 					Input:  pl.Input,
 					Status: ingest.ToolCallRunning,
 				}
@@ -154,8 +155,35 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					msgToolCalls = append(msgToolCalls, *tc)
 				}
 				msg.ToolCalls = msgToolCalls
+
+				// Attribute the turn's token usage down to its tool calls. Codex reports
+				// per-turn usage via token_count events, which is applied here to the
+				// tool calls collected since the last attribution.
+				if pendingUsage != nil && len(msg.ToolCalls) > 0 {
+					msg.TokensInput = pendingUsage.Tokens.Input
+					msg.TokensOutput = pendingUsage.Tokens.Output
+					for i := range msg.ToolCalls {
+						msg.ToolCalls[i].Usage = pendingUsage
+					}
+				}
+
 				messages = append(messages, msg)
 				toolCallsByID = make(map[string]*ingest.ToolCall)
+				pendingUsage = nil
+
+			case "token_count":
+				if pl.Info == nil || pl.Info.TotalTokenUsage == nil {
+					break
+				}
+				u := pl.Info.TotalTokenUsage
+				pendingUsage = &ingest.ToolUsage{
+					Tokens: ingest.StepTokens{
+						Input:     u.InputTokens,
+						Output:    u.OutputTokens,
+						CacheRead: u.CachedInputTokens,
+					},
+					Source: ingest.UsageMessage,
+				}
 
 			case "task_complete":
 				summaryBytes, err := json.Marshal(pl.Message)
@@ -164,11 +192,12 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					summaryBytes = []byte("{}")
 				}
 				tc := &ingest.ToolCall{
-					ID:     pl.TurnID,
-					Name:   "task_complete",
-					Status: ingest.ToolCallCompleted,
-					Output: "completed",
-					Input:  fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d,"summary":%s,"success":%v}`, pl.TurnID, pl.CompletedAt, pl.DurationMs, string(summaryBytes), pl.Success),
+					ID:       pl.TurnID,
+					Name:     "task_complete",
+					Status:   ingest.ToolCallCompleted,
+					Output:   "completed",
+					Duration: pl.DurationMs,
+					Input:    fmt.Sprintf(`{"turn_id":%q,"completed_at":%d,"duration_ms":%d,"summary":%s,"success":%v}`, pl.TurnID, pl.CompletedAt, pl.DurationMs, string(summaryBytes), pl.Success),
 				}
 				toolCallsByID[pl.TurnID] = tc
 			}

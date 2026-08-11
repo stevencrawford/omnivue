@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { Message } from "../hooks/useApi";
+import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
@@ -45,19 +45,23 @@ function AssistantStepContent({
   const lines = content.split("\n");
   const isLong = lines.length > 20;
   const [expanded, setExpanded] = useState(false);
-  const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n\u2026" : content;
 
   return (
     <div>
-      <MarkdownContent
-        content={display}
-        className="markdown-body--wide"
-        onOpenModal={() => onOpenModal?.(content, "Assistant response")}
-        onPin={onPin ? () => onPin(content) : undefined}
-        onBookmark={onBookmark}
-        isBookmarked={isBookmarked}
-        modalTitle="Assistant response"
-      />
+      <div className={`relative ${!expanded && isLong ? "max-h-[24em] overflow-hidden" : ""}`}>
+        {!expanded && isLong && (
+          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
+        )}
+        <MarkdownContent
+          content={content}
+          className="markdown-body--wide"
+          onOpenModal={() => onOpenModal?.(content, "Assistant response")}
+          onPin={onPin ? () => onPin(content) : undefined}
+          onBookmark={onBookmark}
+          isBookmarked={isBookmarked}
+          modalTitle="Assistant response"
+        />
+      </div>
       {isLong && (
         <button
           type="button"

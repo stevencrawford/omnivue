@@ -7,7 +7,9 @@ interface SSECallbacks {
   onSessionChanged?: (sessionIds: string[]) => void;
   onNotification?: () => void;
   onNotificationsRead?: (ids: string[] | null) => void;
+  onPromptQueueChanged?: () => void;
   onStarted?: () => void;
+  onConnectionChange?: (connected: boolean) => void;
 }
 
 type SSEEvent =
@@ -15,7 +17,9 @@ type SSEEvent =
   | { type: "session-changed"; ids: string[] }
   | { type: "notification" }
   | { type: "notifications-read"; ids: string[] | null }
+  | { type: "prompt-queue-changed" }
   | { type: "started"; pid: number }
+  | { type: "connection"; connected: boolean }
   | { type: "reset" };
 
 function makeSSEStream() {
@@ -56,6 +60,10 @@ function makeSSEStream() {
       emit.single({ type: "notification" });
     });
 
+    es.addEventListener("prompt-queue-changed", () => {
+      emit.single({ type: "prompt-queue-changed" });
+    });
+
     es.addEventListener("notifications-read", (e) => {
       try {
         const data = JSON.parse((e as MessageEvent).data);
@@ -71,7 +79,12 @@ function makeSSEStream() {
       }
     });
 
+    es.onopen = () => {
+      emit.single({ type: "connection", connected: true });
+    };
+
     es.onerror = () => {
+      emit.single({ type: "connection", connected: false });
       emit.fail("connection_error");
     };
 
@@ -111,6 +124,9 @@ export function useSSE(callbacks: SSECallbacks) {
               case "notification":
                 cb.onNotification?.();
                 break;
+              case "prompt-queue-changed":
+                cb.onPromptQueueChanged?.();
+                break;
               case "notifications-read":
                 cb.onNotificationsRead?.(event.ids);
                 break;
@@ -121,6 +137,9 @@ export function useSSE(callbacks: SSECallbacks) {
                 }
                 serverPid = event.pid;
                 cb.onStarted?.();
+                break;
+              case "connection":
+                cb.onConnectionChange?.(event.connected);
                 break;
               case "reset":
                 window.location.reload();

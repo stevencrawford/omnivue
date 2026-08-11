@@ -77,14 +77,20 @@ type toolEditArgs struct {
 	FileText string `json:"file_text"`
 }
 
-// shutdownSnapshot holds the cumulative token/cost data from one session.shutdown event.
+// shutdownSnapshot holds the cumulative token/cost/code data from one
+// session.shutdown event. It is the single struct for that event shape, shared
+// by the message-step (delta) and session-metadata (last-value) consumers.
 type shutdownSnapshot struct {
-	Timestamp       string
-	TokensInput     int
-	TokensOutput    int
-	TokensReasoning int
-	TokensCacheRead int
-	Cost            float64
+	Model            string
+	TokensInput      int
+	TokensOutput     int
+	TokensReasoning  int
+	TokensCacheRead  int
+	TokensCacheWrite int
+	Cost             float64
+	DiffAdditions    int
+	DiffDeletions    int
+	DiffFiles        int
 }
 
 // eventsMetadata holds summary info extracted from events.jsonl.
@@ -103,6 +109,7 @@ type eventsMetadata struct {
 
 // subAgentState tracks the buffering of sub-agent events between subagent.started and subagent.completed.
 type subAgentState struct {
+	agentID       string
 	toolCallID    string
 	agentName     string
 	agentDisplay  string

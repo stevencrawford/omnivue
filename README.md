@@ -5,7 +5,7 @@
   </picture>
 </p>
 <h1 align="center">Omnivue</h1>
-<p align="center">Session browser for OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex.</p>
+<p align="center">Multi-Agent Session Manager for OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex.</p>
 <p align="center">
   <img alt="Go version" src="https://img.shields.io/badge/Go-1.26-blue?style=flat-square&logo=go" />
 </p>
@@ -16,7 +16,7 @@
 
 ---
 
-Omnivue is a 100% local session browser for your AI Agent Harnesses. It reads the session data already on your machine and shows it all in one place — conversation history, file diffs, implementation plans, and more.
+Omnivue is a 100% local multi-agent session manager for your AI coding sessions. It reads the session data already on your machine and presents it all in one place — conversation history, file diffs, implementation plans, and more.
 
 ## Features
 
@@ -26,10 +26,10 @@ Omnivue is a 100% local session browser for your AI Agent Harnesses. It reads th
 - **File diffs** — Unified diff view of every file change made during a session
 - **Plan tracking** — Implementation plans and checkpoints with status indicators
 - **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle) with notification events
-- **Full-text search** — FTS5 index across all session content, scoped or global
+- **Full-text search** — FTS5 index across all session content and tags, scoped or global
 - **Notifications** — In-app toasts and OS notifications for new messages, questions, task completions, and status changes; configurable kinds, scope, quiet hours, and channels
 - **Bookmarks** — Toggle bookmarks on any message or tool call; navigate from a sidebar panel
-- **User folders** — Virtual organization with nesting, color, and icon support
+- **User tags** — Virtual organization with unique names, custom colors, and searchable grouping
 - **Scratch notes** — Per-session markdown notes with rich text or code editor
 - **Session renaming** — Override display names from the sidebar
 - **Overview screen** — Analytics dashboard with session activity charts, model/agent breakdown, and time-range filtering
@@ -52,31 +52,10 @@ Omnivue keeps your workflow on your machine:
 
 ## Getting Started
 
-### 1. Pre-built binary (recommended)
+### 1. Homebrew (macOS)
 
-**macOS (Apple Silicon)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_arm64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-```
-
-**macOS (Intel)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_darwin_amd64.zip -o omnivue.zip && unzip omnivue.zip && rm omnivue.zip
-```
-
-**Linux (amd64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_amd64.tar.gz | tar xz
-```
-
-**Linux (arm64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_linux_arm64.tar.gz | tar xz
-```
-
-**Windows (amd64)**
-```bash
-curl -fsSL https://github.com/stevencrawford/omnivue/releases/latest/download/omnivue_windows_amd64.tar.gz | tar xz
+```sh
+brew install stevencrawford/tap/omnivue
 ```
 
 ### 2. Build from source
@@ -88,12 +67,6 @@ git clone https://github.com/stevencrawford/omnivue.git
 cd omnivue
 make build
 ./omnivue --foreground --port 16275
-```
-
-### Post-install
-
-```console
-$ ./omnivue
 ```
 
 ## Keyboard shortcuts

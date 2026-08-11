@@ -1,6 +1,6 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { ChevronRight, Info } from "lucide-react";
-import type { ToolCall } from "../hooks/useApi";
+import type { ToolCall } from "../hooks/types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { detectLanguage } from "../utils/detectLanguage";
 import { MarkdownContent } from "./MarkdownContent";
@@ -63,7 +63,6 @@ function CollapsibleBlock({
   const [expanded, setExpanded] = useState(!defaultCollapsed);
   const lines = content.split("\n");
   const isLong = defaultCollapsed || lines.length > 20;
-  const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n&#x2026;" : content;
 
   return (
     <div className={`border rounded-lg overflow-hidden mb-3 ${className || ""}`}>
@@ -72,12 +71,12 @@ function CollapsibleBlock({
         <span className="font-semibold text-[11px]">{label}</span>
       </div>
       <div className="px-3 py-2">
-        <div className="relative">
+        <div className={`relative ${!expanded && isLong ? "max-h-[24em] overflow-hidden" : ""}`}>
           {!expanded && isLong && (
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
           )}
           <MarkdownContent
-            content={display}
+            content={content}
             className="markdown-body--wide"
             onOpenModal={onOpenModal ? () => onOpenModal(content, label) : undefined}
             modalTitle={label}
@@ -207,17 +206,15 @@ export function UserTurnView({
   }
 
   if (blocks.length === 0) {
-    const display = !expanded && isLong ? lines.slice(0, 20).join("\n") + "\n\n&#x2026;" : content;
-
     return (
       <div className="sess-user-turn">
         <div className="sess-user-turn-label">USER-REQUEST</div>
-        <div className="relative">
+        <div className={`relative ${!expanded && isLong ? "max-h-[24em] overflow-hidden" : ""}`}>
           {!expanded && isLong && (
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg)] to-transparent z-10 pointer-events-none" />
           )}
           <MarkdownContent
-            content={display}
+            content={content}
             className="markdown-body--wide"
             onOpenModal={() => onOpenModal?.(content, "USER-REQUEST")}
             modalTitle="USER-REQUEST"

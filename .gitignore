@@ -1,7 +1,11 @@
 .DS_Store
+.worktrees/
 internal/static/dist/**/*
 internal/frontend/CREDITS_FRONTEND
 coverage.out
 omnivue
 .opencode/plans
 .idea/
+.agents/
+CONTEXT*.md
+docs/adr/**

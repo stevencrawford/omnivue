@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, Copy, Check, ArrowRight } from "lucide-react";
+import { ChevronDown, ArrowRight } from "lucide-react";
 import type { ToolRendererDefinition, ToolRendererProps } from "./types";
-import type { ToolCall } from "../../hooks/useApi";
+import type { ToolCall } from "../../hooks/types";
+import CopyButton from "./CopyButton";
 import { BookmarkButton } from "./BookmarkButton";
-import { useSessionNav } from "../../hooks/useNav";
+import { ToolUsageInfo } from "./ToolUsageInfo";
+import { useNavigation } from "../../hooks/useNavigation";
 
 const DEFAULT_OUTPUT_MAX_LINES = 50;
 
@@ -20,23 +22,13 @@ function truncateLines(
   };
 }
 
-function CopyOutputBtn({ tool }: { tool: ToolCall }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(tool.output || "");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }}
-      className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-      title="Copy output"
-    >
-      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-    </button>
-  );
+function copyButtonProps(renderer: ToolRendererDefinition, tool: ToolCall) {
+  return {
+    outputText: tool.output || "",
+    inputText: renderer.copyInput ? renderer.copyInput(tool) : undefined,
+    defaultMode: renderer.defaultCopyMode ?? "output",
+    kind: renderer.kind,
+  } as const;
 }
 
 export function ToolRendererWrapper({
@@ -58,7 +50,7 @@ export function ToolRendererWrapper({
   onBookmark?: () => void;
   isBookmarked?: boolean;
 }) {
-  const { navigateToSession } = useSessionNav();
+  const { navigateToSession } = useNavigation();
 
   const childSessionId = useMemo(() => {
     if (!tool.metadata) return null;
@@ -109,13 +101,6 @@ export function ToolRendererWrapper({
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
             </div>
-            {tool.duration != null && tool.duration > 0 && (
-              <span className="text-[10px] font-mono text-ov-text-secondary/40 shrink-0 mr-2.5">
-                {tool.duration < 1000
-                  ? `${tool.duration}ms`
-                  : `${(tool.duration / 1000).toFixed(1)}s`}
-              </span>
-            )}
             {childSessionId && (
               <button
                 type="button"
@@ -128,7 +113,7 @@ export function ToolRendererWrapper({
                 <ArrowRight size={12} className="inline" /> View session
               </button>
             )}
-            {!renderer.suppressCopy && <CopyOutputBtn tool={tool} />}
+            {!renderer.suppressCopy && <CopyButton {...copyButtonProps(renderer, tool)} />}
             {onBookmark && (
               <BookmarkButton
                 isBookmarked={!!isBookmarked}
@@ -137,6 +122,7 @@ export function ToolRendererWrapper({
                 className="mr-1"
               />
             )}
+            <ToolUsageInfo tool={tool} />
           </div>
         </div>
       );
@@ -180,13 +166,6 @@ export function ToolRendererWrapper({
             <div className="flex-1 min-w-0">
               <renderer.Component {...rendererProps} />
             </div>
-            {tool.duration != null && tool.duration > 0 && (
-              <span className="text-[10px] font-mono text-ov-text-secondary/40 shrink-0 mr-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                {tool.duration < 1000
-                  ? `${tool.duration}ms`
-                  : `${(tool.duration / 1000).toFixed(1)}s`}
-              </span>
-            )}
           </button>
           {childSessionId && (
             <button
@@ -200,7 +179,7 @@ export function ToolRendererWrapper({
               <ArrowRight size={12} className="inline" /> View session
             </button>
           )}
-          {!renderer.suppressCopy && <CopyOutputBtn tool={tool} />}
+          {!renderer.suppressCopy && <CopyButton {...copyButtonProps(renderer, tool)} />}
           {onBookmark && (
             <BookmarkButton
               isBookmarked={!!isBookmarked}
@@ -209,6 +188,7 @@ export function ToolRendererWrapper({
               className="mr-1"
             />
           )}
+          <ToolUsageInfo tool={tool} />
         </div>
         {showContent && (
           <div className="border-t border-ov-border">

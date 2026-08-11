@@ -85,36 +85,16 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		return nil, nil
 	}
 
-	// First pass: extract edits from message tool calls.
+	// First pass: extract edits from message tool calls (reuses the Messages parse).
 	msgs, err := a.Messages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	var edits []ingest.FileEdit
-	patchSeen := make(map[string]bool)
-
-	for mi, m := range msgs {
-		for _, tc := range m.ToolCalls {
-			if tc.Name != "edit" && tc.Name != "write" {
-				continue
-			}
-			fp, oldContent, newContent := parseCodexEditContent(tc)
-			if fp == "" {
-				continue
-			}
-			patchSeen[fp] = true
-			edits = append(edits, ingest.FileEdit{
-				FilePath:     fp,
-				ToolName:     tc.Name,
-				OldStr:       oldContent,
-				NewStr:       newContent,
-				Content:      newContent,
-				Timestamp:    m.Timestamp,
-				MessageIndex: mi,
-				MessageID:    m.ID,
-			})
-		}
+	edits := ingest.ExtractEdits(msgs, parseCodexEdit)
+	patchSeen := make(map[string]bool, len(edits))
+	for i := range edits {
+		patchSeen[edits[i].FilePath] = true
 	}
 
 	// Second pass: scan for patch_apply_end events that may not appear as tool calls.
@@ -181,6 +161,27 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 		return nil, nil
 	}
 	return edits, nil
+}
+
+// parseCodexEdit extracts a FileEdit from a normalized Codex edit/write tool call.
+func parseCodexEdit(tc ingest.ToolCall, mi int, m ingest.Message) *ingest.FileEdit {
+	if tc.Name != "edit" && tc.Name != "write" {
+		return nil
+	}
+	fp, oldContent, newContent := parseCodexEditContent(tc)
+	if fp == "" {
+		return nil
+	}
+	return &ingest.FileEdit{
+		FilePath:     fp,
+		ToolName:     tc.Name,
+		OldStr:       oldContent,
+		NewStr:       newContent,
+		Content:      newContent,
+		Timestamp:    m.Timestamp,
+		MessageIndex: mi,
+		MessageID:    m.ID,
+	}
 }
 
 // parseCodexEditContent extracts file path and old/new content from an edit or

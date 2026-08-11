@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import type { NotificationKind, NotificationSettings } from "../hooks/types";
 import { useNotificationPermission } from "../hooks/useNotificationPermission";
+import { Toggle } from "./Toggle";
 
 interface NotificationsSettingsTabProps {
   settings: NotificationSettings | null;
@@ -23,7 +24,7 @@ const KIND_OPTIONS: { value: NotificationKind; label: string }[] = [
 const SCOPE_OPTIONS: { value: NotificationSettings["scope"]; label: string }[] = [
   { value: "all", label: "All sessions" },
   { value: "opened", label: "Only sessions I've opened" },
-  { value: "pinned", label: "Only sessions in folders" },
+  { value: "pinned", label: "Only tagged sessions" },
 ];
 
 export function NotificationsSettingsTab({ settings, onSave }: NotificationsSettingsTabProps) {
@@ -63,15 +64,14 @@ export function NotificationsSettingsTab({ settings, onSave }: NotificationsSett
       </p>
 
       {/* Master toggle */}
-      <label className="flex items-center gap-2 cursor-pointer mb-3">
-        <input
-          type="checkbox"
+      <div className="mb-3">
+        <Toggle
           checked={local.enabled}
-          onChange={(e) => update({ enabled: e.target.checked })}
-          className="accent-accent"
+          onChange={(enabled) => update({ enabled })}
+          label="Enable notifications"
+          hint="Off by default — you control what triggers an alert."
         />
-        <span className="text-xs text-ov-text font-medium">Enable notifications</span>
-      </label>
+      </div>
 
       <div className={`space-y-4 ${local.enabled ? "" : "opacity-50 pointer-events-none"}`}>
         {/* What */}

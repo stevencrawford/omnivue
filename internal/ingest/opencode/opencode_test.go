@@ -117,3 +117,19 @@ func TestAdapter_LastModified(t *testing.T) {
 	}
 	t.Logf("Last modified: %d", ts)
 }
+
+func TestAdapter_ResumeCommand(t *testing.T) {
+	adapter := &opencode.Adapter{}
+	spec := adapter.ResumeCommand()
+
+	got := spec.Command("/proj", "abc")
+	if want := "cd /proj && opencode -s abc"; got != want {
+		t.Errorf("Command() = %q, want %q", got, want)
+	}
+	if got := spec.CommandNoCD("abc"); got != "opencode -s abc" {
+		t.Errorf("CommandNoCD() = %q, want %q", got, "opencode -s abc")
+	}
+	if got := spec.AgentCommand("abc"); got != "/session abc" {
+		t.Errorf("AgentCommand() = %q, want %q", got, "/session abc")
+	}
+}

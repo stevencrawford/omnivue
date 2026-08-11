@@ -1,74 +1,93 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Effect } from "effect";
+import { useCallback, useEffect, useState } from "react";
 import type { Session } from "./types";
 import { useSSE } from "./useSSE";
-import { SessionService, ApiError } from "../services";
-import { runPromise } from "../lib/effect";
+import { fetchSessions, ApiError } from "./apiClient";
+import { runCatching } from "../utils/errors";
 
 export interface SessionsState {
   sessions: Session[];
-  sessionsLoading: boolean;
-  activeSessionId: string | null;
+  loading: boolean;
   liveChangedIds: Set<string>;
-  activeSession: Session | null;
+  connected: boolean;
   loadSessions: () => Promise<void>;
-  setActiveSessionId: (id: string | null) => void;
+  /** Remove a session id from the pending live-change set once handled. */
+  ackSessionChange: (id: string) => void;
 }
 
-function listSessionsEffect() {
-  return SessionService.pipe(
-    Effect.flatMap((svc) => svc.list()),
-    Effect.catchAll((err: ApiError) => {
-      console.error("[sessions] failed to load:", err.message);
-      return Effect.succeed([] as Session[]);
-    }),
-  );
+// Global callback for prompt-queue-changed SSE events.
+// Components can register by calling setOnPromptQueueChanged.
+let onPromptQueueChanged: (() => void) | null = null;
+export function setOnPromptQueueChanged(cb: (() => void) | null) {
+  onPromptQueueChanged = cb;
 }
 
 export function useSessions(): SessionsState {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
+  const [connected, setConnected] = useState(false);
 
   const loadSessions = useCallback(async () => {
-    setSessionsLoading(true);
-    const data = await runPromise(listSessionsEffect());
+    setLoading(true);
+    const data = await runCatching(
+      () => fetchSessions(),
+      (err) => {
+        if (err instanceof ApiError) console.error("[sessions] failed to load:", err.message);
+        else console.error("[sessions] failed to load:", err);
+      },
+    );
     setSessions(data ?? []);
-    setSessionsLoading(false);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
 
+  const ackSessionChange = useCallback((id: string) => {
+    setLiveChangedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   useSSE({
     onUpdate: () => {
       loadSessions();
     },
     onSessionChanged: (ids) => {
-      if (ids.length > 0) {
-        setLiveChangedIds(new Set(ids));
-      }
+      if (ids.length === 0) return;
+      const next = new Set(ids);
+      // Only replace the set when its contents differ so consumers' effects do
+      // not re-run (and re-arm their reload debounce) on every SSE duplicate.
+      setLiveChangedIds((prev) => {
+        if (prev.size === next.size) {
+          let same = true;
+          for (const id of prev) {
+            if (!next.has(id)) {
+              same = false;
+              break;
+            }
+          }
+          if (same) return prev;
+        }
+        return next;
+      });
     },
+    onPromptQueueChanged: () => {
+      onPromptQueueChanged?.();
+    },
+    onConnectionChange: setConnected,
   });
-
-  const activeSession = useMemo(
-    () => sessions.find((s) => s.id === activeSessionId) || null,
-    [sessions, activeSessionId],
-  );
-
-  useEffect(() => {
-    document.title = activeSession ? `Omnivue \u2014 ${activeSession.title}` : "Omnivue";
-  }, [activeSession]);
 
   return {
     sessions,
-    sessionsLoading,
-    activeSessionId,
+    loading,
     liveChangedIds,
-    activeSession,
+    connected,
     loadSessions,
-    setActiveSessionId,
+    ackSessionChange,
   };
 }

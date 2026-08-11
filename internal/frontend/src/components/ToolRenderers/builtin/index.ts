@@ -1,9 +1,10 @@
 import type { ToolRendererDefinition } from "../types";
-import type { ToolCall } from "../../../hooks/useApi";
+import type { ToolCall } from "../../../hooks/types";
 import { extractJSONField } from "../../../utils/jsonField";
+import { toolKindInfo } from "../../../utils/toolKindTaxonomy";
 
 import { BashToolDiff } from "./BashToolDiff";
-import { EditToolDiff } from "./EditToolDiff";
+import { EditToolDiff, editInputFromTool } from "./EditToolDiff";
 import { ReadToolDiff } from "./ReadToolDiff";
 import { GrepToolDiff } from "./GrepToolDiff";
 import { GlobToolDiff } from "./GlobToolDiff";
@@ -21,6 +22,8 @@ import { TaskCompleteToolDiff } from "./TaskCompleteToolDiff";
 import { WebFetchToolDiff } from "./WebFetchToolDiff";
 import { WebSearchToolDiff } from "./WebSearchToolDiff";
 import { StoreMemoryToolDiff } from "./StoreMemoryToolDiff";
+import { ReadInboxToolDiff } from "./ReadInboxToolDiff";
+import { ReadMemoriesToolDiff } from "./ReadMemoriesToolDiff";
 import { DefaultToolDiff } from "./DefaultToolDiff";
 
 function fp(tool: ToolCall): string {
@@ -72,10 +75,10 @@ export const definitions: ToolRendererDefinition[] = [
     Component: BashToolDiff,
     summary: (tool) => cmd(tool),
     display: { type: "expandable" },
-    markerColor: "#eab308",
-    markerLabel: "Shell",
+    markerColor: toolKindInfo("bash").color,
+    markerLabel: toolKindInfo("bash").label,
     markerDisplayType: "bash",
-    markerPriority: 60,
+    markerPriority: toolKindInfo("bash").priority,
     truncateOutput: 50,
   },
   {
@@ -84,11 +87,15 @@ export const definitions: ToolRendererDefinition[] = [
     Component: EditToolDiff,
     summary: (tool) => `edit: ${fp(tool)}`,
     display: { type: "expandable", defaultOpen: true },
-    markerColor: "#ef4444",
-    markerLabel: "Edits",
+    markerColor: toolKindInfo("edit").color,
+    markerLabel: toolKindInfo("edit").label,
     markerDisplayType: "edit",
-    markerPriority: 20,
+    markerPriority: toolKindInfo("edit").priority,
     truncateOutput: 0,
+    copyInput: (tool) => {
+      const { newStr, content } = editInputFromTool(tool);
+      return newStr || content || "";
+    },
   },
   {
     kind: "write",
@@ -96,11 +103,13 @@ export const definitions: ToolRendererDefinition[] = [
     Component: EditToolDiff,
     summary: (tool) => `write: ${fp(tool)}`,
     display: { type: "expandable", defaultOpen: true },
-    markerColor: "#ef4444",
-    markerLabel: "Edits",
+    markerColor: toolKindInfo("write").color,
+    markerLabel: toolKindInfo("write").label,
     markerDisplayType: "edit",
-    markerPriority: 20,
+    markerPriority: toolKindInfo("write").priority,
     truncateOutput: 0,
+    copyInput: (tool) => editInputFromTool(tool).content,
+    defaultCopyMode: "input",
   },
   {
     kind: "read",
@@ -108,10 +117,10 @@ export const definitions: ToolRendererDefinition[] = [
     Component: ReadToolDiff,
     summary: (tool) => `read: ${fp(tool)}`,
     display: { type: "expandable" },
-    markerColor: "#06b6d4",
-    markerLabel: "Reads",
+    markerColor: toolKindInfo("read").color,
+    markerLabel: toolKindInfo("read").label,
     markerDisplayType: "read",
-    markerPriority: 50,
+    markerPriority: toolKindInfo("read").priority,
   },
   {
     kind: "grep",
@@ -119,10 +128,10 @@ export const definitions: ToolRendererDefinition[] = [
     Component: GrepToolDiff,
     summary: (tool) => `grep: ${pattern(tool)}`,
     display: { type: "expandable" },
-    markerColor: "#8b5cf6",
-    markerLabel: "Search",
+    markerColor: toolKindInfo("grep").color,
+    markerLabel: toolKindInfo("grep").label,
     markerDisplayType: "search",
-    markerPriority: 70,
+    markerPriority: toolKindInfo("grep").priority,
     truncateOutput: 50,
   },
   {
@@ -135,10 +144,10 @@ export const definitions: ToolRendererDefinition[] = [
       return "glob";
     },
     display: { type: "expandable" },
-    markerColor: "#8b5cf6",
-    markerLabel: "Search",
+    markerColor: toolKindInfo("glob").color,
+    markerLabel: toolKindInfo("glob").label,
     markerDisplayType: "search",
-    markerPriority: 70,
+    markerPriority: toolKindInfo("glob").priority,
   },
   {
     kind: "codesearch",
@@ -150,10 +159,10 @@ export const definitions: ToolRendererDefinition[] = [
       return "codesearch";
     },
     display: { type: "expandable" },
-    markerColor: "#8b5cf6",
-    markerLabel: "Search",
+    markerColor: toolKindInfo("codesearch").color,
+    markerLabel: toolKindInfo("codesearch").label,
     markerDisplayType: "search",
-    markerPriority: 70,
+    markerPriority: toolKindInfo("codesearch").priority,
   },
   {
     kind: "read_lints",
@@ -172,10 +181,10 @@ export const definitions: ToolRendererDefinition[] = [
       return "read_lints";
     },
     display: { type: "expandable" },
-    markerColor: "#8b5cf6",
-    markerLabel: "Lints",
+    markerColor: toolKindInfo("read_lints").color,
+    markerLabel: toolKindInfo("read_lints").label,
     markerDisplayType: "search",
-    markerPriority: 75,
+    markerPriority: toolKindInfo("read_lints").priority,
   },
   {
     kind: "delete",
@@ -183,10 +192,10 @@ export const definitions: ToolRendererDefinition[] = [
     Component: DeleteToolDiff,
     summary: (tool) => `delete: ${fp(tool)}`,
     display: { type: "expandable" },
-    markerColor: "#ef4444",
-    markerLabel: "Deletes",
+    markerColor: toolKindInfo("delete").color,
+    markerLabel: toolKindInfo("delete").label,
     markerDisplayType: "delete",
-    markerPriority: 100,
+    markerPriority: toolKindInfo("delete").priority,
   },
   {
     kind: "todowrite",
@@ -194,10 +203,10 @@ export const definitions: ToolRendererDefinition[] = [
     Component: TodoWriteToolDiff,
     summary: () => "todowrite",
     display: { type: "expandable", defaultOpen: true },
-    markerColor: "#f59e0b",
-    markerLabel: "Todo",
+    markerColor: toolKindInfo("todowrite").color,
+    markerLabel: toolKindInfo("todowrite").label,
     markerDisplayType: "todowrite",
-    markerPriority: 90,
+    markerPriority: toolKindInfo("todowrite").priority,
   },
   {
     kind: "sql",
@@ -211,10 +220,10 @@ export const definitions: ToolRendererDefinition[] = [
       return "sql";
     },
     display: { type: "expandable" },
-    markerColor: "#38bdf8",
-    markerLabel: "SQL",
+    markerColor: toolKindInfo("sql").color,
+    markerLabel: toolKindInfo("sql").label,
     markerDisplayType: "database",
-    markerPriority: 85,
+    markerPriority: toolKindInfo("sql").priority,
   },
   {
     kind: "task",
@@ -231,10 +240,10 @@ export const definitions: ToolRendererDefinition[] = [
     },
     display: { type: "always-open", renderSummary: true },
     truncateOutput: 0,
-    markerColor: "#f472b6",
-    markerLabel: "Sub-agent",
+    markerColor: toolKindInfo("task").color,
+    markerLabel: toolKindInfo("task").label,
     markerDisplayType: "sub-agent",
-    markerPriority: 10,
+    markerPriority: toolKindInfo("task").priority,
     cardClassName:
       "border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-2",
   },
@@ -252,10 +261,10 @@ export const definitions: ToolRendererDefinition[] = [
     },
     display: { type: "always-open", renderSummary: true },
     truncateOutput: 0,
-    markerColor: "#38bdf8",
-    markerLabel: "Skill",
+    markerColor: toolKindInfo("skill").color,
+    markerLabel: toolKindInfo("skill").label,
     markerDisplayType: "skill",
-    markerPriority: 15,
+    markerPriority: toolKindInfo("skill").priority,
     cardClassName: "border border-sky-500/30 rounded-lg overflow-hidden bg-sky-500/[0.03] mb-2",
   },
   {
@@ -267,10 +276,10 @@ export const definitions: ToolRendererDefinition[] = [
       return `✓ ${s.slice(0, 80)}`;
     },
     display: { type: "always-open" },
-    markerColor: "#10b981",
-    markerLabel: "Task complete",
+    markerColor: toolKindInfo("task_complete").color,
+    markerLabel: toolKindInfo("task_complete").label,
     markerDisplayType: "task-complete",
-    markerPriority: 0,
+    markerPriority: toolKindInfo("task_complete").priority,
     truncateOutput: 0,
     cardClassName:
       "border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-2",
@@ -281,10 +290,10 @@ export const definitions: ToolRendererDefinition[] = [
     Component: QuestionToolDiff,
     summary: (tool) => firstQuestion(tool),
     display: { type: "always-open" },
-    markerColor: "#ec4899",
-    markerLabel: "Questions",
+    markerColor: toolKindInfo("question").color,
+    markerLabel: toolKindInfo("question").label,
     markerDisplayType: "question",
-    markerPriority: 40,
+    markerPriority: toolKindInfo("question").priority,
   },
   {
     kind: "exit_plan_mode",
@@ -295,10 +304,10 @@ export const definitions: ToolRendererDefinition[] = [
       return `Plan: ${s.slice(0, 80)}`;
     },
     display: { type: "always-open" },
-    markerColor: "#f59e0b",
-    markerLabel: "Plans",
+    markerColor: toolKindInfo("exit_plan_mode").color,
+    markerLabel: toolKindInfo("exit_plan_mode").label,
     markerDisplayType: "plan",
-    markerPriority: 30,
+    markerPriority: toolKindInfo("exit_plan_mode").priority,
     truncateOutput: 0,
   },
   {
@@ -311,10 +320,10 @@ export const definitions: ToolRendererDefinition[] = [
       return parts.pop() || parts[0] || m || "model";
     },
     display: { type: "always-open" },
-    markerColor: "#3b82f6",
-    markerLabel: "Model switch",
+    markerColor: toolKindInfo("model_switch").color,
+    markerLabel: toolKindInfo("model_switch").label,
     markerDisplayType: "model",
-    markerPriority: 65,
+    markerPriority: toolKindInfo("model_switch").priority,
     truncateOutput: 0,
   },
   {
@@ -328,10 +337,10 @@ export const definitions: ToolRendererDefinition[] = [
       return auto === "true" ? `${label} (auto)` : label;
     },
     display: { type: "always-open" },
-    markerColor: "#14b8a6",
-    markerLabel: "Compaction",
+    markerColor: toolKindInfo("compaction").color,
+    markerLabel: toolKindInfo("compaction").label,
     markerDisplayType: "compaction",
-    markerPriority: 5,
+    markerPriority: toolKindInfo("compaction").priority,
     truncateOutput: 0,
   },
   {
@@ -344,10 +353,10 @@ export const definitions: ToolRendererDefinition[] = [
       return "webfetch";
     },
     display: { type: "expandable" },
-    markerColor: "#ec4899",
-    markerLabel: "Web",
+    markerColor: toolKindInfo("webfetch").color,
+    markerLabel: toolKindInfo("webfetch").label,
     markerDisplayType: "web",
-    markerPriority: 80,
+    markerPriority: toolKindInfo("webfetch").priority,
   },
   {
     kind: "websearch",
@@ -360,10 +369,10 @@ export const definitions: ToolRendererDefinition[] = [
     },
     display: { type: "expandable" },
     truncateOutput: 0,
-    markerColor: "#ec4899",
-    markerLabel: "Web",
+    markerColor: toolKindInfo("websearch").color,
+    markerLabel: toolKindInfo("websearch").label,
     markerDisplayType: "web",
-    markerPriority: 80,
+    markerPriority: toolKindInfo("websearch").priority,
   },
   {
     kind: "permission_request",
@@ -375,10 +384,10 @@ export const definitions: ToolRendererDefinition[] = [
       return "permission_request";
     },
     display: { type: "always-open" },
-    markerColor: "#f59e0b",
-    markerLabel: "Permissions",
+    markerColor: toolKindInfo("permission_request").color,
+    markerLabel: toolKindInfo("permission_request").label,
     markerDisplayType: "permission",
-    markerPriority: 35,
+    markerPriority: toolKindInfo("permission_request").priority,
   },
   {
     kind: "store_memory",
@@ -391,9 +400,36 @@ export const definitions: ToolRendererDefinition[] = [
     display: { type: "expandable", defaultOpen: true },
     truncateOutput: 0,
     suppressCopy: true,
-    markerColor: "#8b5cf6",
-    markerLabel: "Memory",
+    markerColor: toolKindInfo("store_memory").color,
+    markerLabel: toolKindInfo("store_memory").label,
     markerDisplayType: "memory",
-    markerPriority: 15,
+    markerPriority: toolKindInfo("store_memory").priority,
+  },
+  {
+    kind: "read_inbox",
+    names: ["read_inbox"],
+    Component: ReadInboxToolDiff,
+    summary: (tool) => {
+      const e = extractJSONField(tool.input, "entry_id") || "";
+      return `inbox: ${e.slice(0, 80)}`;
+    },
+    display: { type: "expandable", defaultOpen: true },
+    truncateOutput: 0,
+    markerColor: toolKindInfo("read_inbox").color,
+    markerLabel: toolKindInfo("read_inbox").label,
+    markerDisplayType: "memory",
+    markerPriority: toolKindInfo("read_inbox").priority,
+  },
+  {
+    kind: "read_memories",
+    names: ["read_memories"],
+    Component: ReadMemoriesToolDiff,
+    summary: () => "memories",
+    display: { type: "expandable", defaultOpen: true },
+    truncateOutput: 0,
+    markerColor: toolKindInfo("read_memories").color,
+    markerLabel: toolKindInfo("read_memories").label,
+    markerDisplayType: "memory",
+    markerPriority: toolKindInfo("read_memories").priority,
   },
 ];

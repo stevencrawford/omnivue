@@ -13,10 +13,11 @@ import type {
   ScratchFile,
   StatusInfo,
   SearchResult,
-  Folder,
+  Tag,
   Bookmark,
   AppNotification,
   NotificationSettings,
+  QueuedPrompt,
 } from "./types";
 import {
   SessionsSchema,
@@ -31,9 +32,9 @@ import {
   SourcesSchema,
   SourceSchema,
   DiscoveredSourcesSchema,
-  FoldersSchema,
-  FolderSchema,
-  FolderSessionsSchema,
+  TagsSchema,
+  TagSchema,
+  TagSessionsSchema,
   BookmarksSchema,
   BookmarkToggleSchema,
   ConfigSchema,
@@ -41,13 +42,16 @@ import {
   SessionSchema,
   NotificationsSchema,
   NotificationSettingsSchema,
+  QueuedPromptsSchema,
+  QueuedPromptSchema,
+  DispatchResponseSchema,
 } from "./schemas";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   endpoint: string;
 
@@ -57,6 +61,24 @@ class ApiError extends Error {
     this.status = status;
     this.endpoint = endpoint;
   }
+}
+
+const RETRYABLE_DELAY_MS = 500;
+
+async function withRetry<T>(fn: () => Promise<T>, retries: number): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, RETRYABLE_DELAY_MS));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 async function fetchJson<T>(url: string, schema: ZodType<T>, init?: RequestInit): Promise<T> {
@@ -95,18 +117,22 @@ async function fetchVoid(url: string, init?: RequestInit): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function fetchSessions(): Promise<Session[]> {
-  return fetchJson("/_/api/sessions", SessionsSchema);
+  return withRetry(() => fetchJson("/_/api/sessions", SessionsSchema), 3);
 }
 
 export async function fetchSession(id: string): Promise<Session> {
   return fetchJson(`/_/api/sessions/${encodeURIComponent(id)}`, SessionSchema);
 }
 
-export async function fetchMessages(sessionId: string): Promise<Message[]> {
-  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/messages`, MessagesSchema);
+export async function fetchMessages(sessionId: string, signal?: AbortSignal): Promise<Message[]> {
+  return fetchJson(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/messages`,
+    MessagesSchema,
+    signal ? { signal } : undefined,
+  );
 }
 
-export async function fetchPlan(sessionId: string): Promise<Plan> {
+export async function fetchPlan(sessionId: string): Promise<Plan | null> {
   return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/plan`, PlanSchema);
 }
 
@@ -132,12 +158,14 @@ export async function clearSessionName(sessionId: string): Promise<void> {
   });
 }
 
-export async function fetchResumeCommand(sessionId: string): Promise<string> {
+export async function fetchResumeCommand(
+  sessionId: string,
+): Promise<{ absolute: string; relative: string; agentCommand: string }> {
   const data = await fetchJson(
     `/_/api/sessions/${encodeURIComponent(sessionId)}/resume`,
     ResumeCommandSchema,
   );
-  return data.command;
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,57 +260,53 @@ export async function fetchSearch(
 }
 
 // ---------------------------------------------------------------------------
-// Folders
+// Tags
 // ---------------------------------------------------------------------------
 
-export async function fetchFolders(): Promise<Folder[]> {
-  return fetchJson("/_/api/folders", FoldersSchema);
+export async function fetchTags(): Promise<Tag[]> {
+  return fetchJson("/_/api/tags", TagsSchema);
 }
 
-export async function createFolder(name: string, color?: string, icon?: string): Promise<Folder> {
-  return fetchJson("/_/api/folders", FolderSchema, {
+export async function createTag(name: string, color?: string): Promise<Tag> {
+  return fetchJson("/_/api/tags", TagSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color, icon }),
+    body: JSON.stringify({ name, color }),
   });
 }
 
-export async function updateFolder(
-  id: string,
-  name: string,
-  color?: string,
-  icon?: string,
-): Promise<void> {
-  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, {
+export async function updateTag(id: string, name: string, color?: string): Promise<void> {
+  await fetchVoid(`/_/api/tags/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color: color || "", icon: icon || "" }),
+    body: JSON.stringify({ name, color: color || "" }),
   });
 }
 
-export async function deleteFolder(id: string): Promise<void> {
-  await fetchVoid(`/_/api/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
+export async function deleteTag(id: string): Promise<void> {
+  await fetchVoid(`/_/api/tags/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function fetchFolderSessions(folderId: string): Promise<string[]> {
-  return fetchJson(`/_/api/folders/${encodeURIComponent(folderId)}/sessions`, FolderSessionsSchema);
+export async function fetchTagSessions(tagId: string): Promise<string[]> {
+  return fetchJson(`/_/api/tags/${encodeURIComponent(tagId)}/sessions`, TagSessionsSchema);
 }
 
-export async function assignSessionToFolder(folderId: string, sessionId: string): Promise<void> {
+export async function assignTagToSession(tagId: string, sessionId: string): Promise<void> {
   await fetchVoid(
-    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
+    `/_/api/tags/${encodeURIComponent(tagId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "POST" },
   );
 }
 
-export async function unassignSessionFromFolder(
-  folderId: string,
-  sessionId: string,
-): Promise<void> {
+export async function unassignTagFromSession(tagId: string, sessionId: string): Promise<void> {
   await fetchVoid(
-    `/_/api/folders/${encodeURIComponent(folderId)}/sessions/${encodeURIComponent(sessionId)}`,
+    `/_/api/tags/${encodeURIComponent(tagId)}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "DELETE" },
   );
+}
+
+export async function fetchSessionTags(sessionId: string): Promise<Tag[]> {
+  return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/tags`, TagsSchema);
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +392,7 @@ export async function createBookmark(data: {
   messageIndex: number;
   toolCallId?: string;
   label: string;
+  kind?: "message" | "plan";
 }): Promise<{ action: "created" | "deleted"; bookmark?: Bookmark; id?: string }> {
   return fetchJson("/_/api/bookmarks", BookmarkToggleSchema, {
     method: "POST",
@@ -425,5 +450,71 @@ export async function setNotificationSettings(
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(settings),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Prompt Queue
+// ---------------------------------------------------------------------------
+
+export async function fetchPrompts(
+  status?: string,
+  sessionId?: string,
+  limit?: number,
+): Promise<QueuedPrompt[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (sessionId) params.set("session_id", sessionId);
+  if (limit) params.set("limit", String(limit));
+  const qs = params.toString();
+  return fetchJson(`/_/api/prompts${qs ? `?${qs}` : ""}`, QueuedPromptsSchema);
+}
+
+export async function createPrompt(data: {
+  promptText: string;
+  sessionId?: string | null;
+  sourceId?: string | null;
+  priority?: number;
+  tags?: string[];
+}): Promise<QueuedPrompt> {
+  return fetchJson("/_/api/prompts", QueuedPromptSchema, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      promptText: data.promptText,
+      sessionId: data.sessionId ?? null,
+      sourceId: data.sourceId ?? null,
+      priority: data.priority ?? 0,
+      tags: data.tags ?? [],
+    }),
+  });
+}
+
+export async function updatePrompt(
+  id: string,
+  data: { promptText?: string; priority?: number; tags?: string[] },
+): Promise<void> {
+  await fetchVoid(`/_/api/prompts/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deletePrompt(id: string): Promise<void> {
+  await fetchVoid(`/_/api/prompts/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function dispatchPrompt(id: string): Promise<{ promptText: string }> {
+  return fetchJson(`/_/api/prompts/${encodeURIComponent(id)}/dispatch`, DispatchResponseSchema, {
+    method: "POST",
+  });
+}
+
+export async function batchDeletePrompts(ids: string[]): Promise<void> {
+  await fetchVoid("/_/api/prompts/batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
   });
 }

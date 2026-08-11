@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
-import type { Section } from "./components/IconChannel";
-import { SessionViewer } from "./components/SessionViewer";
+import { SessionViewer, type Tab } from "./components/SessionViewer";
 import { SearchPanel } from "./components/SearchPanel";
 import { SearchResultsDrawer } from "./components/SearchResultsDrawer";
 import { SettingsModal } from "./components/SettingsModal";
@@ -11,23 +11,26 @@ import { OverviewScreen } from "./components/OverviewScreen";
 import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/EmptyState";
 import { PinMessageModal } from "./components/PinMessageModal";
-import type { Tab } from "./components/SessionViewer";
-import { SessionNavContext, SearchHighlightContext } from "./hooks/useNav";
+import { SearchHighlightContext } from "./hooks/useSearchHighlightContext";
+import { SessionListSettingsProvider } from "./hooks/useSessionListSettings";
+import { TagsContext } from "./hooks/useTags";
 import { ThemeProvider } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
-import { type AppKeyboardConfig, useAppKeyboard } from "./hooks/useAppKeyboard";
-import { useSessionRouting } from "./hooks/useSessionRouting";
+import { useAppKeyboard, type AppKeyboardConfig } from "./hooks/useAppKeyboard";
 import { useSearchScope } from "./hooks/useSearchScope";
 import { useSearchState } from "./hooks/useSearchState";
 import { useRecentSearches } from "./hooks/useRecentSearches";
 import { useBookmarks } from "./hooks/useBookmarks";
-import { useSessions } from "./hooks/useSessions";
+import { useSessions, setOnPromptQueueChanged } from "./hooks/useSessions";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
 import type { AppNotification, NotificationSettings } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
+import { fetchPrompts } from "./hooks/apiClient";
+import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
+import { SEARCH_ROUTE } from "./hooks/useRouteSync";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -37,12 +40,11 @@ export function App() {
   // ---- Data hooks ----
   const {
     sessions,
-    sessionsLoading,
-    activeSessionId,
+    loading: sessionsLoading,
     liveChangedIds,
-    activeSession,
-    setActiveSessionId,
+    connected,
     loadSessions,
+    ackSessionChange,
   } = useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
@@ -58,24 +60,86 @@ export function App() {
     saveSettings: saveNotificationSettings,
   } = useNotifications();
 
+  // ---- Navigation intent ----
+  // One module owns selection, focus, tabs, and URL depth. Callers cross it
+  // with intent verbs, never raw setters.
+  const nav = useNavigationState({
+    sessions,
+    notifications,
+    markNotificationRead,
+  });
+
+  const {
+    activeSessionId,
+    activeSession,
+    showOverview,
+    activeSection,
+    activeTab,
+    searchHighlightQuery,
+    highlightPromptId,
+    filterTag,
+    handleSessionSelect,
+    handleBookmarkSelect,
+    handleNotificationClick,
+    handleDiffNavigateToMessage,
+    handlePromptClick,
+    handleHighlightDone,
+    goHome,
+    setTab,
+    setSection,
+    setShowOverview,
+    clearSearchHighlight,
+    navigateSession,
+    selectSearchHit,
+    openTag: openTagNav,
+    clearFilterTag,
+  } = nav;
+
   // Report the currently-viewed session to the server so the
   // ExcludeActiveView notification setting can suppress alerts for it.
   useActiveView(activeSessionId);
 
   // ---- UI state ----
-  const [showOverview, setShowOverview] = useState(true);
-  const [focusStepIndex, setFocusStepIndex] = useState<number | undefined>(undefined);
-  const [focusMessageIndex, setFocusMessageIndex] = useState<number | undefined>(undefined);
-  const [focusMessageKey, setFocusMessageKey] = useState(0);
-  const [focusMessageId, setFocusMessageId] = useState<string | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchHighlightQuery, setSearchHighlightQuery] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("session");
-  const [activeSection, setActiveSection] = useState<Section>("sessions");
+  const [searchInput, setSearchInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [promptVersion, setPromptVersion] = useState(0);
+
+  // ---- URL hash routing ----
+  // Owned by useNavigationState above: useRouteSync (react-router) feeds the
+  // navigation reducer, and every intent verb projects onto the hash through
+  // navigateTo. Browser Back/Forward undo navigation because each destination
+  // is a distinct history entry.
+
+  const fetchQueueCount = useCallback(async () => {
+    try {
+      const prompts = await fetchPrompts("queued");
+      setQueueCount(prompts.length);
+      setPromptVersion((v) => v + 1);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    setOnPromptQueueChanged(fetchQueueCount);
+    fetchQueueCount();
+    return () => setOnPromptQueueChanged(null);
+  }, [fetchQueueCount]);
+
+  const [tagsVersion, setTagsVersion] = useState(0);
+
+  const bumpTags = useCallback(() => setTagsVersion((v) => v + 1), []);
+  const openTag = useCallback(
+    (name: string) => {
+      openTagNav(name);
+      setSidebarOpen(true);
+    },
+    [openTagNav],
+  );
 
   const { recentSearches, addSearch, clearSearches } = useRecentSearches();
   const { searchSessionScope, setSearchSessionScope, searchScopeName } = useSearchScope(sessions);
@@ -89,16 +153,23 @@ export function App() {
     handleSearchOpenDrawer,
     handleDrawerClose,
     handleDrawerClearScope,
-  } = useSearchState(
+  } = useSearchState({
     addSearch,
     searchSessionScope,
-    setActiveSessionId,
-    setActiveTab,
-    setSearchHighlightQuery,
-    setFocusStepIndex,
-    setFocusMessageIndex,
-    setShowOverview,
-  );
+    onSelectHit: selectSearchHit,
+    onOpenTag: openTag,
+  });
+
+  // ---- Search deep link ----
+  // `#/search?q=...` opens the full-search drawer pre-filled with the query.
+  // The bare /search route resolves to the overview view (see useRouteSync).
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname !== SEARCH_ROUTE) return;
+    const q = new URLSearchParams(location.search).get("q");
+    if (q) handleSearchOpenDrawer(q);
+  }, [location.pathname, location.search, handleSearchOpenDrawer]);
 
   // ---- Scratch files ----
   const {
@@ -109,7 +180,7 @@ export function App() {
     handleRenameScratchFile,
     handlePinAsScratch,
   } = useScratchFiles(sessions, activeSessionId, activeTab, activeSession, (tab: string) =>
-    setActiveTab(tab as Tab),
+    setTab(tab as Tab),
   );
 
   // ---- Pin message modal ----
@@ -123,18 +194,6 @@ export function App() {
   } = usePinMessage();
 
   // ---- Keyboard shortcuts ----
-  // Wrap setActiveSessionId as a dispatch to support functional updaters used in useAppKeyboard.
-  const setActiveSessionIdDispatch = useCallback(
-    (action: React.SetStateAction<string | null>) => {
-      if (typeof action === "function") {
-        setActiveSessionId(action(activeSessionId));
-      } else {
-        setActiveSessionId(action);
-      }
-    },
-    [activeSessionId, setActiveSessionId],
-  );
-
   const keyboardConfig: AppKeyboardConfig = {
     sessions,
     activeSessionId,
@@ -145,308 +204,169 @@ export function App() {
     setSearchSessionScope,
     setDrawerOpen,
     setDrawerResults,
-    setSearchHighlightQuery,
     setSidebarOpen,
-    setActiveTab,
-    setActiveSessionId: setActiveSessionIdDispatch,
-    setFocusMessageIndex,
+    setActiveTab: setTab,
+    clearSearchHighlight,
     setShowOverview,
+    navigateSession,
     onOpenShortcuts: () => setShortcutsOpen(true),
   };
   useAppKeyboard(keyboardConfig);
-
-  // ---- URL hash routing ----
-  useSessionRouting(
-    sessions,
-    activeSessionId,
-    (id: string | null) => setActiveSessionId(id),
-    setFocusStepIndex,
-    showOverview,
-    setShowOverview,
-  );
-
-  // ---- Scroll position persistence ----
-  const scrollPositions = useRef(new Map<string, number>());
-  const SCROLL_POSITION_CAP = 100;
-
-  const saveScrollPosition = useCallback((id: string, pos: number) => {
-    const map = scrollPositions.current;
-    if (map.size >= SCROLL_POSITION_CAP && !map.has(id)) {
-      const firstKey = map.keys().next().value;
-      if (firstKey !== undefined) map.delete(firstKey);
-    }
-    map.set(id, pos);
-  }, []);
-
-  // ---- Navigation handlers ----
-  const handleSessionSelect = useCallback(
-    (sessionId: string) => {
-      setShowOverview(false);
-      setActiveSessionId(sessionId);
-      setFocusStepIndex(undefined);
-      setFocusMessageIndex(undefined);
-      setFocusMessageId(undefined);
-      setFocusMessageKey(0);
-      setActiveTab("session");
-      setSearchHighlightQuery(null);
-      // Mark all unread notifications for this session as read and
-      // jump to the first notification's message if one exists.
-      // If the user has already scrolled past that message (saved scroll),
-      // skip the jump and let normal scroll restoration take them to where
-      // they left off.
-      const unreadForSession = notifications.filter((n) => n.sessionId === sessionId && !n.readAt);
-      const ids = unreadForSession.map((n) => n.id);
-      if (ids.length > 0) {
-        markNotificationRead(ids);
-        // Pick the earliest unread notification to jump to.
-        const first = unreadForSession.sort((a, b) => a.createdAt - b.createdAt)[0];
-        const savedPos = scrollPositions.current.get(sessionId);
-        const hasSavedScroll = savedPos !== undefined && savedPos > 200;
-        try {
-          if (first.payload) {
-            const payload = JSON.parse(first.payload);
-            if (!hasSavedScroll && typeof payload.messageIndex === "number") {
-              setFocusMessageIndex(payload.messageIndex);
-            }
-            if (!hasSavedScroll && typeof payload.messageId === "string") {
-              setFocusMessageId(payload.messageId);
-            }
-            if (!hasSavedScroll) {
-              setFocusMessageKey((k) => k + 1);
-            }
-          }
-        } catch {
-          // ignore malformed payload
-        }
-      }
-    },
-    [notifications, markNotificationRead],
-  );
-
-  const handleClearFocus = useCallback(() => {
-    setFocusMessageIndex(undefined);
-    setFocusMessageId(undefined);
-    setFocusMessageKey(0);
-  }, []);
-
-  const handleGoHome = useCallback(() => {
-    setShowOverview(true);
-    setActiveSessionId(null);
-    setFocusStepIndex(undefined);
-    setFocusMessageIndex(undefined);
-    setSearchHighlightQuery(null);
-    setActiveTab("session");
-  }, []);
-
-  const handleBookmarkSelect = useCallback(
-    (sessionId: string, messageIndex: number, _toolCallId?: string) => {
-      setShowOverview(false);
-      setActiveSessionId(sessionId);
-      setFocusMessageIndex(messageIndex);
-      setFocusMessageId(undefined);
-      setFocusMessageKey((k) => k + 1);
-      setFocusStepIndex(undefined);
-      setActiveTab("session");
-      setSearchHighlightQuery(null);
-      setActiveSection("sessions");
-    },
-    [],
-  );
-
-  const handleDiffNavigateToMessage = useCallback((messageIndex: number, messageId?: string) => {
-    setFocusMessageIndex(messageId ? undefined : messageIndex);
-    setFocusMessageId(messageId || undefined);
-    setFocusMessageKey((k) => k + 1);
-    setActiveTab("session");
-  }, []);
-
-  const handleNotificationClick = useCallback(
-    (n: AppNotification) => {
-      setShowOverview(false);
-      setActiveSessionId(n.sessionId);
-      setActiveTab("session");
-      setFocusStepIndex(undefined);
-      setSearchHighlightQuery(null);
-      markNotificationRead([n.id]);
-      setActiveSection("sessions");
-
-      // Parse the payload for a message index to jump directly to
-      // the message that triggered the notification.
-      let msgIdx: number | undefined;
-      let msgId: string | undefined;
-      try {
-        if (n.payload) {
-          const payload = JSON.parse(n.payload);
-          if (typeof payload.messageIndex === "number") {
-            msgIdx = payload.messageIndex;
-          }
-          if (typeof payload.messageId === "string") {
-            msgId = payload.messageId;
-          }
-        }
-      } catch {
-        // ignore malformed payload
-      }
-      setFocusMessageKey((k) => k + 1);
-      setFocusMessageIndex(msgIdx);
-      setFocusMessageId(msgId);
-    },
-    [markNotificationRead],
-  );
 
   // ---- Render ----
   return (
     <ThemeProvider>
       <ToastProvider>
-        <div className="flex flex-col h-full font-sans text-ov-text bg-ov-bg">
-          <AppHeader
-            showOverview={showOverview}
-            searchHighlightQuery={searchHighlightQuery}
-            onGoHome={handleGoHome}
-            onOpenSearch={() => {
-              if (searchHighlightQuery) setSearchQuery(searchHighlightQuery);
-              setSearchOpen(true);
-            }}
-            onClearSearchHighlight={() => {
-              setSearchHighlightQuery(null);
-              setFocusMessageIndex(undefined);
-            }}
-          />
-
-          {searchOpen && (
-            <SearchPanel
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              onSelectSession={handleSearchSelect}
-              onOpenDrawer={handleSearchOpenDrawer}
-              onClose={() => setSearchOpen(false)}
-              searchScope={searchSessionScope}
-              searchScopeName={searchScopeName}
-              onClearScope={() => setSearchSessionScope(null)}
-              recentSearches={recentSearches}
-              onClearRecentSearches={clearSearches}
+        <SessionListSettingsProvider>
+          <div className="flex flex-col h-full font-sans text-ov-text bg-ov-bg">
+            <AppHeader
+              showOverview={showOverview}
+              searchHighlightQuery={searchHighlightQuery}
+              connected={connected}
+              onGoHome={goHome}
+              onOpenSearch={() => {
+                if (searchHighlightQuery) setSearchInput(searchHighlightQuery);
+                setSearchOpen(true);
+              }}
+              onClearSearchHighlight={clearSearchHighlight}
             />
-          )}
 
-          <SearchResultsDrawer
-            isOpen={drawerOpen}
-            query={drawerQuery}
-            results={drawerResults}
-            onSelect={handleSearchSelect}
-            onClose={handleDrawerClose}
-            searchScopeName={searchScopeName}
-            onClearScope={() => {
-              setSearchSessionScope(null);
-              handleDrawerClearScope();
-            }}
-          />
+            {searchOpen && (
+              <SearchPanel
+                query={searchInput}
+                onQueryChange={setSearchInput}
+                onSelectSession={handleSearchSelect}
+                onOpenDrawer={handleSearchOpenDrawer}
+                onClose={() => setSearchOpen(false)}
+                searchScope={searchSessionScope}
+                searchScopeName={searchScopeName}
+                onClearScope={() => setSearchSessionScope(null)}
+                recentSearches={recentSearches}
+                onClearRecentSearches={clearSearches}
+              />
+            )}
 
-          <SessionNavContext.Provider
-            value={{
-              navigateToSession: handleSessionSelect,
-              scrollPositions: scrollPositions.current,
-              saveScrollPosition,
-            }}
-          >
-            <div className="flex flex-1 overflow-hidden">
-              <ErrorBoundary>
-                <Sidebar
-                  sessions={sessions}
-                  activeSessionId={activeSessionId}
-                  onSessionSelect={handleSessionSelect}
-                  activeSection={activeSection}
-                  onSectionChange={setActiveSection}
-                  onSettingsOpen={() => setSettingsOpen(true)}
-                  sidebarOpen={sidebarOpen}
-                  onSidebarToggle={() => setSidebarOpen((v) => !v)}
-                  bookmarks={bookmarks}
-                  onBookmarkSelect={handleBookmarkSelect}
-                  onBookmarkDelete={handleBookmarkDelete}
-                  notifications={notifications}
-                  notificationUnreadCount={notificationUnreadCount}
-                  sessionUnread={notificationSessionUnread}
-                  onNotificationClick={handleNotificationClick}
-                  onMarkAllNotificationsRead={markAllNotificationsRead}
-                  onClearNotifications={clearAllNotifications}
-                />
-              </ErrorBoundary>
+            <SearchResultsDrawer
+              isOpen={drawerOpen}
+              query={drawerQuery}
+              results={drawerResults}
+              onSelect={handleSearchSelect}
+              onClose={handleDrawerClose}
+              searchScopeName={searchScopeName}
+              onClearScope={() => {
+                setSearchSessionScope(null);
+                handleDrawerClearScope();
+              }}
+            />
 
-              <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
-                {activeSession && !showOverview ? (
+            <NavigationContext.Provider value={nav}>
+              <TagsContext.Provider
+                value={{
+                  version: tagsVersion,
+                  bump: bumpTags,
+                  filterTag,
+                  openTag,
+                  clearFilter: clearFilterTag,
+                }}
+              >
+                <div className="flex flex-1 overflow-hidden">
                   <ErrorBoundary>
-                    <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
-                      <SessionViewer
-                        key={activeSession.id}
-                        session={activeSession}
-                        childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
-                        liveChangedIds={liveChangedIds}
-                        activeTab={activeTab}
-                        onTabChange={setActiveTab}
-                        onNameChanged={loadSessions}
-                        openScratchTabs={openScratchTabs}
-                        scratchFileMap={scratchFileMap}
-                        onCloseScratchTab={handleCloseScratchTab}
-                        onNewScratchFile={handleNewScratchFile}
-                        onRenameScratchFile={handleRenameScratchFile}
-                        onPinMessage={handlePinMessage}
-                        onBookmark={handleBookmark}
-                        bookmarkIdByRef={bookmarkIdByRef}
-                        focusStepIndex={focusStepIndex}
-                        focusMessageIndex={focusMessageIndex}
-                        focusMessageKey={focusMessageKey}
-                        focusMessageId={focusMessageId}
-                        onClearFocus={handleClearFocus}
-                        searchHighlightQuery={searchHighlightQuery}
-                        onNavigateToMessage={handleDiffNavigateToMessage}
-                      />
-                    </SearchHighlightContext.Provider>
+                    <Sidebar
+                      sessions={sessions}
+                      activeSessionId={activeSessionId}
+                      onSessionSelect={handleSessionSelect}
+                      activeSection={activeSection}
+                      onSectionChange={setSection}
+                      onSettingsOpen={() => setSettingsOpen(true)}
+                      sidebarOpen={sidebarOpen}
+                      onSidebarToggle={() => setSidebarOpen((v) => !v)}
+                      bookmarks={bookmarks}
+                      onBookmarkSelect={handleBookmarkSelect}
+                      onBookmarkDelete={handleBookmarkDelete}
+                      notifications={notifications}
+                      notificationUnreadCount={notificationUnreadCount}
+                      sessionUnread={notificationSessionUnread}
+                      onNotificationClick={handleNotificationClick}
+                      onMarkAllNotificationsRead={markAllNotificationsRead}
+                      onClearNotifications={clearAllNotifications}
+                      queueCount={queueCount}
+                      promptVersion={promptVersion}
+                      onPromptClick={handlePromptClick}
+                    />
                   </ErrorBoundary>
-                ) : sessionsLoading && sessions.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
-                      <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                      Loading sessions...
-                    </div>
-                  </div>
-                ) : sessions.length > 0 && showOverview ? (
-                  <OverviewScreen
-                    sessions={sessions}
-                    onSessionSelect={handleSessionSelect}
-                    onOpenProjects={() => setActiveSection("projects")}
-                  />
-                ) : (
-                  <EmptyState
-                    sessionsCount={sessions.length}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                  />
-                )}
-              </main>
-            </div>
-          </SessionNavContext.Provider>
+                  <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
+                    {activeSession && !showOverview ? (
+                      <ErrorBoundary>
+                        <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
+                          <SessionViewer
+                            key={activeSession.id}
+                            session={activeSession}
+                            childSessions={sessions.filter((s) => s.parentId === activeSession.id)}
+                            liveChangedIds={liveChangedIds}
+                            ackSessionChange={ackSessionChange}
+                            activeTab={activeTab}
+                            onTabChange={setTab}
+                            onNameChanged={loadSessions}
+                            openScratchTabs={openScratchTabs}
+                            scratchFileMap={scratchFileMap}
+                            onCloseScratchTab={handleCloseScratchTab}
+                            onNewScratchFile={handleNewScratchFile}
+                            onRenameScratchFile={handleRenameScratchFile}
+                            onPinMessage={handlePinMessage}
+                            onBookmark={handleBookmark}
+                            bookmarkIdByRef={bookmarkIdByRef}
+                            searchHighlightQuery={searchHighlightQuery}
+                            onNavigateToMessage={handleDiffNavigateToMessage}
+                            onQueueChanged={fetchQueueCount}
+                            highlightPromptId={highlightPromptId}
+                            onHighlightDone={handleHighlightDone}
+                          />
+                        </SearchHighlightContext.Provider>
+                      </ErrorBoundary>
+                    ) : sessionsLoading && sessions.length === 0 ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="flex items-center gap-2 text-sm text-ov-text-secondary">
+                          <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                          Loading sessions...
+                        </div>
+                      </div>
+                    ) : sessions.length > 0 && showOverview ? (
+                      <OverviewScreen sessions={sessions} onSessionSelect={handleSessionSelect} />
+                    ) : (
+                      <EmptyState
+                        sessionsCount={sessions.length}
+                        onOpenSettings={() => setSettingsOpen(true)}
+                      />
+                    )}
+                  </main>
+                </div>
+              </TagsContext.Provider>
+            </NavigationContext.Provider>
 
-          <SettingsModal
-            isOpen={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            notificationSettings={notificationSettings}
-            onSaveNotificationSettings={saveNotificationSettings}
-          />
-          <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+            <SettingsModal
+              isOpen={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              notificationSettings={notificationSettings}
+              onSaveNotificationSettings={saveNotificationSettings}
+            />
+            <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
-          <PinMessageModal
-            pinningContent={pinningContent}
-            pinTitle={pinTitle}
-            onTitleChange={setPinTitle}
-            onCancel={handleCancelPin}
-            onConfirm={() => handleConfirmPin(handlePinAsScratch)}
-          />
+            <PinMessageModal
+              pinningContent={pinningContent}
+              pinTitle={pinTitle}
+              onTitleChange={setPinTitle}
+              onCancel={handleCancelPin}
+              onConfirm={() => handleConfirmPin(handlePinAsScratch)}
+            />
 
-          <NotificationToaster
-            notifications={notifications}
-            settings={notificationSettings}
-            activeSessionId={activeSessionId}
-            onNavigate={(sessionId) => handleSessionSelect(sessionId)}
-          />
-        </div>
+            <NotificationToaster
+              notifications={notifications}
+              settings={notificationSettings}
+              activeSessionId={activeSessionId}
+              onNavigate={(sessionId) => handleSessionSelect(sessionId)}
+            />
+          </div>
+        </SessionListSettingsProvider>
       </ToastProvider>
     </ThemeProvider>
   );
@@ -470,7 +390,7 @@ function NotificationToaster({
   onNavigate: (sessionId: string) => void;
 }) {
   const { showToast } = useToast();
-  const seenIds = useRef<Set<string>>(new Set());
+  const seenIds = useRef(new Set<string>());
 
   useEffect(() => {
     for (const n of notifications) {

@@ -20,27 +20,19 @@ pnpm fmt:check    # check formatting without writing
 ```
 src/
 ├── App.tsx                    # Root orchestrator — all data hooks, UI state, layout
-├── main.tsx                   # Entry point; imports EffectJS runtime
+├── main.tsx                   # Entry point
 ├── lib/
-│   └── effect.ts              # EffectJS ManagedRuntime, runPromise/runFork exports
-├── services/                  # EffectJS service layer (wraps apiClient)
-│   ├── index.ts               # Barrel re-export
-│   ├── common.ts              # ApiError class
-│   ├── session.ts             # SessionService — sessions, messages, plans, diffs, edits
-│   ├── notification.ts        # NotificationService — list, markRead, clearAll, settings
-│   ├── search.ts              # SearchService — full-text search
-│   └── __tests__/
+│   └── effect.ts              # EffectJS runFork helper (SSE stream execution only)
 ├── hooks/                     # Custom React hooks (state + data fetching)
 │   ├── useSessions.ts         # Session list, SSE-driven updates
 │   ├── useNotifications.ts    # Notification list, optimistic read/unread
 │   ├── useSSE.ts              # Effect Stream-based SSE connection
-│   ├── useSearchState.ts      # Search drawer with Effect fiber cancellation
+│   ├── useSearchState.ts      # Search drawer with AbortController cancellation
 │   ├── useBookmarks.ts        # Bookmark CRUD
 │   ├── useScratchFiles.ts     # Scratch file management
-│   ├── apiClient.ts           # Raw fetch functions + Zod validation (all endpoints)
-│   ├── schemas.ts             # Zod schemas for every API response
-│   ├── types.ts               # Domain types (Session, Message, ToolCall, etc.)
-│   └── useApi.ts              # Barrel re-export of apiClient + types (backward compat)
+│   ├── apiClient.ts           # Raw fetch functions + Zod validation + ApiError
+│   ├── schemas.ts             # Zod schemas for every API response (source of truth)
+│   └── types.ts               # Domain types (Session, Message, ToolCall, etc.) derived from schemas
 ├── components/
 │   ├── AppHeader.tsx           # Top bar (logo, search, theme toggle)
 │   ├── Sidebar.tsx             # Resizable sidebar with section panels
@@ -67,9 +59,7 @@ src/
 ### Data flow (one-way)
 
 ```
-Server API → apiClient.ts (Zod validation) → useEffect/useCallback → useState → Props → Components
-                            ↕ (Effect wrappers)
-                     services/* (Effect.Service)
+Server API → apiClient.ts (Zod validation + ApiError) → useEffect/useCallback → useState → Props → Components
 ```
 
 ### Rules
@@ -95,95 +85,28 @@ export function useSessions(): SessionsState {
 }
 ```
 
-## EffectJS Service Layer
+## EffectJS — SSE only
 
-Added during the EffectJS migration (refactor/effectjs-migration). Used for
-SSE stream management, composable API calls with typed errors, and fiber-based
-cancellation.
-
-### Runtime
+Effect is used **only** for the SSE event stream in `useSSE.ts` (streams, exponential-backoff retry, cancellation). Everything else goes through `apiClient.ts` directly.
 
 ```typescript
-// lib/effect.ts
-const runtime = ManagedRuntime.make(Layer.mergeAll(
-  SessionService.Default,
-  NotificationService.Default,
-  SearchService.Default,
-));
-
-// Use these at the React boundary:
-runPromise(effect)    // → Promise<A>  (for useCallback/useEffect)
-runFork(effect)      // → () => void   (cancel function, for fiber management)
+// lib/effect.ts — the only Effect export at the React boundary
+runFork(effect)   // → () => void  (cancel function; used by useSSE.ts)
 ```
 
-### Service definition pattern
-
-```typescript
-// services/session.ts
-export class SessionService extends Effect.Service<SessionService>()("SessionService", {
-  effect: Effect.gen(function*() {
-    const list = (): Effect.Effect<Session[], ApiError> =>
-      Effect.tryPromise({
-        try: () => api.fetchSessions(),
-        catch: (e) => new ApiError(String(e), e instanceof Response ? e.status : 0, "/_/api/sessions"),
-      }).pipe(Effect.retry(Schedule.recurs(3)));
-
-    const getMessages = (id: string): Effect.Effect<Message[], ApiError> => ...
-
-    return { list, getMessages, ... } as const;
-  }),
-}) {}
-```
-
-### Accessing services from React
-
-```typescript
-// In a hook or component:
-import { Effect } from "effect";
-import { runPromise, runFork } from "../lib/effect";
-import { SessionService } from "../services";
-
-// One-shot call (e.g., on mount)
-runPromise(
-  SessionService.pipe(
-    Effect.flatMap(svc => svc.list()),
-    Effect.catchAll(err => { console.error(err.message); return Effect.succeed([]); }),
-  ),
-).then(setSessions);
-
-// With fiber cancellation (e.g., for search, message loading)
-const cancel = runFork(
-  SessionService.pipe(
-    Effect.flatMap(svc => svc.getMessages(sessionId)),
-    Effect.map(setMessages),
-    Effect.catchAll(err => Effect.sync(() => setMessages([]))),
-    Effect.ensuring(Effect.sync(() => setLoading(false))),
-  ),
-);
-cancelRef.current = cancel; // call cancel() to interrupt
-```
-
-### When to use Effect vs raw apiClient
-
-| Scenario | Use |
-|----------|-----|
-| Simple one-shot fetch with no retry | `apiClient.fetchXxx()` (direct) |
-| Fetch that needs retry, cancellation, or composition | Effect service |
-| SSE event streams | `useSSE.ts` (Effect Stream) |
-| Search with debounce and abort | Effect service + fiber cancel |
-| Optimistic updates (notifications) | Effect service for API call, local React state for optimistic render |
+Cancellation for one-shot fetches uses `AbortController` (e.g. `useSearchState`, `SessionViewer`) — see `apiClient.ts` functions that accept a `signal`.
 
 ## API Client
 
 - **Every** API response is validated at runtime via Zod schemas in `schemas.ts`.
-- Raw fetch functions live in `apiClient.ts`. Effect service wrappers live in `services/*.ts`.
-- Barrel file `useApi.ts` re-exports everything for backward compatibility.
-- Prefer importing directly from `./apiClient` or `./types` in new code, not from the barrel.
+- Raw fetch functions live in `apiClient.ts`; `ApiError extends Error` is defined and exported there (the single app-wide error type).
+- `fetchSessions()` is the only endpoint with retry (folded into `apiClient`).
+- Import domain types from `./types` (each `z.infer` of a schema in `schemas.ts`) and fetchers from `./apiClient`. No barrel.
 
 ```typescript
 // apiClient.ts — all functions are typed promises with Zod validation
 export async function fetchSessions(): Promise<Session[]> {
-  return fetchJson("/_/api/sessions", SessionsSchema);
+  return withRetry(() => fetchJson("/_/api/sessions", SessionsSchema), 3);
 }
 ```
 
@@ -230,26 +153,27 @@ strict: true, verbatimModuleSyntax: true, erasableSyntaxOnly: true
 - **Test location**: co-located `__tests__/` directories next to source.
 - **Test pattern**: `describe` / `it` / `expect` from vitest.
 - **Component tests**: React Testing Library.
-- **Service tests**: Mock `apiClient.ts` functions with `vi.mock`, test Effect
-  pipelines via `runPromise(ServiceTag.pipe(...))`.
-- Effect's `TestClock` is available for time-dependent stream tests.
+- **Service tests**: Mock `apiClient.ts` functions with `vi.mock`, or stub global `fetch` to test the apiClient boundary directly.
 
 ```typescript
-// Example service test pattern
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { Effect } from "effect";
-import * as api from "../../hooks/apiClient";
-import { runPromise } from "../../lib/effect";
-import { SessionService } from "../session";
+// Example apiClient boundary test (src/hooks/__tests__/apiClient.test.ts)
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { fetchSessions, ApiError } from "../apiClient";
 
-vi.mock("../../hooks/apiClient", () => ({ fetchSessions: vi.fn() }));
+const fetchMock = vi.fn();
 
-it("returns sessions on success", async () => {
-  vi.mocked(api.fetchSessions).mockResolvedValue([mockSession]);
-  const result = await runPromise(
-    SessionService.pipe(Effect.flatMap(svc => svc.list())),
-  );
-  expect(result).toHaveLength(1);
+describe("fetchSessions", () => {
+  beforeEach(() => vi.stubGlobal("fetch", fetchMock));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("retries on failure and eventually succeeds", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error("network error"))
+      .mockResolvedValueOnce(jsonResponse([mockSession]));
+    const result = await fetchSessions();
+    expect(result).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 ```
 
@@ -257,6 +181,4 @@ it("returns sessions on success", async () => {
 
 - `oxfmt` for formatting (config at `.oxfmtrc.json`)
 - `oxlint` for linting (config at `.oxlintrc.json`)
-- `oxlint` will warn about generator functions without `yield` — this is expected
-  for `Effect.Service` definitions and can be ignored.
 - Always run `pnpm fmt` after making changes to any `src/` file.

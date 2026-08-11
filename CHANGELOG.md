@@ -1,5 +1,94 @@
 # Changelog
 
+## [v0.2.1](https://github.com/stevencrawford/omnivue/compare/v0.2.0...v0.2.1) - 2026-08-07
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group with 2 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/121
+- chore(deps): bump the dependencies group in /internal/frontend with 19 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/122
+- chore(deps): bump modernc.org/sqlite from 1.55.0 to 1.56.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/120
+### Other Changes
+- refactor: Wave 1 — collapse adapter seam + resume-command module (ATH-19, ATH-20) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/106
+- feat(frontend): replace session sort with group-by option by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/110
+- refactor: Wave 2 — tool-kind vocabulary + structured diff pipeline by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/108
+- chore: advertise Homebrew install in README by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/111
+- feat(frontend): single-click create tag from session tag menu by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/112
+- feat(frontend): high contrast mode + unify settings toggles by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/113
+- feat: Bookmark plans from the Plan tab by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/115
+- feat(frontend): make browser back/forward undo navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/116
+- feat: Session liveness indicators by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/118
+- refactor(frontend): Collapse navigation into one intent module by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/119
+- feat(ingest): attribute usage down to tool calls by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/124
+- refactor(tool): Remove inline duration from tool row by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/125
+- feat(session): timeline step navigation + Copilot re-based totals fix by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/123
+- fix(nav): Keep open session when switching sidebar section by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/126
+
+## [Unreleased]
+
+### Added
+- Bookmark plans from the Plan tab (bookmark type "plan", alongside existing
+  message/tool-call bookmarks). Plan bookmarks open the Plan tab on click and
+  are distinguished in the LHS Bookmarks panel with a todo icon; the panel
+  gains a type filter (All / Messages / Plans). LHS queue section renamed to
+  "Queued Prompts" with a Layers icon. Schema migration `0007_bookmark_kind`
+  adds `bookmarks.kind` (backfilled to `message` for existing rows); the
+  `schemaVersion` reported by `GET /_/api/status` is now 7.
+
+## [v0.2.0](https://github.com/stevencrawford/omnivue/compare/v0.1.2...v0.2.0) - 2026-08-05
+
+### Dependency Updates ⬆️
+- chore(deps): Bump the dependencies group in /internal/frontend with 18 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/55
+- chore(deps): Bump the dependencies group across 1 directory with 3 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/64
+- chore(deps): Bump the dependencies group across 1 directory with 25 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/65
+- chore(deps): bump modernc.org/sqlite from 1.53.0 to 1.54.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/61
+- chore(deps): bump the dependencies group with 2 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/80
+- chore(deps): bump the dependencies group in /internal/frontend with 14 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/81
+### Other Changes
+- fix: Resume + Terminal as icon-only buttons on tab bar RHS by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/44
+- fix: Keyboard shortcuts, notification dots, permission requests, settings flash, and 4 new themes by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/46
+- fix: Copy/pin plan content, scratch editor improvements, Pin Message dialog UX by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/47
+- docs: Update documentation to reflect current codebase by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/48
+- feat: Integrate EffectJS for frontend state management and event streams by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/49
+- feat: Enable partial word matching in search via FTS5 prefix queries by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/50
+- refactor: migrate remaining API consumers to EffectJS by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/53
+- fix(settings): Reset UI state after reset API call by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/54
+- feat: punctuate copilot todo accumulation on batch completion by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/57
+- fix: banner scroll, plan refresh, and exit_plan_mode notification kind by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/56
+- feat: auto-discover and suggest agent sources in settings when empty by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/58
+- feat: diff tab enhancements — collapse file tree + jump to message from diff by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/59
+- docs(site): Polish landing page copy and fix platform details by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/60
+- fix: restore Copilot reasoning display, handle system_reminder inline by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/66
+- feat: derive session titles from summary data for Claude Code and Pi by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/67
+- chore: simplify README installation section by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/68
+- fix: soften system reminder styling to muted gray divider pattern by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/69
+- fix: correct Copilot cost double-counting from multiple shutdown events by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/70
+- feat: add store_memory tool call renderer for Copilot by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/71
+- fix: system_reminder styling & skill modal by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/72
+- fix: skill/store_memory visuals by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/73
+- fix: align store_memory summary styling with edit/write pattern by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/74
+- Use updatedAt instead of createdAt for overview timeframe filtering by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/75
+- fix: render all sub-questions and preserve question message boundaries by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/76
+- chore: Rebrand as Multi-Agent Session Manager by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/78
+- feat: 3-tier resume copy dropdown (absolute/relative/agent command) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/79
+- chore: ignore .worktrees directory by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/82
+- feat(prompt-queue): Add prompt queue for session-scoped and global prompts by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/77
+- feat: copilot research ingest, sub-agent nav fix, scratch & copy UI polish by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/85
+- feat: hide stale completed sessions from the session list by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/83
+- feat: session tags with header tagging and LHS tag panel by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/84
+- chore: allow agents to access .worktrees directory by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/86
+- fix(copilot): release conversation after failed subagent by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/90
+- feat: macOS-style markdown screenshot capture by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/92
+- fix(copilot): route events by agent identity + read_inbox/read_memories renderers by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/93
+- fix(frontend): hide queued prompts on sub-agents + reliable notification jump by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/91
+- refactor: ATH-05/06 ingest canonicalization + adapter interface shrink by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/89
+- refactor(frontend): collapse EffectJS service layer into apiClient (ATH-04) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/87
+- refactor: split State god-object + store role interfaces (ATH-01/02/03) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/88
+- refactor(frontend): fix effect-cleanup correctness in hooks (ATH-12) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/95
+- refactor(frontend): unify error/loading/empty-state handling (ATH-13) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/96
+- refactor(frontend): widen markdown screenshot captures and lighter pixel ratio by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/97
+- refactor: architecture deepening round 1 + 2 (ATH-07..18) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/103
+- feat: narrow screenshot window + serialize refresh pipeline by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/104
+- fix(frontend): apply message jump scroll once per focus target by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/105
+
 ## [v0.1.2](https://github.com/stevencrawford/omnivue/compare/v0.1.1...v0.1.2) - 2026-07-07
 
 ### Other Changes
@@ -53,7 +142,7 @@ Initial release of **Omnivue** (formerly **sess**) — forked from [mo](https://
 - **Browser UI** — Tabbed session viewer with conversation, plan, and diff views
 - **Real-time updates** — Adaptive SSE polling (5s live / 30s idle)
 - **Full-text search** — FTS5 index across all session content
-- **User folders** — Virtual session organization with nesting, color, and icons
+- **User tags** — Virtual session organization with unique names and optional colors
 - **Scratch notes** — Per-session markdown notes (TipTap rich text + Monaco code editor)
 - **Session renaming** — Display name overrides persisted in `omnivue.db`
 - **Settings UI** — Add/remove session sources from the browser

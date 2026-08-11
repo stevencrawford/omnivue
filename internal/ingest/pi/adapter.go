@@ -2,13 +2,12 @@ package pi
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
+	"github.com/stevencrawford/omnivue/internal/resumecmd"
 )
 
 func init() {
@@ -53,28 +52,10 @@ func New(basePath string) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) Type() ingest.AgentType { return ingest.AgentPi }
+var piResumeSpec = resumecmd.Spec{Binary: "pi", Flag: "--session"}
 
-func (a *Adapter) Detect(path string) bool {
-	fi, err := os.Stat(path)
-	if err != nil || !fi.IsDir() {
-		return false
-	}
-	var found bool
-	filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error { //nolint:errcheck
-		if err != nil || found {
-			return err
-		}
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
-			found = true
-		}
-		return nil
-	})
-	return found
-}
-
-func (a *Adapter) ResumeCommand(session *ingest.Session) string {
-	return fmt.Sprintf("cd %s && pi --session %s", session.Directory, session.ID)
+func (a *Adapter) ResumeCommand() resumecmd.Spec {
+	return piResumeSpec
 }
 
 func (a *Adapter) LastModified(ctx context.Context) (int64, error) {

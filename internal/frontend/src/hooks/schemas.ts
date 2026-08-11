@@ -15,7 +15,15 @@ const coerceNumber = z.coerce.number();
 // Session
 // ---------------------------------------------------------------------------
 
-const StepTokensSchema = z.object({
+export const TodoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  status: z.string(),
+  depends_on: z.array(z.string()).optional(),
+});
+
+export const StepTokensSchema = z.object({
   input: coerceNumber,
   output: coerceNumber,
   reasoning: coerceNumber,
@@ -23,7 +31,7 @@ const StepTokensSchema = z.object({
   cacheWrite: coerceNumber,
 });
 
-const StepEventSchema = z.object({
+export const StepEventSchema = z.object({
   step: z.enum(["start", "finish"]),
   snapshot: optionalString,
   reason: optionalString,
@@ -31,7 +39,13 @@ const StepEventSchema = z.object({
   tokens: StepTokensSchema.optional(),
 });
 
-const ToolCallSchema = z.object({
+export const ToolUsageSchema = z.object({
+  tokens: StepTokensSchema.optional(),
+  cost: coerceNumber.optional(),
+  source: z.string(),
+});
+
+export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
   input: z.string(),
@@ -39,6 +53,7 @@ const ToolCallSchema = z.object({
   status: z.string(),
   duration: coerceNumber.optional(),
   metadata: z.string().optional(),
+  usage: ToolUsageSchema.optional(),
 });
 
 export const MessageSchema = z.object({
@@ -81,6 +96,7 @@ export const SessionSchema = z.object({
   diffFiles: coerceNumber,
   diffAdditions: coerceNumber,
   diffDeletions: coerceNumber,
+  todos: z.array(TodoSchema).optional(),
 });
 
 export const SessionsSchema = z.array(SessionSchema);
@@ -101,7 +117,7 @@ export const SourceSchema = z.object({
 
 export const SourcesSchema = z.array(SourceSchema);
 
-const DiscoveredSourceSchema = z.object({
+export const DiscoveredSourceSchema = z.object({
   path: z.string(),
   agentType: z.string(),
   label: z.string(),
@@ -113,16 +129,22 @@ export const DiscoveredSourcesSchema = z.array(DiscoveredSourceSchema);
 // Plan
 // ---------------------------------------------------------------------------
 
-export const PlanSchema = z.object({
-  markdown: z.string(),
-  source: z.string(),
-});
+export const PlanSchema = z
+  .object({
+    markdown: z.string(),
+    source: z.string(),
+  })
+  .nullable();
 
 // ---------------------------------------------------------------------------
 // DiffFile
 // ---------------------------------------------------------------------------
 
-const DiffFileSchema = z.object({
+// ---------------------------------------------------------------------------
+// DiffFile
+// ---------------------------------------------------------------------------
+
+export const DiffFileSchema = z.object({
   path: z.string(),
   status: z.string(),
   additions: coerceNumber,
@@ -136,7 +158,7 @@ export const DiffsSchema = z.array(DiffFileSchema);
 // FileEdit
 // ---------------------------------------------------------------------------
 
-const FileEditSchema = z.object({
+export const FileEditSchema = z.object({
   filePath: z.string(),
   toolName: z.string(),
   oldStr: optionalString,
@@ -181,7 +203,7 @@ export const StatusInfoSchema = z.object({
 // SearchResult
 // ---------------------------------------------------------------------------
 
-const SearchResultSchema = z.object({
+export const SearchResultSchema = z.object({
   sessionId: z.string(),
   sessionName: optionalString,
   sourceId: z.string(),
@@ -192,27 +214,25 @@ const SearchResultSchema = z.object({
   fileTitle: optionalString,
   fileId: optionalString,
   messageIndex: coerceNumber.optional(),
+  tagName: optionalString,
 });
 
 export const SearchResultsSchema = z.array(SearchResultSchema);
 
 // ---------------------------------------------------------------------------
-// Folder
+// Tag
 // ---------------------------------------------------------------------------
 
-export const FolderSchema = z.object({
+export const TagSchema = z.object({
   id: z.string(),
   name: z.string(),
-  parentId: optionalString,
-  sortOrder: coerceNumber,
   color: optionalString,
-  icon: optionalString,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-export const FoldersSchema = z.array(FolderSchema);
-export const FolderSessionsSchema = z.array(z.string());
+export const TagsSchema = z.array(TagSchema);
+export const TagSessionsSchema = z.array(z.string());
 
 // ---------------------------------------------------------------------------
 // Bookmark
@@ -224,6 +244,7 @@ export const BookmarkSchema = z.object({
   messageIndex: coerceNumber,
   toolCallId: optionalString,
   label: z.string(),
+  kind: z.enum(["message", "plan"]),
   createdAt: z.string(),
 });
 
@@ -247,7 +268,9 @@ export const ConfigSchema = z.record(z.string(), z.string());
 // ---------------------------------------------------------------------------
 
 export const ResumeCommandSchema = z.object({
-  command: z.string(),
+  absolute: z.string(),
+  relative: z.string(),
+  agentCommand: z.string(),
 });
 
 // ---------------------------------------------------------------------------
@@ -266,6 +289,10 @@ export const NotificationKindSchema = z.enum([
   "status_error",
 ]);
 
+export const NotificationSeveritySchema = z.enum(["info", "attention"]);
+
+export const NotificationScopeSchema = z.enum(["all", "opened", "pinned"]);
+
 export const NotificationSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
@@ -273,7 +300,7 @@ export const NotificationSchema = z.object({
   kind: NotificationKindSchema,
   title: z.string(),
   preview: z.string(),
-  severity: z.enum(["info", "attention"]),
+  severity: NotificationSeveritySchema,
   payload: z.string().optional(),
   createdAt: coerceNumber,
   readAt: coerceNumber.nullable().optional(),
@@ -284,7 +311,7 @@ export const NotificationsSchema = z.array(NotificationSchema);
 export const NotificationSettingsSchema = z.object({
   enabled: z.boolean(),
   kinds: z.array(NotificationKindSchema),
-  scope: z.enum(["all", "opened", "pinned"]),
+  scope: NotificationScopeSchema,
   inAppToast: z.boolean(),
   sidebarBadge: z.boolean(),
   browserNotify: z.boolean(),
@@ -294,4 +321,27 @@ export const NotificationSettingsSchema = z.object({
   autoDismissSec: coerceNumber,
   excludeActiveView: z.boolean(),
   enabledAt: coerceNumber.optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Prompt Queue
+// ---------------------------------------------------------------------------
+
+export const QueuedPromptSchema = z.object({
+  id: z.string(),
+  sessionId: z.string().nullable().optional(),
+  sourceId: z.string().nullable().optional(),
+  promptText: z.string(),
+  status: z.enum(["queued", "dispatched", "cancelled"]),
+  priority: z.number(),
+  tags: z.string(),
+  createdAt: z.number(),
+  dispatchedAt: z.number().nullable().optional(),
+});
+
+export const QueuedPromptsSchema = z.array(QueuedPromptSchema);
+
+export const DispatchResponseSchema = z.object({
+  status: z.string(),
+  promptText: z.string(),
 });

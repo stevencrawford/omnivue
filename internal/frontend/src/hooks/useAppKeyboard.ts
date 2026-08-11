@@ -9,17 +9,17 @@ export interface AppKeyboardConfig {
   searchOpen: boolean;
   drawerOpen: boolean;
   searchHighlightQuery: string | null;
-  // State setters
+  // State setters (local UI + search scope)
   setSearchOpen: (open: boolean) => void;
   setSearchSessionScope: (id: string | null) => void;
   setDrawerOpen: (open: boolean) => void;
   setDrawerResults: (results: never[]) => void;
-  setSearchHighlightQuery: (q: string | null) => void;
   setSidebarOpen: (open: boolean | ((v: boolean) => boolean)) => void;
+  // Navigation intent verbs
   setActiveTab: (tab: Tab) => void;
-  setActiveSessionId: React.Dispatch<React.SetStateAction<string | null>>;
-  setFocusMessageIndex: (idx: number | undefined) => void;
+  clearSearchHighlight: () => void;
   setShowOverview: (v: boolean) => void;
+  navigateSession: (delta: 1 | -1, sessions: Session[]) => void;
   onOpenShortcuts?: () => void;
 }
 
@@ -34,12 +34,11 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     setSearchSessionScope,
     setDrawerOpen,
     setDrawerResults,
-    setSearchHighlightQuery,
     setSidebarOpen,
     setActiveTab,
-    setActiveSessionId,
-    setFocusMessageIndex,
+    clearSearchHighlight,
     setShowOverview,
+    navigateSession,
     onOpenShortcuts,
   } = config;
 
@@ -70,8 +69,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
           return;
         }
         if (searchHighlightQuery) {
-          setSearchHighlightQuery(null);
-          setFocusMessageIndex(undefined);
+          clearSearchHighlight();
           return;
         }
       }
@@ -109,24 +107,16 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
       if (!isInput && !e.metaKey && !e.ctrlKey) {
         if (e.key === "j" || e.key === "ArrowDown") {
           e.preventDefault();
-          setSearchHighlightQuery(null);
+          clearSearchHighlight();
           setShowOverview(false);
-          setActiveSessionId((prev: string | null) => {
-            const idx = prev === null ? -1 : sessions.findIndex((s) => s.id === prev);
-            if (idx < sessions.length - 1) return sessions[idx + 1].id;
-            return prev ?? sessions[0]?.id ?? null;
-          });
+          navigateSession(1, sessions);
           return;
         }
         if (e.key === "k" || e.key === "ArrowUp") {
           e.preventDefault();
-          setSearchHighlightQuery(null);
+          clearSearchHighlight();
           setShowOverview(false);
-          setActiveSessionId((prev: string | null) => {
-            const idx = prev === null ? sessions.length : sessions.findIndex((s) => s.id === prev);
-            if (idx > 0) return sessions[idx - 1].id;
-            return prev ?? sessions[0]?.id ?? null;
-          });
+          navigateSession(-1, sessions);
           return;
         }
       }
@@ -143,11 +133,11 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     setSearchSessionScope,
     setDrawerOpen,
     setDrawerResults,
-    setSearchHighlightQuery,
     setSidebarOpen,
     setActiveTab,
-    setActiveSessionId,
-    setFocusMessageIndex,
+    clearSearchHighlight,
     setShowOverview,
+    navigateSession,
+    onOpenShortcuts,
   ]);
 }
