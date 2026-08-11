@@ -133,13 +133,13 @@ export function SessionViewer({
 
   useEffect(() => {
     if (!liveChangedIds.has(session.id)) return;
-    ackSessionChange?.(session.id);
     // A deep link mounts this view with a slow full-transcript fetch in flight;
     // interrupting it on a live SSE event strands the spinner. Let the initial
-    // load finish untouched; live refreshes only replace an already-rendered
-    // conversation.
+    // load finish untouched and leave the change pending so this effect re-runs
+    // and applies it once the load completes; acking here would drop it.
     if (messages.length === 0 && loading) return;
     const handle = setTimeout(() => {
+      ackSessionChange?.(session.id);
       loadMessages();
       setRefreshKey((k) => k + 1);
     }, 300);

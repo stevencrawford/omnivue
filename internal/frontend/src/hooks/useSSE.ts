@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Stream, Effect, Schedule } from "effect";
+import { Stream, Effect } from "effect";
 import { runFork } from "../lib/effect";
 
 interface SSECallbacks {
@@ -84,19 +84,14 @@ function makeSSEStream() {
     };
 
     es.onerror = () => {
+      // Let the browser's native EventSource reconnect instead of failing the
+      // stream: the old emit.fail fed a retry schedule that ended permanently
+      // after 60s, leaving the app with no SSE after a sustained blip.
       emit.single({ type: "connection", connected: false });
-      emit.fail("connection_error");
     };
 
     return Effect.sync(() => es.close());
-  }).pipe(
-    Stream.retry(
-      Schedule.exponential("1 seconds").pipe(
-        Schedule.whileInput((_e: string) => true),
-        Schedule.upTo("60 seconds"),
-      ),
-    ),
-  );
+  });
 }
 
 export function useSSE(callbacks: SSECallbacks) {
