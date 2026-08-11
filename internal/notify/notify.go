@@ -196,7 +196,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 				candidates = append(candidates, Candidate{
 					Kind:     KindExitPlanMode,
 					DedupKey: toolDedupKey(tc.ID, m.ID, name),
-					Title:    "Plan mode exited",
+					Title:    "Proposed Plan",
 					Preview:  previewForExitPlanMode(tc.Input, tc.Output),
 					Severity: SeverityAttention,
 					Payload: map[string]any{
