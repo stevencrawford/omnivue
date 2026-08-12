@@ -813,6 +813,7 @@ type createBookmarkRequest struct {
 	SessionID    string `json:"sessionId"`
 	MessageIndex int    `json:"messageIndex"`
 	ToolCallID   string `json:"toolCallId"`
+	MessageID    string `json:"messageId"`
 	Label        string `json:"label"`
 	Kind         string `json:"kind"`
 }
@@ -852,6 +853,7 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			SessionID:    req.SessionID,
 			MessageIndex: req.MessageIndex,
 			ToolCallID:   req.ToolCallID,
+			MessageID:    req.MessageID,
 			Label:        req.Label,
 			Kind:         req.Kind,
 			CreatedAt:    time.Now(),

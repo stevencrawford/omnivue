@@ -243,6 +243,7 @@ export const BookmarkSchema = z.object({
   sessionId: z.string(),
   messageIndex: coerceNumber,
   toolCallId: optionalString,
+  messageId: optionalString,
   label: z.string(),
   kind: z.enum(["message", "plan"]),
   createdAt: z.string(),

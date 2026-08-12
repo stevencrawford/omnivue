@@ -93,6 +93,7 @@ export function AssistantMessageView({
   onBookmark?: (
     sessionId: string,
     messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
   ) => void;
@@ -122,7 +123,7 @@ export function AssistantMessageView({
           onPin={onPin}
           onBookmark={
             onBookmark
-              ? () => onBookmark(sessionId, messageIndex, undefined, text.slice(0, 80))
+              ? () => onBookmark(sessionId, messageIndex, message.id, undefined, text.slice(0, 80))
               : undefined
           }
           isBookmarked={isMsgBookmarked}
@@ -139,7 +140,7 @@ export function AssistantMessageView({
             onBookmark={
               onBookmark
                 ? (toolCallId: string, label: string) =>
-                    onBookmark(sessionId, messageIndex, toolCallId, label)
+                    onBookmark(sessionId, messageIndex, message.id, toolCallId, label)
                 : undefined
             }
             bookmarkIdByRef={bookmarkIdByRef}

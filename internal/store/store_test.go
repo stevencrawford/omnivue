@@ -416,8 +416,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 7 {
-		t.Fatalf("expected schema version 7 on fresh install, got %d", v)
+	if v != 8 {
+		t.Fatalf("expected schema version 8 on fresh install, got %d", v)
 	}
 }
 
@@ -463,8 +463,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 7 {
-		t.Fatalf("expected legacy db stamped to version 7, got %d", v)
+	if v != 8 {
+		t.Fatalf("expected legacy db stamped to version 8, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -488,8 +488,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 7 {
-		t.Fatalf("expected version 7 after first open, got %d", v1)
+	if v1 != 8 {
+		t.Fatalf("expected version 8 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -502,8 +502,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 7 {
-		t.Fatalf("expected version 7 after second open, got %d", v2)
+	if v2 != 8 {
+		t.Fatalf("expected version 8 after second open, got %d", v2)
 	}
 }
 
@@ -521,6 +521,7 @@ func TestStore_BookmarkCRUD(t *testing.T) {
 		ID:           "bm-msg",
 		SessionID:    "s-1",
 		MessageIndex: 2,
+		MessageID:    "msg-42",
 		ToolCallID:   "",
 		Label:        "Fix sidebar",
 		Kind:         "message",
@@ -556,6 +557,9 @@ func TestStore_BookmarkCRUD(t *testing.T) {
 	}
 	if got := byID["bm-msg"].Kind; got != "message" {
 		t.Fatalf("expected message kind, got %q", got)
+	}
+	if got := byID["bm-msg"].MessageID; got != "msg-42" {
+		t.Fatalf("expected messageId msg-42, got %q", got)
 	}
 	if got := byID["bm-plan"].Kind; got != "plan" {
 		t.Fatalf("expected plan kind, got %q", got)

@@ -46,6 +46,7 @@ interface MessageBlockProps {
   onBookmark?: (
     sessionId: string,
     messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
   ) => void;
@@ -94,6 +95,7 @@ export function MessageBlock({
         toolCalls={message.toolCalls}
         sessionId={sessionId}
         messageIndex={messageIndex}
+        messageId={message.id}
         onOpenModal={onOpenModal}
         onPin={onPin}
         onBookmark={onBookmark}

@@ -873,6 +873,16 @@ func TestHandleCreateBookmark_Kind(t *testing.T) {
 		t.Errorf("expected default kind message, got %q", bm.Kind)
 	}
 
+	// A messageId on the request is persisted so jumps can resolve by id.
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-3", "messageIndex": 4, "messageId": "msg-42", "label": "By id",
+		},
+		http.StatusCreated, &bm)
+	if bm.MessageID != "msg-42" {
+		t.Errorf("expected messageId msg-42, got %q", bm.MessageID)
+	}
+
 	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
 		map[string]any{
 			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "scratch",
@@ -889,8 +899,8 @@ func TestHandleCreateBookmark_Kind(t *testing.T) {
 	if toggled["deleted"] != true {
 		t.Errorf("expected toggle to delete, got %v", toggled)
 	}
-	if len(fakes.bookmarks) != 1 {
-		t.Errorf("expected 1 bookmark after toggle, got %d", len(fakes.bookmarks))
+	if len(fakes.bookmarks) != 2 {
+		t.Errorf("expected 2 bookmarks after toggle, got %d", len(fakes.bookmarks))
 	}
 } // TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
 // into the role interfaces: an interface wrapping a nil pointer is non-nil, so

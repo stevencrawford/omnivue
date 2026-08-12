@@ -349,11 +349,15 @@ func (s *Store) SessionTags(sessionID string) ([]Tag, error) {
 // --- Bookmark CRUD ---
 
 // Bookmark represents a bookmarked message, tool call, or plan within a session.
+// MessageID is the stable identity of the anchored message; it lets the
+// frontend resolve a jump by id instead of by rendered index, which can drift
+// when live reloads re-group assistant tool-call messages.
 type Bookmark struct {
 	ID           string    `json:"id"`
 	SessionID    string    `json:"sessionId"`
 	MessageIndex int       `json:"messageIndex"`
 	ToolCallID   string    `json:"toolCallId,omitempty"`
+	MessageID    string    `json:"messageId,omitempty"`
 	Label        string    `json:"label"`
 	Kind         string    `json:"kind"`
 	CreatedAt    time.Time `json:"createdAt"`
@@ -362,16 +366,16 @@ type Bookmark struct {
 // CreateBookmark creates a new bookmark. Silently ignores duplicates.
 func (s *Store) CreateBookmark(b Bookmark) error {
 	_, err := s.db.Exec(`
-		INSERT INTO bookmarks (id, session_id, message_index, tool_call_id, label, kind, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO bookmarks (id, session_id, message_index, tool_call_id, message_id, label, kind, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT DO NOTHING
-	`, b.ID, b.SessionID, b.MessageIndex, b.ToolCallID, b.Label, b.Kind, b.CreatedAt.Format(time.RFC3339))
+	`, b.ID, b.SessionID, b.MessageIndex, b.ToolCallID, b.MessageID, b.Label, b.Kind, b.CreatedAt.Format(time.RFC3339))
 	return err
 }
 
 // ListBookmarks returns all bookmarks ordered by creation time (newest first).
 func (s *Store) ListBookmarks() ([]Bookmark, error) {
-	rows, err := s.db.Query(`SELECT id, session_id, message_index, tool_call_id, label, kind, created_at FROM bookmarks ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`SELECT id, session_id, message_index, tool_call_id, COALESCE(message_id, ''), label, kind, created_at FROM bookmarks ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +387,7 @@ func (s *Store) ListBookmarks() ([]Bookmark, error) {
 			b         Bookmark
 			createdAt string
 		)
-		if err := rows.Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.Label, &b.Kind, &createdAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.MessageID, &b.Label, &b.Kind, &createdAt); err != nil {
 			return nil, err
 		}
 		b.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
@@ -401,9 +405,9 @@ func (s *Store) BookmarkByRef(sessionID string, messageIndex int, toolCallID str
 	var b Bookmark
 	var createdAt string
 	err := s.db.QueryRow(
-		`SELECT id, session_id, message_index, tool_call_id, label, kind, created_at FROM bookmarks WHERE session_id = ? AND message_index = ? AND tool_call_id = ?`,
+		`SELECT id, session_id, message_index, tool_call_id, COALESCE(message_id, ''), label, kind, created_at FROM bookmarks WHERE session_id = ? AND message_index = ? AND tool_call_id = ?`,
 		sessionID, messageIndex, toolCallID,
-	).Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.Label, &b.Kind, &createdAt)
+	).Scan(&b.ID, &b.SessionID, &b.MessageIndex, &b.ToolCallID, &b.MessageID, &b.Label, &b.Kind, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

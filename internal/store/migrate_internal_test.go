@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 7 {
-		t.Fatalf("expected legacy db stamped to version 7, got %d", v)
+	if v != 8 {
+		t.Fatalf("expected legacy db stamped to version 8, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 7 {
-		t.Fatalf("expected version 7 on fresh install, got %d", v)
+	if v != 8 {
+		t.Fatalf("expected version 8 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -185,8 +185,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 7 {
-		t.Fatalf("expected version 7 after migration, got %d", v)
+	if v != 8 {
+		t.Fatalf("expected version 8 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -266,8 +266,8 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 7 {
-		t.Fatalf("expected version 7 after migration, got %d", v)
+	if v != 8 {
+		t.Fatalf("expected version 8 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -282,5 +282,71 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	}
 	if bookmarks[0].Kind != "message" {
 		t.Fatalf("expected backfilled kind 'message', got %q", bookmarks[0].Kind)
+	}
+}
+
+// TestMigrate_BookmarkMessageID seeds a version-6 database with a bookmarks
+// table (pre-0007/0008 schema: no kind or message_id columns) containing a
+// row, then runs the migrations through 0008 and verifies the row survives
+// unchanged with an empty message_id and the schema version advances to 8.
+func TestMigrate_BookmarkMessageID(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	stateDir := filepath.Join(tmpDir, "omnivue")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(stateDir, "omnivue.db")
+
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE bookmarks (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			message_index INTEGER NOT NULL,
+			tool_call_id TEXT,
+			label TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		);
+		INSERT INTO bookmarks (id, session_id, message_index, tool_call_id, label, created_at)
+		VALUES ('bm-1', 's-1', 3, 'tc-9', 'Fix sidebar', '2024-01-01T00:00:00Z');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	v, err := s.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 8 {
+		t.Fatalf("expected version 8 after migration, got %d", v)
+	}
+
+	bookmarks, err := s.ListBookmarks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bookmarks) != 1 {
+		t.Fatalf("expected 1 bookmark, got %d", len(bookmarks))
+	}
+	if bookmarks[0].ID != "bm-1" {
+		t.Fatalf("expected preserved bookmark bm-1, got %q", bookmarks[0].ID)
+	}
+	if bookmarks[0].MessageIndex != 3 || bookmarks[0].ToolCallID != "tc-9" {
+		t.Fatalf("expected preserved message_index/tool_call_id, got %+v", bookmarks[0])
+	}
+	if bookmarks[0].MessageID != "" {
+		t.Fatalf("expected empty message_id on pre-existing bookmarks, got %q", bookmarks[0].MessageID)
 	}
 }

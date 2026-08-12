@@ -18,6 +18,7 @@ export interface BookmarksState {
   handleBookmark: (
     sessionId: string,
     messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
     kind?: BookmarkKind,
@@ -51,12 +52,13 @@ export function useBookmarks(): BookmarksState {
     async (
       sessionId: string,
       messageIndex: number,
+      messageId: string | undefined,
       toolCallId: string | undefined,
       label: string,
       kind: BookmarkKind = "message",
     ) => {
       await runCatching(
-        () => createBookmark({ sessionId, messageIndex, toolCallId, label, kind }),
+        () => createBookmark({ sessionId, messageIndex, messageId, toolCallId, label, kind }),
         (err) =>
           console.error("Failed to create bookmark:", err instanceof Error ? err.message : err),
       );

@@ -390,6 +390,7 @@ export async function fetchBookmarks(): Promise<Bookmark[]> {
 export async function createBookmark(data: {
   sessionId: string;
   messageIndex: number;
+  messageId?: string;
   toolCallId?: string;
   label: string;
   kind?: "message" | "plan";

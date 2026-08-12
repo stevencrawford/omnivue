@@ -42,6 +42,13 @@
   "Queued Prompts" with a Layers icon. Schema migration `0007_bookmark_kind`
   adds `bookmarks.kind` (backfilled to `message` for existing rows); the
   `schemaVersion` reported by `GET /_/api/status` is now 7.
+- Bookmarks now store the stable `messageId` of the anchored message so a
+  bookmark jump can resolve by id instead of by rendered index, which can
+  drift when live reloads re-group assistant tool-call messages. Schema
+  migration `0008_bookmark_message_id` adds `bookmarks.message_id` (existing
+  rows keep an empty value and their behavior is unchanged); the
+  `schemaVersion` reported by `GET /_/api/status` is now 8. Existing user data
+  is preserved.
 
 ## [v0.2.0](https://github.com/stevencrawford/omnivue/compare/v0.1.2...v0.2.0) - 2026-08-05
 
