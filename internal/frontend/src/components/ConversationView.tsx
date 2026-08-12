@@ -97,8 +97,15 @@ export function ConversationView({
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
 }) {
-  const { focusStepIndex, focusMessageIndex, focusMessageKey, focusMessageId, clearFocus } =
-    useNavigation();
+  const {
+    focusStepIndex,
+    focusMessageIndex,
+    focusMessageKey,
+    focusMessageId,
+    focusToolCallId,
+    focusRenderedIndex,
+    clearFocus,
+  } = useNavigation();
   const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
     useConversationScroll({
       sessionId: session.id,
@@ -168,6 +175,8 @@ export function ConversationView({
     focusMessageIndex,
     focusMessageKey,
     focusMessageId,
+    focusToolCallId,
+    focusRenderedIndex,
     messagesWithoutReminders,
     clearFocus,
     resolveRenderIndex,

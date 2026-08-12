@@ -54,6 +54,8 @@ export function useSearchHighlight(
   focusMessageIndex: number | undefined,
   focusMessageKey: number | undefined,
   focusMessageId: string | undefined,
+  focusToolCallId: string | undefined,
+  focusRenderedIndex: boolean | undefined,
   messagesWithoutReminders: Message[],
   onClearFocus?: () => void,
   renderIndexResolver?: (
@@ -68,12 +70,14 @@ export function useSearchHighlight(
   // and message list, which re-runs the effect below, and re-applying the
   // scroll on each run yanks the user back to the target while an active
   // session streams — making it impossible to scroll to the bottom. Guarding
-  // on the full target (key + index + id) lets the same notification be
-  // clicked again after focus clears.
+  // on the full target (key + index + id + tool call) lets the same
+  // notification be clicked again after focus clears.
   const appliedFocusRef = useRef<{
     key: number | undefined;
     index: number | undefined;
     id: string | undefined;
+    toolCallId: string | undefined;
+    rendered: boolean | undefined;
   } | null>(null);
 
   const scrollToMessageEl = useCallback(
@@ -115,15 +119,22 @@ export function useSearchHighlight(
     if (!scrollRef.current || messagesWithoutReminders.length === 0) return;
     const container = scrollRef.current;
     let el: Element | null = null;
-    const resolved = renderIndexResolver
-      ? renderIndexResolver(focusMessageIndex, focusMessageId)
-      : undefined;
-    if (resolved !== undefined) {
-      el = container.querySelector(`[data-message-index="${resolved}"]`);
-    } else if (focusMessageId) {
-      el = container.querySelector(`[data-message-id="${focusMessageId}"]`);
-    } else if (!renderIndexResolver && focusMessageIndex !== undefined) {
+    // A rendered-index target (bookmark) already points at the visible block;
+    // it must skip the raw->rendered resolver, whose offset is relative to the
+    // raw message list (with unmerged assistant tool-call messages).
+    if (focusRenderedIndex && focusMessageIndex !== undefined) {
       el = container.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+    } else {
+      const resolved = renderIndexResolver
+        ? renderIndexResolver(focusMessageIndex, focusMessageId)
+        : undefined;
+      if (resolved !== undefined) {
+        el = container.querySelector(`[data-message-index="${resolved}"]`);
+      } else if (focusMessageId) {
+        el = container.querySelector(`[data-message-id="${focusMessageId}"]`);
+      } else if (!renderIndexResolver && focusMessageIndex !== undefined) {
+        el = container.querySelector(`[data-message-index="${focusMessageIndex}"]`);
+      }
     }
     if (el) {
       const applied = appliedFocusRef.current;
@@ -131,13 +142,17 @@ export function useSearchHighlight(
         applied !== null &&
         applied.key === focusMessageKey &&
         applied.index === focusMessageIndex &&
-        applied.id === focusMessageId;
+        applied.id === focusMessageId &&
+        applied.toolCallId === focusToolCallId &&
+        applied.rendered === focusRenderedIndex;
       if (!sameJump) {
         scrollToMessageEl(el);
         appliedFocusRef.current = {
           key: focusMessageKey,
           index: focusMessageIndex,
           id: focusMessageId,
+          toolCallId: focusToolCallId,
+          rendered: focusRenderedIndex,
         };
       }
       el.classList.add("sess-message-highlight");
@@ -152,11 +167,29 @@ export function useSearchHighlight(
     focusMessageKey,
     focusMessageIndex,
     focusMessageId,
+    focusToolCallId,
+    focusRenderedIndex,
     messagesWithoutReminders.length,
     scrollToMessageEl,
     scrollRef,
     renderIndexResolver,
   ]);
+
+  // A focus target may also name a specific tool call within the message
+  // (bookmark on a tool). Scroll the tool call into view and pulse it.
+  useEffect(() => {
+    if (!focusToolCallId) return;
+    const container = scrollRef.current;
+    if (!container) return;
+    const toolEl = container.querySelector(`[data-tool-call-id="${focusToolCallId}"]`);
+    if (!toolEl) return;
+    scrollToMessageEl(toolEl);
+    toolEl.classList.add("sess-message-highlight");
+    const timer = setTimeout(() => {
+      toolEl.classList.remove("sess-message-highlight");
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [focusToolCallId, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
 
   useEffect(() => {
     const container = scrollRef.current;

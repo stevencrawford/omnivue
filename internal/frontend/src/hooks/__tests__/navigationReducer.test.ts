@@ -39,6 +39,8 @@ describe("navigationReducer", () => {
         focusMessageIndex: 5,
         focusMessageKey: 3,
         focusMessageId: "m1",
+        focusToolCallId: "tc1",
+        focusRenderedIndex: true,
       });
       const next = navigationReducer(state, { type: "SESSION_SELECT", id: "s2" });
       expect(next.activeSessionId).toBe("s2");
@@ -50,6 +52,8 @@ describe("navigationReducer", () => {
       expect(next.focusMessageIndex).toBeUndefined();
       expect(next.focusMessageId).toBeUndefined();
       expect(next.focusMessageKey).toBe(0);
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBeUndefined();
     });
   });
 
@@ -64,6 +68,27 @@ describe("navigationReducer", () => {
       expect(next.focusMessageIndex).toBeUndefined();
       expect(next.focusStepIndex).toBe(1);
       expect(next.focusMessageKey).toBe(5);
+    });
+
+    it("carries a tool call id and rendered index through jumpFields", () => {
+      const next = navigationReducer(base({ focusMessageKey: 0 }), {
+        type: "JUMP_TO_MESSAGE",
+        target: { messageIndex: 2, toolCallId: "tc-9", renderedIndex: true },
+      });
+      expect(next.focusMessageIndex).toBe(2);
+      expect(next.focusToolCallId).toBe("tc-9");
+      expect(next.focusRenderedIndex).toBe(true);
+      expect(next.focusMessageKey).toBe(1);
+    });
+
+    it("clears tool call focus when the target has none", () => {
+      const state = base({ focusMessageKey: 0, focusToolCallId: "tc-9", focusRenderedIndex: true });
+      const next = navigationReducer(state, {
+        type: "JUMP_TO_MESSAGE",
+        target: { messageIndex: 2 },
+      });
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBeUndefined();
     });
 
     it("sets the index when no id is present", () => {
@@ -96,6 +121,32 @@ describe("navigationReducer", () => {
       expect(next.activeTab).toBe("session");
       expect(next.focusMessageIndex).toBe(4);
       expect(next.focusMessageKey).toBe(3);
+    });
+
+    it("carries the rendered index and tool call id for message bookmarks", () => {
+      const next = navigationReducer(base({ focusMessageKey: 2 }), {
+        type: "BOOKMARK_SELECT",
+        bookmark: bookmark({
+          kind: "message",
+          sessionId: "s9",
+          messageIndex: 4,
+          toolCallId: "tc-1",
+        }),
+      });
+      expect(next.focusMessageIndex).toBe(4);
+      expect(next.focusToolCallId).toBe("tc-1");
+      expect(next.focusRenderedIndex).toBe(true);
+      expect(next.focusMessageKey).toBe(3);
+    });
+
+    it("clears a prior tool call focus when jumping to a plain message bookmark", () => {
+      const next = navigationReducer(base({ focusToolCallId: "old-tc", focusMessageKey: 1 }), {
+        type: "BOOKMARK_SELECT",
+        bookmark: bookmark({ kind: "message", sessionId: "s9", messageIndex: 4 }),
+      });
+      expect(next.focusMessageIndex).toBe(4);
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBe(true);
     });
   });
 
@@ -137,6 +188,8 @@ describe("navigationReducer", () => {
       expect(next.searchHighlightQuery).toBe("needle");
       expect(next.focusMessageIndex).toBe(2);
       expect(next.focusStepIndex).toBeUndefined();
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBeUndefined();
     });
   });
 
@@ -204,21 +257,32 @@ describe("navigationReducer", () => {
 
     it("CLEAR_FOCUS clears the message focus only", () => {
       const next = navigationReducer(
-        base({ focusMessageIndex: 2, focusMessageId: "m", focusMessageKey: 5, focusStepIndex: 1 }),
+        base({
+          focusMessageIndex: 2,
+          focusMessageId: "m",
+          focusMessageKey: 5,
+          focusStepIndex: 1,
+          focusToolCallId: "tc",
+          focusRenderedIndex: true,
+        }),
         { type: "CLEAR_FOCUS" },
       );
       expect(next.focusMessageIndex).toBeUndefined();
       expect(next.focusMessageId).toBeUndefined();
       expect(next.focusMessageKey).toBe(0);
       expect(next.focusStepIndex).toBe(1);
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBeUndefined();
     });
   });
 
   describe("parseMessageTarget", () => {
     it("reads the recognised fields", () => {
       expect(
-        parseMessageTarget(JSON.stringify({ messageIndex: 1, messageId: "m", stepIndex: 2 })),
-      ).toEqual({ messageIndex: 1, messageId: "m", stepIndex: 2 });
+        parseMessageTarget(
+          JSON.stringify({ messageIndex: 1, messageId: "m", stepIndex: 2, toolCallId: "tc" }),
+        ),
+      ).toEqual({ messageIndex: 1, messageId: "m", stepIndex: 2, toolCallId: "tc" });
     });
 
     it("returns empty for garbage", () => {

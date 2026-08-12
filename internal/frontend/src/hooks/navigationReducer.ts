@@ -17,6 +17,11 @@ export interface FocusTarget {
   messageIndex?: number;
   messageId?: string;
   stepIndex?: number;
+  toolCallId?: string;
+  // When true, messageIndex is a rendered-block index (index into
+  // messagesWithoutReminders). Bookmarks store that form; notifications and
+  // search hits store the raw message list index and need the render resolver.
+  renderedIndex?: boolean;
 }
 
 export interface NavigationState {
@@ -28,6 +33,8 @@ export interface NavigationState {
   focusMessageIndex: number | undefined;
   focusMessageKey: number;
   focusMessageId: string | undefined;
+  focusToolCallId: string | undefined;
+  focusRenderedIndex: boolean | undefined;
   searchHighlightQuery: string | null;
   highlightPromptId: string | null;
   filterTag: string | null;
@@ -42,6 +49,8 @@ export const initialNavigationState: NavigationState = {
   focusMessageIndex: undefined,
   focusMessageKey: 0,
   focusMessageId: undefined,
+  focusToolCallId: undefined,
+  focusRenderedIndex: undefined,
   searchHighlightQuery: null,
   highlightPromptId: null,
   filterTag: null,
@@ -88,6 +97,7 @@ export function parseMessageTarget(payload: string | undefined): FocusTarget {
     if (typeof parsed.messageIndex === "number") target.messageIndex = parsed.messageIndex;
     if (typeof parsed.messageId === "string") target.messageId = parsed.messageId;
     if (typeof parsed.stepIndex === "number") target.stepIndex = parsed.stepIndex;
+    if (typeof parsed.toolCallId === "string") target.toolCallId = parsed.toolCallId;
     return target;
   } catch {
     // ignore malformed payload
@@ -100,13 +110,20 @@ function jumpFields(
   target: FocusTarget,
 ): Pick<
   NavigationState,
-  "focusStepIndex" | "focusMessageIndex" | "focusMessageKey" | "focusMessageId"
+  | "focusStepIndex"
+  | "focusMessageIndex"
+  | "focusMessageKey"
+  | "focusMessageId"
+  | "focusToolCallId"
+  | "focusRenderedIndex"
 > {
   return {
     focusStepIndex: target.stepIndex,
     focusMessageIndex: target.messageId !== undefined ? undefined : target.messageIndex,
     focusMessageKey: state.focusMessageKey + 1,
     focusMessageId: target.messageId,
+    focusToolCallId: target.toolCallId,
+    focusRenderedIndex: target.renderedIndex,
   };
 }
 
@@ -150,6 +167,8 @@ export function navigationReducer(
         focusMessageIndex: undefined,
         focusMessageKey: 0,
         focusMessageId: undefined,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
       };
     case "JUMP_TO_MESSAGE":
       return { ...state, ...jumpFields(state, action.target) };
@@ -159,6 +178,8 @@ export function navigationReducer(
         focusMessageIndex: undefined,
         focusMessageKey: 0,
         focusMessageId: undefined,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
       };
     case "CLEAR_FOCUS_STEP":
       return { ...state, focusStepIndex: undefined };
@@ -172,6 +193,8 @@ export function navigationReducer(
         highlightPromptId: null,
         focusStepIndex: undefined,
         focusMessageIndex: undefined,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
       };
     case "HIGHLIGHT_PROMPT":
       return { ...state, highlightPromptId: action.promptId };
@@ -194,7 +217,11 @@ export function navigationReducer(
       }
       return {
         ...state,
-        ...jumpFields(state, { messageIndex: action.bookmark.messageIndex }),
+        ...jumpFields(state, {
+          messageIndex: action.bookmark.messageIndex,
+          toolCallId: action.bookmark.toolCallId,
+          renderedIndex: true,
+        }),
         showOverview: false,
         activeSessionId: action.bookmark.sessionId,
         activeTab: "session",
@@ -227,6 +254,8 @@ export function navigationReducer(
         searchHighlightQuery: action.query,
         focusStepIndex: undefined,
         focusMessageIndex: action.messageIndex,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
       };
     case "SET_TAB":
       return { ...state, activeTab: action.tab };
@@ -239,7 +268,13 @@ export function navigationReducer(
     case "SET_SEARCH_HIGHLIGHT":
       return { ...state, searchHighlightQuery: action.query };
     case "CLEAR_SEARCH_HIGHLIGHT":
-      return { ...state, searchHighlightQuery: null, focusMessageIndex: undefined };
+      return {
+        ...state,
+        searchHighlightQuery: null,
+        focusMessageIndex: undefined,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
+      };
     case "NAV_SESSION_DELTA": {
       const sessions = action.sessions;
       return {

@@ -46,16 +46,17 @@ export function ToolCallList({
     return (
       <>
         {toolCalls.map((tool) => (
-          <ToolCallRow
-            key={tool.id}
-            tool={tool}
-            agent={agent}
-            variant="summary"
-            onOpenModal={onOpenModal}
-            onPin={onPin}
-            onBookmark={onBookmark}
-            isBookmarked={toolBookmarkIds.has(tool.id)}
-          />
+          <div key={tool.id} data-tool-call-id={tool.id}>
+            <ToolCallRow
+              tool={tool}
+              agent={agent}
+              variant="summary"
+              onOpenModal={onOpenModal}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isBookmarked={toolBookmarkIds.has(tool.id)}
+            />
+          </div>
         ))}
       </>
     );
@@ -64,15 +65,16 @@ export function ToolCallList({
   return (
     <div className="space-y-1">
       {toolCalls.map((tool) => (
-        <ToolCallRow
-          key={tool.id}
-          tool={tool}
-          agent={agent}
-          variant="detail"
-          onOpenModal={onOpenModal}
-          onBookmark={onBookmark}
-          isBookmarked={toolBookmarkIds.has(tool.id)}
-        />
+        <div key={tool.id} data-tool-call-id={tool.id}>
+          <ToolCallRow
+            tool={tool}
+            agent={agent}
+            variant="detail"
+            onOpenModal={onOpenModal}
+            onBookmark={onBookmark}
+            isBookmarked={toolBookmarkIds.has(tool.id)}
+          />
+        </div>
       ))}
     </div>
   );
