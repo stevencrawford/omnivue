@@ -3,6 +3,7 @@ import { ListTodo } from "lucide-react";
 import type { Plan, BookmarkKind } from "../hooks/types";
 import { fetchPlan } from "../hooks/apiClient";
 import { PLAN_BOOKMARK_INDEX } from "../hooks/useBookmarks";
+import { scrollElementToCenter } from "../hooks/useConversationScroll";
 import { MarkdownContent } from "./MarkdownContent";
 import { LoadingState } from "./LoadingState";
 import { EmptyPanel } from "./EmptyPanel";
@@ -15,6 +16,7 @@ interface PlanViewProps {
   onBookmark?: (
     sessionId: string,
     messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
     kind?: BookmarkKind,
@@ -39,7 +41,7 @@ export function PlanView({
   const isBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[planRefKey] : false;
   const handleBookmarkPlan = useCallback(() => {
     if (!onBookmark) return;
-    onBookmark(sessionId, PLAN_BOOKMARK_INDEX, undefined, "Plan", "plan");
+    onBookmark(sessionId, PLAN_BOOKMARK_INDEX, undefined, undefined, "Plan", "plan");
   }, [onBookmark, sessionId]);
 
   useEffect(() => {
@@ -80,11 +82,7 @@ export function PlanView({
       if ((node.textContent || "").toLowerCase().includes(q)) {
         const el = node.parentElement;
         if (el) {
-          try {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-          } catch {
-            /* noop */
-          }
+          scrollElementToCenter(container, el);
           el.classList.add("sess-message-highlight");
           const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
           highlightTimers.current.push(timer);

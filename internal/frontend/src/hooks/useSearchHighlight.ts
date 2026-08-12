@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { Message } from "../hooks/types";
 
 function highlightDomTextNodes(root: Element, q: string) {
@@ -47,149 +47,18 @@ function highlightDomTextNodes(root: Element, q: string) {
   }
 }
 
+// Only the <mark> search-query wrapping lives here now: message/step/tool
+// jumps moved to useConversationJumps. The first-match scroll uses
+// scrollToRendered and is skipped while a focus jump is pending so the two
+// never double-scroll.
 export function useSearchHighlight(
   scrollRef: React.RefObject<HTMLDivElement | null>,
   searchHighlightQuery: string | undefined,
-  focusStepIndex: number | undefined,
-  focusMessageIndex: number | undefined,
-  focusMessageKey: number | undefined,
-  focusMessageId: string | undefined,
-  focusToolCallId: string | undefined,
-  focusRenderedIndex: boolean | undefined,
-  messagesWithoutReminders: Message[],
-  onClearFocus?: () => void,
-  renderIndexResolver?: (
-    rawIndex: number | undefined,
-    messageId: string | undefined,
-  ) => number | undefined,
+  messages: Message[],
+  scrollToRendered: (target: number | string | HTMLElement, mode?: "center" | "top") => boolean,
+  hasFocusJump: boolean,
 ) {
   const searchHighlightKeyRef = useRef<string | undefined>(undefined);
-  // Tracks the last jump that has been scrolled to. A focus jump (notification
-  // click, session select, ...) should scroll the target into view exactly
-  // once: live message reloads and SSE-driven re-renders rebuild the resolver
-  // and message list, which re-runs the effect below, and re-applying the
-  // scroll on each run yanks the user back to the target while an active
-  // session streams — making it impossible to scroll to the bottom. Guarding
-  // on the full target (key + index + id + tool call) lets the same
-  // notification be clicked again after focus clears.
-  const appliedFocusRef = useRef<{
-    key: number | undefined;
-    index: number | undefined;
-    id: string | undefined;
-    toolCallId: string | undefined;
-    rendered: boolean | undefined;
-  } | null>(null);
-
-  const scrollToMessageEl = useCallback(
-    (el: Element) => {
-      const container = scrollRef.current;
-      if (!container) return;
-      try {
-        const rect = el.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        container.scrollTop +=
-          rect.top - containerRect.top - container.clientHeight / 2 + rect.height / 2;
-      } catch {
-        /* scrollTop assignment can throw in restricted contexts */
-      }
-    },
-    [scrollRef],
-  );
-
-  useEffect(() => {
-    if (focusStepIndex === undefined || !scrollRef.current) return;
-    const container = scrollRef.current;
-    const msgElements = container.querySelectorAll("[data-message-index]");
-    for (const el of msgElements) {
-      const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
-      if (idx === focusStepIndex) {
-        scrollToMessageEl(el);
-        el.classList.add("sess-message-highlight");
-        const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [focusStepIndex, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
-
-  useEffect(() => {
-    if (focusMessageIndex === undefined && focusMessageId === undefined) {
-      appliedFocusRef.current = null;
-      return;
-    }
-    if (!scrollRef.current || messagesWithoutReminders.length === 0) return;
-    const container = scrollRef.current;
-    let el: Element | null = null;
-    // A rendered-index target (bookmark) already points at the visible block;
-    // it must skip the raw->rendered resolver, whose offset is relative to the
-    // raw message list (with unmerged assistant tool-call messages).
-    if (focusRenderedIndex && focusMessageIndex !== undefined) {
-      el = container.querySelector(`[data-message-index="${focusMessageIndex}"]`);
-    } else {
-      const resolved = renderIndexResolver
-        ? renderIndexResolver(focusMessageIndex, focusMessageId)
-        : undefined;
-      if (resolved !== undefined) {
-        el = container.querySelector(`[data-message-index="${resolved}"]`);
-      } else if (focusMessageId) {
-        el = container.querySelector(`[data-message-id="${focusMessageId}"]`);
-      } else if (!renderIndexResolver && focusMessageIndex !== undefined) {
-        el = container.querySelector(`[data-message-index="${focusMessageIndex}"]`);
-      }
-    }
-    if (el) {
-      const applied = appliedFocusRef.current;
-      const sameJump =
-        applied !== null &&
-        applied.key === focusMessageKey &&
-        applied.index === focusMessageIndex &&
-        applied.id === focusMessageId &&
-        applied.toolCallId === focusToolCallId &&
-        applied.rendered === focusRenderedIndex;
-      if (!sameJump) {
-        scrollToMessageEl(el);
-        appliedFocusRef.current = {
-          key: focusMessageKey,
-          index: focusMessageIndex,
-          id: focusMessageId,
-          toolCallId: focusToolCallId,
-          rendered: focusRenderedIndex,
-        };
-      }
-      el.classList.add("sess-message-highlight");
-      const timer = setTimeout(() => {
-        el.classList.remove("sess-message-highlight");
-        onClearFocus?.();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-    appliedFocusRef.current = null;
-  }, [
-    focusMessageKey,
-    focusMessageIndex,
-    focusMessageId,
-    focusToolCallId,
-    focusRenderedIndex,
-    messagesWithoutReminders.length,
-    scrollToMessageEl,
-    scrollRef,
-    renderIndexResolver,
-  ]);
-
-  // A focus target may also name a specific tool call within the message
-  // (bookmark on a tool). Scroll the tool call into view and pulse it.
-  useEffect(() => {
-    if (!focusToolCallId) return;
-    const container = scrollRef.current;
-    if (!container) return;
-    const toolEl = container.querySelector(`[data-tool-call-id="${focusToolCallId}"]`);
-    if (!toolEl) return;
-    scrollToMessageEl(toolEl);
-    toolEl.classList.add("sess-message-highlight");
-    const timer = setTimeout(() => {
-      toolEl.classList.remove("sess-message-highlight");
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [focusToolCallId, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -205,7 +74,7 @@ export function useSearchHighlight(
       el.classList.remove("sess-message-highlight");
     });
 
-    if (!searchHighlightQuery || messagesWithoutReminders.length === 0) {
+    if (!searchHighlightQuery || messages.length === 0) {
       searchHighlightKeyRef.current = undefined;
       return;
     }
@@ -217,7 +86,7 @@ export function useSearchHighlight(
 
     for (const el of msgElements) {
       const idx = parseInt(el.getAttribute("data-message-index") || "", 10);
-      const msg = messagesWithoutReminders[idx];
+      const msg = messages[idx];
       if (!msg) continue;
 
       const contentToSearch = [
@@ -236,12 +105,16 @@ export function useSearchHighlight(
     }
 
     if (firstMatch && searchHighlightQuery !== searchHighlightKeyRef.current) {
-      scrollToMessageEl(firstMatch);
+      // A focus jump owns the scroll; let it land on the jump target instead.
+      if (!hasFocusJump) {
+        const firstIdx = parseInt(firstMatch.getAttribute("data-message-index") || "", 10);
+        if (!Number.isNaN(firstIdx)) scrollToRendered(firstIdx, "center");
+      }
       searchHighlightKeyRef.current = searchHighlightQuery;
     }
 
     return () => {
       for (const t of fadeTimers) clearTimeout(t);
     };
-  }, [searchHighlightQuery, messagesWithoutReminders.length, scrollToMessageEl, scrollRef]);
+  }, [searchHighlightQuery, messages, scrollToRendered, hasFocusJump]);
 }
