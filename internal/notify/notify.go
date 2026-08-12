@@ -179,7 +179,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 					candidates = append(candidates, Candidate{
 						Kind:     KindQuestion,
 						DedupKey: toolDedupKey(tc.ID, m.ID, name),
-						Title:    "Asked a question",
+						Title:    "Question Asked",
 						Preview:  previewForQuestion(m.Content, tc.Input),
 						Severity: SeverityAttention,
 						Payload: map[string]any{
