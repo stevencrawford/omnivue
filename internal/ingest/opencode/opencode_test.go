@@ -2,6 +2,7 @@ package opencode_test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -116,6 +117,108 @@ func TestAdapter_LastModified(t *testing.T) {
 		t.Error("expected non-zero last modified timestamp")
 	}
 	t.Logf("Last modified: %d", ts)
+}
+
+// TestAdapter_PartUpdateDrivesChangeDetection pins that an in-place write to a
+// part (e.g. reasoning streamed while the model is thinking) advances both
+// LastModified and the session's UpdatedAt even when the session and message
+// timestamps are frozen. Without this, the poller never sees the change, no
+// session-changed SSE fires, and an open transcript stays stale for the whole
+// thinking phase.
+func TestAdapter_PartUpdateDrivesChangeDetection(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "opencode.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	if _, err := db.Exec(`
+		CREATE TABLE session (
+			id text PRIMARY KEY,
+			project_id text NOT NULL,
+			parent_id text,
+			slug text NOT NULL,
+			directory text NOT NULL,
+			title text NOT NULL,
+			version text NOT NULL,
+			summary_additions integer,
+			summary_deletions integer,
+			summary_files integer,
+			time_created integer NOT NULL,
+			time_updated integer NOT NULL,
+			agent text,
+			model text,
+			cost real DEFAULT 0 NOT NULL,
+			tokens_input integer DEFAULT 0 NOT NULL,
+			tokens_output integer DEFAULT 0 NOT NULL,
+			tokens_reasoning integer DEFAULT 0 NOT NULL,
+			tokens_cache_read integer DEFAULT 0 NOT NULL,
+			tokens_cache_write integer DEFAULT 0 NOT NULL
+		);
+		CREATE TABLE project (id text PRIMARY KEY, name text);
+		CREATE TABLE message (
+			id text PRIMARY KEY,
+			session_id text NOT NULL,
+			time_created integer NOT NULL,
+			time_updated integer NOT NULL,
+			data text NOT NULL
+		);
+		CREATE TABLE part (
+			id text PRIMARY KEY,
+			message_id text NOT NULL,
+			session_id text NOT NULL,
+			time_created integer NOT NULL,
+			time_updated integer NOT NULL,
+			data text NOT NULL
+		);
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.Exec(`PRAGMA journal_mode = WAL`); err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		frozen = int64(1000000)
+		partTU = int64(2000000)
+	)
+	if _, err := db.Exec(`INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('ses_1', 'proj_1', 's', '/proj', 'title', 'v', ?, ?)`, frozen, frozen); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_1', 'ses_1', ?, ?, '{}')`, frozen, frozen); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES ('prt_1', 'msg_1', 'ses_1', ?, ?, '{"type":"reasoning","text":"thinking..."}')`, frozen, partTU); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter, err := opencode.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	ts, err := adapter.LastModified(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ts != partTU {
+		t.Errorf("LastModified() = %d, want %d (in-place part write must be detected)", ts, partTU)
+	}
+
+	sessions, err := adapter.ListSessions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("ListSessions() returned %d sessions, want 1", len(sessions))
+	}
+	if got := sessions[0].UpdatedAt.UnixMilli(); got != partTU {
+		t.Errorf("ListSessions() UpdatedAt = %d, want %d", got, partTU)
+	}
 }
 
 func TestAdapter_ResumeCommand(t *testing.T) {

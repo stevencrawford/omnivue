@@ -70,7 +70,9 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.tokens_cache_read, s.tokens_cache_write,
 			s.summary_files, s.summary_additions, s.summary_deletions,
 			s.time_created,
-			MAX(s.time_updated, COALESCE((SELECT MAX(time_created) FROM message WHERE session_id = s.id), 0)) AS time_updated,
+			MAX(s.time_updated,
+				COALESCE((SELECT MAX(time_created) FROM message WHERE session_id = s.id), 0),
+				COALESCE((SELECT MAX(time_updated) FROM part WHERE session_id = s.id), 0)) AS time_updated,
 			COALESCE(p.name, ''),
 			(SELECT COUNT(*) FROM message WHERE session_id = s.id)
 		FROM session s
@@ -193,7 +195,9 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 			s.tokens_cache_read, s.tokens_cache_write,
 			s.summary_files, s.summary_additions, s.summary_deletions,
 			s.time_created,
-			MAX(s.time_updated, COALESCE((SELECT MAX(time_created) FROM message WHERE session_id = s.id), 0)) AS time_updated,
+			MAX(s.time_updated,
+				COALESCE((SELECT MAX(time_created) FROM message WHERE session_id = s.id), 0),
+				COALESCE((SELECT MAX(time_updated) FROM part WHERE session_id = s.id), 0)) AS time_updated,
 			COALESCE(p.name, ''),
 			(SELECT COUNT(*) FROM message WHERE session_id = s.id)
 		FROM session s
