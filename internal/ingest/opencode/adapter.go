@@ -52,6 +52,8 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 			SELECT MAX(time_updated) AS m FROM session
 			UNION ALL
 			SELECT MAX(time_created) FROM message
+			UNION ALL
+			SELECT MAX(time_updated) FROM part
 		)
 	`).Scan(&maxTime)
 	return maxTime, err
