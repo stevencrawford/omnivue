@@ -577,23 +577,27 @@ export function useConversationScroll({
     const el = scrollRef.current;
     if (!el) return;
     markProgrammaticScroll();
-    try {
-      el.scrollTo({
-        top: registryRef.current?.scrollHeight ?? el.scrollHeight,
-        behavior: "smooth",
-      });
-    } catch {
-      /* restricted */
-    }
+    // Blocks use content-visibility:auto, so the resting scrollHeight is only an
+    // estimate until off-screen blocks are lifted. Lift it, read the true
+    // height, and jump there in one shot — otherwise each click only advances
+    // as far as the stale estimate and needs repeated presses to reach bottom.
+    el.classList.add(RESTORE_CLASS);
+    const target = el.scrollHeight;
+    el.scrollTop = target;
+    requestAnimationFrame(() => el.classList.remove(RESTORE_CLASS));
   };
 
   // Bound jump/marker click path: resolves against the latest registry.
   const scrollToRenderedJump = useCallback(
-    (target: number | string | HTMLElement, mode: "center" | "top" = "center"): boolean => {
+    (
+      target: number | string | HTMLElement,
+      mode: "center" | "top" = "center",
+      smooth = false,
+    ): boolean => {
       const el = scrollRef.current;
       if (!el) return false;
       markProgrammaticScroll();
-      return scrollToRendered(el, registryRef.current, target, mode);
+      return scrollToRendered(el, registryRef.current, target, mode, smooth);
     },
     [markProgrammaticScroll],
   );
