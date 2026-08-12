@@ -59,15 +59,30 @@ export function useScratchFiles(
     loadScratchFiles();
   }, [loadScratchFiles]);
 
-  // Auto-open scratch tabs when switching to a session
-  const prevSessionIdRef = useRef<string | null>(null);
+  // Auto-open scratch tabs when switching to a session. A deep link (e.g. from
+  // the companion mac app) hydrates the active session id before the scratch
+  // fetch resolves, so on top of the session-change trigger we also re-apply
+  // when the active session's file list grows after the fact. Tracking the
+  // already-applied file ids keeps a user-closed tab closed on unrelated file
+  // changes while still opening files that arrive late.
+  const appliedRef = useRef<{ sessionId: string | null; fileIds: string[] }>({
+    sessionId: null,
+    fileIds: [],
+  });
   useEffect(() => {
     if (!activeSessionId) return;
-    if (prevSessionIdRef.current === activeSessionId) return;
-    prevSessionIdRef.current = activeSessionId;
     const sessionFileIds = validScratchFiles
       .filter((f) => f.sessionId === activeSessionId)
       .map((f) => f.id);
+    const applied = appliedRef.current;
+    if (applied.sessionId === activeSessionId) {
+      const missing = sessionFileIds.filter((id) => !applied.fileIds.includes(id));
+      if (missing.length === 0) return;
+      appliedRef.current = { sessionId: activeSessionId, fileIds: sessionFileIds };
+      setOpenScratchTabs((prev) => [...new Set([...prev, ...missing])]);
+      return;
+    }
+    appliedRef.current = { sessionId: activeSessionId, fileIds: sessionFileIds };
     setOpenScratchTabs(sessionFileIds);
   }, [activeSessionId, validScratchFiles]);
 
