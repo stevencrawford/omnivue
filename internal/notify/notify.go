@@ -54,10 +54,6 @@ type Settings struct {
 	InAppToast        bool   `json:"inAppToast"`
 	SidebarBadge      bool   `json:"sidebarBadge"`
 	BrowserNotify     bool   `json:"browserNotify"`
-	QuietHoursEnabled bool   `json:"quietHoursEnabled"`
-	QuietHoursStart   string `json:"quietHoursStart"` // "22:00"
-	QuietHoursEnd     string `json:"quietHoursEnd"`   // "08:00"
-	AutoDismissSec    int    `json:"autoDismissSec"`
 	ExcludeActiveView bool   `json:"excludeActiveView"`
 	EnabledAt         int64  `json:"enabledAt"` // unix ms when notifications were enabled
 }
@@ -73,10 +69,6 @@ func DefaultSettings() Settings {
 		InAppToast:        true,
 		SidebarBadge:      true,
 		BrowserNotify:     false,
-		QuietHoursEnabled: false,
-		QuietHoursStart:   "22:00",
-		QuietHoursEnd:     "08:00",
-		AutoDismissSec:    8,
 		ExcludeActiveView: true,
 	}
 }
@@ -469,59 +461,4 @@ func previewForExitPlanMode(input, output string) string {
 		}
 	}
 	return "Plan mode exited"
-}
-
-// InQuietHours reports whether the given time falls within the configured quiet
-// hours window. Quiet hours may cross midnight (e.g. 22:00→08:00). Times are
-// interpreted in the server's local timezone, matching how the user specifies
-// them in the settings UI.
-func InQuietHours(now time.Time, settings Settings) bool {
-	if !settings.QuietHoursEnabled {
-		return false
-	}
-	start, ok1 := parseHHMM(settings.QuietHoursStart)
-	end, ok2 := parseHHMM(settings.QuietHoursEnd)
-	if !ok1 || !ok2 {
-		return false
-	}
-	cur := now.Hour()*60 + now.Minute()
-	if start == end {
-		return false
-	}
-	if start < end {
-		return cur >= start && cur < end
-	}
-	// Overnight window (crosses midnight).
-	return cur >= start || cur < end
-}
-
-func parseHHMM(s string) (minutes int, ok bool) {
-	parts := strings.Split(s, ":")
-	if len(parts) != 2 {
-		return 0, false
-	}
-	h, err1 := atoi(parts[0])
-	m, err2 := atoi(parts[1])
-	if err1 != nil || err2 != nil {
-		return 0, false
-	}
-	if h < 0 || h > 23 || m < 0 || m > 59 {
-		return 0, false
-	}
-	return h*60 + m, true
-}
-
-func atoi(s string) (int, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, fmt.Errorf("empty")
-	}
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, fmt.Errorf("non-digit")
-		}
-		n = n*10 + int(r-'0')
-	}
-	return n, nil
 }

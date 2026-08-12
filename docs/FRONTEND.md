@@ -167,7 +167,7 @@ interface FileEdit { filePath, toolName, oldStr?, newStr?, content?, viewRange?,
 interface Source { id, path, agentType, label, enabled, createdAt }
 interface Bookmark { id, sessionId, messageIndex, toolCallId?, label, createdAt }
 interface AppNotification { id, sessionId, sourceId, kind, title, preview, severity, payload?, createdAt, readAt? }
-interface NotificationSettings { enabled, kinds, scope, inAppToast, sidebarBadge, browserNotify, quietHoursEnabled, quietHoursStart, quietHoursEnd, autoDismissSec, excludeActiveView }
+interface NotificationSettings { enabled, kinds, scope, inAppToast, sidebarBadge, browserNotify, excludeActiveView }
 interface Tag { id, name, color?, createdAt, updatedAt }
 interface ScratchFile { id, sessionId, title, content, mode, createdAt, updatedAt }
 interface SearchResult { sessionId, sessionName?, sourceId, chunkType, repository, snippet, updatedAt?, fileTitle?, fileId?, messageIndex? }
@@ -283,9 +283,7 @@ The notification system (`lib/browserNotify.ts`) provides:
 
 - `canBrowserNotify(settings)` — Checks if OS notifications are permitted
 - `fireBrowserNotification(n)` — Fires a native `Notification` with the session title, click focuses window
-- `inQuietHours(settings)` — Checks if current time falls within configured quiet hours (overnight ranges supported)
-- `parseHHMM(s)` — Parses "HH:MM" to minutes since midnight
-- `resolveChannels(n, settings)` — Central decision function returning `{ toast, browser }` based on all settings, kind severity, and quiet hours
+- `resolveChannels(settings)` — Central decision function returning `{ toast, browser }` based on which channels are enabled
 
 ## Build & test
 

@@ -315,10 +315,6 @@ export const NotificationSettingsSchema = z.object({
   inAppToast: z.boolean(),
   sidebarBadge: z.boolean(),
   browserNotify: z.boolean(),
-  quietHoursEnabled: z.boolean(),
-  quietHoursStart: z.string(),
-  quietHoursEnd: z.string(),
-  autoDismissSec: coerceNumber,
   excludeActiveView: z.boolean(),
   enabledAt: coerceNumber.optional(),
 });

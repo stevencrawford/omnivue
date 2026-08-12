@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
 import type { NotificationKind, NotificationSettings } from "../hooks/types";
 import { useNotificationPermission } from "../hooks/useNotificationPermission";
 import { Toggle } from "./Toggle";
@@ -169,68 +168,7 @@ export function NotificationsSettingsTab({ settings, onSave }: NotificationsSett
             </label>
           </div>
         </div>
-
-        {/* Quiet hours */}
-        <div>
-          <p className="text-[11px] font-medium text-ov-text-secondary mb-1.5">Quiet hours</p>
-          <label className="flex items-center gap-2 cursor-pointer mb-1.5">
-            <input
-              type="checkbox"
-              checked={local.quietHoursEnabled}
-              onChange={(e) => update({ quietHoursEnabled: e.target.checked })}
-              className="accent-accent"
-            />
-            <span className="text-xs text-ov-text">
-              Suppress non-urgent alerts during quiet hours
-            </span>
-          </label>
-          <div
-            className={`flex items-center gap-2 ml-6 ${local.quietHoursEnabled ? "" : "opacity-50 pointer-events-none"}`}
-          >
-            <input
-              type="time"
-              value={local.quietHoursStart}
-              onChange={(e) => update({ quietHoursStart: e.target.value })}
-              className="text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1 text-ov-text outline-none focus:border-accent"
-            />
-            <span className="text-xs text-ov-text-secondary">→</span>
-            <input
-              type="time"
-              value={local.quietHoursEnd}
-              onChange={(e) => update({ quietHoursEnd: e.target.value })}
-              className="text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1 text-ov-text outline-none focus:border-accent"
-            />
-            <span className="text-[10px] text-ov-text-secondary">
-              Agent questions still surface
-            </span>
-          </div>
-        </div>
-
-        {/* Auto-dismiss */}
-        <div>
-          <p className="text-[11px] font-medium text-ov-text-secondary mb-1.5">
-            Auto-dismiss toast
-          </p>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="number"
-              min={0}
-              max={120}
-              value={local.autoDismissSec}
-              onChange={(e) => update({ autoDismissSec: Number(e.target.value) })}
-              className="w-16 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1 text-ov-text outline-none focus:border-accent"
-            />
-            <span className="text-xs text-ov-text-secondary">seconds (0 = sticky)</span>
-          </label>
-        </div>
       </div>
-
-      {local.enabled && (
-        <p className="text-[11px] text-ov-text-secondary mt-3 flex items-center gap-1">
-          <Bell className="size-3" />
-          Notifications are active. Changes save automatically.
-        </p>
-      )}
     </div>
   );
 }
