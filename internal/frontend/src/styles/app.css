@@ -706,6 +706,15 @@ body {
   contain-intrinsic-size: auto 200px;
 }
 
+/* During a scroll restore the container temporarily lifts content-visibility
+   so every block lays out at its true size; anchor offsets and scrollHeight
+   computed from estimated sizes would otherwise land the restore on the wrong
+   message. The class is removed on the next frame once the pixel is set. */
+.scroll-restoring .sess-agent-stream,
+.scroll-restoring .sess-user-turn {
+  content-visibility: visible;
+}
+
 .sess-system-notice {
   width: 100%;
   margin: 0.75rem 0;
