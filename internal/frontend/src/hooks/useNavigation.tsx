@@ -196,7 +196,11 @@ export function useNavigationState({
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
       dispatch({ type: "SESSION_SELECT", id: sessionId });
-      navigateTo(sessionRoute(sessionId));
+      // Carry the active icon-channel section on the session route so a session
+      // opened from a sidebar panel (e.g. a tag) keeps the user in that panel.
+      // sessionRouteWithSection returns the plain route for the sessions
+      // section, so the main session list and overview are unaffected.
+      navigateTo(sessionRouteWithSection(sessionId, state.activeSection));
       // Mark all unread notifications for this session as read and jump to the
       // first notification's message if one exists. If the user has already
       // scrolled past that message (saved scroll), skip the jump and let normal
@@ -213,7 +217,7 @@ export function useNavigationState({
         }
       }
     },
-    [notifications, markNotificationRead, navigateTo],
+    [notifications, markNotificationRead, navigateTo, state.activeSection],
   );
 
   const handlePromptClick = useCallback(
@@ -227,7 +231,9 @@ export function useNavigationState({
   const handleBookmarkSelect = useCallback(
     (bookmark: Bookmark) => {
       dispatch({ type: "BOOKMARK_SELECT", bookmark });
-      navigateTo(sessionRoute(bookmark.sessionId));
+      // Bookmarks are opened from the bookmarks panel, so keep that icon-channel
+      // section active instead of dropping back to the sessions section.
+      navigateTo(sessionRouteWithSection(bookmark.sessionId, "bookmarks"));
     },
     [navigateTo],
   );
