@@ -60,6 +60,9 @@ export interface ScrollPosition {
   topId: string | undefined;
   offset: number;
   ts: number;
+  // True when the saved spot was the live tail. Restored by jumping to the
+  // real bottom rather than a fixed anchor, so growth never strands the user.
+  bottom: boolean | undefined;
 }
 
 export const SCROLL_POSITION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -77,6 +80,7 @@ export interface NavigationValue extends NavigationState {
     topIndex: number | undefined,
     topId: string | undefined,
     offset: number,
+    bottom: boolean | undefined,
   ) => void;
   getScrollPosition: (id: string) => ScrollPosition | undefined;
   navigateToSession: (id: string) => void;
@@ -157,13 +161,14 @@ export function useNavigationState({
       topIndex: number | undefined,
       topId: string | undefined,
       offset: number,
+      bottom: boolean | undefined,
     ) => {
       const map = scrollPositions.current;
       if (map.size >= SCROLL_POSITION_CAP && !map.has(id)) {
         const firstKey = map.keys().next().value;
         if (firstKey !== undefined) map.delete(firstKey);
       }
-      map.set(id, { pos, topIndex, topId, offset, ts: Date.now() });
+      map.set(id, { pos, topIndex, topId, offset, bottom, ts: Date.now() });
     },
     [],
   );

@@ -6,6 +6,7 @@ import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
 import { useHideCosts } from "../hooks/useHideCosts";
 import { useResizable } from "../hooks/useResizable";
+import { scrollElementToCenter } from "../hooks/useConversationScroll";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
 export function PinnedPromptBar({
@@ -77,8 +78,8 @@ export function PinnedPromptBar({
     if (highlightPromptId && prompts.some((p) => p.id === highlightPromptId)) {
       const container = document.querySelector(".sess-pinned-bar");
       const el = container?.querySelector(`[data-queued-prompt-id="${highlightPromptId}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el && container) {
+        scrollElementToCenter(container as HTMLElement, el as HTMLElement);
         highlightDoneRef.current = false;
         const onEnd = () => {
           if (highlightDoneRef.current) return;

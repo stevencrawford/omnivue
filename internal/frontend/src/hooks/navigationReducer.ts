@@ -218,6 +218,7 @@ export function navigationReducer(
         ...state,
         ...jumpFields(state, {
           messageIndex: action.bookmark.messageIndex,
+          messageId: action.bookmark.messageId,
           toolCallId: action.bookmark.toolCallId,
           renderedIndex: true,
         }),

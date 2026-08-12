@@ -111,12 +111,12 @@ function allMarkerLegendTypes() {
 
 export function ScrollMarkers({
   messages,
-  scrollRef,
   markerPositions,
+  onMarkerClick,
 }: {
   messages: Message[];
-  scrollRef: React.RefObject<HTMLDivElement | null>;
   markerPositions: Record<string, number>;
+  onMarkerClick: (markerId: string) => void;
 }) {
   const [markerFilterOpen, setMarkerFilterOpen] = useState(false);
   const [hiddenMarkerTypes, setHiddenMarkerTypes] = useState<Set<string>>(new Set());
@@ -214,15 +214,7 @@ export function ScrollMarkers({
                     top: `${Math.max(0, Math.min(100, pos))}%`,
                     backgroundColor: m.color,
                   }}
-                  onClick={() => {
-                    const el = scrollRef.current?.querySelector(`[data-marker-id="${m.id}"]`);
-                    if (el)
-                      try {
-                        el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      } catch {
-                        /* noop */
-                      }
-                  }}
+                  onClick={() => onMarkerClick(m.id)}
                 >
                   <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden bg-ov-bg-secondary border border-ov-border rounded-md px-2 py-1 text-xs whitespace-nowrap z-30 shadow-lg pointer-events-none">
                     <div className="font-medium text-[10px] uppercase tracking-wider opacity-60">

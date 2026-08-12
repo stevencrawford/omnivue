@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { CirclePlus, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import type { Session, Message } from "../hooks/types";
 
@@ -8,6 +8,7 @@ import { PinnedPromptBar } from "./PinnedPromptBar";
 import { MessageBlock } from "./MessageBlock";
 
 import { useConversationScroll } from "../hooks/useConversationScroll";
+import { useConversationJumps } from "../hooks/useConversationJumps";
 import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useNavigation } from "../hooks/useNavigation";
 
@@ -88,6 +89,7 @@ export function ConversationView({
   onBookmark?: (
     sessionId: string,
     messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
   ) => void;
@@ -106,19 +108,9 @@ export function ConversationView({
     focusRenderedIndex,
     clearFocus,
   } = useNavigation();
-  const { scrollRef, showScrollTop, showScrollBottom, scrollToTop, scrollToBottom } =
-    useConversationScroll({
-      sessionId: session.id,
-      messageCount: messages.length,
-      focusMessageIndex,
-      searchHighlightQuery,
-    });
-
-  const [markerPositions, setMarkerPositions] = useState<Record<string, number>>({});
-
   const firstMessage = messages[0];
   const tail = messages.slice(1);
-  const { grouped, ownerByRawIndex } = useMemo(() => groupMessages(tail), [tail]);
+  const { grouped, ownerByRawIndex } = useMemo(() => groupMessages(messages.slice(1)), [messages]);
 
   const systemReminders = useMemo(
     () => messages.filter((m) => m.role === "system" && m.metadata?.type === "system_reminder"),
@@ -168,33 +160,66 @@ export function ConversationView({
     [renderedIndexByRaw],
   );
 
+  const {
+    scrollRef,
+    registry,
+    registryVersion,
+    markerPositions,
+    suppressUserScrollRef,
+    showScrollTop,
+    showScrollBottom,
+    scrollToTop,
+    scrollToBottom,
+    scrollToRendered,
+  } = useConversationScroll({
+    sessionId: session.id,
+    messageCount: messages.length,
+    messages: messagesWithoutReminders,
+    focusMessageIndex,
+    focusMessageId,
+    focusToolCallId,
+    focusStepIndex,
+    searchHighlightQuery,
+  });
+
+  useConversationJumps({
+    scrollRef,
+    registry,
+    registryVersion,
+    messageCount: messagesWithoutReminders.length,
+    focusMessageKey,
+    focusMessageIndex,
+    focusMessageId,
+    focusToolCallId,
+    focusStepIndex,
+    focusRenderedIndex,
+    renderIndexResolver: resolveRenderIndex,
+    onClearFocus: clearFocus,
+    suppressUserScrollRef,
+    scrollToRendered,
+  });
+
+  const hasFocusJump =
+    focusMessageIndex !== undefined ||
+    focusMessageId !== undefined ||
+    focusToolCallId !== undefined ||
+    focusStepIndex !== undefined;
+
   useSearchHighlight(
     scrollRef,
     searchHighlightQuery,
-    focusStepIndex,
-    focusMessageIndex,
-    focusMessageKey,
-    focusMessageId,
-    focusToolCallId,
-    focusRenderedIndex,
     messagesWithoutReminders,
-    clearFocus,
-    resolveRenderIndex,
+    scrollToRendered,
+    hasFocusJump,
   );
 
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const positions: Record<string, number> = {};
-    const total = container.scrollHeight || 1;
-    const els = container.querySelectorAll("[data-marker-id]");
-    els.forEach((el) => {
-      const id = el.getAttribute("data-marker-id");
-      if (!id) return;
-      positions[id] = ((el as HTMLElement).offsetTop / total) * 100;
-    });
-    setMarkerPositions(positions);
-  }, [messagesWithoutReminders.length, scrollRef]);
+  const handleMarkerClick = useCallback(
+    (markerId: string) => {
+      const match = /^msg-(\d+)$/.exec(markerId);
+      if (match) scrollToRendered(parseInt(match[1], 10), "center");
+    },
+    [scrollToRendered],
+  );
 
   const showLoadingOverlay = loading && messages.length === 0;
 
@@ -304,8 +329,8 @@ export function ConversationView({
 
         <ScrollMarkers
           messages={messagesWithoutReminders}
-          scrollRef={scrollRef}
           markerPositions={markerPositions}
+          onMarkerClick={handleMarkerClick}
         />
       </div>
 

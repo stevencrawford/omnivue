@@ -134,6 +134,7 @@ export function UserTurnView({
   toolCalls,
   sessionId,
   messageIndex,
+  messageId,
   onOpenModal,
   onPin,
   onBookmark,
@@ -144,11 +145,13 @@ export function UserTurnView({
   toolCalls?: ToolCall[];
   sessionId?: string;
   messageIndex?: number;
+  messageId?: string;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
     messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
   ) => void;
@@ -172,18 +175,18 @@ export function UserTurnView({
   const msgOnBookmark = useMemo(
     () =>
       onBookmark && sessionId && messageIndex !== undefined
-        ? () => onBookmark(sessionId, messageIndex, undefined, content.slice(0, 80))
+        ? () => onBookmark(sessionId, messageIndex, messageId, undefined, content.slice(0, 80))
         : undefined,
-    [onBookmark, sessionId, messageIndex, content],
+    [onBookmark, sessionId, messageIndex, messageId, content],
   );
 
   const toolOnBookmark = useMemo(
     () =>
       onBookmark && sessionId && messageIndex !== undefined
         ? (toolCallId: string, label: string) =>
-            onBookmark(sessionId, messageIndex, toolCallId, label)
+            onBookmark(sessionId, messageIndex, messageId, toolCallId, label)
         : undefined,
-    [onBookmark, sessionId, messageIndex],
+    [onBookmark, sessionId, messageIndex, messageId],
   );
 
   function renderReadTools() {

@@ -150,6 +150,24 @@ describe("navigationReducer", () => {
       expect(next.focusToolCallId).toBeUndefined();
       expect(next.focusRenderedIndex).toBe(true);
     });
+
+    it("prefers messageId identity over messageIndex when present", () => {
+      const next = navigationReducer(
+        base({ focusMessageIndex: 4, focusMessageId: "old", focusMessageKey: 2 }),
+        {
+          type: "BOOKMARK_SELECT",
+          bookmark: bookmark({
+            kind: "message",
+            sessionId: "s9",
+            messageIndex: 4,
+            messageId: "msg-xyz",
+          }),
+        },
+      );
+      expect(next.focusMessageId).toBe("msg-xyz");
+      expect(next.focusMessageIndex).toBeUndefined();
+      expect(next.focusRenderedIndex).toBe(true);
+    });
   });
 
   describe("NOTIFICATION_SELECT", () => {
