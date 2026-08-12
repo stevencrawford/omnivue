@@ -317,6 +317,36 @@ export function restoreTo(
   }
 }
 
+// Smoothly eases the container to its real bottom. Message blocks use
+// content-visibility:auto, so the resting scrollHeight is only an estimate; the
+// lift class is held for the whole glide so every block reports its true size
+// and the motion lands on the real bottom in one pass, then drops the class.
+export function animateScrollToBottom(el: HTMLDivElement, onDone?: () => void): void {
+  el.classList.add(RESTORE_CLASS);
+  const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+  const start = el.scrollTop;
+  const distance = maxScroll - start;
+  if (Math.abs(distance) < 1) {
+    el.classList.remove(RESTORE_CLASS);
+    onDone?.();
+    return;
+  }
+  const duration = Math.min(600, Math.max(200, Math.abs(distance) * 0.4));
+  const t0 = performance.now();
+  const ease = (t: number): number => 1 - Math.pow(1 - t, 3);
+  const step = (now: number) => {
+    const t = Math.min(1, (now - t0) / duration);
+    el.scrollTop = start + distance * ease(t);
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      el.classList.remove(RESTORE_CLASS);
+      onDone?.();
+    }
+  };
+  requestAnimationFrame(step);
+}
+
 // Instant center-scroll of a single element within its own scroll container
 // (no geometry registry involved). Used by the plan and pinned-prompt panes,
 // whose content never uses content-visibility estimates.
@@ -357,6 +387,13 @@ export function useConversationScroll({
   // one-time user-scroll listener does not mistake the restore/follow for the
   // user walking away. The listener consumes the flag on its first event.
   const suppressUserScrollRef = useRef(true);
+  // True while the user is "following" the bottom of a live session. Streaming
+  // auto-follow only scrolls them down when this holds, so navigating to a
+  // bookmark or scrolling up leaves them exactly where they are.
+  const followingBottomRef = useRef(false);
+  // True for the duration of a programmatic scroll, so the scroll listener does
+  // not mistake it for a user navigation when updating followingBottomRef.
+  const programmaticScrollingRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const { getScrollPosition, saveScrollPosition } = useNavigation();
 
@@ -375,6 +412,10 @@ export function useConversationScroll({
 
   const markProgrammaticScroll = useCallback(() => {
     suppressUserScrollRef.current = true;
+    programmaticScrollingRef.current = true;
+    requestAnimationFrame(() => {
+      programmaticScrollingRef.current = false;
+    });
   }, []);
 
   const applyRegistry = useCallback((reg: BlockRegistry) => {
@@ -432,6 +473,8 @@ export function useConversationScroll({
           } else if (saved === undefined && !restoredRef.current) {
             if (restoreTo(el, EMPTY_SCROLL, true, reg)) restoredRef.current = true;
           }
+          followingBottomRef.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         } catch {
           /* scrollTop assignment can throw in restricted contexts */
         }
@@ -442,8 +485,9 @@ export function useConversationScroll({
       settle();
       const reg = measureTail(el, prevLengthRef.current, registryRef.current);
       applyRegistry(reg);
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-      if (!focusPending && nearBottom) followToBottom(reg);
+      // Only auto-follow the bottom while the user is actually pinned there.
+      // Once they scroll up or jump to a bookmark, streaming never moves them.
+      if (followingBottomRef.current) followToBottom(reg);
     } else {
       // Same block count but the render changed (SSE in-place updates re-group
       // middle blocks): let the idle settle re-measure them at true sizes.
@@ -495,6 +539,8 @@ export function useConversationScroll({
         ok = true;
       }
       if (ok) restoredRef.current = true;
+      followingBottomRef.current =
+        current.scrollHeight - current.scrollTop - current.clientHeight < 80;
     };
     const observer = new ResizeObserver(tryRestore);
     observer.observe(el);
@@ -523,6 +569,10 @@ export function useConversationScroll({
       const btn = updateButtons(el);
       setShowScrollTop(btn.showScrollTop);
       setShowScrollBottom(btn.showScrollBottom);
+      if (!programmaticScrollingRef.current) {
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        followingBottomRef.current = atBottom;
+      }
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => doSaveScroll(), 300);
     };
@@ -567,6 +617,7 @@ export function useConversationScroll({
     const el = scrollRef.current;
     if (!el) return;
     markProgrammaticScroll();
+    followingBottomRef.current = false;
     try {
       el.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
@@ -576,15 +627,11 @@ export function useConversationScroll({
   const scrollToBottom = () => {
     const el = scrollRef.current;
     if (!el) return;
-    markProgrammaticScroll();
-    // Blocks use content-visibility:auto, so the resting scrollHeight is only an
-    // estimate until off-screen blocks are lifted. Lift it, read the true
-    // height, and jump there in one shot — otherwise each click only advances
-    // as far as the stale estimate and needs repeated presses to reach bottom.
-    el.classList.add(RESTORE_CLASS);
-    const target = el.scrollHeight;
-    el.scrollTop = target;
-    requestAnimationFrame(() => el.classList.remove(RESTORE_CLASS));
+    followingBottomRef.current = true;
+    programmaticScrollingRef.current = true;
+    animateScrollToBottom(el, () => {
+      programmaticScrollingRef.current = false;
+    });
   };
 
   // Bound jump/marker click path: resolves against the latest registry.

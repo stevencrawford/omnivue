@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   isScrollPositionFresh,
   SCROLL_POSITION_TTL_MS,
   type ScrollPosition,
 } from "../useNavigation";
 import {
+  animateScrollToBottom,
   captureAnchor,
   hasPendingFocus,
   measureRegistry,
@@ -341,5 +342,41 @@ describe("scrollToRendered", () => {
     const reg = makeRegistry([{ index: 0, top: 0, id: "m0" }]);
     expect(scrollToRendered(el, reg, 9, "center")).toBe(false);
     expect(el.scrollTop).toBe(0);
+  });
+
+  it("eases to the true bottom and drops the lift class when done", () => {
+    const el = makeContainer([{ index: 0, top: 0, id: "m0" }]);
+    setScrollProps(el as HTMLDivElement, 0, 5000, 600);
+
+    // Drive rAF + performance.now on a deterministic clock so the easing runs.
+    let now = 0;
+    let rafQueue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    const perfSpy = vi.spyOn(performance, "now").mockImplementation(() => now);
+
+    let done = false;
+    animateScrollToBottom(el as HTMLDivElement, () => {
+      done = true;
+    });
+    // Lifted immediately so off-screen blocks report their real size.
+    expect(el.classList.contains(RESTORE_CLASS)).toBe(true);
+
+    // Tick frames until the animation completes or we give up.
+    for (let i = 0; i < 40 && !done; i++) {
+      now += 50;
+      const cbs = rafQueue;
+      rafQueue = [];
+      for (const cb of cbs) cb(now);
+    }
+
+    expect(done).toBe(true);
+    expect(el.classList.contains(RESTORE_CLASS)).toBe(false);
+    expect(el.scrollTop).toBe(4400); // 5000 - 600
+
+    perfSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
