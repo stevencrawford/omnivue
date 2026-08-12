@@ -211,7 +211,6 @@ export function navigationReducer(
           showOverview: false,
           activeSessionId: action.bookmark.sessionId,
           activeTab: "plan",
-          activeSection: "sessions",
           searchHighlightQuery: null,
         };
       }
@@ -225,7 +224,6 @@ export function navigationReducer(
         showOverview: false,
         activeSessionId: action.bookmark.sessionId,
         activeTab: "session",
-        activeSection: "sessions",
         searchHighlightQuery: null,
       };
     }

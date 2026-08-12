@@ -103,24 +103,26 @@ describe("navigationReducer", () => {
   });
 
   describe("BOOKMARK_SELECT", () => {
-    it("routes a plan bookmark to the plan tab", () => {
-      const next = navigationReducer(base(), {
+    it("routes a plan bookmark to the plan tab and keeps the section", () => {
+      const next = navigationReducer(base({ activeSection: "bookmarks" }), {
         type: "BOOKMARK_SELECT",
         bookmark: bookmark({ kind: "plan", sessionId: "s9" }),
       });
       expect(next.activeTab).toBe("plan");
       expect(next.activeSessionId).toBe("s9");
       expect(next.showOverview).toBe(false);
+      expect(next.activeSection).toBe("bookmarks");
     });
 
-    it("routes a message bookmark to the session tab and focuses it", () => {
-      const next = navigationReducer(base({ focusMessageKey: 2 }), {
+    it("routes a message bookmark to the session tab, focuses it, and keeps the section", () => {
+      const next = navigationReducer(base({ activeSection: "bookmarks", focusMessageKey: 2 }), {
         type: "BOOKMARK_SELECT",
         bookmark: bookmark({ kind: "message", sessionId: "s9", messageIndex: 4 }),
       });
       expect(next.activeTab).toBe("session");
       expect(next.focusMessageIndex).toBe(4);
       expect(next.focusMessageKey).toBe(3);
+      expect(next.activeSection).toBe("bookmarks");
     });
 
     it("carries the rendered index and tool call id for message bookmarks", () => {
