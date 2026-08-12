@@ -61,14 +61,17 @@ export function captureAnchor(el: HTMLDivElement): {
 }
 
 // Resolves a saved position against the current DOM: exact block offset when the
-// anchor still exists, absolute pixel otherwise. Returns undefined when nothing
-// usable can be applied (e.g. the container is not laid out yet).
+// anchor still exists, absolute pixel otherwise. Returns false when nothing
+// usable can be applied (the container is not laid out yet, or no message blocks
+// are rendered). An empty-but-sized container must also bail: burning the caller's
+// restored-guard on the mount pass (before messages arrive) would skip the real
+// anchor restore once the block offsets exist.
 export function restoreTo(
   el: HTMLDivElement,
   sp: ScrollPosition,
   requestScrollToBottom: boolean,
 ): boolean {
-  if (el.scrollHeight === 0) return false;
+  if (el.scrollHeight === 0 || el.querySelector("[data-message-index]") === null) return false;
   el.classList.add(RESTORE_CLASS);
   try {
     if (!requestScrollToBottom && (sp.topIndex !== undefined || sp.topId !== undefined)) {
@@ -191,10 +194,17 @@ export function useConversationScroll({
     return () => {
       el.removeEventListener("scroll", onScroll);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      // Flush any in-flight position so an unmount does not lose the last spot.
-      doSaveScroll();
     };
   }, [messageCount, doSaveScroll]);
+
+  // Flush any in-flight position while the element is still attached. A passive
+  // cleanup would run after React detached the ref (scrollRef.current === null),
+  // making the obsessive flush a no-op and losing the last spot on fast session
+  // switches; a layout cleanup still sees the ref and its real layout, so the
+  // anchor capture is accurate.
+  useLayoutEffect(() => {
+    return () => doSaveScroll();
+  }, [sessionId, doSaveScroll]);
 
   useEffect(() => {
     const el = scrollRef.current;

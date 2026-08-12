@@ -100,7 +100,7 @@ export interface NavigationValue extends NavigationState {
   navigateSession: (delta: 1 | -1, sessions: Session[]) => void;
 }
 
-const defaultNavigationValue: NavigationValue = {
+export const defaultNavigationValue: NavigationValue = {
   ...initialNavigationState,
   activeSession: null,
   scrollPositions: new Map(),
