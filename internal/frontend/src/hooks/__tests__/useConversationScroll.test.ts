@@ -17,8 +17,23 @@ import {
 } from "../useConversationScroll";
 
 // jsdom gives every element offsetTop = 0 / scrollHeight = 0; define them so the
-// anchor geometry math is exercised with real numbers.
+// anchor geometry math is exercised with real numbers. scrollToRendered measures
+// nested targets via getBoundingClientRect (viewport-relative), so provide both.
 type BlockSpec = { top: number; height?: number; index?: number; id?: string };
+
+function rect(top: number, height: number): DOMRect {
+  return {
+    top,
+    left: 0,
+    right: 0,
+    bottom: top + height,
+    x: 0,
+    y: top,
+    width: 0,
+    height,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
 
 function makeContainer(blocks: BlockSpec[]) {
   const container = document.createElement("div");
@@ -31,6 +46,7 @@ function makeContainer(blocks: BlockSpec[]) {
       value: b.height ?? 200,
       configurable: true,
     });
+    el.getBoundingClientRect = () => rect(b.top, b.height ?? 200);
     container.appendChild(el);
   }
   return container;
@@ -45,6 +61,7 @@ function setScrollProps(
   Object.defineProperty(el, "scrollTop", { value: scrollTop, writable: true, configurable: true });
   Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
   Object.defineProperty(el, "clientHeight", { value: clientHeight, configurable: true });
+  el.getBoundingClientRect = () => rect(0, clientHeight);
 }
 
 function makeRegistry(blocks: BlockSpec[], scrollHeight = 5000): BlockRegistry {
@@ -296,6 +313,26 @@ describe("scrollToRendered", () => {
     const child = el.querySelector('[data-message-index="1"]') as HTMLElement;
     expect(scrollToRendered(el, null, child, "center")).toBe(true);
     expect(el.scrollTop).toBe(200); // 400 - (600-200)/2 = 200 for height 200
+  });
+
+  it("measures a nested target by viewport rect, not offsetParent", () => {
+    // A tool call buried inside a message block reports a small offsetTop
+    // relative to its positioned wrapper, but its true on-screen position is
+    // deep in the content. The old offsetTop reading scrolled to the wrong
+    // place; getBoundingClientRect must anchor it correctly.
+    const el = document.createElement("div");
+    const wrapper = document.createElement("div");
+    const nested = document.createElement("div");
+    nested.setAttribute("data-tool-call-id", "tc-1");
+    Object.defineProperty(nested, "offsetTop", { value: 40, configurable: true });
+    Object.defineProperty(nested, "offsetHeight", { value: 120, configurable: true });
+    nested.getBoundingClientRect = () => rect(1500, 120);
+    wrapper.appendChild(nested);
+    el.appendChild(wrapper);
+    setScrollProps(el as HTMLDivElement, 0, 5000, 600);
+    expect(scrollToRendered(el, null, nested, "center")).toBe(true);
+    // 1500 - (600-120)/2 = 1260, clamped to max (5000-600)
+    expect(el.scrollTop).toBe(1260);
   });
 
   it("returns false when the target has no geometry", () => {

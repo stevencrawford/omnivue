@@ -157,23 +157,30 @@ function geomFor(
     return resolveGeomFromRegistry(registry, undefined, target);
   }
   // Element target: one-off measurement. Lift content-visibility so the block
-  // (and everything above it) reports real geometry, then drop the class.
+  // (and everything above it) reports real geometry, then drop the class. Use
+  // viewport-relative rects (not offsetTop) so nested targets — a tool call
+  // buried inside a message block — resolve against the scroll container, not
+  // an intermediate positioned ancestor.
   container.classList.add(RESTORE_CLASS);
-  const geom = { top: target.offsetTop, height: target.offsetHeight };
+  const cRect = container.getBoundingClientRect();
+  const eRect = target.getBoundingClientRect();
+  const geom = { top: eRect.top - cRect.top + container.scrollTop, height: eRect.height };
   requestAnimationFrame(() => container.classList.remove(RESTORE_CLASS));
   return geom;
 }
 
 // The only scroll path for target jumps and marker clicks. Resolves {top,
 // height} from the registry for index/id targets (one-off measured when an
-// element is passed), scrolls to center or top instantly, then verifies on the
-// next frame and corrects once so late image/sub-content layout cannot leave
-// the target out of view. Returns false when the target has no geometry.
+// element is passed), scrolls to center or top, then — for instant scrolls —
+// verifies on the next frame and corrects once so late image/sub-content
+// layout cannot leave the target out of view. Pass smooth=true for a jump so
+// the view glides into place. Returns false when the target has no geometry.
 export function scrollToRendered(
   container: HTMLDivElement,
   registry: BlockRegistry | null,
   target: number | string | HTMLElement,
   mode: "center" | "top" = "center",
+  smooth = false,
 ): boolean {
   const geom = geomFor(container, registry, target);
   if (!geom) return false;
