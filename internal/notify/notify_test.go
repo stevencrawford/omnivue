@@ -270,36 +270,6 @@ func TestPreviewForPermission_PrefersQuestionText(t *testing.T) {
 	}
 }
 
-func TestInQuietHours_Overnight(t *testing.T) {
-	settings := Settings{QuietHoursEnabled: true, QuietHoursStart: "22:00", QuietHoursEnd: "08:00"}
-	if !InQuietHours(time.Date(2026, 7, 4, 23, 30, 0, 0, time.Local), settings) {
-		t.Error("expected 23:30 to be in quiet hours")
-	}
-	if !InQuietHours(time.Date(2026, 7, 4, 2, 0, 0, 0, time.Local), settings) {
-		t.Error("expected 02:00 to be in quiet hours (overnight)")
-	}
-	if InQuietHours(time.Date(2026, 7, 4, 12, 0, 0, 0, time.Local), settings) {
-		t.Error("expected 12:00 to be outside quiet hours")
-	}
-}
-
-func TestInQuietHours_SameDay(t *testing.T) {
-	settings := Settings{QuietHoursEnabled: true, QuietHoursStart: "13:00", QuietHoursEnd: "14:00"}
-	if !InQuietHours(time.Date(2026, 7, 4, 13, 30, 0, 0, time.Local), settings) {
-		t.Error("expected 13:30 to be in quiet hours")
-	}
-	if InQuietHours(time.Date(2026, 7, 4, 14, 0, 0, 0, time.Local), settings) {
-		t.Error("expected 14:00 to be outside (end is exclusive)")
-	}
-}
-
-func TestInQuietHours_Disabled(t *testing.T) {
-	settings := Settings{QuietHoursEnabled: false}
-	if InQuietHours(time.Now(), settings) {
-		t.Error("expected false when quiet hours disabled")
-	}
-}
-
 func TestResolveEnabledAt_FirstEnableStampsNow(t *testing.T) {
 	now := time.UnixMilli(1_700_000_000_000)
 	got := ResolveEnabledAt(Settings{}, Settings{Enabled: true}, now)

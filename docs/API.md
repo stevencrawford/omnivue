@@ -498,10 +498,6 @@ Returns the current notification settings as JSON.
   "inAppToast": true,
   "sidebarBadge": true,
   "browserNotify": false,
-  "quietHoursEnabled": false,
-  "quietHoursStart": "22:00",
-  "quietHoursEnd": "08:00",
-  "autoDismissSec": 5,
   "excludeActiveView": true
 }
 ```

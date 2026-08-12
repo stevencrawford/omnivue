@@ -375,8 +375,8 @@ export function App() {
 /**
  * NotificationToaster subscribes to the notification list and fires in-app
  * toasts and browser OS notifications for newly-arrived unread notifications,
- * respecting the user's settings and quiet hours. Lives inside ToastProvider
- * so it can access the toast context.
+ * respecting the user's settings. Lives inside ToastProvider so it can access
+ * the toast context.
  */
 function NotificationToaster({
   notifications,
@@ -399,18 +399,14 @@ function NotificationToaster({
       if (n.readAt) continue;
       // Skip toast if excludeActiveView is on and user is already viewing this session.
       if (settings?.excludeActiveView && n.sessionId === activeSessionId) continue;
-      const { toast, browser } = resolveChannels(n, settings);
+      const { toast, browser } = resolveChannels(settings);
       if (toast) {
         const toastMsg =
           n.kind === "question" ? "Question" : `${n.title}${n.preview ? " — " + n.preview : ""}`;
-        showToast(
-          toastMsg,
-          {
-            label: "View",
-            onClick: () => onNavigate(n.sessionId),
-          },
-          settings?.autoDismissSec ? settings.autoDismissSec * 1000 : undefined,
-        );
+        showToast(toastMsg, {
+          label: "View",
+          onClick: () => onNavigate(n.sessionId),
+        });
       }
       if (browser) {
         fireBrowserNotification(n);

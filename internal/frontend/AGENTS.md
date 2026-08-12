@@ -51,7 +51,7 @@ src/
 ├── styles/
 │   └── app.css                # Tailwind CSS v4 + custom theme
 └── lib/
-    └── browserNotify.ts       # OS notification + quiet-hours resolution
+    └── browserNotify.ts       # OS notification helper
 ```
 
 ## State Management Patterns

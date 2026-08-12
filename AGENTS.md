@@ -252,10 +252,10 @@ Before applying any migration to a database that already holds application data 
   - `Toast.tsx` — Notification toasts (supports optional click action)
   - `NotificationPanel.tsx` — Notifications list (bell section) with read/unread + filters
   - `NotificationRow.tsx` — Single notification row
-  - `NotificationsSettingsTab.tsx` — Notification settings (kinds, scope, delivery, quiet hours)
+  - `NotificationsSettingsTab.tsx` — Notification settings (kinds, scope, delivery)
   - `TerminalPanel.tsx` — In-browser PTY terminal (xterm.js + WebSocket)
 - Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize)
-- Utilities: `lib/browserNotify.ts` (OS notification helper + quiet-hours resolution), `buildTree.ts` (groups sessions by repository)
+- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository)
 - Theme: GitHub-style light/dark via `data-theme` attribute
 - localStorage keys use `omnivue-` prefix.
 
