@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BlockRegistry } from "./useConversationScroll";
 
 export interface UseConversationJumpsOptions {
@@ -22,7 +22,11 @@ export interface UseConversationJumpsOptions {
   /** Set true around programmatic scrolls so the pending-walk-away listener
    *  does not mistake the restore/follow for a user scroll. */
   suppressUserScrollRef: React.RefObject<boolean>;
-  scrollToRendered: (target: number | string | HTMLElement, mode?: "center" | "top") => boolean;
+  scrollToRendered: (
+    target: number | string | HTMLElement,
+    mode?: "center" | "top",
+    smooth?: boolean,
+  ) => boolean;
 }
 
 const FLASH_TIMEOUT_MS = 2000;
@@ -48,8 +52,9 @@ interface ResolvedTarget {
 
 // One jump orchestrator replacing the three competing scroll effects (step /
 // message / tool) that used to live in useSearchHighlight: an identity-first
-// resolution, a pending retry (no give-up bails), and a single, exactly-once
-// scroll guarded against SSE re-renders.
+// resolution, a pending retry that waits for the target to exist (e.g. a
+// session still loading), and a single, exactly-once scroll guarded against
+// SSE re-renders.
 export function useConversationJumps(options: UseConversationJumpsOptions) {
   const {
     scrollRef,
@@ -69,7 +74,7 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
   } = options;
 
   const appliedRef = useRef<AppliedFocus | null>(null);
-  const pendingRef = useRef<number | null>(null);
+  const [pending, setPending] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const listenerCtlRef = useRef<{
     key: number;
@@ -78,8 +83,22 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
   } | null>(null);
   const onClearFocusRef = useRef(onClearFocus);
   onClearFocusRef.current = onClearFocus;
+  const attemptRef = useRef<() => void>(() => {});
 
-  useEffect(() => {
+  const release = useCallback(() => {
+    if (listenerCtlRef.current) {
+      listenerCtlRef.current.container.removeEventListener(
+        "scroll",
+        listenerCtlRef.current.handler,
+      );
+      listenerCtlRef.current = null;
+    }
+  }, []);
+
+  const attempt = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
     const focusActive =
       focusMessageIndex !== undefined ||
       focusMessageId !== undefined ||
@@ -88,13 +107,10 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
 
     if (!focusActive) {
       appliedRef.current = null;
-      pendingRef.current = null;
+      setPending(null);
       release();
       return;
     }
-
-    const container = scrollRef.current;
-    if (!container) return;
 
     // A different jump supersedes a still-pending one: drop its listener.
     if (listenerCtlRef.current && listenerCtlRef.current.key !== focusMessageKey) {
@@ -113,11 +129,10 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
     });
 
     if (!resolved.el) {
-      // Not found yet — stay pending. Arm a one-time walk-away listener: if the
-      // user scrolls, clear focus and abandon; otherwise retry on the next
-      // count/registry change. Programmatic scrolls set the suppression flag
-      // before this effect arms the listener, so their events never cancel.
-      pendingRef.current = focusMessageKey;
+      // Not found yet — stay pending and keep watching the DOM. The session
+      // may still be loading; once its message blocks render (or re-group),
+      // the MutationObserver below re-runs this attempt and lands the jump.
+      setPending(focusMessageKey);
       if (!listenerCtlRef.current) {
         const handler = () => {
           if (suppressUserScrollRef.current) {
@@ -125,7 +140,7 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
             return;
           }
           release();
-          pendingRef.current = null;
+          setPending(null);
           onClearFocusRef.current();
         };
         listenerCtlRef.current = { key: focusMessageKey, container, handler };
@@ -135,7 +150,7 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
     }
 
     release();
-    pendingRef.current = null;
+    setPending(null);
 
     const applied = appliedRef.current;
     const sameJump =
@@ -161,25 +176,18 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
       resolved.index !== undefined && registry?.byIndex.has(resolved.index)
         ? resolved.index
         : resolved.el;
-    const scrolled = scrollToRendered(target, "center");
+    const el = resolved.el;
+    const scrolled = scrollToRendered(target, "center", true);
     if (!scrolled) return;
 
-    const el = resolved.el;
+    // Pulse the target. A smooth scroll is in flight, so the highlight reads
+    // as the view glides into place; clear focus once it has been seen.
     if (timerRef.current) clearTimeout(timerRef.current);
+    el.classList.add("sess-message-highlight");
     timerRef.current = setTimeout(() => {
       el.classList.remove("sess-message-highlight");
       onClearFocusRef.current();
     }, FLASH_TIMEOUT_MS);
-
-    // Flash only once the target is actually in view after the scroll lands.
-    requestAnimationFrame(() => {
-      if (!el.isConnected || !container.isConnected) return;
-      const cr = container.getBoundingClientRect();
-      const er = el.getBoundingClientRect();
-      if (er.bottom >= cr.top && er.top <= cr.bottom) {
-        el.classList.add("sess-message-highlight");
-      }
-    });
   }, [
     scrollRef,
     registry,
@@ -192,29 +200,55 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
     focusStepIndex,
     focusRenderedIndex,
     renderIndexResolver,
+    suppressUserScrollRef,
     scrollToRendered,
+    release,
   ]);
 
-  function release() {
-    if (listenerCtlRef.current) {
-      listenerCtlRef.current.container.removeEventListener(
-        "scroll",
-        listenerCtlRef.current.handler,
-      );
-      listenerCtlRef.current = null;
-    }
-  }
+  attemptRef.current = attempt;
+
+  // Run on every relevant change.
+  useEffect(() => {
+    attempt();
+  }, [attempt]);
+
+  // While a jump is pending (target not yet in the DOM), watch the container
+  // for the message blocks to appear and re-attempt. This is what makes a
+  // bookmark click on a not-yet-loaded session land once it finishes loading.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || pending === null) return;
+    const observer = new MutationObserver(() => {
+      if (pending === null) {
+        observer.disconnect();
+        return;
+      }
+      attemptRef.current();
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [
+    scrollRef,
+    focusMessageKey,
+    focusMessageIndex,
+    focusMessageId,
+    focusToolCallId,
+    focusStepIndex,
+    messageCount,
+    registryVersion,
+    pending,
+  ]);
 
   useEffect(() => {
     return () => {
       release();
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (pendingRef.current !== null) {
+      if (pending !== null) {
         const el = scrollRef.current;
         if (el) el.classList.remove("sess-message-highlight");
       }
     };
-  }, [scrollRef]);
+  }, [scrollRef, release]);
 }
 
 function resolveTarget(params: {

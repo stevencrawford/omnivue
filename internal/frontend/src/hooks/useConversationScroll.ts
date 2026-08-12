@@ -189,23 +189,28 @@ export function scrollToRendered(
   let y = mode === "center" ? geom.top - (clientHeight - geom.height) / 2 : geom.top;
   y = Math.max(0, Math.min(y, max));
   try {
-    container.scrollTop = y;
+    if (smooth) container.scrollTo({ top: y, behavior: "smooth" });
+    else container.scrollTop = y;
   } catch {
     /* scrollTop assignment can throw in restricted contexts */
     return true;
   }
+  if (smooth) return true;
   const targetEl = elementFor(container, target);
   // Self-heal: if the block moved after the initial measure (sub-layout
   // drift), re-run the exact center/top calculation once using the on-screen
-  // (real) offset.
+  // (real) position. Viewport-relative rects keep nested targets honest.
   requestAnimationFrame(() => {
     if (!targetEl || !container.isConnected || !targetEl.isConnected) return;
-    const drift = targetEl.offsetTop - geom.top;
+    const cRect = container.getBoundingClientRect();
+    const eRect = targetEl.getBoundingClientRect();
+    const targetTop = eRect.top - cRect.top + container.scrollTop;
+    const drift = targetTop - geom.top;
     if (Math.abs(drift) <= 2) return;
     const y2 =
       mode === "center"
-        ? targetEl.offsetTop - (container.clientHeight - targetEl.offsetHeight) / 2
-        : targetEl.offsetTop;
+        ? targetTop - (container.clientHeight - targetEl.offsetHeight) / 2
+        : targetTop;
     try {
       container.scrollTop = Math.max(
         0,

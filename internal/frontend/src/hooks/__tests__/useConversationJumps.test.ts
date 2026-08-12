@@ -215,4 +215,23 @@ describe("useConversationJumps", () => {
     expect(el.classList.contains("sess-message-highlight")).toBe(false);
     expect(h.onClearFocus).toHaveBeenCalledTimes(1);
   });
+
+  it("waits for the target block to render before jumping (race fix)", async () => {
+    const h = renderJumps({});
+    h.rerender({ focusMessageKey: 1, focusMessageId: "m99" });
+    expect(h.scrollToRendered).not.toHaveBeenCalled();
+    // Simulate the session finishing load: the message block appears in the DOM.
+    act(() => {
+      addBlock(h.container, 7, "m99");
+    });
+    // The MutationObserver re-attempts once the block exists.
+    await act(async () => {
+      await awaitFrame();
+      await awaitFrame();
+    });
+    expect(h.scrollToRendered).toHaveBeenCalledTimes(1);
+    expect(h.scrollToRendered.mock.calls[0][0]).toBe(
+      h.container.querySelector('[data-message-id="m99"]'),
+    );
+  });
 });
