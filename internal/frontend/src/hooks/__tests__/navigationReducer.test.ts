@@ -234,6 +234,70 @@ describe("navigationReducer", () => {
       });
       expect(next.activeSessionId).toBe("a");
     });
+
+    it("clears highlight and jump focus so scroll restoration can run", () => {
+      const next = navigationReducer(
+        base({
+          activeSessionId: "a",
+          searchHighlightQuery: "q",
+          highlightPromptId: "p",
+          focusStepIndex: 2,
+          focusMessageIndex: 5,
+          focusMessageKey: 3,
+          focusMessageId: "m1",
+          focusToolCallId: "tc1",
+          focusRenderedIndex: true,
+        }),
+        {
+          type: "NAV_SESSION_DELTA",
+          delta: 1,
+          sessions,
+        },
+      );
+      expect(next.activeSessionId).toBe("b");
+      expect(next.searchHighlightQuery).toBeNull();
+      expect(next.highlightPromptId).toBeNull();
+      expect(next.focusStepIndex).toBeUndefined();
+      expect(next.focusMessageIndex).toBeUndefined();
+      expect(next.focusMessageId).toBeUndefined();
+      expect(next.focusMessageKey).toBe(0);
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBeUndefined();
+    });
+  });
+
+  describe("HYDRATE_SESSION", () => {
+    it("lands the session and clears stale message focus", () => {
+      const next = navigationReducer(
+        base({
+          focusMessageIndex: 5,
+          focusMessageKey: 3,
+          focusMessageId: "m1",
+          focusToolCallId: "tc1",
+          focusRenderedIndex: true,
+        }),
+        { type: "HYDRATE_SESSION", id: "sX", stepIndex: undefined },
+      );
+      expect(next.activeSessionId).toBe("sX");
+      expect(next.showOverview).toBe(false);
+      expect(next.focusStepIndex).toBeUndefined();
+      expect(next.focusMessageIndex).toBeUndefined();
+      expect(next.focusMessageId).toBeUndefined();
+      expect(next.focusMessageKey).toBe(0);
+      expect(next.focusToolCallId).toBeUndefined();
+      expect(next.focusRenderedIndex).toBeUndefined();
+    });
+
+    it("keeps a deep-linked step while still clearing message focus", () => {
+      const next = navigationReducer(base({ focusMessageIndex: 2, focusMessageKey: 1 }), {
+        type: "HYDRATE_SESSION",
+        id: "s1",
+        stepIndex: 7,
+      });
+      expect(next.focusStepIndex).toBe(7);
+      expect(next.focusMessageIndex).toBeUndefined();
+      expect(next.focusMessageKey).toBe(0);
+    });
   });
 
   describe("GO_HOME / CLEAR_* ", () => {

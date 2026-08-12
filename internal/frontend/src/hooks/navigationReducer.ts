@@ -280,6 +280,13 @@ export function navigationReducer(
         activeSessionId: nextSessionId(sessions, state.activeSessionId, action.delta),
         showOverview: false,
         searchHighlightQuery: null,
+        highlightPromptId: null,
+        focusStepIndex: undefined,
+        focusMessageIndex: undefined,
+        focusMessageKey: 0,
+        focusMessageId: undefined,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
       };
     }
     case "HYDRATE_SESSION":
@@ -288,6 +295,14 @@ export function navigationReducer(
         activeSessionId: action.id,
         showOverview: false,
         focusStepIndex: action.stepIndex,
+        // A session landing (deep link, back/forward) must never carry a stale
+        // message-jump focus: it would mark the conversation as a search-navigation
+        // and skip scroll restore, yanking the user to an old target instead.
+        focusMessageIndex: undefined,
+        focusMessageKey: 0,
+        focusMessageId: undefined,
+        focusToolCallId: undefined,
+        focusRenderedIndex: undefined,
       };
     case "HYDRATE_OVERVIEW":
       return {
