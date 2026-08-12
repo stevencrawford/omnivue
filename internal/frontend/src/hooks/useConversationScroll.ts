@@ -435,7 +435,13 @@ export function useConversationScroll({
       saveScrollPosition(sessionId, el.scrollTop, undefined, undefined, 0, true);
       return;
     }
-    const { topIndex, topId, offset } = captureAnchor(el, registryRef.current);
+    // Measure under a lifted content-visibility pass so the captured anchor's
+    // geom.top lives in the same true-size space restoreTo replays against.
+    // Saving against a stale collapsed registry top mixes coordinate spaces and
+    // makes the restored scrollTop drift between visits (streaming growth leaves
+    // the registry un-lifted), landing on a different message each time.
+    const reg = measureRegistry(el, registryRef.current);
+    const { topIndex, topId, offset } = captureAnchor(el, reg);
     saveScrollPosition(sessionId, el.scrollTop, topIndex, topId, offset, false);
   }, [sessionId, saveScrollPosition]);
 
