@@ -77,7 +77,15 @@ function makeRegistry(blocks: BlockSpec[], scrollHeight = 5000): BlockRegistry {
 }
 
 function sp(over: Partial<ScrollPosition> = {}): ScrollPosition {
-  return { pos: 0, topIndex: undefined, topId: undefined, offset: 0, ts: 0, ...over };
+  return {
+    pos: 0,
+    topIndex: undefined,
+    topId: undefined,
+    offset: 0,
+    ts: 0,
+    bottom: undefined,
+    ...over,
+  };
 }
 
 function awaitFrame(): Promise<void> {

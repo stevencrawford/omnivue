@@ -32,6 +32,7 @@ const EMPTY_SCROLL: ScrollPosition = {
   topId: undefined,
   offset: 0,
   ts: 0,
+  bottom: undefined,
 };
 
 // Re-measure cadence after a burst of streaming changes; only when no further
@@ -316,15 +317,16 @@ export function restoreTo(
   registry: BlockRegistry | null,
 ): boolean {
   if (el.scrollHeight === 0) return false;
+  const toBottom = requestScrollToBottom || sp.bottom === true;
   try {
-    if (!requestScrollToBottom && (sp.topIndex !== undefined || sp.topId !== undefined)) {
+    if (!toBottom && (sp.topIndex !== undefined || sp.topId !== undefined)) {
       const geom = resolveGeomFromRegistry(registry, sp.topIndex, sp.topId);
       if (geom) {
         el.scrollTop = geom.top + sp.offset;
         return true;
       }
     }
-    el.scrollTop = requestScrollToBottom
+    el.scrollTop = toBottom
       ? registry && registry.scrollHeight > 0
         ? registry.scrollHeight
         : el.scrollHeight
@@ -425,8 +427,16 @@ export function useConversationScroll({
   const doSaveScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // Pinned to the live tail: store "bottom" rather than an anchored block.
+    // An anchor captures a fixed point that drifts as new messages stream in,
+    // so a later restore (after growth) would land mid-history instead of on
+    // the latest message.
+    if (followingBottomRef.current) {
+      saveScrollPosition(sessionId, el.scrollTop, undefined, undefined, 0, true);
+      return;
+    }
     const { topIndex, topId, offset } = captureAnchor(el, registryRef.current);
-    saveScrollPosition(sessionId, el.scrollTop, topIndex, topId, offset);
+    saveScrollPosition(sessionId, el.scrollTop, topIndex, topId, offset, false);
   }, [sessionId, saveScrollPosition]);
 
   const markProgrammaticScroll = useCallback(() => {
