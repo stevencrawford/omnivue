@@ -49,10 +49,36 @@ export interface SearchHitTarget {
   messageIndex?: number;
 }
 
+// Per-session scroll restore entry. pos is the pixel scrollTop; topIndex/topId
+// name the message block nearest the top of the viewport and offset is how far
+// below that block the viewport top sat, so the restore can re-anchor on the
+// block instead of trusting an absolute pixel (content-visibility estimates
+// distort absolute scrollTop across mounts). ts drives the 24h expiry.
+export interface ScrollPosition {
+  pos: number;
+  topIndex: number | undefined;
+  topId: string | undefined;
+  offset: number;
+  ts: number;
+}
+
+export const SCROLL_POSITION_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function isScrollPositionFresh(sp: ScrollPosition, now: number): boolean {
+  return now - sp.ts < SCROLL_POSITION_TTL_MS;
+}
+
 export interface NavigationValue extends NavigationState {
   activeSession: Session | null;
-  scrollPositions: Map<string, number>;
-  saveScrollPosition: (id: string, pos: number) => void;
+  scrollPositions: Map<string, ScrollPosition>;
+  saveScrollPosition: (
+    id: string,
+    pos: number,
+    topIndex: number | undefined,
+    topId: string | undefined,
+    offset: number,
+  ) => void;
+  getScrollPosition: (id: string) => ScrollPosition | undefined;
   navigateToSession: (id: string) => void;
   jumpToMessage: (target: FocusTarget) => void;
   clearFocus: () => void;
@@ -79,6 +105,7 @@ const defaultNavigationValue: NavigationValue = {
   activeSession: null,
   scrollPositions: new Map(),
   saveScrollPosition: () => {},
+  getScrollPosition: () => undefined,
   navigateToSession: () => {},
   jumpToMessage: () => {},
   clearFocus: () => {},
@@ -122,14 +149,32 @@ export function useNavigationState({
   const [state, dispatch] = useReducer(navigationReducer, initialNavigationState);
 
   // ---- Scroll position persistence (per session) ----
-  const scrollPositions = useRef(new Map<string, number>());
-  const saveScrollPosition = useCallback((id: string, pos: number) => {
-    const map = scrollPositions.current;
-    if (map.size >= SCROLL_POSITION_CAP && !map.has(id)) {
-      const firstKey = map.keys().next().value;
-      if (firstKey !== undefined) map.delete(firstKey);
+  const scrollPositions = useRef(new Map<string, ScrollPosition>());
+  const saveScrollPosition = useCallback(
+    (
+      id: string,
+      pos: number,
+      topIndex: number | undefined,
+      topId: string | undefined,
+      offset: number,
+    ) => {
+      const map = scrollPositions.current;
+      if (map.size >= SCROLL_POSITION_CAP && !map.has(id)) {
+        const firstKey = map.keys().next().value;
+        if (firstKey !== undefined) map.delete(firstKey);
+      }
+      map.set(id, { pos, topIndex, topId, offset, ts: Date.now() });
+    },
+    [],
+  );
+  const getScrollPosition = useCallback((id: string): ScrollPosition | undefined => {
+    const sp = scrollPositions.current.get(id);
+    if (!sp) return undefined;
+    if (!isScrollPositionFresh(sp, Date.now())) {
+      scrollPositions.current.delete(id);
+      return undefined;
     }
-    map.set(id, pos);
+    return sp;
   }, []);
 
   // ---- Router feeds the reducer ----
@@ -206,14 +251,14 @@ export function useNavigationState({
       if (ids.length > 0) {
         markNotificationRead(ids);
         const first = unreadForSession.sort((a, b) => a.createdAt - b.createdAt)[0];
-        const savedPos = scrollPositions.current.get(sessionId);
-        const hasSavedScroll = savedPos !== undefined && savedPos > 200;
+        const saved = getScrollPosition(sessionId);
+        const hasSavedScroll = saved !== undefined && saved.pos > 200;
         if (!hasSavedScroll) {
           dispatch({ type: "JUMP_TO_MESSAGE", target: parseMessageTarget(first.payload) });
         }
       }
     },
-    [notifications, markNotificationRead, navigateTo],
+    [notifications, markNotificationRead, navigateTo, getScrollPosition],
   );
 
   const handlePromptClick = useCallback(
@@ -309,6 +354,7 @@ export function useNavigationState({
       activeSession,
       scrollPositions: scrollPositions.current,
       saveScrollPosition,
+      getScrollPosition,
       navigateToSession: handleSessionSelect,
       jumpToMessage,
       clearFocus,
@@ -333,6 +379,7 @@ export function useNavigationState({
       state,
       activeSession,
       saveScrollPosition,
+      getScrollPosition,
       handleSessionSelect,
       handlePromptClick,
       handleBookmarkSelect,
