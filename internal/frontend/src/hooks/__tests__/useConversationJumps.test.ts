@@ -22,7 +22,14 @@ function renderJumps(props: Partial<UseConversationJumpsOptions>): Harness {
   document.body.appendChild(container);
   const scrollRef = { current: container };
   const suppressUserScrollRef = { current: true };
-  const scrollToRendered = vi.fn(() => true);
+  const scrollToRendered = vi.fn(
+    (_t: unknown, _m?: unknown, _s?: unknown, onArrive?: () => void) => {
+      // The real implementation fires onArrive when the smooth scroll settles;
+      // the mock invokes it immediately so the flash path is exercised.
+      onArrive?.();
+      return true;
+    },
+  );
   const onClearFocus = vi.fn();
 
   const base: UseConversationJumpsOptions = {

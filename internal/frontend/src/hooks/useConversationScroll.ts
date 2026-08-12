@@ -181,6 +181,7 @@ export function scrollToRendered(
   target: number | string | HTMLElement,
   mode: "center" | "top" = "center",
   smooth = false,
+  onArrive?: () => void,
 ): boolean {
   const geom = geomFor(container, registry, target);
   if (!geom) return false;
@@ -189,13 +190,16 @@ export function scrollToRendered(
   let y = mode === "center" ? geom.top - (clientHeight - geom.height) / 2 : geom.top;
   y = Math.max(0, Math.min(y, max));
   try {
-    if (smooth) container.scrollTo({ top: y, behavior: "smooth" });
-    else container.scrollTop = y;
+    if (smooth) {
+      container.scrollTo({ top: y, behavior: "smooth" });
+      if (onArrive) scheduleArrival(container, onArrive);
+      return true;
+    }
+    container.scrollTop = y;
   } catch {
     /* scrollTop assignment can throw in restricted contexts */
     return true;
   }
-  if (smooth) return true;
   const targetEl = elementFor(container, target);
   // Self-heal: if the block moved after the initial measure (sub-layout
   // drift), re-run the exact center/top calculation once using the on-screen
@@ -221,6 +225,21 @@ export function scrollToRendered(
     }
   });
   return true;
+}
+
+// Fires onArrive once a smooth scroll has settled. Prefers the scrollend event
+// and falls back to a timeout so the callback always runs even if the target
+// is already in view (no scrollend) or the event is unsupported.
+function scheduleArrival(container: HTMLElement, onArrive: () => void): void {
+  let fired = false;
+  const fire = () => {
+    if (fired) return;
+    fired = true;
+    container.removeEventListener("scrollend", fire);
+    onArrive();
+  };
+  container.addEventListener("scrollend", fire);
+  setTimeout(fire, 800);
 }
 
 function captureAnchorDOM(el: HTMLDivElement): {
@@ -473,8 +492,7 @@ export function useConversationScroll({
           } else if (saved === undefined && !restoredRef.current) {
             if (restoreTo(el, EMPTY_SCROLL, true, reg)) restoredRef.current = true;
           }
-          followingBottomRef.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          followingBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         } catch {
           /* scrollTop assignment can throw in restricted contexts */
         }
@@ -640,11 +658,12 @@ export function useConversationScroll({
       target: number | string | HTMLElement,
       mode: "center" | "top" = "center",
       smooth = false,
+      onArrive?: () => void,
     ): boolean => {
       const el = scrollRef.current;
       if (!el) return false;
       markProgrammaticScroll();
-      return scrollToRendered(el, registryRef.current, target, mode, smooth);
+      return scrollToRendered(el, registryRef.current, target, mode, smooth, onArrive);
     },
     [markProgrammaticScroll],
   );

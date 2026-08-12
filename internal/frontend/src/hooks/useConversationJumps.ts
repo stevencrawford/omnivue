@@ -26,6 +26,7 @@ export interface UseConversationJumpsOptions {
     target: number | string | HTMLElement,
     mode?: "center" | "top",
     smooth?: boolean,
+    onArrive?: () => void,
   ) => boolean;
 }
 
@@ -177,17 +178,17 @@ export function useConversationJumps(options: UseConversationJumpsOptions) {
         ? resolved.index
         : resolved.el;
     const el = resolved.el;
-    const scrolled = scrollToRendered(target, "center", true);
+    const scrolled = scrollToRendered(target, "center", true, () => {
+      // Pulse on arrival: the smooth scroll has settled, so the highlight reads
+      // as the view lands on the target. Clear focus once it has been seen.
+      if (timerRef.current) clearTimeout(timerRef.current);
+      el.classList.add("sess-message-highlight");
+      timerRef.current = setTimeout(() => {
+        el.classList.remove("sess-message-highlight");
+        onClearFocusRef.current();
+      }, FLASH_TIMEOUT_MS);
+    });
     if (!scrolled) return;
-
-    // Pulse the target. A smooth scroll is in flight, so the highlight reads
-    // as the view glides into place; clear focus once it has been seen.
-    if (timerRef.current) clearTimeout(timerRef.current);
-    el.classList.add("sess-message-highlight");
-    timerRef.current = setTimeout(() => {
-      el.classList.remove("sess-message-highlight");
-      onClearFocusRef.current();
-    }, FLASH_TIMEOUT_MS);
   }, [
     scrollRef,
     registry,
