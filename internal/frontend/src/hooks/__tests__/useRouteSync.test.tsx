@@ -91,6 +91,8 @@ describe("pathToRoute", () => {
     expect(r(sectionRoute("tags")).section).toBe("tags");
     expect(r(sessionRouteWithSection("sess 1", "queue")).sessionId).toBe("sess 1");
     expect(r(sessionRouteWithSection("sess 1", "queue")).section).toBe("queue");
+    expect(r(sessionRouteWithSection("sess 1", "tags")).section).toBe("tags");
+    expect(r(sessionRouteWithSection("sess 1", "bookmarks")).section).toBe("bookmarks");
   });
 
   it("maps the search deep link to the overview with the query preserved", () => {
