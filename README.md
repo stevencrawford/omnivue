@@ -36,7 +36,7 @@ Omnivue is a 100% local multi-agent session manager for your AI coding sessions.
 - **Settings UI** — Add/remove session sources from the browser
 - **Resume sessions** — One-click copy of the CLI command to resume
 - **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘F` search
-- **Deep linking** — Shareable URLs `#/session/{id}/step/{n}`
+- **Deep linking** — Shareable URLs `#/session/{id}`
 - **Multi-theme** — Ayu, Nord, Catppuccino, Tokyo Night, and GitHub themes with light/dark modes
 - **Read-only access** — Never writes to agent databases (enforced at driver level)
 - **Single binary** — Go + embedded React SPA, zero runtime dependencies

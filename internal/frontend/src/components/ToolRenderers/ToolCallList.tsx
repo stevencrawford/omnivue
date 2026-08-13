@@ -5,6 +5,7 @@ import type { ToolRendererDefinition } from "./types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { useNavigation } from "../../hooks/useNavigation";
 import { useCopy } from "../../hooks/useCopy";
+import { bookmarkRefKey } from "../../hooks/useBookmarks";
 import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
 import { ToolUsageInfo } from "./ToolUsageInfo";
@@ -20,7 +21,6 @@ export function ToolCallList({
   onBookmark,
   bookmarkIdByRef,
   sessionId,
-  messageIndex,
 }: {
   toolCalls: ToolCall[];
   agent?: string;
@@ -30,17 +30,18 @@ export function ToolCallList({
   onBookmark?: (toolCallId: string, label: string) => void;
   bookmarkIdByRef?: Record<string, string>;
   sessionId?: string;
-  messageIndex?: number;
 }) {
   const toolBookmarkIds = useMemo(() => {
-    if (!bookmarkIdByRef || !sessionId || messageIndex === undefined) return new Set<string>();
+    if (!bookmarkIdByRef || !sessionId) return new Set<string>();
     const ids = new Set<string>();
     for (const tool of toolCalls) {
-      const key = `${sessionId}:${messageIndex}:${tool.id}`;
+      const msgId = tool.messageId || tool.position?.messageID;
+      if (!msgId) continue;
+      const key = bookmarkRefKey(sessionId, msgId, tool.id);
       if (bookmarkIdByRef[key]) ids.add(tool.id);
     }
     return ids;
-  }, [bookmarkIdByRef, sessionId, messageIndex, toolCalls]);
+  }, [bookmarkIdByRef, sessionId, toolCalls]);
 
   if (variant === "summary") {
     return (

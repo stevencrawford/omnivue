@@ -40,7 +40,7 @@ type TagStore interface {
 type BookmarkStore interface {
 	CreateBookmark(b Bookmark) error
 	ListBookmarks() ([]Bookmark, error)
-	BookmarkByRef(sessionID string, messageIndex int, toolCallID string) (*Bookmark, error)
+	BookmarkByPosition(sessionID, messageID, toolCallID string) (*Bookmark, error)
 	DeleteBookmark(id string) error
 }
 

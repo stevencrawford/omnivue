@@ -16,6 +16,7 @@ export function PinnedPromptBar({
   onQueueChanged,
   highlightPromptId,
   onHighlightDone,
+  tailActive,
 }: {
   session: Session;
   firstMessage?: Message | null;
@@ -23,6 +24,7 @@ export function PinnedPromptBar({
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
+  tailActive?: boolean;
 }) {
   const [pinnedExpanded, setPinnedExpanded] = useState(false);
   const [prompts, setPrompts] = useState<QueuedPrompt[]>([]);
@@ -161,7 +163,9 @@ export function PinnedPromptBar({
       </div>
 
       <div
-        className="sess-pinned-bar shrink-0 flex flex-col overflow-hidden"
+        className={`sess-pinned-bar shrink-0 flex flex-col overflow-hidden ${
+          tailActive ? "sess-pinned-bar--tailing" : ""
+        }`}
         style={pinnedExpanded ? { height: pinnedHeight } : undefined}
       >
         <button

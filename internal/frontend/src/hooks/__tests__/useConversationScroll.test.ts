@@ -78,12 +78,10 @@ function makeRegistry(blocks: BlockSpec[], scrollHeight = 5000): BlockRegistry {
 
 function sp(over: Partial<ScrollPosition> = {}): ScrollPosition {
   return {
-    pos: 0,
-    topIndex: undefined,
-    topId: undefined,
+    position: null,
     offset: 0,
     ts: 0,
-    bottom: undefined,
+    bottom: false,
     ...over,
   };
 }
@@ -113,8 +111,7 @@ describe("hasPendingFocus", () => {
   it("is true for every jump kind", () => {
     expect(hasPendingFocus({ focusMessageIndex: 3 })).toBe(true);
     expect(hasPendingFocus({ focusMessageId: "m" })).toBe(true);
-    expect(hasPendingFocus({ focusToolCallId: "tc" })).toBe(true);
-    expect(hasPendingFocus({ focusStepIndex: 1 })).toBe(true);
+    expect(hasPendingFocus({ focusPosition: { messageID: "m", toolCallID: "tc" } })).toBe(true);
   });
 
   it("is false when no focus field is set", () => {
@@ -192,8 +189,7 @@ describe("captureAnchor", () => {
       { index: 2, top: 900, id: "m2" },
     ]);
     expect(captureAnchor(el, reg)).toEqual({
-      topIndex: 1,
-      topId: "m1",
+      position: { messageID: "m1" },
       offset: 50,
     });
   });
@@ -208,7 +204,7 @@ describe("captureAnchor", () => {
       { index: 0, top: 0, id: "m0" },
       { index: 1, top: 400, id: "m1" },
     ]);
-    expect(captureAnchor(el, reg)).toEqual({ topIndex: 0, topId: "m0", offset: 0 });
+    expect(captureAnchor(el, reg)).toEqual({ position: { messageID: "m0" }, offset: 0 });
   });
 
   it("falls back to the DOM when no registry measurement exists", () => {
@@ -218,13 +214,13 @@ describe("captureAnchor", () => {
       { index: 2, top: 900, id: "m2" },
     ]);
     setScrollProps(el as HTMLDivElement, 450, 5000);
-    expect(captureAnchor(el, null)).toEqual({ topIndex: 1, topId: "m1", offset: 50 });
+    expect(captureAnchor(el, null)).toEqual({ position: { messageID: "m1" }, offset: 50 });
   });
 
   it("returns empty when no block qualifies (scrolled above the first)", () => {
     const el = makeContainer([{ index: 0, top: 200, id: "m0" }]);
     setScrollProps(el as HTMLDivElement, 0, 4000);
-    expect(captureAnchor(el, null)).toEqual({ topIndex: undefined, topId: undefined, offset: 0 });
+    expect(captureAnchor(el, null)).toEqual({ position: null, offset: 0 });
   });
 });
 
@@ -241,7 +237,7 @@ describe("restoreTo", () => {
       { index: 1, top: 400, id: "m1" },
       { index: 2, top: 900, id: "m2" },
     ]);
-    const ok = restoreTo(el, sp({ pos: 99999, topIndex: 1, topId: "m1", offset: 50 }), false, reg);
+    const ok = restoreTo(el, sp({ position: { messageID: "m1" }, offset: 50 }), false, reg);
     expect(ok).toBe(true);
     expect(el.scrollTop).toBe(450);
   });
@@ -250,24 +246,24 @@ describe("restoreTo", () => {
     const el = makeContainer([{ index: 0, top: 0, id: "m0" }]);
     setScrollProps(el as HTMLDivElement, 0, 5000);
     const reg = makeRegistry([{ index: 3, top: 1200, id: "m1" }]);
-    const ok = restoreTo(el, sp({ pos: 99999, topIndex: 9, topId: "m1", offset: 10 }), false, reg);
+    const ok = restoreTo(el, sp({ position: { messageID: "m1" }, offset: 10 }), false, reg);
     expect(ok).toBe(true);
     expect(el.scrollTop).toBe(1210);
   });
 
-  it("falls back to the absolute pixel when the anchor is gone", () => {
+  it("falls back to the offset clamped when the anchor is gone", () => {
     const el = makeContainer([{ index: 0, top: 0, id: "m0" }]);
     setScrollProps(el as HTMLDivElement, 0, 5000);
-    const ok = restoreTo(el, sp({ pos: 1234, topIndex: 7, topId: "m7", offset: 50 }), false, null);
+    const ok = restoreTo(el, sp({ position: { messageID: "m7" }, offset: 50 }), false, null);
     expect(ok).toBe(true);
-    expect(el.scrollTop).toBe(1234);
+    expect(el.scrollTop).toBe(50);
   });
 
   it("scrolls to the real bottom when requested", () => {
     const el = makeContainer([{ index: 0, top: 0, id: "m0" }]);
     setScrollProps(el as HTMLDivElement, 0, 4321);
     const reg = makeRegistry([{ index: 0, top: 0, id: "m0" }], 4321);
-    const ok = restoreTo(el, sp({ pos: 0 }), true, reg);
+    const ok = restoreTo(el, sp({}), true, reg);
     expect(ok).toBe(true);
     expect(el.scrollTop).toBe(4321);
   });
@@ -275,7 +271,7 @@ describe("restoreTo", () => {
   it("bails out when the container is not laid out yet", () => {
     const el = makeContainer([]);
     Object.defineProperty(el, "scrollHeight", { value: 0, configurable: true });
-    expect(restoreTo(el, sp({ pos: 100 }), false, null)).toBe(false);
+    expect(restoreTo(el, sp({}), false, null)).toBe(false);
     expect(el.scrollTop).toBe(0);
   });
 });

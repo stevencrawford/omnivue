@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ChevronDown, ChevronUp, Info, TriangleAlert } from "lucide-react";
 
 import type { Message } from "../hooks/types";
@@ -45,7 +45,6 @@ interface MessageBlockProps {
   onPin?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
     messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
@@ -53,16 +52,15 @@ interface MessageBlockProps {
   bookmarkIdByRef?: Record<string, string>;
 }
 
-export function MessageBlock({
+export const MessageBlock = memo(function MessageBlock({
   message,
-  messageIndex,
   sessionId,
   onOpenModal,
   onPin,
   onBookmark,
   bookmarkIdByRef,
 }: MessageBlockProps) {
-  const msgKey = `${sessionId}:${messageIndex}:`;
+  const msgKey = `${sessionId}:${message.id}:`;
   const isMsgBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[msgKey] : false;
 
   if (message.role === "user") {
@@ -94,7 +92,6 @@ export function MessageBlock({
         content={message.content}
         toolCalls={message.toolCalls}
         sessionId={sessionId}
-        messageIndex={messageIndex}
         messageId={message.id}
         onOpenModal={onOpenModal}
         onPin={onPin}
@@ -133,7 +130,6 @@ export function MessageBlock({
       <AssistantMessageView
         message={message}
         sessionId={sessionId}
-        messageIndex={messageIndex}
         onOpenModal={onOpenModal}
         onPin={onPin}
         onBookmark={onBookmark}
@@ -142,4 +138,4 @@ export function MessageBlock({
       />
     </>
   );
-}
+});

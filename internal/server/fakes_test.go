@@ -367,11 +367,11 @@ func (f *fakeBookmarkStore) ListBookmarks() ([]store.Bookmark, error) {
 	return out, nil
 }
 
-func (f *fakeBookmarkStore) BookmarkByRef(sessionID string, messageIndex int, toolCallID string) (*store.Bookmark, error) {
+func (f *fakeBookmarkStore) BookmarkByPosition(sessionID, messageID, toolCallID string) (*store.Bookmark, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, b := range f.bookmarks {
-		if b.SessionID == sessionID && b.MessageIndex == messageIndex && b.ToolCallID == toolCallID {
+		if b.SessionID == sessionID && b.MessageID == messageID && b.ToolCallID == toolCallID {
 			copy := b
 			return &copy, nil
 		}

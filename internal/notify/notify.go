@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -112,6 +113,24 @@ type Candidate struct {
 	Payload  map[string]any
 }
 
+// toolPayload builds the jump payload for a tool-call notification. It carries
+// the canonical Position (messageID + toolCallID) so the frontend can land
+// unconditionally on the exact tool call, mirroring bookmark jumps. No raw
+// message index is emitted, since indexes are not stable identity.
+func toolPayload(m ingest.Message, tc ingest.ToolCall, extra map[string]any) map[string]any {
+	p := map[string]any{
+		"position": map[string]any{
+			"messageID":  m.ID,
+			"toolCallID": tc.ID,
+		},
+		"toolCallId": tc.ID,
+		"messageId":  m.ID,
+		"tabHint":    "session",
+	}
+	maps.Copy(p, extra)
+	return p
+}
+
 // Classify examines new messages (those at or beyond lastSeenCount) and the
 // session status transition, and returns the notification candidates that
 // should be emitted under the given settings.
@@ -138,7 +157,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 
 	// --- Message-level kinds ---
 	newMessageCount := 0
-	for i, m := range newMsgs {
+	for _, m := range newMsgs {
 		// First-run flood suppression: ignore messages older than the moment
 		// notifications were enabled. (Status transitions below are not
 		// suppressed, since they reflect current state.)
@@ -160,12 +179,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Permission needed",
 						Preview:  previewForPermission(m.Content, tc.Input),
 						Severity: SeverityAttention,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				} else if settings.has(KindQuestion) {
 					candidates = append(candidates, Candidate{
@@ -174,12 +188,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Question Asked",
 						Preview:  previewForQuestion(m.Content, tc.Input),
 						Severity: SeverityAttention,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				}
 				continue // a question/permission tool call is not also a "new tool call"
@@ -191,12 +200,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 					Title:    "Proposed Plan",
 					Preview:  previewForExitPlanMode(tc.Input, tc.Output),
 					Severity: SeverityAttention,
-					Payload: map[string]any{
-						"toolCallId":   tc.ID,
-						"messageId":    m.ID,
-						"messageIndex": lastSeenCount + i,
-						"tabHint":      "session",
-					},
+					Payload:  toolPayload(m, tc, nil),
 				})
 				continue
 			}
@@ -208,12 +212,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Permission needed",
 						Preview:  previewForPermission(m.Content, tc.Input),
 						Severity: SeverityAttention,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				}
 				continue
@@ -226,12 +225,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Task complete",
 						Preview:  previewForTaskComplete(m.Content, tc.Output),
 						Severity: SeverityInfo,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				}
 				continue
@@ -243,13 +237,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 					Title:    fmt.Sprintf("Tool call: %s", tc.Name),
 					Preview:  previewText("", tc.Input),
 					Severity: SeverityInfo,
-					Payload: map[string]any{
-						"toolCallId":   tc.ID,
-						"messageId":    m.ID,
-						"messageIndex": lastSeenCount + i,
-						"toolName":     tc.Name,
-						"tabHint":      "session",
-					},
+					Payload:  toolPayload(m, tc, map[string]any{"toolName": tc.Name}),
 				})
 			}
 		}
@@ -264,10 +252,12 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 			Preview:  previewText(last.Content, ""),
 			Severity: SeverityInfo,
 			Payload: map[string]any{
-				"messageId":    last.ID,
-				"messageIndex": len(msgs) - 1,
-				"count":        newMessageCount,
-				"tabHint":      "session",
+				"position": map[string]any{
+					"messageID": last.ID,
+				},
+				"messageId": last.ID,
+				"count":     newMessageCount,
+				"tabHint":   "session",
 			},
 		})
 	}

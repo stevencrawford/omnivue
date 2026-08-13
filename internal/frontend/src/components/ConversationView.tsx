@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 import { CirclePlus, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import type { Session, Message } from "../hooks/types";
 
@@ -15,6 +15,121 @@ import { useNavigation } from "../hooks/useNavigation";
 import { groupMessages } from "../utils/conversationGrouping";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./Spinner";
+
+// Split-button for the scroll-to-bottom control (Q15): the primary action
+// smooth-scrolls to the bottom, the second down-arrow toggles persistent Tail
+// mode. Tail is a soft lock — scrolling up disarms it — and survives re-renders
+// until the user walks away, so live streaming keeps the newest messages in
+// view. Tail only makes sense for live sessions: when the session is not active
+// we render a single scroll-to-bottom button (the tail half is hidden
+// entirely). The visible "tailing" indicator is the animated line above the
+// prompt bar, not the button itself.
+function TailSplitButton({
+  tailActive,
+  canTail,
+  onScrollToBottom,
+  onToggleTail,
+}: {
+  tailActive: boolean;
+  canTail: boolean;
+  onScrollToBottom: () => void;
+  onToggleTail: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", keyHandler);
+    };
+  }, [menuOpen]);
+
+  if (!canTail) {
+    return (
+      <div className="relative pointer-events-auto">
+        <div className="flex items-center rounded-md bg-ov-bg-secondary border border-ov-border shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={onScrollToBottom}
+            className="size-7 flex items-center justify-center text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer"
+            title="Scroll to bottom"
+          >
+            <ChevronDown size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={menuRef} className="relative pointer-events-auto">
+      <div
+        className={`flex items-center rounded-md bg-ov-bg-secondary border shadow-sm overflow-hidden transition-colors ${
+          tailActive ? "border-accent" : "border-ov-border"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={onScrollToBottom}
+          className={`size-7 flex items-center justify-center transition-colors cursor-pointer ${
+            tailActive
+              ? "text-accent hover:text-accent"
+              : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+          }`}
+          title={tailActive ? "Scrolling with live tail" : "Scroll to bottom"}
+        >
+          <ChevronDown size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+          className={`flex items-center justify-center border-l transition-colors cursor-pointer ${
+            tailActive
+              ? "border-accent/50 bg-accent text-white hover:bg-accent"
+              : "border-ov-border text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+          }`}
+          title={tailActive ? "Tail mode: on" : "Tail mode"}
+        >
+          <ChevronDown size={12} />
+        </button>
+      </div>
+      {menuOpen && (
+        <div className="absolute right-0 bottom-full mb-1 z-[100] min-w-[150px] bg-surface-elevated border border-ov-border rounded-lg shadow-xl py-1">
+          <button
+            type="button"
+            onClick={() => {
+              onToggleTail();
+              setMenuOpen(false);
+            }}
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors hover:bg-ov-bg-hover ${
+              tailActive ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"
+            }`}
+          >
+            <ChevronDown size={12} />
+            <span className="flex-1 text-left">
+              {tailActive ? "Stop tailing" : "Tail live session"}
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SubAgentHubView({ childSessions }: { childSessions: Session[] }) {
   const { navigateToSession } = useNavigation();
@@ -88,7 +203,6 @@ export function ConversationView({
   onPin?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
     messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
@@ -99,15 +213,8 @@ export function ConversationView({
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
 }) {
-  const {
-    focusStepIndex,
-    focusMessageIndex,
-    focusMessageKey,
-    focusMessageId,
-    focusToolCallId,
-    focusRenderedIndex,
-    clearFocus,
-  } = useNavigation();
+  const { focusPosition, focusMessageIndex, focusMessageKey, focusMessageId, clearFocus } =
+    useNavigation();
   const firstMessage = messages[0];
   const tail = messages.slice(1);
   const { grouped, ownerByRawIndex } = useMemo(() => groupMessages(messages.slice(1)), [messages]);
@@ -170,15 +277,17 @@ export function ConversationView({
     showScrollBottom,
     scrollToTop,
     scrollToBottom,
+    tailActive,
+    enterTail,
+    exitTail,
     scrollToRendered,
   } = useConversationScroll({
     sessionId: session.id,
     messageCount: messages.length,
     messages: messagesWithoutReminders,
+    focusPosition,
     focusMessageIndex,
     focusMessageId,
-    focusToolCallId,
-    focusStepIndex,
     searchHighlightQuery,
   });
 
@@ -188,22 +297,25 @@ export function ConversationView({
     registryVersion,
     messageCount: messagesWithoutReminders.length,
     focusMessageKey,
+    focusPosition,
     focusMessageIndex,
     focusMessageId,
-    focusToolCallId,
-    focusStepIndex,
-    focusRenderedIndex,
     renderIndexResolver: resolveRenderIndex,
     onClearFocus: clearFocus,
     suppressUserScrollRef,
     scrollToRendered,
   });
 
+  // Tail mode only makes sense while the session is live: if the session stops
+  // being active (e.g. the agent finished) while we are tailing, exit so the
+  // view is not pinned to a bottom that will never move again.
+  const isActive = session.status === "active";
+  useEffect(() => {
+    if (!isActive && tailActive) exitTail();
+  }, [isActive, tailActive, exitTail]);
+
   const hasFocusJump =
-    focusMessageIndex !== undefined ||
-    focusMessageId !== undefined ||
-    focusToolCallId !== undefined ||
-    focusStepIndex !== undefined;
+    focusPosition !== undefined || focusMessageIndex !== undefined || focusMessageId !== undefined;
 
   useSearchHighlight(
     scrollRef,
@@ -245,6 +357,7 @@ export function ConversationView({
             onQueueChanged={onQueueChanged}
             highlightPromptId={highlightPromptId}
             onHighlightDone={onHighlightDone}
+            tailActive={tailActive}
           />
         )}
       </div>
@@ -305,14 +418,12 @@ export function ConversationView({
 
         {showScrollBottom && (
           <div className="absolute bottom-0 right-14 z-20 pb-3 pointer-events-none">
-            <button
-              type="button"
-              onClick={scrollToBottom}
-              className="pointer-events-auto size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
-              title="Scroll to bottom"
-            >
-              <ChevronDown size={14} />
-            </button>
+            <TailSplitButton
+              tailActive={tailActive}
+              canTail={isActive}
+              onScrollToBottom={scrollToBottom}
+              onToggleTail={tailActive ? exitTail : enterTail}
+            />
           </div>
         )}
 
@@ -342,6 +453,7 @@ export function ConversationView({
           onQueueChanged={onQueueChanged}
           highlightPromptId={highlightPromptId}
           onHighlightDone={onHighlightDone}
+          tailActive={tailActive}
         />
       )}
     </div>

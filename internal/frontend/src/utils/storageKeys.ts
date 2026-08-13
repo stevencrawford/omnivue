@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   TAGS_EXPANDED: "omnivue-tags-expanded",
   TAG_SORT: "omnivue-tag-sort",
   COPY_MODE_PREFIX: "omnivue-copy-mode-",
+  SESSION_POSITION_PREFIX: "omnivue-session-position-",
   DISABLE_CUSTOM_RENDERERS: "omnivue-disable-custom-renderers",
   OVERVIEW_TIME_RANGE: "omnivue-overview-timerange",
 } as const;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigation, type ScrollPosition } from "./useNavigation";
+import type { Position } from "./types";
 
 interface UseConversationScrollOptions {
   sessionId: string;
@@ -11,10 +12,9 @@ interface UseConversationScrollOptions {
    * to schedule a settle re-measure after the burst goes idle.
    */
   messages: unknown[];
+  focusPosition?: Position;
   focusMessageIndex?: number;
   focusMessageId?: string;
-  focusToolCallId?: string;
-  focusStepIndex?: number;
   searchHighlightQuery?: string;
 }
 
@@ -27,12 +27,10 @@ export const RESTORE_CLASS = "scroll-restoring";
 // A never-saved position: requesting "scroll to bottom" restores to the most
 // recent message regardless of these zeroed fields.
 const EMPTY_SCROLL: ScrollPosition = {
-  pos: 0,
-  topIndex: undefined,
-  topId: undefined,
+  position: null,
   offset: 0,
   ts: 0,
-  bottom: undefined,
+  bottom: false,
 };
 
 // Re-measure cadence after a burst of streaming changes; only when no further
@@ -58,18 +56,16 @@ export interface BlockRegistry {
 // The focus fields that make a jump "pending" — any one of them disables
 // scroll restore / bottom-follow so the landing is left to the jump.
 export interface PendingFocus {
+  focusPosition?: Position | undefined;
   focusMessageIndex?: number | undefined;
   focusMessageId?: string | undefined;
-  focusToolCallId?: string | undefined;
-  focusStepIndex?: number | undefined;
 }
 
 export function hasPendingFocus(f: PendingFocus): boolean {
   return (
+    f.focusPosition !== undefined ||
     f.focusMessageIndex !== undefined ||
-    f.focusMessageId !== undefined ||
-    f.focusToolCallId !== undefined ||
-    f.focusStepIndex !== undefined
+    f.focusMessageId !== undefined
   );
 }
 
@@ -244,8 +240,7 @@ function scheduleArrival(container: HTMLElement, onArrive: () => void): void {
 }
 
 function captureAnchorDOM(el: HTMLDivElement): {
-  topIndex: number | undefined;
-  topId: string | undefined;
+  position: Position | null;
   offset: number;
 } {
   const blocks = el.querySelectorAll<HTMLElement>("[data-message-index]");
@@ -257,17 +252,16 @@ function captureAnchorDOM(el: HTMLDivElement): {
       break;
     }
   }
-  if (!anchor) return { topIndex: undefined, topId: undefined, offset: 0 };
-  const indexAttr = anchor.getAttribute("data-message-index");
+  if (!anchor) return { position: null, offset: 0 };
   // Most anchors are near the viewport so their live offsetTop is real, but if
   // the registry is empty (very first scroll) the estimate could be off — lift
   // once to read the true value.
   el.classList.add(RESTORE_CLASS);
   const top = anchor.offsetTop;
   requestAnimationFrame(() => el.classList.remove(RESTORE_CLASS));
+  const id = anchor.getAttribute("data-message-id");
   return {
-    topIndex: indexAttr !== null ? parseInt(indexAttr, 10) : undefined,
-    topId: anchor.getAttribute("data-message-id") || undefined,
+    position: id ? { messageID: id } : null,
     offset: el.scrollTop - top,
   };
 }
@@ -277,11 +271,12 @@ function captureAnchorDOM(el: HTMLDivElement): {
 // scrollTop is distorted by content-visibility estimates across mounts, but a
 // resolved top of the same block re-lands on the exact spot. Prefers the
 // registry (recorded under a lifted measurement) so save-on-scroll never has to
-// force layout.
+// force layout. The anchor is keyed by the block's stable message id (Position
+// with only messageID), never by a raw index.
 export function captureAnchor(
   el: HTMLDivElement,
   registry: BlockRegistry | null,
-): { topIndex: number | undefined; topId: string | undefined; offset: number } {
+): { position: Position | null; offset: number } {
   if (registry && registry.byIndex.size > 0) {
     let anchorIndex: number | undefined;
     for (const [idx, geom] of registry.byIndex) {
@@ -291,17 +286,18 @@ export function captureAnchor(
         break;
       }
     }
-    if (anchorIndex === undefined) return { topIndex: undefined, topId: undefined, offset: 0 };
-    const geom = registry.byIndex.get(anchorIndex);
-    if (!geom) return { topIndex: undefined, topId: undefined, offset: 0 };
-    let topId: string | undefined;
+    if (anchorIndex === undefined) return { position: null, offset: 0 };
+    let anchorId: string | undefined;
     for (const [id, idx] of registry.indexById) {
       if (idx === anchorIndex) {
-        topId = id;
+        anchorId = id;
         break;
       }
     }
-    return { topIndex: anchorIndex, topId, offset: el.scrollTop - geom.top };
+    if (anchorId === undefined) return { position: null, offset: 0 };
+    const geom = registry.byIndex.get(anchorIndex);
+    if (!geom) return { position: null, offset: 0 };
+    return { position: { messageID: anchorId }, offset: el.scrollTop - geom.top };
   }
   return captureAnchorDOM(el);
 }
@@ -319,18 +315,23 @@ export function restoreTo(
   if (el.scrollHeight === 0) return false;
   const toBottom = requestScrollToBottom || sp.bottom === true;
   try {
-    if (!toBottom && (sp.topIndex !== undefined || sp.topId !== undefined)) {
-      const geom = resolveGeomFromRegistry(registry, sp.topIndex, sp.topId);
+    if (!toBottom && sp.position?.messageID) {
+      const idx = registry?.indexById.get(sp.position.messageID);
+      const geom = idx !== undefined ? registry?.byIndex.get(idx) : undefined;
       if (geom) {
         el.scrollTop = geom.top + sp.offset;
         return true;
       }
+      // The anchor block is gone (session trimmed / re-grouped): fall back to
+      // the position it used to sit at, clamped by the real height.
+      el.scrollTop = Math.min(sp.offset, Math.max(0, el.scrollHeight - el.clientHeight));
+      return true;
     }
     el.scrollTop = toBottom
       ? registry && registry.scrollHeight > 0
         ? registry.scrollHeight
         : el.scrollHeight
-      : sp.pos;
+      : 0;
     return true;
   } catch {
     /* scrollTop assignment can throw in restricted contexts */
@@ -394,10 +395,9 @@ export function useConversationScroll({
   sessionId,
   messageCount,
   messages,
+  focusPosition,
   focusMessageIndex,
   focusMessageId,
-  focusToolCallId,
-  focusStepIndex,
   searchHighlightQuery,
 }: UseConversationScrollOptions) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -412,6 +412,13 @@ export function useConversationScroll({
   // auto-follow only scrolls them down when this holds, so navigating to a
   // bookmark or scrolling up leaves them exactly where they are.
   const followingBottomRef = useRef(false);
+  // Explicit tail mode (Q15). Unlike followingBottomRef (a soft pin that turns
+  // off the instant the user scrolls up), Tail is a persistent preference: it
+  // survives message-count re-renders, saves bottom:true so a reopen lands at
+  // the live bottom once, and is disarmed only by the user scrolling up
+  // (soft lock) or leaving the session.
+  const [tailActive, setTailActive] = useState(false);
+  const tailActiveRef = useRef(false);
   // True for the duration of a programmatic scroll, so the scroll listener does
   // not mistake it for a user navigation when updating followingBottomRef.
   const programmaticScrollingRef = useRef(false);
@@ -427,12 +434,12 @@ export function useConversationScroll({
   const doSaveScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    // Pinned to the live tail: store "bottom" rather than an anchored block.
-    // An anchor captures a fixed point that drifts as new messages stream in,
-    // so a later restore (after growth) would land mid-history instead of on
-    // the latest message.
-    if (followingBottomRef.current) {
-      saveScrollPosition(sessionId, el.scrollTop, undefined, undefined, 0, true);
+    // Pinned to the live tail (explicit Tail mode or soft-following): store
+    // "bottom" rather than an anchored block. An anchor captures a fixed point
+    // that drifts as new messages stream in, so a later restore (after growth)
+    // would land mid-history instead of on the latest message.
+    if (followingBottomRef.current || tailActiveRef.current) {
+      saveScrollPosition(sessionId, null, 0, true);
       return;
     }
     // Measure under a lifted content-visibility pass so the captured anchor's
@@ -441,8 +448,8 @@ export function useConversationScroll({
     // makes the restored scrollTop drift between visits (streaming growth leaves
     // the registry un-lifted), landing on a different message each time.
     const reg = measureRegistry(el, registryRef.current);
-    const { topIndex, topId, offset } = captureAnchor(el, reg);
-    saveScrollPosition(sessionId, el.scrollTop, topIndex, topId, offset, false);
+    const { position, offset } = captureAnchor(el, reg);
+    saveScrollPosition(sessionId, position, offset, false);
   }, [sessionId, saveScrollPosition]);
 
   const markProgrammaticScroll = useCallback(() => {
@@ -485,12 +492,7 @@ export function useConversationScroll({
     const el = scrollRef.current;
     if (!el) return;
     const isInitialLoad = prevLengthRef.current === 0;
-    const focusPending = hasPendingFocus({
-      focusMessageIndex,
-      focusMessageId,
-      focusToolCallId,
-      focusStepIndex,
-    });
+    const focusPending = hasPendingFocus({ focusPosition, focusMessageIndex, focusMessageId });
 
     if (isInitialLoad && messageCount > 0) {
       // Landing pass: one full (lifted) measure — the same forced layout cost
@@ -508,20 +510,34 @@ export function useConversationScroll({
           } else if (saved === undefined && !restoredRef.current) {
             if (restoreTo(el, EMPTY_SCROLL, true, reg)) restoredRef.current = true;
           }
-          followingBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          // Q8: a saved bottom:true lands at the live bottom exactly once, then
+          // forgets the tail lock — the reopen does not re-arm live auto-follow.
+          // Only a fresh (unsaved) landing or the user actively re-scrolling to
+          // the bottom re-engages following.
+          if (!(saved?.bottom === true)) {
+            followingBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          } else {
+            followingBottomRef.current = false;
+          }
         } catch {
           /* scrollTop assignment can throw in restricted contexts */
         }
       }
     } else if (messageCount > prevLengthRef.current) {
       // Live reload growth: cheap append-only tail measurement, then follow the
-      // bottom when the user is already there (never for a pending jump).
-      settle();
-      const reg = measureTail(el, prevLengthRef.current, registryRef.current);
-      applyRegistry(reg);
-      // Only auto-follow the bottom while the user is actually pinned there.
-      // Once they scroll up or jump to a bookmark, streaming never moves them.
-      if (followingBottomRef.current) followToBottom(reg);
+      // bottom when the user is pinned there (soft-following or explicit Tail).
+      // Never for a pending jump. When pinned to the bottom the registry is not
+      // needed for the follow — reading the container's live scrollHeight is
+      // enough and skips the forced layout + marker recompute on every chunk —
+      // so defer the full re-measure to the idle settle().
+      const pinned = followingBottomRef.current || tailActiveRef.current;
+      if (pinned) {
+        followToBottom(null);
+      } else {
+        settle();
+        const reg = measureTail(el, prevLengthRef.current, registryRef.current);
+        applyRegistry(reg);
+      }
     } else {
       // Same block count but the render changed (SSE in-place updates re-group
       // middle blocks): let the idle settle re-measure them at true sizes.
@@ -538,10 +554,9 @@ export function useConversationScroll({
     messages,
     sessionId,
     getScrollPosition,
+    focusPosition,
     focusMessageIndex,
     focusMessageId,
-    focusToolCallId,
-    focusStepIndex,
     searchHighlightQuery,
     applyRegistry,
     followToBottom,
@@ -559,7 +574,7 @@ export function useConversationScroll({
       if (restoredRef.current) return;
       const current = scrollRef.current;
       if (!current || current.scrollHeight === 0) return;
-      if (hasPendingFocus({ focusMessageIndex, focusMessageId, focusToolCallId, focusStepIndex })) {
+      if (hasPendingFocus({ focusPosition, focusMessageIndex, focusMessageId })) {
         return;
       }
       const reg = measureRegistry(current, registryRef.current);
@@ -589,10 +604,9 @@ export function useConversationScroll({
     getScrollPosition,
     messageCount,
     messages,
+    focusPosition,
     focusMessageIndex,
     focusMessageId,
-    focusToolCallId,
-    focusStepIndex,
     applyRegistry,
   ]);
 
@@ -606,6 +620,12 @@ export function useConversationScroll({
       if (!programmaticScrollingRef.current) {
         const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         followingBottomRef.current = atBottom;
+        // Soft lock: any real user scroll away from the bottom disarms Tail.
+        // Programmatic follows (which set the ref true) never trigger this.
+        if (!atBottom && tailActiveRef.current) {
+          tailActiveRef.current = false;
+          setTailActive(false);
+        }
       }
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => doSaveScroll(), 300);
@@ -652,13 +672,18 @@ export function useConversationScroll({
     if (!el) return;
     markProgrammaticScroll();
     followingBottomRef.current = false;
+    tailActiveRef.current = false;
+    setTailActive(false);
     try {
       el.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       /* restricted */
     }
   };
-  const scrollToBottom = () => {
+  // One-shot jump to the bottom: soft-follows while the user stays there, but
+  // does not arm the persistent Tail mode. The split-button's Tail menu item
+  // is what arms the persistent follow (enterTail).
+  const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     followingBottomRef.current = true;
@@ -666,7 +691,28 @@ export function useConversationScroll({
     animateScrollToBottom(el, () => {
       programmaticScrollingRef.current = false;
     });
-  };
+  }, []);
+  // Persistent Tail mode: lands at the live bottom and stays glued to it across
+  // message-count re-renders until the user scrolls up (soft lock) or leaves.
+  // The saved position carries bottom:true so a reopen lands at the real tail
+  // once (Q8).
+  const enterTail = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    tailActiveRef.current = true;
+    setTailActive(true);
+    followingBottomRef.current = true;
+    programmaticScrollingRef.current = true;
+    animateScrollToBottom(el, () => {
+      programmaticScrollingRef.current = false;
+    });
+    saveScrollPosition(sessionId, null, 0, true);
+  }, [sessionId]);
+  const exitTail = useCallback(() => {
+    tailActiveRef.current = false;
+    setTailActive(false);
+    followingBottomRef.current = false;
+  }, []);
 
   // Bound jump/marker click path: resolves against the latest registry.
   const scrollToRenderedJump = useCallback(
@@ -694,6 +740,9 @@ export function useConversationScroll({
     showScrollBottom,
     scrollToTop,
     scrollToBottom,
+    tailActive,
+    enterTail,
+    exitTail,
     scrollToRendered: scrollToRenderedJump,
   };
 }

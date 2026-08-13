@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected legacy db stamped to version 8, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected legacy db stamped to version 9, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected version 8 on fresh install, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected version 9 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -185,8 +185,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected version 8 after migration, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected version 9 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -223,9 +223,10 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 }
 
 // TestMigrate_BookmarkKind seeds a version-6 database with a bookmarks table
-// (pre-0007 schema, no kind column) containing a row, then runs the 0007
-// migration and verifies the row is backfilled to kind 'message' and the
-// schema version advances to 7.
+// (pre-0007 schema, no kind column) containing a row, then runs the migrations
+// through 0009 and verifies the schema version advances to 9. The legacy
+// bookmark is dropped because its rendered message_index cannot be resolved to
+// a stable Position identity.
 func TestMigrate_BookmarkKind(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
@@ -266,29 +267,24 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected version 8 after migration, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected version 9 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bookmarks) != 1 {
-		t.Fatalf("expected 1 bookmark, got %d", len(bookmarks))
-	}
-	if bookmarks[0].ID != "bm-1" {
-		t.Fatalf("expected preserved bookmark bm-1, got %q", bookmarks[0].ID)
-	}
-	if bookmarks[0].Kind != "message" {
-		t.Fatalf("expected backfilled kind 'message', got %q", bookmarks[0].Kind)
+	if len(bookmarks) != 0 {
+		t.Fatalf("expected legacy bookmarks to be dropped, got %d", len(bookmarks))
 	}
 }
 
 // TestMigrate_BookmarkMessageID seeds a version-6 database with a bookmarks
 // table (pre-0007/0008 schema: no kind or message_id columns) containing a
-// row, then runs the migrations through 0008 and verifies the row survives
-// unchanged with an empty message_id and the schema version advances to 8.
+// row, then runs the migrations through 0009 and verifies the schema version
+// advances to 9. The legacy bookmark is dropped because its rendered
+// message_index cannot be resolved to a stable Position identity.
 func TestMigrate_BookmarkMessageID(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tmpDir)
@@ -329,24 +325,15 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected version 8 after migration, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected version 9 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bookmarks) != 1 {
-		t.Fatalf("expected 1 bookmark, got %d", len(bookmarks))
-	}
-	if bookmarks[0].ID != "bm-1" {
-		t.Fatalf("expected preserved bookmark bm-1, got %q", bookmarks[0].ID)
-	}
-	if bookmarks[0].MessageIndex != 3 || bookmarks[0].ToolCallID != "tc-9" {
-		t.Fatalf("expected preserved message_index/tool_call_id, got %+v", bookmarks[0])
-	}
-	if bookmarks[0].MessageID != "" {
-		t.Fatalf("expected empty message_id on pre-existing bookmarks, got %q", bookmarks[0].MessageID)
+	if len(bookmarks) != 0 {
+		t.Fatalf("expected legacy bookmarks to be dropped, got %d", len(bookmarks))
 	}
 }

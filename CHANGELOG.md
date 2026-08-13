@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.2.3](https://github.com/stevencrawford/omnivue/compare/v0.2.2...v0.2.3) - unreleased
+
+### Other Changes
+- refactor: Position-keyed navigation & bookmarks — the backend now emits a
+  canonical `position` (`messageID` + optional `toolCallID`) on every message,
+  tool call, and notification payload, and bookmarks jump/restore by identity
+  instead of rendered index. Scroll position is remembered per session
+  (including a "live bottom" mode that lands at the tail once). Schema migration
+  `0009_bookmark_position` rebuilds `bookmarks` around positions (drops the
+  legacy `message_index` column and unresolvable rows); `schemaVersion`
+  reported by `GET /_/api/status` is now 9.
+
 ## [v0.2.2](https://github.com/stevencrawford/omnivue/compare/v0.2.1...v0.2.2) - 2026-08-11
 
 ### Other Changes

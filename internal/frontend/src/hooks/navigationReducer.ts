@@ -1,4 +1,4 @@
-import type { Bookmark, Session } from "./types";
+import type { Bookmark, Position, Session } from "./types";
 import type { Tab } from "../components/SessionViewer";
 import type { Section } from "../components/IconChannel";
 
@@ -11,17 +11,19 @@ import type { Section } from "../components/IconChannel";
 // binding hook (useNavigation.tsx) only wires it to React, the URL, and the
 // notification side-effects. Keeping it pure means the index-drift footguns
 // are testable without React or a DOM.
+//
+// Focus is anchored to the canonical Position identity (messageID +
+// optional toolCallID) — the same key bookmarks, notifications, and the scroll
+// registry use — so a jump is stable regardless of how assistant messages
+// re-group during live reloads. Raw array indices are never used as identity.
 // ---------------------------------------------------------------------------
 
 export interface FocusTarget {
-  messageIndex?: number;
+  position?: Position;
+  // Legacy raw-index resolution for diff navigation and search hits (kept on
+  // index/id per Q13 — never used as canonical identity).
   messageId?: string;
-  stepIndex?: number;
-  toolCallId?: string;
-  // When true, messageIndex is a rendered-block index (index into
-  // messagesWithoutReminders). Bookmarks store that form; notifications and
-  // search hits store the raw message list index and need the render resolver.
-  renderedIndex?: boolean;
+  messageIndex?: number;
 }
 
 export interface NavigationState {
@@ -29,12 +31,10 @@ export interface NavigationState {
   showOverview: boolean;
   activeSection: Section;
   activeTab: Tab;
-  focusStepIndex: number | undefined;
+  focusPosition: Position | undefined;
   focusMessageIndex: number | undefined;
   focusMessageKey: number;
   focusMessageId: string | undefined;
-  focusToolCallId: string | undefined;
-  focusRenderedIndex: boolean | undefined;
   searchHighlightQuery: string | null;
   highlightPromptId: string | null;
   filterTag: string | null;
@@ -45,12 +45,10 @@ export const initialNavigationState: NavigationState = {
   showOverview: true,
   activeSection: "sessions",
   activeTab: "session",
-  focusStepIndex: undefined,
+  focusPosition: undefined,
   focusMessageIndex: undefined,
   focusMessageKey: 0,
   focusMessageId: undefined,
-  focusToolCallId: undefined,
-  focusRenderedIndex: undefined,
   searchHighlightQuery: null,
   highlightPromptId: null,
   filterTag: null,
@@ -60,7 +58,6 @@ export type NavigationAction =
   | { type: "SESSION_SELECT"; id: string }
   | { type: "JUMP_TO_MESSAGE"; target: FocusTarget }
   | { type: "CLEAR_FOCUS" }
-  | { type: "CLEAR_FOCUS_STEP" }
   | { type: "GO_HOME" }
   | { type: "HIGHLIGHT_PROMPT"; promptId: string }
   | { type: "HIGHLIGHT_DONE" }
@@ -79,30 +76,53 @@ export type NavigationAction =
   | { type: "SET_TAB"; tab: Tab }
   | { type: "SET_SECTION"; section: Section }
   | { type: "SET_OVERVIEW"; overview: boolean }
-  | { type: "SET_FOCUS_STEP"; stepIndex: number | undefined }
   | { type: "SET_SEARCH_HIGHLIGHT"; query: string | null }
   | { type: "CLEAR_SEARCH_HIGHLIGHT" }
   | { type: "NAV_SESSION_DELTA"; delta: 1 | -1; sessions: Session[] }
-  | { type: "HYDRATE_SESSION"; id: string; stepIndex: number | undefined }
+  | { type: "HYDRATE_SESSION"; id: string }
   | { type: "HYDRATE_OVERVIEW" };
 
-// parseMessageTarget extracts a jump target from a notification payload string.
-// This is the single place that reads messageIndex/messageId out of payloads;
+// parseMessageTarget extracts the canonical Position out of a notification
+// payload string. This is the single place that reads identity out of payloads;
 // every notification-jump path (session select, notification click) routes here.
 export function parseMessageTarget(payload: string | undefined): FocusTarget {
   if (!payload) return {};
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
-    const target: FocusTarget = {};
-    if (typeof parsed.messageIndex === "number") target.messageIndex = parsed.messageIndex;
-    if (typeof parsed.messageId === "string") target.messageId = parsed.messageId;
-    if (typeof parsed.stepIndex === "number") target.stepIndex = parsed.stepIndex;
-    if (typeof parsed.toolCallId === "string") target.toolCallId = parsed.toolCallId;
-    return target;
+    const position = parsed.position as { messageID?: string; toolCallID?: string } | undefined;
+    if (position && typeof position.messageID === "string" && position.messageID !== "") {
+      return {
+        position: { messageID: position.messageID, toolCallID: position.toolCallID || undefined },
+      };
+    }
+    // Legacy payload (pre-position backend): fall back to a raw id. Kept so
+    // stale in-flight notifications still navigate; identity still wins by
+    // mapping the id into a Position.
+    const legacyId = parsed.messageId;
+    const legacyTool = parsed.toolCallId;
+    if (typeof legacyId === "string" && legacyId !== "") {
+      return {
+        position: {
+          messageID: legacyId,
+          toolCallID: typeof legacyTool === "string" ? legacyTool : undefined,
+        },
+        messageId: legacyId,
+      };
+    }
+    if (typeof parsed.messageIndex === "number") {
+      return { messageIndex: parsed.messageIndex };
+    }
+    return {};
   } catch {
     // ignore malformed payload
     return {};
   }
+}
+
+function positionFromBookmark(b: Bookmark): Position | undefined {
+  // Plan bookmarks have no message anchor; they are not a scroll target.
+  if (b.kind === "plan" || !b.messageId) return undefined;
+  return { messageID: b.messageId, toolCallID: b.toolCallId || undefined };
 }
 
 function jumpFields(
@@ -110,20 +130,16 @@ function jumpFields(
   target: FocusTarget,
 ): Pick<
   NavigationState,
-  | "focusStepIndex"
-  | "focusMessageIndex"
-  | "focusMessageKey"
-  | "focusMessageId"
-  | "focusToolCallId"
-  | "focusRenderedIndex"
+  "focusPosition" | "focusMessageIndex" | "focusMessageKey" | "focusMessageId"
 > {
+  // Canonical identity wins: when a Position is present, a raw index is
+  // meaningless (the block it used to name has no stable meaning), so it is
+  // dropped rather than carried alongside.
   return {
-    focusStepIndex: target.stepIndex,
-    focusMessageIndex: target.messageId !== undefined ? undefined : target.messageIndex,
+    focusPosition: target.position,
+    focusMessageIndex: target.position ? undefined : target.messageIndex,
     focusMessageKey: state.focusMessageKey + 1,
-    focusMessageId: target.messageId,
-    focusToolCallId: target.toolCallId,
-    focusRenderedIndex: target.renderedIndex,
+    focusMessageId: target.position ? undefined : target.messageId,
   };
 }
 
@@ -163,26 +179,21 @@ export function navigationReducer(
         activeTab: "session",
         searchHighlightQuery: null,
         highlightPromptId: null,
-        focusStepIndex: undefined,
+        focusPosition: undefined,
         focusMessageIndex: undefined,
-        focusMessageKey: 0,
         focusMessageId: undefined,
-        focusToolCallId: undefined,
-        focusRenderedIndex: undefined,
+        focusMessageKey: 0,
       };
     case "JUMP_TO_MESSAGE":
       return { ...state, ...jumpFields(state, action.target) };
     case "CLEAR_FOCUS":
       return {
         ...state,
+        focusPosition: undefined,
         focusMessageIndex: undefined,
-        focusMessageKey: 0,
         focusMessageId: undefined,
-        focusToolCallId: undefined,
-        focusRenderedIndex: undefined,
+        focusMessageKey: 0,
       };
-    case "CLEAR_FOCUS_STEP":
-      return { ...state, focusStepIndex: undefined };
     case "GO_HOME":
       return {
         ...state,
@@ -191,10 +202,10 @@ export function navigationReducer(
         activeTab: "session",
         searchHighlightQuery: null,
         highlightPromptId: null,
-        focusStepIndex: undefined,
+        focusPosition: undefined,
         focusMessageIndex: undefined,
-        focusToolCallId: undefined,
-        focusRenderedIndex: undefined,
+        focusMessageId: undefined,
+        focusMessageKey: 0,
       };
     case "HIGHLIGHT_PROMPT":
       return { ...state, highlightPromptId: action.promptId };
@@ -214,31 +225,37 @@ export function navigationReducer(
           searchHighlightQuery: null,
         };
       }
+      const position = positionFromBookmark(action.bookmark);
+      // A bookmark with no message anchor cannot drive a scroll target; select
+      // the session but leave any existing focus untouched.
       return {
         ...state,
-        ...jumpFields(state, {
-          messageIndex: action.bookmark.messageIndex,
-          messageId: action.bookmark.messageId,
-          toolCallId: action.bookmark.toolCallId,
-          renderedIndex: true,
-        }),
+        ...(position
+          ? jumpFields(state, { position })
+          : { focusPosition: undefined, focusMessageKey: 0 }),
         showOverview: false,
         activeSessionId: action.bookmark.sessionId,
         activeTab: "session",
         searchHighlightQuery: null,
       };
     }
-    case "NOTIFICATION_SELECT":
+    case "NOTIFICATION_SELECT": {
+      const target = parseMessageTarget(action.payload);
       return {
         ...state,
-        ...jumpFields(state, parseMessageTarget(action.payload)),
+        ...(target.position || target.messageIndex !== undefined
+          ? jumpFields(state, target)
+          : { focusPosition: undefined, focusMessageKey: 0 }),
         showOverview: false,
         activeSessionId: action.sessionId,
         activeTab: "session",
         activeSection: "sessions",
         searchHighlightQuery: null,
       };
+    }
     case "DIFF_NAV_TO_MESSAGE":
+      // Diff navigation resolves by raw message index/id (unchanged from the
+      // legacy diff path; the conversation maps it to a rendered block).
       return {
         ...state,
         ...jumpFields(state, { messageIndex: action.messageIndex, messageId: action.messageId }),
@@ -251,10 +268,9 @@ export function navigationReducer(
         activeSessionId: action.sessionId,
         activeTab: action.tab,
         searchHighlightQuery: action.query,
-        focusStepIndex: undefined,
+        focusPosition: undefined,
         focusMessageIndex: action.messageIndex,
-        focusToolCallId: undefined,
-        focusRenderedIndex: undefined,
+        focusMessageKey: state.focusMessageKey + 1,
       };
     case "SET_TAB":
       return { ...state, activeTab: action.tab };
@@ -262,17 +278,13 @@ export function navigationReducer(
       return { ...state, activeSection: action.section };
     case "SET_OVERVIEW":
       return { ...state, showOverview: action.overview };
-    case "SET_FOCUS_STEP":
-      return { ...state, focusStepIndex: action.stepIndex };
     case "SET_SEARCH_HIGHLIGHT":
       return { ...state, searchHighlightQuery: action.query };
     case "CLEAR_SEARCH_HIGHLIGHT":
       return {
         ...state,
         searchHighlightQuery: null,
-        focusMessageIndex: undefined,
-        focusToolCallId: undefined,
-        focusRenderedIndex: undefined,
+        focusPosition: undefined,
       };
     case "NAV_SESSION_DELTA": {
       const sessions = action.sessions;
@@ -288,14 +300,12 @@ export function navigationReducer(
         ...state,
         activeSessionId: action.id,
         showOverview: false,
-        focusStepIndex: action.stepIndex,
       };
     case "HYDRATE_OVERVIEW":
       return {
         ...state,
         activeSessionId: null,
         showOverview: true,
-        focusStepIndex: undefined,
       };
     default:
       return state;

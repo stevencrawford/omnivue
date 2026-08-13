@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ListTodo } from "lucide-react";
 import type { Plan, BookmarkKind } from "../hooks/types";
 import { fetchPlan } from "../hooks/apiClient";
-import { PLAN_BOOKMARK_INDEX } from "../hooks/useBookmarks";
+import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../hooks/useBookmarks";
 import { scrollElementToCenter } from "../hooks/useConversationScroll";
 import { MarkdownContent } from "./MarkdownContent";
 import { LoadingState } from "./LoadingState";
@@ -15,7 +15,6 @@ interface PlanViewProps {
   searchHighlightQuery?: string | null;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
     messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
@@ -37,11 +36,11 @@ export function PlanView({
   const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { showErrorToast } = useToast();
 
-  const planRefKey = `${sessionId}:${PLAN_BOOKMARK_INDEX}:`;
+  const planRefKey = bookmarkRefKey(sessionId, PLAN_BOOKMARK_MESSAGE_ID, undefined);
   const isBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[planRefKey] : false;
   const handleBookmarkPlan = useCallback(() => {
     if (!onBookmark) return;
-    onBookmark(sessionId, PLAN_BOOKMARK_INDEX, undefined, undefined, "Plan", "plan");
+    onBookmark(sessionId, PLAN_BOOKMARK_MESSAGE_ID, undefined, "Plan", "plan");
   }, [onBookmark, sessionId]);
 
   useEffect(() => {

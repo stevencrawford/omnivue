@@ -6,7 +6,6 @@ describe("BookmarkSchema", () => {
     const parsed = BookmarkSchema.parse({
       id: "b1",
       sessionId: "s1",
-      messageIndex: 4,
       messageId: "msg-xyz",
       label: "Step 4",
       kind: "message",
@@ -19,7 +18,6 @@ describe("BookmarkSchema", () => {
     const parsed = BookmarkSchema.parse({
       id: "b1",
       sessionId: "s1",
-      messageIndex: 4,
       label: "Step 4",
       kind: "message",
       createdAt: "2024-01-01T00:00:00Z",
@@ -32,7 +30,6 @@ describe("BookmarkSchema", () => {
       {
         id: "b1",
         sessionId: "s1",
-        messageIndex: 4,
         messageId: "msg-xyz",
         label: "Step 4",
         kind: "message",

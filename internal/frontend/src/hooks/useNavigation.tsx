@@ -7,7 +7,7 @@ import {
   useReducer,
   useRef,
 } from "react";
-import type { AppNotification, Bookmark, Session } from "./types";
+import type { AppNotification, Bookmark, Position, Session } from "./types";
 import {
   initialNavigationState,
   navigationReducer,
@@ -23,6 +23,12 @@ import {
   sessionRouteWithSection,
   useRouteSync,
 } from "./useRouteSync";
+import {
+  readSessionPosition,
+  writeSessionPosition,
+  clearSessionPosition,
+  type SessionPosition,
+} from "./useSessionPosition";
 import type { Tab } from "../components/SessionViewer";
 import type { Section } from "../components/IconChannel";
 
@@ -49,21 +55,13 @@ export interface SearchHitTarget {
   messageIndex?: number;
 }
 
-// Per-session scroll restore entry. pos is the pixel scrollTop; topIndex/topId
-// name the message block nearest the top of the viewport and offset is how far
-// below that block the viewport top sat, so the restore can re-anchor on the
-// block instead of trusting an absolute pixel (content-visibility estimates
-// distort absolute scrollTop across mounts). ts drives the 24h expiry.
-export interface ScrollPosition {
-  pos: number;
-  topIndex: number | undefined;
-  topId: string | undefined;
-  offset: number;
-  ts: number;
-  // True when the saved spot was the live tail. Restored by jumping to the
-  // real bottom rather than a fixed anchor, so growth never strands the user.
-  bottom: boolean | undefined;
-}
+// Per-session last-place entry. position names the message block nearest the
+// top of the viewport (canonical stable identity) and offset is how far below
+// that block the viewport top sat, so the restore can re-anchor on the block
+// instead of trusting an absolute pixel (content-visibility estimates distort
+// absolute scrollTop across mounts). ts drives the 24h expiry. The same shape
+// is mirrored to localStorage via useSessionPosition so it survives restarts.
+export type ScrollPosition = SessionPosition;
 
 export const SCROLL_POSITION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -76,11 +74,9 @@ export interface NavigationValue extends NavigationState {
   scrollPositions: Map<string, ScrollPosition>;
   saveScrollPosition: (
     id: string,
-    pos: number,
-    topIndex: number | undefined,
-    topId: string | undefined,
+    position: Position | null,
     offset: number,
-    bottom: boolean | undefined,
+    bottom: boolean,
   ) => void;
   getScrollPosition: (id: string) => ScrollPosition | undefined;
   navigateToSession: (id: string) => void;
@@ -153,33 +149,37 @@ export function useNavigationState({
   const [state, dispatch] = useReducer(navigationReducer, initialNavigationState);
 
   // ---- Scroll position persistence (per session) ----
+  // In-memory cache layered over the localStorage source of truth
+  // (useSessionPosition). The map serves the hot path; writes are mirrored to
+  // localStorage so a restart restores the same spot. Reads fall back to the
+  // persisted entry when the map is cold (fresh tab).
   const scrollPositions = useRef(new Map<string, ScrollPosition>());
   const saveScrollPosition = useCallback(
-    (
-      id: string,
-      pos: number,
-      topIndex: number | undefined,
-      topId: string | undefined,
-      offset: number,
-      bottom: boolean | undefined,
-    ) => {
+    (id: string, position: Position | null, offset: number, bottom: boolean) => {
+      const entry: ScrollPosition = { position, offset, bottom, ts: Date.now() };
       const map = scrollPositions.current;
       if (map.size >= SCROLL_POSITION_CAP && !map.has(id)) {
         const firstKey = map.keys().next().value;
         if (firstKey !== undefined) map.delete(firstKey);
       }
-      map.set(id, { pos, topIndex, topId, offset, bottom, ts: Date.now() });
+      map.set(id, entry);
+      writeSessionPosition(id, entry);
     },
     [],
   );
   const getScrollPosition = useCallback((id: string): ScrollPosition | undefined => {
-    const sp = scrollPositions.current.get(id);
-    if (!sp) return undefined;
-    if (!isScrollPositionFresh(sp, Date.now())) {
-      scrollPositions.current.delete(id);
+    const map = scrollPositions.current;
+    const cached = map.get(id);
+    if (cached && isScrollPositionFresh(cached, Date.now())) return cached;
+    if (cached) map.delete(id);
+    const persisted = readSessionPosition(id);
+    if (!persisted) return undefined;
+    if (!isScrollPositionFresh(persisted, Date.now())) {
+      clearSessionPosition(id);
       return undefined;
     }
-    return sp;
+    map.set(id, persisted);
+    return persisted;
   }, []);
 
   // ---- Router feeds the reducer ----
@@ -197,37 +197,17 @@ export function useNavigationState({
     [],
   );
   const applySessionId = useCallback((id: string | null) => {
-    dispatch(
-      id === null
-        ? { type: "HYDRATE_OVERVIEW" }
-        : { type: "HYDRATE_SESSION", id, stepIndex: undefined },
-    );
+    dispatch(id === null ? { type: "HYDRATE_OVERVIEW" } : { type: "HYDRATE_SESSION", id });
   }, []);
-  const applyFocusStep = useCallback(
-    (stepIndex: number | undefined) => dispatch({ type: "SET_FOCUS_STEP", stepIndex }),
-    [],
-  );
 
   const { navigateTo } = useRouteSync({
     sessions,
     setActiveSection: applySection,
     setShowOverview: applyOverview,
     setActiveSessionId: applySessionId,
-    setFocusStepIndex: applyFocusStep,
   });
 
   const { activeSessionId } = state;
-
-  // When the selected session changes (e.g. via keyboard), clear any step focus
-  // so a previously deep-linked step does not stay pinned on the next session.
-  const isInitialIdRef = useRef(true);
-  useEffect(() => {
-    if (isInitialIdRef.current) {
-      isInitialIdRef.current = false;
-      return;
-    }
-    dispatch({ type: "CLEAR_FOCUS_STEP" });
-  }, [activeSessionId]);
 
   // ---- Derived: active session + document title ----
   const activeSession = useMemo(
@@ -252,22 +232,19 @@ export function useNavigationState({
       // section, so the main session list and overview are unaffected.
       navigateTo(sessionRouteWithSection(sessionId, state.activeSection));
       // Mark all unread notifications for this session as read and jump to the
-      // first notification's message if one exists. If the user has already
-      // scrolled past that message (saved scroll), skip the jump and let normal
-      // scroll restoration take them to where they left off.
+      // first notification's message. The jump is unconditional: if the user
+      // has already scrolled past that message the jump is harmless (it just
+      // re-lands nearby), and never jumping silently drops the notification's
+      // payload, which is what the user is being notified about.
       const unreadForSession = notifications.filter((n) => n.sessionId === sessionId && !n.readAt);
       const ids = unreadForSession.map((n) => n.id);
       if (ids.length > 0) {
         markNotificationRead(ids);
         const first = unreadForSession.sort((a, b) => a.createdAt - b.createdAt)[0];
-        const saved = getScrollPosition(sessionId);
-        const hasSavedScroll = saved !== undefined && saved.pos > 200;
-        if (!hasSavedScroll) {
-          dispatch({ type: "JUMP_TO_MESSAGE", target: parseMessageTarget(first.payload) });
-        }
+        dispatch({ type: "JUMP_TO_MESSAGE", target: parseMessageTarget(first.payload) });
       }
     },
-    [notifications, markNotificationRead, navigateTo, getScrollPosition, state.activeSection],
+    [notifications, markNotificationRead, navigateTo, state.activeSection],
   );
 
   const handlePromptClick = useCallback(

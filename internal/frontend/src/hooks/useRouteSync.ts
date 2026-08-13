@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import type { Session } from "./types";
 import type { Section } from "../components/IconChannel";
 
-const SESSION_WITH_STEP = /^\/session\/([^/]+)\/step\/(\d+)$/;
 const SESSION_PATH = /^\/session\/([^/]+)$/;
 
 const SECTION_ROUTES: Record<string, Section> = {
@@ -16,7 +15,6 @@ const SECTION_ROUTES: Record<string, Section> = {
 
 export interface RouteState {
   sessionId: string | null;
-  step: number | undefined;
   showOverview: boolean;
   section: Section;
 }
@@ -71,37 +69,27 @@ function sectionFromSearch(search: string): Section {
 // hash still opens a safe page.
 export function pathToRoute(location: { pathname: string; search: string }): RouteState {
   const section = sectionFromSearch(location.search);
-  const stepMatch = location.pathname.match(SESSION_WITH_STEP);
-  if (stepMatch) {
-    return {
-      sessionId: decodeURIComponent(stepMatch[1]),
-      step: parseInt(stepMatch[2], 10),
-      showOverview: false,
-      section,
-    };
-  }
   const sessionMatch = location.pathname.match(SESSION_PATH);
   if (sessionMatch) {
     return {
       sessionId: decodeURIComponent(sessionMatch[1]),
-      step: undefined,
       showOverview: false,
       section,
     };
   }
   if (location.pathname === HOME_ROUTE || location.pathname === SESSIONS_ROUTE) {
-    return { sessionId: null, step: undefined, showOverview: true, section };
+    return { sessionId: null, showOverview: true, section };
   }
   if (location.pathname === SEARCH_ROUTE) {
     // The search route rides on the overview; App.tsx drives the drawer from
     // the `q` query param so the URL still lands on a safe page.
-    return { sessionId: null, step: undefined, showOverview: true, section };
+    return { sessionId: null, showOverview: true, section };
   }
   const bareSection = SECTION_ROUTES[location.pathname.replace(/^\//, "")];
   if (bareSection) {
-    return { sessionId: null, step: undefined, showOverview: true, section: bareSection };
+    return { sessionId: null, showOverview: true, section: bareSection };
   }
-  return { sessionId: null, step: undefined, showOverview: true, section };
+  return { sessionId: null, showOverview: true, section };
 }
 
 interface UseRouteSyncOptions {
@@ -109,7 +97,6 @@ interface UseRouteSyncOptions {
   setActiveSessionId: (id: string | null) => void;
   setShowOverview: (v: boolean) => void;
   setActiveSection: (section: Section) => void;
-  setFocusStepIndex: (idx: number | undefined) => void;
 }
 
 export interface RouteSync {
@@ -123,8 +110,7 @@ export interface RouteSync {
 // navigation (back/forward) re-applies the previous pathname to app state,
 // which is what makes motion in either direction reversible.
 export function useRouteSync(options: UseRouteSyncOptions): RouteSync {
-  const { sessions, setActiveSessionId, setShowOverview, setActiveSection, setFocusStepIndex } =
-    options;
+  const { sessions, setActiveSessionId, setShowOverview, setActiveSection } = options;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -143,9 +129,8 @@ export function useRouteSync(options: UseRouteSyncOptions): RouteSync {
     setActiveSection(route.section);
     setShowOverview(route.showOverview);
     setActiveSessionId(route.sessionId);
-    setFocusStepIndex(route.step);
     appliedRef.current = true;
-  }, [location, setActiveSection, setShowOverview, setActiveSessionId, setFocusStepIndex]);
+  }, [location, setActiveSection, setShowOverview, setActiveSessionId]);
 
   // Resolve a deep-linked session id once sessions are available. An id that
   // is not in the list (stale hash) falls back to Overview instead of

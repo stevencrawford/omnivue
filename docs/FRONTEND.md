@@ -31,7 +31,7 @@ The root component manages global state:
 - Scratch files, open scratch tabs, live changed session IDs from SSE
 - Pin message flow (create scratch file from message content)
 - Keyboard shortcut dispatch
-- URL hash deep-linking (`#/session/{id}/step/{n}`)
+- URL hash deep-linking (`#/session/{id}`)
 - `NotificationToaster` — subscribes to notification list and fires in-app toasts + browser OS notifications, respecting quiet hours and `excludeActiveView`
 
 ### Sidebar (`Sidebar.tsx`)
