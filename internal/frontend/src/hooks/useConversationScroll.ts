@@ -526,11 +526,18 @@ export function useConversationScroll({
     } else if (messageCount > prevLengthRef.current) {
       // Live reload growth: cheap append-only tail measurement, then follow the
       // bottom when the user is pinned there (soft-following or explicit Tail).
-      // Never for a pending jump.
-      settle();
-      const reg = measureTail(el, prevLengthRef.current, registryRef.current);
-      applyRegistry(reg);
-      if (followingBottomRef.current || tailActiveRef.current) followToBottom(reg);
+      // Never for a pending jump. When pinned to the bottom the registry is not
+      // needed for the follow — reading the container's live scrollHeight is
+      // enough and skips the forced layout + marker recompute on every chunk —
+      // so defer the full re-measure to the idle settle().
+      const pinned = followingBottomRef.current || tailActiveRef.current;
+      if (pinned) {
+        followToBottom(null);
+      } else {
+        settle();
+        const reg = measureTail(el, prevLengthRef.current, registryRef.current);
+        applyRegistry(reg);
+      }
     } else {
       // Same block count but the render changed (SSE in-place updates re-group
       // middle blocks): let the idle settle re-measure them at true sizes.
@@ -676,7 +683,7 @@ export function useConversationScroll({
   // One-shot jump to the bottom: soft-follows while the user stays there, but
   // does not arm the persistent Tail mode. The split-button's Tail menu item
   // is what arms the persistent follow (enterTail).
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     followingBottomRef.current = true;
@@ -684,12 +691,12 @@ export function useConversationScroll({
     animateScrollToBottom(el, () => {
       programmaticScrollingRef.current = false;
     });
-  };
+  }, []);
   // Persistent Tail mode: lands at the live bottom and stays glued to it across
   // message-count re-renders until the user scrolls up (soft lock) or leaves.
   // The saved position carries bottom:true so a reopen lands at the real tail
   // once (Q8).
-  const enterTail = () => {
+  const enterTail = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     tailActiveRef.current = true;
@@ -700,12 +707,12 @@ export function useConversationScroll({
       programmaticScrollingRef.current = false;
     });
     saveScrollPosition(sessionId, null, 0, true);
-  };
-  const exitTail = () => {
+  }, [sessionId]);
+  const exitTail = useCallback(() => {
     tailActiveRef.current = false;
     setTailActive(false);
     followingBottomRef.current = false;
-  };
+  }, []);
 
   // Bound jump/marker click path: resolves against the latest registry.
   const scrollToRenderedJump = useCallback(

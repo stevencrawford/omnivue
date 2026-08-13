@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ChevronDown, ChevronUp, Info, TriangleAlert } from "lucide-react";
 
 import type { Message } from "../hooks/types";
@@ -52,7 +52,7 @@ interface MessageBlockProps {
   bookmarkIdByRef?: Record<string, string>;
 }
 
-export function MessageBlock({
+export const MessageBlock = memo(function MessageBlock({
   message,
   sessionId,
   onOpenModal,
@@ -138,4 +138,4 @@ export function MessageBlock({
       />
     </>
   );
-}
+});
