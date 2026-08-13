@@ -45,6 +45,11 @@ export const ToolUsageSchema = z.object({
   source: z.string(),
 });
 
+export const PositionSchema = z.object({
+  messageID: z.string(),
+  toolCallID: optionalString,
+});
+
 export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -53,6 +58,8 @@ export const ToolCallSchema = z.object({
   status: z.string(),
   duration: coerceNumber.optional(),
   metadata: z.string().optional(),
+  messageId: optionalString,
+  position: PositionSchema.optional(),
   usage: ToolUsageSchema.optional(),
 });
 
@@ -70,6 +77,7 @@ export const MessageSchema = z.object({
   tokensOutput: coerceNumber.optional(),
   metadata: z.record(z.string(), z.string()).optional(),
   error: z.string().optional(),
+  position: PositionSchema.optional(),
 });
 
 export const SessionSchema = z.object({
@@ -241,9 +249,8 @@ export const TagSessionsSchema = z.array(z.string());
 export const BookmarkSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
-  messageIndex: coerceNumber,
-  toolCallId: optionalString,
   messageId: optionalString,
+  toolCallId: optionalString,
   label: z.string(),
   kind: z.enum(["message", "plan"]),
   createdAt: z.string(),

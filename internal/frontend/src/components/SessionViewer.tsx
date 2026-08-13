@@ -44,7 +44,6 @@ interface SessionViewerProps {
   onPinMessage?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
     messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,

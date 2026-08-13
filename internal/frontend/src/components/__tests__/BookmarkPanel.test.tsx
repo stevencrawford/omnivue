@@ -31,7 +31,7 @@ const session: Session = {
 const messageBookmark: Bookmark = {
   id: "bm-msg",
   sessionId: "s-1",
-  messageIndex: 2,
+  messageId: "m-2",
   toolCallId: "",
   label: "Fix sidebar",
   kind: "message",
@@ -41,8 +41,6 @@ const messageBookmark: Bookmark = {
 const planBookmark: Bookmark = {
   id: "bm-plan",
   sessionId: "s-1",
-  messageIndex: -1,
-  toolCallId: "",
   label: "Implementation plan",
   kind: "plan",
   createdAt: "2024-01-03T00:00:00Z",

@@ -78,7 +78,6 @@ function AssistantStepContent({
 export function AssistantMessageView({
   message,
   sessionId,
-  messageIndex,
   onOpenModal,
   onPin,
   onBookmark,
@@ -87,12 +86,10 @@ export function AssistantMessageView({
 }: {
   message: Message;
   sessionId: string;
-  messageIndex: number;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
     messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
@@ -123,7 +120,7 @@ export function AssistantMessageView({
           onPin={onPin}
           onBookmark={
             onBookmark
-              ? () => onBookmark(sessionId, messageIndex, message.id, undefined, text.slice(0, 80))
+              ? () => onBookmark(sessionId, message.id, undefined, text.slice(0, 80))
               : undefined
           }
           isBookmarked={isMsgBookmarked}
@@ -140,12 +137,11 @@ export function AssistantMessageView({
             onBookmark={
               onBookmark
                 ? (toolCallId: string, label: string) =>
-                    onBookmark(sessionId, messageIndex, message.id, toolCallId, label)
+                    onBookmark(sessionId, message.id, toolCallId, label)
                 : undefined
             }
             bookmarkIdByRef={bookmarkIdByRef}
             sessionId={sessionId}
-            messageIndex={messageIndex}
           />
         </div>
       )}
