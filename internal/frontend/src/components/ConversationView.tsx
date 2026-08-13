@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useEffect, useRef, useState } from "react";
-import { CirclePlus, ChevronDown, ChevronUp, ArrowRight, RadioTower } from "lucide-react";
+import { CirclePlus, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import type { Session, Message } from "../hooks/types";
 
 import { SystemReminderView } from "./SystemReminderView";
@@ -17,15 +17,21 @@ import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./Spinner";
 
 // Split-button for the scroll-to-bottom control (Q15): the primary action
-// smooth-scrolls to the bottom, the chevron toggles persistent Tail mode. Tail
-// is a soft lock — scrolling up disarms it — and survives re-renders until the
-// user walks away, so live streaming keeps the newest messages in view.
+// smooth-scrolls to the bottom, the second down-arrow toggles persistent Tail
+// mode. Tail is a soft lock — scrolling up disarms it — and survives re-renders
+// until the user walks away, so live streaming keeps the newest messages in
+// view. Tail only makes sense for live sessions: when the session is not active
+// we render a single scroll-to-bottom button (the tail half is hidden
+// entirely). The visible "tailing" indicator is the animated line above the
+// prompt bar, not the button itself.
 function TailSplitButton({
   tailActive,
+  canTail,
   onScrollToBottom,
   onToggleTail,
 }: {
   tailActive: boolean;
+  canTail: boolean;
   onScrollToBottom: () => void;
   onToggleTail: () => void;
 }) {
@@ -50,14 +56,39 @@ function TailSplitButton({
     };
   }, [menuOpen]);
 
+  if (!canTail) {
+    return (
+      <div className="relative pointer-events-auto">
+        <div className="flex items-center rounded-md bg-ov-bg-secondary border border-ov-border shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={onScrollToBottom}
+            className="size-7 flex items-center justify-center text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer"
+            title="Scroll to bottom"
+          >
+            <ChevronDown size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={menuRef} className="relative pointer-events-auto">
-      <div className="flex items-center rounded-md bg-ov-bg-secondary border border-ov-border shadow-sm overflow-hidden">
+      <div
+        className={`flex items-center rounded-md bg-ov-bg-secondary border shadow-sm overflow-hidden transition-colors ${
+          tailActive ? "border-accent" : "border-ov-border"
+        }`}
+      >
         <button
           type="button"
           onClick={onScrollToBottom}
-          className="size-7 flex items-center justify-center text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer"
-          title="Scroll to bottom"
+          className={`size-7 flex items-center justify-center transition-colors cursor-pointer ${
+            tailActive
+              ? "text-accent hover:text-accent"
+              : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+          }`}
+          title={tailActive ? "Scrolling with live tail" : "Scroll to bottom"}
         >
           <ChevronDown size={14} />
         </button>
@@ -67,12 +98,14 @@ function TailSplitButton({
             e.stopPropagation();
             setMenuOpen((v) => !v);
           }}
-          className={`flex items-center justify-center border-l border-ov-border text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer ${
-            tailActive ? "text-accent" : ""
+          className={`flex items-center justify-center border-l transition-colors cursor-pointer ${
+            tailActive
+              ? "border-accent/50 bg-accent text-white hover:bg-accent"
+              : "border-ov-border text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
           }`}
-          title="Tail mode"
+          title={tailActive ? "Tail mode: on" : "Tail mode"}
         >
-          <ChevronUp size={10} className="rotate-180" />
+          <ChevronDown size={12} />
         </button>
       </div>
       {menuOpen && (
@@ -87,11 +120,10 @@ function TailSplitButton({
               tailActive ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"
             }`}
           >
-            <RadioTower size={12} />
-            <span className="flex-1 text-left">Tail live session</span>
-            {tailActive && (
-              <span className="text-[10px] uppercase tracking-wider opacity-70">On</span>
-            )}
+            <ChevronDown size={12} />
+            <span className="flex-1 text-left">
+              {tailActive ? "Stop tailing" : "Tail live session"}
+            </span>
           </button>
         </div>
       )}
@@ -274,6 +306,14 @@ export function ConversationView({
     scrollToRendered,
   });
 
+  // Tail mode only makes sense while the session is live: if the session stops
+  // being active (e.g. the agent finished) while we are tailing, exit so the
+  // view is not pinned to a bottom that will never move again.
+  const isActive = session.status === "active";
+  useEffect(() => {
+    if (!isActive && tailActive) exitTail();
+  }, [isActive, tailActive, exitTail]);
+
   const hasFocusJump =
     focusPosition !== undefined || focusMessageIndex !== undefined || focusMessageId !== undefined;
 
@@ -317,6 +357,7 @@ export function ConversationView({
             onQueueChanged={onQueueChanged}
             highlightPromptId={highlightPromptId}
             onHighlightDone={onHighlightDone}
+            tailActive={tailActive}
           />
         )}
       </div>
@@ -379,6 +420,7 @@ export function ConversationView({
           <div className="absolute bottom-0 right-14 z-20 pb-3 pointer-events-none">
             <TailSplitButton
               tailActive={tailActive}
+              canTail={isActive}
               onScrollToBottom={scrollToBottom}
               onToggleTail={tailActive ? exitTail : enterTail}
             />
@@ -411,6 +453,7 @@ export function ConversationView({
           onQueueChanged={onQueueChanged}
           highlightPromptId={highlightPromptId}
           onHighlightDone={onHighlightDone}
+          tailActive={tailActive}
         />
       )}
     </div>
