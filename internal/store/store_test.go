@@ -416,8 +416,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected schema version 8 on fresh install, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected schema version 9 on fresh install, got %d", v)
 	}
 }
 
@@ -463,8 +463,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 8 {
-		t.Fatalf("expected legacy db stamped to version 8, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected legacy db stamped to version 9, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -488,8 +488,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 8 {
-		t.Fatalf("expected version 8 after first open, got %d", v1)
+	if v1 != 9 {
+		t.Fatalf("expected version 9 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -502,8 +502,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 8 {
-		t.Fatalf("expected version 8 after second open, got %d", v2)
+	if v2 != 9 {
+		t.Fatalf("expected version 9 after second open, got %d", v2)
 	}
 }
 
@@ -518,23 +518,22 @@ func TestStore_BookmarkCRUD(t *testing.T) {
 	defer s.Close()
 
 	msg := store.Bookmark{
-		ID:           "bm-msg",
-		SessionID:    "s-1",
-		MessageIndex: 2,
-		MessageID:    "msg-42",
-		ToolCallID:   "",
-		Label:        "Fix sidebar",
-		Kind:         "message",
-		CreatedAt:    time.Now(),
+		ID:         "bm-msg",
+		SessionID:  "s-1",
+		MessageID:  "msg-42",
+		ToolCallID: "",
+		Label:      "Fix sidebar",
+		Kind:       "message",
+		CreatedAt:  time.Now(),
 	}
 	plan := store.Bookmark{
-		ID:           "bm-plan",
-		SessionID:    "s-1",
-		MessageIndex: -1,
-		ToolCallID:   "",
-		Label:        "Plan",
-		Kind:         "plan",
-		CreatedAt:    time.Now(),
+		ID:         "bm-plan",
+		SessionID:  "s-1",
+		MessageID:  "",
+		ToolCallID: "",
+		Label:      "Plan",
+		Kind:       "plan",
+		CreatedAt:  time.Now(),
 	}
 	if err := s.CreateBookmark(msg); err != nil {
 		t.Fatal(err)
@@ -565,12 +564,12 @@ func TestStore_BookmarkCRUD(t *testing.T) {
 		t.Fatalf("expected plan kind, got %q", got)
 	}
 
-	found, err := s.BookmarkByRef("s-1", -1, "")
+	found, err := s.BookmarkByPosition("s-1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if found == nil || found.ID != "bm-plan" {
-		t.Fatalf("expected plan bookmark by ref, got %+v", found)
+		t.Fatalf("expected plan bookmark by position, got %+v", found)
 	}
 
 	if err := s.DeleteBookmark("bm-plan"); err != nil {

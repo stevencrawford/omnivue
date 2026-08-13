@@ -189,6 +189,16 @@ type StepTokens struct {
 	CacheWrite int `json:"cacheWrite"`
 }
 
+// Position is the canonical, stable identity of a message or of a specific tool
+// call within a message. It is the single source of truth referenced by
+// bookmarks, notifications, scroll memory, and jump targets. Message-level
+// positions leave ToolCallID empty; tool-call positions set both fields. Raw
+// array indices are never used as identity and are not part of this type.
+type Position struct {
+	MessageID  string `json:"messageID"`
+	ToolCallID string `json:"toolCallID,omitempty"`
+}
+
 // Message represents a conversation message within a session.
 type Message struct {
 	ID        string      `json:"id"`
@@ -198,6 +208,9 @@ type Message struct {
 	Timestamp time.Time   `json:"timestamp"`
 	Model     string      `json:"model,omitempty"`
 	Agent     string      `json:"agent,omitempty"`
+
+	// Position is the canonical stable identity of this message.
+	Position Position `json:"position"`
 
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
@@ -225,6 +238,12 @@ type ToolCall struct {
 	Status   ToolCallStatus `json:"status"`
 	Duration int64          `json:"duration,omitempty"` // milliseconds
 	Metadata string         `json:"metadata,omitempty"` // tool-specific metadata (JSON)
+
+	// MessageID back-references the message that contains this tool call.
+	MessageID string `json:"messageId,omitempty"`
+
+	// Position is the canonical stable identity of this tool call.
+	Position Position `json:"position"`
 
 	// Usage captures optional per-tool-call token/cost data when the adapter can
 	// attribute it. Absent means the agent records no usage for this tool call.

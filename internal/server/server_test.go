@@ -854,53 +854,46 @@ func TestHandleCreateBookmark_Kind(t *testing.T) {
 	var bm store.Bookmark
 	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
 		map[string]any{
-			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "plan",
+			"sessionId": "s-1", "label": "Plan", "kind": "plan",
 		},
 		http.StatusCreated, &bm)
 	if bm.Kind != "plan" {
 		t.Errorf("expected kind plan, got %q", bm.Kind)
 	}
-	if bm.MessageIndex != -1 {
-		t.Errorf("expected messageIndex -1, got %d", bm.MessageIndex)
+	if bm.MessageID != "" {
+		t.Errorf("expected empty messageId for plan, got %q", bm.MessageID)
 	}
 
 	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
 		map[string]any{
-			"sessionId": "s-2", "messageIndex": 0, "toolCallId": "tc-1", "label": "Output",
+			"sessionId": "s-2", "messageId": "msg-1", "toolCallId": "tc-1", "label": "Output",
 		},
 		http.StatusCreated, &bm)
 	if bm.Kind != "message" {
 		t.Errorf("expected default kind message, got %q", bm.Kind)
 	}
-
-	// A messageId on the request is persisted so jumps can resolve by id.
-	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
-		map[string]any{
-			"sessionId": "s-3", "messageIndex": 4, "messageId": "msg-42", "label": "By id",
-		},
-		http.StatusCreated, &bm)
-	if bm.MessageID != "msg-42" {
-		t.Errorf("expected messageId msg-42, got %q", bm.MessageID)
+	if bm.MessageID != "msg-1" || bm.ToolCallID != "tc-1" {
+		t.Errorf("expected position msg-1/tc-1, got %q/%q", bm.MessageID, bm.ToolCallID)
 	}
 
 	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
 		map[string]any{
-			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "scratch",
+			"sessionId": "s-1", "label": "Plan", "kind": "scratch",
 		},
 		http.StatusBadRequest, nil)
 
-	// Same ref again toggles off (deletes the plan bookmark created above).
+	// Same position again toggles off (deletes the plan bookmark created above).
 	var toggled map[string]any
 	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
 		map[string]any{
-			"sessionId": "s-1", "messageIndex": -1, "label": "Plan", "kind": "plan",
+			"sessionId": "s-1", "label": "Plan", "kind": "plan",
 		},
 		http.StatusOK, &toggled)
 	if toggled["deleted"] != true {
 		t.Errorf("expected toggle to delete, got %v", toggled)
 	}
-	if len(fakes.bookmarks) != 2 {
-		t.Errorf("expected 2 bookmarks after toggle, got %d", len(fakes.bookmarks))
+	if len(fakes.bookmarks) != 1 {
+		t.Errorf("expected 1 bookmark after toggle, got %d", len(fakes.bookmarks))
 	}
 } // TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
 // into the role interfaces: an interface wrapping a nil pointer is non-nil, so

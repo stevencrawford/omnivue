@@ -177,7 +177,11 @@ func (h *SessionHub) Messages(ctx context.Context, sessionID string) ([]ingest.M
 	if err != nil {
 		return nil, err
 	}
-	return adapter.Messages(ctx, sessionID)
+	msgs, err := adapter.Messages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return ingest.WithPositions(msgs), nil
 }
 
 // Plan returns the plan for a session.

@@ -810,12 +810,11 @@ func handleListBookmarks(bookmarks store.BookmarkStore) http.HandlerFunc {
 }
 
 type createBookmarkRequest struct {
-	SessionID    string `json:"sessionId"`
-	MessageIndex int    `json:"messageIndex"`
-	ToolCallID   string `json:"toolCallId"`
-	MessageID    string `json:"messageId"`
-	Label        string `json:"label"`
-	Kind         string `json:"kind"`
+	SessionID  string `json:"sessionId"`
+	MessageID  string `json:"messageId"`
+	ToolCallID string `json:"toolCallId"`
+	Label      string `json:"label"`
+	Kind       string `json:"kind"`
 }
 
 func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
@@ -839,8 +838,8 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			writeError(w, badRequest("kind must be 'message' or 'plan'"))
 			return
 		}
-		// Toggle: if a bookmark exists at this reference, remove it.
-		if existing, err := bookmarks.BookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID); err == nil && existing != nil {
+		// Toggle: if a bookmark exists at this Position, remove it.
+		if existing, err := bookmarks.BookmarkByPosition(req.SessionID, req.MessageID, req.ToolCallID); err == nil && existing != nil {
 			if err := bookmarks.DeleteBookmark(existing.ID); err != nil {
 				writeError(w, err)
 				return
@@ -849,14 +848,13 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			return
 		}
 		b := store.Bookmark{
-			ID:           fmt.Sprintf("bm_%d", time.Now().UnixNano()),
-			SessionID:    req.SessionID,
-			MessageIndex: req.MessageIndex,
-			ToolCallID:   req.ToolCallID,
-			MessageID:    req.MessageID,
-			Label:        req.Label,
-			Kind:         req.Kind,
-			CreatedAt:    time.Now(),
+			ID:         fmt.Sprintf("bm_%d", time.Now().UnixNano()),
+			SessionID:  req.SessionID,
+			MessageID:  req.MessageID,
+			ToolCallID: req.ToolCallID,
+			Label:      req.Label,
+			Kind:       req.Kind,
+			CreatedAt:  time.Now(),
 		}
 		if err := bookmarks.CreateBookmark(b); err != nil {
 			writeError(w, err)
