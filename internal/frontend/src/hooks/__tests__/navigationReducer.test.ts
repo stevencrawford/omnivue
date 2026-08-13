@@ -19,7 +19,7 @@ function bookmark(partial: Partial<Bookmark>): Bookmark {
   return {
     id: "b1",
     sessionId: "s1",
-    messageIndex: 3,
+    messageId: "m1",
     label: "L",
     kind: "message",
     ...partial,
@@ -35,12 +35,10 @@ describe("navigationReducer", () => {
         activeTab: "diff",
         searchHighlightQuery: "foo",
         highlightPromptId: "p",
-        focusStepIndex: 2,
+        focusPosition: { messageID: "m9", toolCallID: "tc1" },
         focusMessageIndex: 5,
         focusMessageKey: 3,
         focusMessageId: "m1",
-        focusToolCallId: "tc1",
-        focusRenderedIndex: true,
       });
       const next = navigationReducer(state, { type: "SESSION_SELECT", id: "s2" });
       expect(next.activeSessionId).toBe("s2");
@@ -48,56 +46,55 @@ describe("navigationReducer", () => {
       expect(next.activeTab).toBe("session");
       expect(next.searchHighlightQuery).toBeNull();
       expect(next.highlightPromptId).toBeNull();
-      expect(next.focusStepIndex).toBeUndefined();
+      expect(next.focusPosition).toBeUndefined();
       expect(next.focusMessageIndex).toBeUndefined();
       expect(next.focusMessageId).toBeUndefined();
       expect(next.focusMessageKey).toBe(0);
-      expect(next.focusToolCallId).toBeUndefined();
-      expect(next.focusRenderedIndex).toBeUndefined();
     });
   });
 
   describe("JUMP_TO_MESSAGE", () => {
-    it("prefers messageId and clears a stale index (id wins over index)", () => {
+    it("prefers the canonical position over a raw index", () => {
       const state = base({ focusMessageIndex: 9, focusMessageKey: 4 });
       const next = navigationReducer(state, {
         type: "JUMP_TO_MESSAGE",
-        target: { messageId: "m42", messageIndex: 7, stepIndex: 1 },
+        target: { position: { messageID: "m42" }, messageIndex: 7 },
       });
-      expect(next.focusMessageId).toBe("m42");
+      expect(next.focusPosition?.messageID).toBe("m42");
       expect(next.focusMessageIndex).toBeUndefined();
-      expect(next.focusStepIndex).toBe(1);
       expect(next.focusMessageKey).toBe(5);
     });
 
-    it("carries a tool call id and rendered index through jumpFields", () => {
+    it("carries a tool call id through the position", () => {
       const next = navigationReducer(base({ focusMessageKey: 0 }), {
         type: "JUMP_TO_MESSAGE",
-        target: { messageIndex: 2, toolCallId: "tc-9", renderedIndex: true },
+        target: { position: { messageID: "m2", toolCallID: "tc-9" } },
       });
-      expect(next.focusMessageIndex).toBe(2);
-      expect(next.focusToolCallId).toBe("tc-9");
-      expect(next.focusRenderedIndex).toBe(true);
+      expect(next.focusPosition?.messageID).toBe("m2");
+      expect(next.focusPosition?.toolCallID).toBe("tc-9");
       expect(next.focusMessageKey).toBe(1);
     });
 
-    it("clears tool call focus when the target has none", () => {
-      const state = base({ focusMessageKey: 0, focusToolCallId: "tc-9", focusRenderedIndex: true });
+    it("clears a stale position when the target has none", () => {
+      const state = base({
+        focusMessageKey: 0,
+        focusPosition: { messageID: "m-old", toolCallID: "tc-9" },
+      });
       const next = navigationReducer(state, {
         type: "JUMP_TO_MESSAGE",
         target: { messageIndex: 2 },
       });
-      expect(next.focusToolCallId).toBeUndefined();
-      expect(next.focusRenderedIndex).toBeUndefined();
+      expect(next.focusPosition).toBeUndefined();
+      expect(next.focusMessageIndex).toBe(2);
     });
 
-    it("sets the index when no id is present", () => {
+    it("sets the raw index when no position is present", () => {
       const next = navigationReducer(base({ focusMessageKey: 0 }), {
         type: "JUMP_TO_MESSAGE",
         target: { messageIndex: 2 },
       });
       expect(next.focusMessageIndex).toBe(2);
-      expect(next.focusMessageId).toBeUndefined();
+      expect(next.focusPosition).toBeUndefined();
       expect(next.focusMessageKey).toBe(1);
     });
   });
@@ -114,73 +111,79 @@ describe("navigationReducer", () => {
       expect(next.activeSection).toBe("bookmarks");
     });
 
-    it("routes a message bookmark to the session tab, focuses it, and keeps the section", () => {
+    it("routes a message bookmark to the session tab and focuses its position", () => {
       const next = navigationReducer(base({ activeSection: "bookmarks", focusMessageKey: 2 }), {
         type: "BOOKMARK_SELECT",
-        bookmark: bookmark({ kind: "message", sessionId: "s9", messageIndex: 4 }),
+        bookmark: bookmark({ kind: "message", sessionId: "s9", messageId: "m44" }),
       });
       expect(next.activeTab).toBe("session");
-      expect(next.focusMessageIndex).toBe(4);
+      expect(next.focusPosition?.messageID).toBe("m44");
+      expect(next.focusPosition?.toolCallID).toBeUndefined();
       expect(next.focusMessageKey).toBe(3);
       expect(next.activeSection).toBe("bookmarks");
     });
 
-    it("carries the rendered index and tool call id for message bookmarks", () => {
+    it("carries the tool call id for tool-level message bookmarks", () => {
       const next = navigationReducer(base({ focusMessageKey: 2 }), {
         type: "BOOKMARK_SELECT",
         bookmark: bookmark({
           kind: "message",
           sessionId: "s9",
-          messageIndex: 4,
+          messageId: "m44",
           toolCallId: "tc-1",
         }),
       });
-      expect(next.focusMessageIndex).toBe(4);
-      expect(next.focusToolCallId).toBe("tc-1");
-      expect(next.focusRenderedIndex).toBe(true);
+      expect(next.focusPosition?.messageID).toBe("m44");
+      expect(next.focusPosition?.toolCallID).toBe("tc-1");
       expect(next.focusMessageKey).toBe(3);
     });
 
-    it("clears a prior tool call focus when jumping to a plain message bookmark", () => {
-      const next = navigationReducer(base({ focusToolCallId: "old-tc", focusMessageKey: 1 }), {
-        type: "BOOKMARK_SELECT",
-        bookmark: bookmark({ kind: "message", sessionId: "s9", messageIndex: 4 }),
-      });
-      expect(next.focusMessageIndex).toBe(4);
-      expect(next.focusToolCallId).toBeUndefined();
-      expect(next.focusRenderedIndex).toBe(true);
-    });
-
-    it("prefers messageId identity over messageIndex when present", () => {
+    it("clears a prior position when jumping to a plain message bookmark", () => {
       const next = navigationReducer(
-        base({ focusMessageIndex: 4, focusMessageId: "old", focusMessageKey: 2 }),
+        base({ focusPosition: { messageID: "old-tc" }, focusMessageKey: 1 }),
         {
           type: "BOOKMARK_SELECT",
-          bookmark: bookmark({
-            kind: "message",
-            sessionId: "s9",
-            messageIndex: 4,
-            messageId: "msg-xyz",
-          }),
+          bookmark: bookmark({ kind: "message", sessionId: "s9", messageId: "m44" }),
         },
       );
-      expect(next.focusMessageId).toBe("msg-xyz");
-      expect(next.focusMessageIndex).toBeUndefined();
-      expect(next.focusRenderedIndex).toBe(true);
+      expect(next.focusPosition?.messageID).toBe("m44");
+      expect(next.focusPosition?.toolCallID).toBeUndefined();
+    });
+
+    it("drops bookmarks with no message anchor (cannot resolve a scroll target)", () => {
+      const next = navigationReducer(base({ focusMessageKey: 1 }), {
+        type: "BOOKMARK_SELECT",
+        bookmark: bookmark({ kind: "message", sessionId: "s9", messageId: undefined }),
+      });
+      expect(next.focusPosition).toBeUndefined();
+      expect(next.focusMessageKey).toBe(0);
     });
   });
 
   describe("NOTIFICATION_SELECT", () => {
-    it("parses the payload target and selects the session", () => {
-      const next = navigationReducer(base({ focusMessageId: "old", focusMessageKey: 1 }), {
-        type: "NOTIFICATION_SELECT",
-        sessionId: "s3",
-        payload: JSON.stringify({ messageId: "m77", stepIndex: 2 }),
-      });
+    it("parses the position payload and selects the session", () => {
+      const next = navigationReducer(
+        base({ focusPosition: { messageID: "old" }, focusMessageKey: 1 }),
+        {
+          type: "NOTIFICATION_SELECT",
+          sessionId: "s3",
+          payload: JSON.stringify({ position: { messageID: "m77", toolCallID: "tc-2" } }),
+        },
+      );
       expect(next.activeSessionId).toBe("s3");
       expect(next.activeTab).toBe("session");
-      expect(next.focusMessageId).toBe("m77");
+      expect(next.focusPosition?.messageID).toBe("m77");
+      expect(next.focusPosition?.toolCallID).toBe("tc-2");
       expect(next.focusMessageIndex).toBeUndefined();
+    });
+
+    it("falls back to a legacy id payload", () => {
+      const next = navigationReducer(base(), {
+        type: "NOTIFICATION_SELECT",
+        sessionId: "s3",
+        payload: JSON.stringify({ messageId: "m77" }),
+      });
+      expect(next.focusPosition?.messageID).toBe("m77");
     });
 
     it("tolerates a malformed payload", () => {
@@ -191,11 +194,12 @@ describe("navigationReducer", () => {
       });
       expect(next.activeSessionId).toBe("s3");
       expect(next.focusMessageIndex).toBeUndefined();
+      expect(next.focusPosition).toBeUndefined();
     });
   });
 
   describe("SEARCH_HIT_SELECT", () => {
-    it("sets the tab from the chunk and focuses the hit without a key bump", () => {
+    it("sets the tab from the chunk, highlights, and bumps the focus key", () => {
       const next = navigationReducer(base({ focusMessageKey: 4 }), {
         type: "SEARCH_HIT_SELECT",
         sessionId: "s1",
@@ -207,9 +211,7 @@ describe("navigationReducer", () => {
       expect(next.activeTab).toBe("plan");
       expect(next.searchHighlightQuery).toBe("needle");
       expect(next.focusMessageIndex).toBe(2);
-      expect(next.focusStepIndex).toBeUndefined();
-      expect(next.focusToolCallId).toBeUndefined();
-      expect(next.focusRenderedIndex).toBeUndefined();
+      expect(next.focusMessageKey).toBe(5);
     });
   });
 
@@ -263,6 +265,7 @@ describe("navigationReducer", () => {
           activeTab: "diff",
           searchHighlightQuery: "q",
           highlightPromptId: "p",
+          focusPosition: { messageID: "m9" },
           focusMessageIndex: 2,
         }),
         { type: "GO_HOME" },
@@ -272,6 +275,7 @@ describe("navigationReducer", () => {
       expect(next.activeTab).toBe("session");
       expect(next.searchHighlightQuery).toBeNull();
       expect(next.highlightPromptId).toBeNull();
+      expect(next.focusPosition).toBeUndefined();
       expect(next.focusMessageIndex).toBeUndefined();
     });
 
@@ -281,33 +285,41 @@ describe("navigationReducer", () => {
           focusMessageIndex: 2,
           focusMessageId: "m",
           focusMessageKey: 5,
-          focusStepIndex: 1,
-          focusToolCallId: "tc",
-          focusRenderedIndex: true,
+          focusPosition: { messageID: "m9", toolCallID: "tc" },
         }),
         { type: "CLEAR_FOCUS" },
       );
       expect(next.focusMessageIndex).toBeUndefined();
       expect(next.focusMessageId).toBeUndefined();
+      expect(next.focusPosition).toBeUndefined();
       expect(next.focusMessageKey).toBe(0);
-      expect(next.focusStepIndex).toBe(1);
-      expect(next.focusToolCallId).toBeUndefined();
-      expect(next.focusRenderedIndex).toBeUndefined();
     });
   });
 
   describe("parseMessageTarget", () => {
-    it("reads the recognised fields", () => {
+    it("reads the canonical position", () => {
       expect(
         parseMessageTarget(
-          JSON.stringify({ messageIndex: 1, messageId: "m", stepIndex: 2, toolCallId: "tc" }),
+          JSON.stringify({ position: { messageID: "m1", toolCallID: "tc" }, other: 1 }),
         ),
-      ).toEqual({ messageIndex: 1, messageId: "m", stepIndex: 2, toolCallId: "tc" });
+      ).toEqual({ position: { messageID: "m1", toolCallID: "tc" } });
     });
 
-    it("returns empty for garbage", () => {
+    it("falls back to a legacy messageId/toolCallId payload", () => {
+      expect(parseMessageTarget(JSON.stringify({ messageId: "m1", toolCallId: "tc" }))).toEqual({
+        position: { messageID: "m1", toolCallID: "tc" },
+        messageId: "m1",
+      });
+      expect(parseMessageTarget(JSON.stringify({ messageId: "m2" }))).toEqual({
+        position: { messageID: "m2" },
+        messageId: "m2",
+      });
+    });
+
+    it("returns empty for garbage or an empty position", () => {
       expect(parseMessageTarget("")).toEqual({});
       expect(parseMessageTarget("nope")).toEqual({});
+      expect(parseMessageTarget(JSON.stringify({ position: {} }))).toEqual({});
     });
   });
 });

@@ -32,13 +32,11 @@ describe("pathToRoute", () => {
   it("maps home and sessions page to the overview state", () => {
     expect(r("/")).toEqual({
       sessionId: null,
-      step: undefined,
       showOverview: true,
       section: "sessions",
     });
     expect(r("/sessions")).toEqual({
       sessionId: null,
-      step: undefined,
       showOverview: true,
       section: "sessions",
     });
@@ -54,7 +52,6 @@ describe("pathToRoute", () => {
   it("maps a session path to its id with overview off", () => {
     expect(r("/session/sess-1")).toEqual({
       sessionId: "sess-1",
-      step: undefined,
       showOverview: false,
       section: "sessions",
     });
@@ -63,7 +60,6 @@ describe("pathToRoute", () => {
   it("keeps an open session when a section rides on the session route", () => {
     expect(r("/session/sess-1?section=queue")).toEqual({
       sessionId: "sess-1",
-      step: undefined,
       showOverview: false,
       section: "queue",
     });
@@ -72,14 +68,9 @@ describe("pathToRoute", () => {
   it("keeps the overview when a section rides on the home route", () => {
     expect(r("/?section=queue")).toEqual({
       sessionId: null,
-      step: undefined,
       showOverview: true,
       section: "queue",
     });
-  });
-
-  it("maps a session step deep link to its step focus", () => {
-    expect(r("/session/sess-1/step/3").step).toBe(3);
   });
 
   it("falls back to overview for unknown paths", () => {
@@ -106,7 +97,6 @@ function Harness() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showOverview, setShowOverview] = useState(true);
   const [activeSection, setActiveSection] = useState<Section>("sessions");
-  const [focusStep, setFocusStep] = useState<number | undefined>(undefined);
   const navigate = useNavigate();
 
   const { navigateTo, currentPath } = useRouteSync({
@@ -114,7 +104,6 @@ function Harness() {
     setActiveSessionId,
     setShowOverview,
     setActiveSection,
-    setFocusStepIndex: setFocusStep,
   });
 
   return (
@@ -123,7 +112,6 @@ function Harness() {
       <span data-testid="session">{activeSessionId}</span>
       <span data-testid="overview">{String(showOverview)}</span>
       <span data-testid="section">{activeSection}</span>
-      <span data-testid="step">{String(focusStep)}</span>
       <button onClick={() => navigateTo(sessionRoute("sess-1"))}>sess1</button>
       <button onClick={() => navigateTo(sessionRoute("sess-2"))}>sess2</button>
       <button onClick={() => navigateTo(sectionRoute("tags"))}>tags</button>
@@ -146,10 +134,9 @@ function renderHarness(initial: string[]) {
 
 describe("useRouteSync", () => {
   it("applies the initial route on load", () => {
-    renderHarness(["/session/sess-1/step/3"]);
+    renderHarness(["/session/sess-1"]);
     expect(screen.getByTestId("session").textContent).toBe("sess-1");
     expect(screen.getByTestId("overview").textContent).toBe("false");
-    expect(screen.getByTestId("step").textContent).toBe("3");
   });
 
   it("pushes a history entry per navigation and undoes with back", () => {

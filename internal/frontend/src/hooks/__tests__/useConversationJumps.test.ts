@@ -116,8 +116,7 @@ describe("useConversationJumps", () => {
     const tool = addTool(block, "tc-9");
     h.rerender({
       focusMessageKey: 1,
-      focusMessageId: "m42",
-      focusToolCallId: "tc-9",
+      focusPosition: { messageID: "m42", toolCallID: "tc-9" },
       registry: registryWith("m42", 1),
       registryVersion: 2,
       messageCount: 2,
