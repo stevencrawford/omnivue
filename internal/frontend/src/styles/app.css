@@ -747,7 +747,25 @@ body {
     var(--color-accent-secondary) 70%,
     transparent
   );
+  background-size: 200% 100%;
   opacity: 0.5;
+}
+
+/* Tail mode indicator: the colourful line above the prompt bar sweeps the
+   gradient horizontally while a live session is being tailed. The gradient's
+   transparent ends make the loop seamless. */
+.sess-pinned-bar--tailing::before {
+  opacity: 1;
+  animation: sess-pinned-bar-sweep 1.6s linear infinite;
+}
+
+@keyframes sess-pinned-bar-sweep {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .sess-agent-badge {
