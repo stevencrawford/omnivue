@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.2.3](https://github.com/stevencrawford/omnivue/compare/v0.2.2...v0.2.3) - 2026-08-14
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group in /internal/frontend with 6 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/142
+### Other Changes
+- fix(nav): Keep icon-channel section when opening tag/bookmark sessions by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/133
+- fix(opencode): Detect in-place part updates during live thinking by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/134
+- fix: Bookmark jump targeting + robust session scroll restore by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/135
+- fix(scratch): Open scratch tabs on deep-linked sessions by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/137
+- feat(notifications): Remove quiet hours and auto-dismiss settings by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/138
+- Fix scroll jump on restore and anchor bookmarks by stable message id by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/140
+- feat: Position-keyed navigation & bookmarks by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/141
+
 ## [v0.2.3](https://github.com/stevencrawford/omnivue/compare/v0.2.2...v0.2.3) - unreleased
 
 ### Other Changes
