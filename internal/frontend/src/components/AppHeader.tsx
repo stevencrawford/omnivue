@@ -33,22 +33,28 @@ export function AppHeader({
           }`}
           title="Overview"
         >
-          <svg
-            className="size-5 shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M6,18 Q9,14 12,10" opacity="0.4" />
-            <path d="M9,19 Q10.5,15 12,10" opacity="0.7" />
-            <path d="M15,19 Q13.5,15 12,10" opacity="0.7" />
-            <path d="M18,18 Q15,14 12,10" opacity="0.4" />
-            <path d="M7,12 Q8.5,4 12,4 Q15.5,4 17,12 L16,12 Q12,8 8,12 Z" />
-            <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
+          <svg className="size-5 shrink-0" viewBox="120 80 272 390" aria-hidden="true">
+            <defs>
+              <mask id="lens">
+                <rect x="0" y="0" width="512" height="512" fill="white" />
+                <circle cx="262" cy="238" r="6" fill="black" />
+              </mask>
+            </defs>
+            <g
+              transform="translate(0, 15)"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="20"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M140,410 Q210,320 256,230" opacity="0.4" />
+              <path d="M215,430 Q240,340 256,230" opacity="0.7" />
+              <path d="M297,430 Q272,340 256,230" opacity="0.7" />
+              <path d="M372,410 Q302,320 256,230" opacity="0.4" />
+              <path d="M170,255 Q195,100 256,100 Q317,100 342,255 L322,255 Q256,190 190,255 Z" />
+            </g>
+            <circle cx="256" cy="245" r="22" fill="currentColor" mask="url(#lens)" />
           </svg>
           <h1 className="text-sm font-semibold tracking-tight">Omnivue</h1>
           {version && (
