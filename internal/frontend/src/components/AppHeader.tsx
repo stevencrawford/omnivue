@@ -5,6 +5,7 @@ interface AppHeaderProps {
   showOverview: boolean;
   searchHighlightQuery: string | null;
   connected: boolean;
+  version?: string;
   onGoHome: () => void;
   onOpenSearch: () => void;
   onClearSearchHighlight: () => void;
@@ -14,6 +15,7 @@ export function AppHeader({
   showOverview,
   searchHighlightQuery,
   connected,
+  version,
   onGoHome,
   onOpenSearch,
   onClearSearchHighlight,
@@ -49,6 +51,14 @@ export function AppHeader({
             <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
           </svg>
           <h1 className="text-sm font-semibold tracking-tight">Omnivue</h1>
+          {version && (
+            <span
+              className="text-[11px] leading-none whitespace-nowrap text-ov-text-secondary/80 select-none"
+              title="Running version"
+            >
+              v{version}
+            </span>
+          )}
         </button>
       </div>
 
