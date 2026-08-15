@@ -254,11 +254,17 @@ export function navigationReducer(
       };
     }
     case "DIFF_NAV_TO_MESSAGE":
-      // Diff navigation resolves by raw message index/id (unchanged from the
-      // legacy diff path; the conversation maps it to a rendered block).
+      // Prefer the canonical message id when present: the summary/diff charts
+      // resolve a point's raw index against the un-grouped adapter message
+      // list, which does not map to a rendered block after assistant tool-call
+      // messages are merged. Position identity survives grouping, so it wins;
+      // the raw index stays only as a fallback for callers with no id.
       return {
         ...state,
-        ...jumpFields(state, { messageIndex: action.messageIndex, messageId: action.messageId }),
+        ...jumpFields(state, {
+          position: action.messageId ? { messageID: action.messageId } : undefined,
+          messageIndex: action.messageId ? undefined : action.messageIndex,
+        }),
         activeTab: "session",
       };
     case "SEARCH_HIT_SELECT":

@@ -198,6 +198,32 @@ describe("navigationReducer", () => {
     });
   });
 
+  describe("DIFF_NAV_TO_MESSAGE", () => {
+    it("prefers the canonical message id as a position over the raw index", () => {
+      const next = navigationReducer(base({ focusMessageKey: 2, activeTab: "summary" }), {
+        type: "DIFF_NAV_TO_MESSAGE",
+        messageIndex: 4,
+        messageId: "m44",
+      });
+      expect(next.activeTab).toBe("session");
+      expect(next.focusPosition?.messageID).toBe("m44");
+      expect(next.focusMessageIndex).toBeUndefined();
+      expect(next.focusMessageKey).toBe(3);
+    });
+
+    it("falls back to the raw index when no message id is present", () => {
+      const next = navigationReducer(base({ focusMessageKey: 2, activeTab: "summary" }), {
+        type: "DIFF_NAV_TO_MESSAGE",
+        messageIndex: 4,
+        messageId: undefined,
+      });
+      expect(next.activeTab).toBe("session");
+      expect(next.focusPosition).toBeUndefined();
+      expect(next.focusMessageIndex).toBe(4);
+      expect(next.focusMessageKey).toBe(3);
+    });
+  });
+
   describe("SEARCH_HIT_SELECT", () => {
     it("sets the tab from the chunk, highlights, and bumps the focus key", () => {
       const next = navigationReducer(base({ focusMessageKey: 4 }), {
