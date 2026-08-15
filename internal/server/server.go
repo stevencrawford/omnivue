@@ -30,7 +30,7 @@ func NewHandler(dep Dep) http.Handler {
 	mux := http.NewServeMux()
 
 	// API routes
-	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub))
+	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub, dep.Pipeline))
 	mux.HandleFunc("GET /_/api/sources", handleSources(dep.Sources))
 	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, dep.Pipeline))
 	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Pipeline, dep.Sources))
@@ -92,7 +92,7 @@ func NewHandler(dep Dep) http.Handler {
 	return mux
 }
 
-func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog SessionCatalog) http.HandlerFunc {
+func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog SessionCatalog, pipeline *Pipeline) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var schemaVersion int
 		if meta != nil {
@@ -108,12 +108,17 @@ func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog
 				sourceCount = len(all)
 			}
 		}
+		indexed := false
+		if pipeline != nil {
+			indexed = pipeline.Indexed()
+		}
 		writeOK(w, map[string]any{
 			"version":       version.Version,
 			"pid":           os.Getpid(),
 			"sources":       sourceCount,
 			"sessions":      len(catalog.Sessions()),
 			"schemaVersion": schemaVersion,
+			"indexed":       indexed,
 		})
 	}
 }

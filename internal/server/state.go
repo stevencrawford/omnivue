@@ -179,6 +179,11 @@ type Pipeline struct {
 	indexer *Indexer
 	notif   *Notifier
 	bus     *EventBus
+	// indexed reports whether at least one full refresh pass has completed.
+	// Clients poll it to learn when the initial session load/index has
+	// finished, so they can distinguish "still indexing" from "indexed and
+	// empty" on first boot.
+	indexed bool
 }
 
 // newPipeline builds the session refresh pipeline.
@@ -211,7 +216,16 @@ func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
 
 	p.indexer.IndexSessions(ctx)
 	p.notif.ClassifyChanges(ctx, ids, transitions)
+	p.indexed = true
 	return liveCount
+}
+
+// Indexed reports whether a full refresh pass has completed at least once,
+// meaning the initial session load and search indexing have finished.
+func (p *Pipeline) Indexed() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.indexed
 }
 
 // RefreshLiveness refreshes and broadcasts only liveness/status changes: when

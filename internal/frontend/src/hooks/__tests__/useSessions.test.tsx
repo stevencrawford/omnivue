@@ -1,11 +1,18 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useSessions } from "../useSessions";
-import { fetchSessions } from "../apiClient";
-import type { Session } from "../types";
+import { fetchSessions, fetchStatus } from "../apiClient";
+import type { Session, StatusInfo } from "../types";
 
 vi.mock("../apiClient", () => ({
   fetchSessions: vi.fn().mockResolvedValue([]),
+  fetchStatus: vi.fn().mockResolvedValue({
+    version: "test",
+    pid: 1,
+    sources: 0,
+    sessions: 0,
+    indexed: true,
+  }),
   ApiError: class ApiError extends Error {
     status = 0;
     endpoint = "";
@@ -36,6 +43,10 @@ vi.mock("../useSSE", () => ({
 describe("useSessions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("only replaces liveChangedIds when the changed-id list actually differs", () => {
@@ -88,5 +99,91 @@ describe("useSessions", () => {
       await result.current.loadSessions();
     });
     expect(result.current.sessions).toHaveLength(1);
+  });
+
+  it("reports indexing while the initial ingest is still running", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue({
+      version: "v",
+      pid: 1,
+      sources: 1,
+      sessions: 0,
+      indexed: false,
+    } as StatusInfo);
+
+    const { result } = renderHook(() => useSessions());
+    await act(async () => {});
+    expect(result.current.indexing).toBe(true);
+  });
+
+  it("reports no indexing once the initial ingest is done", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue({
+      version: "v",
+      pid: 1,
+      sources: 1,
+      sessions: 0,
+      indexed: true,
+    } as StatusInfo);
+
+    const { result } = renderHook(() => useSessions());
+    await act(async () => {});
+    expect(result.current.indexing).toBe(false);
+  });
+
+  it("reports no indexing when no sources are configured", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue({
+      version: "v",
+      pid: 1,
+      sources: 0,
+      sessions: 0,
+      indexed: false,
+    } as StatusInfo);
+
+    const { result } = renderHook(() => useSessions());
+    await act(async () => {});
+    expect(result.current.indexing).toBe(false);
+  });
+
+  it("treats a backend without an indexed field as already indexed", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue({
+      version: "v",
+      pid: 1,
+      sources: 1,
+      sessions: 0,
+    } as StatusInfo);
+
+    const { result } = renderHook(() => useSessions());
+    await act(async () => {});
+    expect(result.current.indexing).toBe(false);
+  });
+
+  it("re-fetches sessions when indexing completes mid-poll", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchStatus)
+      .mockResolvedValueOnce({
+        version: "v",
+        pid: 1,
+        sources: 1,
+        sessions: 0,
+        indexed: false,
+      } as StatusInfo)
+      .mockResolvedValueOnce({
+        version: "v",
+        pid: 1,
+        sources: 1,
+        sessions: 0,
+        indexed: true,
+      } as StatusInfo);
+
+    const { result } = renderHook(() => useSessions());
+    await act(async () => {});
+    expect(result.current.indexing).toBe(true);
+
+    const callsBefore = vi.mocked(fetchSessions).mock.calls.length;
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    await act(async () => {});
+    expect(result.current.indexing).toBe(false);
+    expect(vi.mocked(fetchSessions).mock.calls.length).toBeGreaterThan(callsBefore);
   });
 });
