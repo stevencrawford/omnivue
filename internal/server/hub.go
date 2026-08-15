@@ -291,11 +291,13 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 
 	var allSessions []ingest.Session
 	for sourceID, adapter := range adapters {
+		start := time.Now()
 		sessions, err := adapter.ListSessions(ctx)
 		if err != nil {
 			slog.Warn("failed to list sessions", "source", sourceID, "error", err)
 			continue
 		}
+		slog.Debug("listed source sessions", "source", sourceID, "count", len(sessions), "ms", time.Since(start).Milliseconds())
 		for i := range sessions {
 			sessions[i].SourceID = sourceID
 			// Liveness heuristic: a session is "active" if its last update is
