@@ -156,7 +156,7 @@ export function ResumeButton({ sessionId }: { sessionId: string }) {
                 }}
               >
                 <OptionPreview
-                  label="Filesystem"
+                  label="Absolute"
                   cmd={options.absolute}
                   icon={<FolderOpen size={12} />}
                 />
