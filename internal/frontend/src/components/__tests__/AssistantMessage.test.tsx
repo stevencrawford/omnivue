@@ -16,41 +16,64 @@ function msg(reasoning: string): Message {
   } as Message;
 }
 
-const multiChunkReasoning = "p".repeat(400) + "\n\n" + "q".repeat(400) + "\n\n" + "r".repeat(400);
+const chunkA = "aaa " + "x".repeat(300);
+const chunkB = "bbb " + "y".repeat(300);
+const chunkC = "ccc " + "z".repeat(300);
+const multiChunkReasoning = [chunkA, chunkB, chunkC].join("\n\n");
 
 describe("AssistantMessageView ThinkingBlock", () => {
-  it("collapses by default and shows the chunk count in the header", () => {
+  it("collapses by default with the chunk count in the header and no chunks visible", () => {
     render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" />);
     expect(screen.getByRole("button", { name: /Show thinking · 3/i })).toBeInTheDocument();
-    expect(screen.queryByText(/Thinking 1/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("thinking in progress")).not.toBeInTheDocument();
   });
 
   it("shows a single-chunk header without a count", () => {
     render(<AssistantMessageView message={msg("short thought")} sessionId="s" />);
     expect(screen.getByRole("button", { name: /Show thinking/i })).toBeInTheDocument();
+    expect(screen.queryByText(/· 1/i)).not.toBeInTheDocument();
   });
 
-  it("renders numbered chunks when expanded", async () => {
+  it("renders every chunk when expanded", async () => {
     const user = userEvent.setup();
     render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" />);
     await user.click(screen.getByRole("button", { name: /Show thinking · 3/i }));
-    expect(screen.getByText("Thinking 1")).toBeInTheDocument();
-    expect(screen.getByText("Thinking 2")).toBeInTheDocument();
-    expect(screen.getByText("Thinking 3")).toBeInTheDocument();
-    // Chunks stay collapsed until individually clicked; header toggle closes all.
+    expect(screen.getByText(/aaa x/)).toBeInTheDocument();
+    expect(screen.getByText(/bbb y/)).toBeInTheDocument();
+    expect(screen.getByText(/ccc z/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Hide thinking · 3/i }));
-    expect(screen.queryByText("Thinking 1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
   });
 
-  it("auto-expands the newest chunk while live so streaming progress is visible", () => {
+  it("while live and collapsed, keeps the parent folded and hangs the newest chunk beneath it", () => {
     render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" live />);
-    expect(screen.getByText("Thinking 3")).toBeInTheDocument();
-    // The newest chunk's label pulses while live.
-    expect(screen.getByText("Thinking 3").className).toContain("animate-pulse");
+    expect(screen.getByRole("button", { name: /Show thinking · 3/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("thinking in progress")).toBeInTheDocument();
+    expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/bbb y/)).not.toBeInTheDocument();
+    expect(screen.getByText(/ccc z/)).toBeInTheDocument();
+  });
+
+  it("while live and expanded, shows all chunks with no duplicated child", async () => {
+    const user = userEvent.setup();
+    render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" live />);
+    await user.click(screen.getByRole("button", { name: /Show thinking · 3/i }));
+    expect(screen.getAllByText(/aaa x/)).toHaveLength(1);
+    expect(screen.getAllByText(/ccc z/)).toHaveLength(1);
+    expect(screen.getByLabelText("thinking in progress")).toBeInTheDocument();
+  });
+
+  it("hangs a single live chunk beneath the parent while it is the only chunk", () => {
+    render(<AssistantMessageView message={msg(chunkC)} sessionId="s" live />);
+    expect(screen.getByRole("button", { name: /Show thinking/i })).toBeInTheDocument();
+    expect(screen.getByText(/ccc z/)).toBeInTheDocument();
+    expect(screen.getByLabelText("thinking in progress")).toBeInTheDocument();
   });
 
   it("renders no thinking UI for a message without reasoning", () => {
     render(<AssistantMessageView message={msg("")} sessionId="s" />);
     expect(screen.queryByText(/thinking/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("thinking in progress")).not.toBeInTheDocument();
   });
 });

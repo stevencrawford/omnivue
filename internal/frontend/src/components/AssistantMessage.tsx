@@ -1,89 +1,64 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 import { splitReasoning } from "../utils/reasoningChunks";
 import { MarkdownContent } from "./ui/MarkdownContent";
 import { ToolCallList } from "./tool-renderers/ToolCallList";
 
+// An ever-growing reasoning block. While the session is streaming, all finished
+// chunks are folded into the parent (collapsed by default) and the newest chunk
+// hangs beneath it as a visible child, like a file tree: as new thinking lands,
+// the previous chunk is folded in and the parent keeps growing. Once streaming
+// ends the child is folded in and the whole block stays collapsed. Expanding
+// the parent shows every chunk including the newest.
 function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean }) {
   const chunks = useMemo(() => splitReasoning(reasoning), [reasoning]);
   const [open, setOpen] = useState(false);
-  const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
-  const autoOpenedRef = useRef(false);
-
-  // While the session is live, keep the section open and auto-expand the newest
-  // chunk so streaming thinking is visible instead of one frozen block; collapse
-  // back to the header when the session stops streaming.
-  useEffect(() => {
-    if (live && chunks.length > 0) {
-      setOpen(true);
-      setExpandedChunks((prev) =>
-        prev.has(chunks.length - 1) ? prev : new Set(prev).add(chunks.length - 1),
-      );
-      autoOpenedRef.current = true;
-    } else if (!live && autoOpenedRef.current) {
-      setOpen(false);
-      autoOpenedRef.current = false;
-    }
-  }, [live, chunks.length]);
 
   if (!reasoning) return null;
+  const parentChunks = live ? chunks.slice(0, -1) : chunks;
+  const liveChunk = live ? chunks[chunks.length - 1] : undefined;
+  const shown = live && open ? chunks : parentChunks;
   const count = chunks.length;
   const label = count > 1 ? `Show thinking · ${count}` : "Show thinking";
   const hideLabel = count > 1 ? `Hide thinking · ${count}` : "Hide thinking";
-  const toggleChunk = (idx: number) => {
-    setExpandedChunks((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) {
-        next.delete(idx);
-      } else {
-        next.add(idx);
-      }
-      return next;
-    });
-  };
 
   return (
     <div className="mb-2">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
-        {open ? hideLabel : label}
-      </button>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+          {open ? hideLabel : label}
+        </button>
+        {live && (
+          <Loader2
+            size={11}
+            className="animate-spin text-accent"
+            aria-label="thinking in progress"
+          />
+        )}
+      </div>
       {open && (
         <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
-          {chunks.map((chunk, idx) => {
-            const expanded = expandedChunks.has(idx);
-            const isNewest = idx === count - 1;
-            return (
-              <div key={idx} className={idx > 0 ? "mt-2" : ""}>
-                {count > 1 && (
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-[10px] text-ov-text-secondary hover:text-accent cursor-pointer select-none"
-                    onClick={() => toggleChunk(idx)}
-                  >
-                    <ChevronRight
-                      size={12}
-                      className={`transition-transform ${expanded ? "rotate-90" : ""}`}
-                    />
-                    <span className={live && isNewest ? "animate-pulse" : ""}>
-                      Thinking {idx + 1}
-                    </span>
-                  </button>
-                )}
-                {expanded && (
-                  <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
-                    {chunk}
-                  </div>
-                )}
+          {shown.map((chunk, idx) => (
+            <div key={idx} className={idx > 0 ? "mt-2" : ""}>
+              <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
+                {chunk}
               </div>
-            );
-          })}
+            </div>
+          ))}
+        </div>
+      )}
+      {!open && liveChunk && (
+        <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
+          <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
+            {liveChunk}
+          </div>
         </div>
       )}
     </div>
