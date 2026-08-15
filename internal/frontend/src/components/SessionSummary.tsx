@@ -30,7 +30,7 @@ export function SessionSummary({
   const { categories, totalCount, totalDuration, hasTiming } = useSessionSummary(messages);
   const { tokenTimeline, effectiveness } = useSessionTokenomics(messages, session);
 
-  if (loading) {
+  if (loading && messages.length === 0) {
     return (
       <div className="flex flex-col h-full overflow-y-auto">
         <div className="flex-1 flex items-center justify-center">
