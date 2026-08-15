@@ -410,6 +410,7 @@ export function ConversationView({
                   onBookmark={onBookmark}
                   bookmarkIdByRef={bookmarkIdByRef}
                   sessionId={session.id}
+                  live={isActive}
                 />
               </div>
             ))

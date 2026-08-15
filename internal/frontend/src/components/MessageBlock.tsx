@@ -41,6 +41,7 @@ interface MessageBlockProps {
   message: Message;
   messageIndex: number;
   sessionId: string;
+  live?: boolean;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (
@@ -59,6 +60,7 @@ export const MessageBlock = memo(function MessageBlock({
   onPin,
   onBookmark,
   bookmarkIdByRef,
+  live,
 }: MessageBlockProps) {
   const msgKey = `${sessionId}:${message.id}:`;
   const isMsgBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[msgKey] : false;
@@ -135,6 +137,7 @@ export const MessageBlock = memo(function MessageBlock({
         onBookmark={onBookmark}
         isMsgBookmarked={isMsgBookmarked}
         bookmarkIdByRef={bookmarkIdByRef}
+        live={live}
       />
     </>
   );

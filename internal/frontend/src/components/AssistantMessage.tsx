@@ -1,28 +1,89 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "../utils/toolDisplay";
+import { splitReasoning } from "../utils/reasoningChunks";
 import { MarkdownContent } from "./ui/MarkdownContent";
 import { ToolCallList } from "./tool-renderers/ToolCallList";
 
-function ThinkingBlock({ reasoning }: { reasoning: string }) {
-  const [expanded, setExpanded] = useState(false);
+function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean }) {
+  const chunks = useMemo(() => splitReasoning(reasoning), [reasoning]);
+  const [open, setOpen] = useState(false);
+  const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
+  const autoOpenedRef = useRef(false);
+
+  // While the session is live, keep the section open and auto-expand the newest
+  // chunk so streaming thinking is visible instead of one frozen block; collapse
+  // back to the header when the session stops streaming.
+  useEffect(() => {
+    if (live && chunks.length > 0) {
+      setOpen(true);
+      setExpandedChunks((prev) =>
+        prev.has(chunks.length - 1) ? prev : new Set(prev).add(chunks.length - 1),
+      );
+      autoOpenedRef.current = true;
+    } else if (!live && autoOpenedRef.current) {
+      setOpen(false);
+      autoOpenedRef.current = false;
+    }
+  }, [live, chunks.length]);
+
   if (!reasoning) return null;
+  const count = chunks.length;
+  const label = count > 1 ? `Show thinking · ${count}` : "Show thinking";
+  const hideLabel = count > 1 ? `Hide thinking · ${count}` : "Hide thinking";
+  const toggleChunk = (idx: number) => {
+    setExpandedChunks((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="mb-2">
       <button
         type="button"
         className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setOpen(!open)}
       >
-        <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? "Hide thinking" : "Show thinking"}
+        <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+        {open ? hideLabel : label}
       </button>
-      {expanded && (
+      {open && (
         <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
-          <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
-            {reasoning}
-          </div>
+          {chunks.map((chunk, idx) => {
+            const expanded = expandedChunks.has(idx);
+            const isNewest = idx === count - 1;
+            return (
+              <div key={idx} className={idx > 0 ? "mt-2" : ""}>
+                {count > 1 && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-[10px] text-ov-text-secondary hover:text-accent cursor-pointer select-none"
+                    onClick={() => toggleChunk(idx)}
+                  >
+                    <ChevronRight
+                      size={12}
+                      className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+                    />
+                    <span className={live && isNewest ? "animate-pulse" : ""}>
+                      Thinking {idx + 1}
+                    </span>
+                  </button>
+                )}
+                {expanded && (
+                  <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
+                    {chunk}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -83,6 +144,7 @@ export function AssistantMessageView({
   onBookmark,
   isMsgBookmarked,
   bookmarkIdByRef,
+  live,
 }: {
   message: Message;
   sessionId: string;
@@ -96,6 +158,7 @@ export function AssistantMessageView({
   ) => void;
   isMsgBookmarked?: boolean;
   bookmarkIdByRef?: Record<string, string>;
+  live?: boolean;
 }) {
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
@@ -112,7 +175,7 @@ export function AssistantMessageView({
           {agent}
         </span>
       )}
-      <ThinkingBlock reasoning={reasoning} />
+      <ThinkingBlock reasoning={reasoning} live={live} />
       {showText && (
         <AssistantStepContent
           content={text}
