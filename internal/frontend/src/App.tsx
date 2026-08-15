@@ -22,6 +22,7 @@ import { useSearchState } from "./hooks/useSearchState";
 import { useRecentSearches } from "./hooks/useRecentSearches";
 import { useBookmarks } from "./hooks/useBookmarks";
 import { useSessions, setOnPromptQueueChanged } from "./hooks/useSessions";
+import { useStatus } from "./hooks/useStatus";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
@@ -48,6 +49,8 @@ export function App() {
   } = useSessions();
 
   const { bookmarks, bookmarkIdByRef, handleBookmark, handleBookmarkDelete } = useBookmarks();
+
+  const { status, reload: reloadStatus } = useStatus();
 
   const {
     notifications,
@@ -129,6 +132,14 @@ export function App() {
     fetchQueueCount();
     return () => setOnPromptQueueChanged(null);
   }, [fetchQueueCount]);
+
+  // Refresh the reported version whenever the server reconnects so an upgraded
+  // binary surfaces its new version without a manual page reload.
+  const connectedRef = useRef(connected);
+  useEffect(() => {
+    if (connected && !connectedRef.current) reloadStatus();
+    connectedRef.current = connected;
+  }, [connected, reloadStatus]);
 
   const [tagsVersion, setTagsVersion] = useState(0);
 
@@ -223,6 +234,7 @@ export function App() {
               showOverview={showOverview}
               searchHighlightQuery={searchHighlightQuery}
               connected={connected}
+              version={status?.version}
               onGoHome={goHome}
               onOpenSearch={() => {
                 if (searchHighlightQuery) setSearchInput(searchHighlightQuery);
