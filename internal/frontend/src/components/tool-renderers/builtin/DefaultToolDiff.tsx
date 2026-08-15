@@ -1,6 +1,6 @@
 import type { ToolRendererProps } from "../types";
 import { effectiveToolKind, getToolSummary } from "../../../utils/toolDisplay";
-import { CopyButton } from "../../CopyButton";
+import { CopyButton } from "../../ui/CopyButton";
 
 function ToolDataBlock({ label, content }: { label: string; content: string }) {
   let formatted = content;

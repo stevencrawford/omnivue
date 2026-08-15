@@ -1,6 +1,6 @@
 import { Database } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../MarkdownContent";
+import { MarkdownContent } from "../../ui/MarkdownContent";
 
 export function SqlToolDiff({
   tool,

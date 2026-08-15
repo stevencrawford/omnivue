@@ -38,8 +38,13 @@ src/
 │   ├── Sidebar.tsx             # Resizable sidebar with section panels
 │   ├── SessionViewer.tsx       # Tabbed session detail (session/diff/plan/scratch/terminal)
 │   ├── ConversationView.tsx    # Message list with grouping, scroll markers
-│   ├── ...                     # ~40 more component files
-│   └── ToolRenderers/         # Plugin-based tool call rendering
+│   ├── ui/                     # Reusable presentational widgets (prop-driven)
+│   │   ├── MarkdownContent.tsx # Markdown renderer with syntax highlighting
+│   │   ├── Modal.tsx           # Dialog shell
+│   │   ├── CopyButton.tsx      # Simple copy-to-clipboard button
+│   │   └── ...                 # Spinner, Toggle, FilterChip, EmptyState, ...
+│   ├── ...                     # ~40 more component files (views/containers)
+│   └── tool-renderers/         # Plugin-based tool call rendering
 │       ├── AGENTS.md           # Dedicated renderer plugin docs
 │       ├── registry.ts         # Auto-discovery via import.meta.glob
 │       ├── builtin/            # 18 built-in tool renderers
@@ -117,6 +122,18 @@ export async function fetchSessions(): Promise<Session[]> {
 - Props interface named `{ComponentName}Props`, defined above the function.
 - Default export discouraged — use named exports.
 
+### Presentational vs container
+- **Reusable presentational widgets** (prop-driven, encapsulate only local UI state like
+  open/copy/hover/click-outside) live in `components/ui/`. Examples: `Spinner`, `Modal`,
+  `Toggle`, `FilterChip`, `CopyButton`, `MarkdownContent`, `EmptyState`.
+- **Views / containers** (pull app-level data from `useXxx` hooks or `apiClient`, own a screen
+  or a section of one) live directly in `components/` or in a feature subdir
+  (`sessions/`, `tags/`, `settings/`, `overview/`, `session-summary/`, `tool-renderers/`).
+- A component is presentational if its state is all local (`useState`/`useRef` for UI);
+  it is a container if it reads app data hooks (`useNavigation`, `useTags`, `useBookmarks`,
+  `useSessionSummary`, `apiClient`, etc.). Put it in `ui/` only if it is reusable and
+  prop-driven; don't move a screen or a section.
+
 ### Event handler naming
 - `handleXxx` for event handlers (e.g., `handleSearchSelect`, `handleDrawerClose`).
 - `onXxx` for prop callbacks (e.g., `onTabChange`, `onSessionSelect`).
@@ -128,7 +145,7 @@ export async function fetchSessions(): Promise<Session[]> {
 
 ## Tool Renderer Plugin System
 
-See `src/components/ToolRenderers/AGENTS.md` for full details.
+See `src/components/tool-renderers/AGENTS.md` for full details.
 
 Key rules:
 - Plugin discovery via Vite `import.meta.glob` — no manual registration needed.

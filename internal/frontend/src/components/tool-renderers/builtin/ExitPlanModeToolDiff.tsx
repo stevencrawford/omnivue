@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../MarkdownContent";
+import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {

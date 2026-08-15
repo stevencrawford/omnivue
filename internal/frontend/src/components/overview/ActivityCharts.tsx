@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { BarChart3, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import type { DayStats } from "../utils/overviewAnalytics";
-import { formatCost, formatTokens } from "../utils/sessionUtils";
-import { TOKEN_COLOR_SEGMENTS } from "../utils/toolKindTaxonomy";
+import type { DayStats } from "../../utils/overviewAnalytics";
+import { formatCost, formatTokens } from "../../utils/sessionUtils";
+import { TOKEN_COLOR_SEGMENTS } from "../../utils/toolKindTaxonomy";
 
 interface ActivityChartsProps {
   dailyStats: DayStats[];

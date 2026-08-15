@@ -14,7 +14,7 @@ import { useNavigation } from "../hooks/useNavigation";
 
 import { groupMessages } from "../utils/conversationGrouping";
 import { relativeTime } from "../utils/sessionUtils";
-import { Spinner } from "./Spinner";
+import { Spinner } from "./ui/Spinner";
 
 // Split-button for the scroll-to-bottom control (Q15): the primary action
 // smooth-scrolls to the bottom, the second down-arrow toggles persistent Tail

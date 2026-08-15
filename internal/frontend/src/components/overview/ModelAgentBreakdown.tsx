@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Bot, ChevronDown, Zap } from "lucide-react";
-import type { AgentStats, ModelStats } from "../utils/overviewAnalytics";
-import { formatCost, formatTokens } from "../utils/sessionUtils";
+import type { AgentStats, ModelStats } from "../../utils/overviewAnalytics";
+import { formatCost, formatTokens } from "../../utils/sessionUtils";
 
 interface TokenSegment {
   label: string;

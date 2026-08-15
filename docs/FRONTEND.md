@@ -253,7 +253,7 @@ All use `omnivue-` prefix:
 | `omnivue-disable-custom-renderers` | Disable custom tool renderers | `ToolRendererWrapper` |
 | `omnivue-overview-timerange` | Overview time range selection | `TimeRangeSelector` |
 
-## Tool call renderers (`components/ToolRenderers/`)
+## Tool call renderers (`components/tool-renderers/`)
 
 The tool renderer system uses a registry that auto-discovers renderers, maps tool names to components, and provides compact/full display modes with marker bar integration.
 
@@ -265,17 +265,17 @@ The tool renderer system uses a registry that auto-discovers renderers, maps too
 - `ToolActionsBar.tsx` — Action bar with bookmark, copy, and expand controls
 - `BookmarkButton.tsx` — Bookmark toggle on individual tool call outputs
 
-**Builtin renderers** (`ToolRenderers/builtin/`):
+**Builtin renderers** (`tool-renderers/builtin/`):
 - `BashToolDiff`, `ReadToolDiff`, `EditToolDiff`, `WriteToolDiff`, `GlobToolDiff`, `GrepToolDiff`
 - `DeleteToolDiff`, `QuestionToolDiff`, `TaskToolDiff`, `TaskCompleteToolDiff`
 - `CompactionToolDiff`, `ExitPlanModeToolDiff`, `SqlToolDiff`, `SkillToolDiff`, `DefaultToolDiff`
 - `index.ts` — Registers all builtin renderers
 
-**Vendor renderers** (`ToolRenderers/vendor/`):
+**Vendor renderers** (`tool-renderers/vendor/`):
 - `atlassian/` — Jira tool diff renderer
 - `example/` — Example renderer for reference
 
-**Custom renderers:** Third-party renderers can be added by creating a package under `ToolRenderers/vendor/` and registering it. See `ToolRenderers/AGENTS.md`.
+**Custom renderers:** Third-party renderers can be added by creating a package under `tool-renderers/vendor/` and registering it. See `tool-renderers/AGENTS.md`.
 
 ## Notification system
 

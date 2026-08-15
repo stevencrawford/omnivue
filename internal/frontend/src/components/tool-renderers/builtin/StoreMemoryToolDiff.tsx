@@ -1,6 +1,6 @@
 import { BrainCircuit } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../MarkdownContent";
+import { MarkdownContent } from "../../ui/MarkdownContent";
 
 const SCOPE_COLORS: Record<string, string> = {
   user: "bg-blue-500/10 text-blue-400 border-blue-500/30",

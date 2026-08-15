@@ -6,7 +6,7 @@ Omnivue supports third-party tool call renderers via a plugin system. Renderers 
 
 ### The `vendor/<namespace>/` convention
 
-To add a custom renderer, create a directory under `internal/frontend/src/components/ToolRenderers/vendor/<namespace>/` containing:
+To add a custom renderer, create a directory under `internal/frontend/src/components/tool-renderers/vendor/<namespace>/` containing:
 
 1. One or more renderer components
 2. An `index.ts` that exports `{ definitions: ToolRendererDefinition[] }`

@@ -4,13 +4,13 @@ import { useSessionSummary } from "../hooks/useSessionSummary";
 import { useSessionTokenomics } from "../hooks/useSessionTokenomics";
 import { useHideCosts } from "../hooks/useHideCosts";
 import { formatCost, formatTokens } from "../utils/sessionUtils";
-import { Spinner } from "./Spinner";
-import { ActivityBreakdown } from "./sessionSummary/ActivityBreakdown";
-import { TokenBreakdownPie } from "./sessionSummary/TokenBreakdownPie";
-import { TokenTimelineChart } from "./sessionSummary/TokenTimelineChart";
-import { CostTimelineChart } from "./sessionSummary/CostTimelineChart";
-import { EffectivenessCards } from "./sessionSummary/EffectivenessCards";
-import { formatDuration } from "./sessionSummary/format";
+import { Spinner } from "./ui/Spinner";
+import { ActivityBreakdown } from "./session-summary/ActivityBreakdown";
+import { TokenBreakdownPie } from "./session-summary/TokenBreakdownPie";
+import { TokenTimelineChart } from "./session-summary/TokenTimelineChart";
+import { CostTimelineChart } from "./session-summary/CostTimelineChart";
+import { EffectivenessCards } from "./session-summary/EffectivenessCards";
+import { formatDuration } from "./session-summary/format";
 
 interface SessionSummaryProps {
   session: Session;

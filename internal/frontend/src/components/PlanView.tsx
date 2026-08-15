@@ -4,9 +4,9 @@ import type { Plan, BookmarkKind } from "../hooks/types";
 import { fetchPlan } from "../hooks/apiClient";
 import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../hooks/useBookmarks";
 import { scrollElementToCenter } from "../hooks/useConversationScroll";
-import { MarkdownContent } from "./MarkdownContent";
-import { LoadingState } from "./LoadingState";
-import { EmptyPanel } from "./EmptyPanel";
+import { MarkdownContent } from "./ui/MarkdownContent";
+import { LoadingState } from "./ui/LoadingState";
+import { EmptyPanel } from "./ui/EmptyPanel";
 import { useToast } from "../hooks/useToast";
 
 interface PlanViewProps {

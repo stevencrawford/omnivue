@@ -206,4 +206,4 @@ Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). E
 
 ## CopyButton Usage
 
-Built-in renderers can import `CopyButton` from `../../CopyButton` for content-specific copy buttons. Vendor renderers can do the same or use the `onCopy` prop.
+Built-in renderers can import `CopyButton` from `../../ui/CopyButton` for content-specific copy buttons. Vendor renderers can do the same or use the `onCopy` prop.
