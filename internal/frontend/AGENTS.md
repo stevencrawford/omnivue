@@ -44,7 +44,7 @@ src/
 │   │   ├── CopyButton.tsx      # Simple copy-to-clipboard button
 │   │   └── ...                 # Spinner, Toggle, FilterChip, EmptyState, ...
 │   ├── ...                     # ~40 more component files (views/containers)
-│   └── ToolRenderers/         # Plugin-based tool call rendering
+│   └── tool-renderers/         # Plugin-based tool call rendering
 │       ├── AGENTS.md           # Dedicated renderer plugin docs
 │       ├── registry.ts         # Auto-discovery via import.meta.glob
 │       ├── builtin/            # 18 built-in tool renderers
@@ -128,7 +128,7 @@ export async function fetchSessions(): Promise<Session[]> {
   `Toggle`, `FilterChip`, `CopyButton`, `MarkdownContent`, `EmptyState`.
 - **Views / containers** (pull app-level data from `useXxx` hooks or `apiClient`, own a screen
   or a section of one) live directly in `components/` or in a feature subdir
-  (`sessions/`, `tags/`, `settings/`, `overview/`, `sessionSummary/`, `ToolRenderers/`).
+  (`sessions/`, `tags/`, `settings/`, `overview/`, `session-summary/`, `tool-renderers/`).
 - A component is presentational if its state is all local (`useState`/`useRef` for UI);
   it is a container if it reads app data hooks (`useNavigation`, `useTags`, `useBookmarks`,
   `useSessionSummary`, `apiClient`, etc.). Put it in `ui/` only if it is reusable and
@@ -145,7 +145,7 @@ export async function fetchSessions(): Promise<Session[]> {
 
 ## Tool Renderer Plugin System
 
-See `src/components/ToolRenderers/AGENTS.md` for full details.
+See `src/components/tool-renderers/AGENTS.md` for full details.
 
 Key rules:
 - Plugin discovery via Vite `import.meta.glob` — no manual registration needed.
