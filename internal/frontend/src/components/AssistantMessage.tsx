@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "../utils/toolDisplay";
 import { MarkdownContent } from "./ui/MarkdownContent";
-import { ToolCallList } from "./ToolRenderers/ToolCallList";
+import { ToolCallList } from "./tool-renderers/ToolCallList";
 
 function ThinkingBlock({ reasoning }: { reasoning: string }) {
   const [expanded, setExpanded] = useState(false);

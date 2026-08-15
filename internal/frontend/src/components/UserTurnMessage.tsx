@@ -4,7 +4,7 @@ import type { ToolCall } from "../hooks/types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { detectLanguage } from "../utils/detectLanguage";
 import { MarkdownContent } from "./ui/MarkdownContent";
-import { ToolCallList } from "./ToolRenderers/ToolCallList";
+import { ToolCallList } from "./tool-renderers/ToolCallList";
 import { FileRenderer } from "./DiffRenderer";
 import { CopyButton } from "./ui/CopyButton";
 

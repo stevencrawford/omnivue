@@ -6,7 +6,7 @@ import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import { useCopy } from "../../hooks/useCopy";
 import { useSearchHighlight } from "../../hooks/useSearchHighlightContext";
-import { BookmarkButton } from "../ToolRenderers/BookmarkButton";
+import { BookmarkButton } from "../tool-renderers/BookmarkButton";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 
 interface MarkdownContentProps {

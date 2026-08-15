@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../utils/toolDisplay";
-import { toolRendererRegistry } from "./ToolRenderers/registry";
+import { toolRendererRegistry } from "./tool-renderers/registry";
 
 const LEGACY_MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
