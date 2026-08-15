@@ -3,7 +3,6 @@ package cursor
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,24 +70,21 @@ func (a *Adapter) LastModified(ctx context.Context) (int64, error) {
 	var maxTs int64
 
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
+		`SELECT json_extract(value, '$.lastUpdatedAt') FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
 	if err != nil {
 		return 0, fmt.Errorf("querying last modified: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var value []byte
-		if err := rows.Scan(&value); err != nil {
+		var updated sql.NullString
+		if err := rows.Scan(&updated); err != nil {
 			continue
 		}
-		var cd struct {
-			LastUpdatedAt json.Number `json:"lastUpdatedAt"`
-		}
-		if err := json.Unmarshal(value, &cd); err != nil {
+		if !updated.Valid {
 			continue
 		}
-		ms := ingestkit.ParseMillis(string(cd.LastUpdatedAt))
+		ms := ingestkit.ParseMillis(updated.String)
 		if ms > maxTs {
 			maxTs = ms
 		}
