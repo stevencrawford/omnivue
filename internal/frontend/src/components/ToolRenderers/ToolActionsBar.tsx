@@ -1,6 +1,6 @@
 import { Pin, ArrowRight as ArrowRightIcon, Bookmark } from "lucide-react";
 import type { ToolCall } from "../../hooks/types";
-import CopyButton from "./CopyButton";
+import ModeAwareCopyButton from "./ModeAwareCopyButton";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 
 export function ToolActionsBar({
@@ -72,7 +72,7 @@ export function ToolActionsBar({
         </button>
       )}
       {showCopy && (
-        <CopyButton
+        <ModeAwareCopyButton
           outputText={copyText ?? tool.output ?? ""}
           inputText={inputText}
           kind={copyKind}

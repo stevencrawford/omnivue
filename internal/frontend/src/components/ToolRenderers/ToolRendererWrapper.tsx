@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ArrowRight } from "lucide-react";
 import type { ToolRendererDefinition, ToolRendererProps } from "./types";
 import type { ToolCall } from "../../hooks/types";
-import CopyButton from "./CopyButton";
+import ModeAwareCopyButton from "./ModeAwareCopyButton";
 import { BookmarkButton } from "./BookmarkButton";
 import { ToolUsageInfo } from "./ToolUsageInfo";
 import { useNavigation } from "../../hooks/useNavigation";
@@ -113,7 +113,7 @@ export function ToolRendererWrapper({
                 <ArrowRight size={12} className="inline" /> View session
               </button>
             )}
-            {!renderer.suppressCopy && <CopyButton {...copyButtonProps(renderer, tool)} />}
+            {!renderer.suppressCopy && <ModeAwareCopyButton {...copyButtonProps(renderer, tool)} />}
             {onBookmark && (
               <BookmarkButton
                 isBookmarked={!!isBookmarked}
@@ -179,7 +179,7 @@ export function ToolRendererWrapper({
               <ArrowRight size={12} className="inline" /> View session
             </button>
           )}
-          {!renderer.suppressCopy && <CopyButton {...copyButtonProps(renderer, tool)} />}
+          {!renderer.suppressCopy && <ModeAwareCopyButton {...copyButtonProps(renderer, tool)} />}
           {onBookmark && (
             <BookmarkButton
               isBookmarked={!!isBookmarked}
