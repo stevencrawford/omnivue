@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { hasOpenStep, isMessageStreaming } from "../messageStreaming";
+import { hasOpenStep, isMessageStreaming, latestThinkingChunk } from "../messageStreaming";
 import type { Message } from "../../hooks/types";
 
-function assistant(stepEvents?: Message["stepEvents"]): Message {
+function assistant(stepEvents?: Message["stepEvents"], reasoning = "thought"): Message {
   return {
     id: "m1",
     role: "assistant",
     content: "",
-    reasoning: "thought",
+    reasoning,
     toolCalls: [],
     timestamp: "2026-01-01T00:00:00Z",
     stepEvents,
@@ -52,5 +52,39 @@ describe("isMessageStreaming", () => {
     const msg = assistant();
     expect(isMessageStreaming(msg, true, true)).toBe(true);
     expect(isMessageStreaming(msg, false, true)).toBe(false);
+  });
+});
+
+describe("latestThinkingChunk", () => {
+  const chunkA = "aaa " + "x".repeat(300);
+  const chunkB = "bbb " + "y".repeat(300);
+  const multi = [chunkA, chunkB].join("\n\n");
+
+  it("returns the newest chunk of the streaming message when active", () => {
+    const msgs = [assistant([{ step: "start" }], multi)];
+    const result = latestThinkingChunk(msgs, true);
+    expect(result).toEqual({ messageId: "m1", chunk: chunkB });
+  });
+
+  it("returns null when the session is inactive", () => {
+    const msgs = [assistant([{ step: "start" }], multi)];
+    expect(latestThinkingChunk(msgs, false)).toBeNull();
+  });
+
+  it("returns null when there is no assistant message", () => {
+    const user = {
+      id: "u1",
+      role: "user",
+      content: "hi",
+      reasoning: undefined,
+      toolCalls: [],
+      timestamp: "2026-01-01T00:00:00Z",
+    } as Message;
+    expect(latestThinkingChunk([user], true)).toBeNull();
+  });
+
+  it("returns null when the last assistant has closed its step", () => {
+    const msgs = [assistant([{ step: "start" }, { step: "finish" }], multi)];
+    expect(latestThinkingChunk(msgs, true)).toBeNull();
   });
 });
