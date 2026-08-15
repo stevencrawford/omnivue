@@ -2,6 +2,7 @@ package cursor
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,30 +16,8 @@ import (
 )
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
-	sessions := make(map[string]*composerData)
-
-	rows, err := a.db.QueryContext(ctx, `SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
+	sessions, err := a.listComposerSummaries(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("querying composer sessions: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var key string
-		var value []byte
-		if err := rows.Scan(&key, &value); err != nil {
-			continue
-		}
-		var cd composerData
-		if err := json.Unmarshal(value, &cd); err != nil {
-			continue
-		}
-		if cd.ComposerID == "" {
-			continue
-		}
-		sessions[cd.ComposerID] = &cd
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -54,17 +33,17 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			if !ts.UpdatedAt.IsZero() {
 				updated = fmt.Sprintf("%d", ts.UpdatedAt.UnixMilli())
 			}
-			sessions[id] = &composerData{
+			sessions[id] = &composerSummary{
 				ComposerID:    id,
 				CreatedAt:     json.Number(created),
 				LastUpdatedAt: json.Number(updated),
 				Status:        string(ts.Status),
-				IsAgentic:     true,
 			}
 		}
 	}
 
-	var result []ingest.Session
+	result := make([]ingest.Session, 0, len(sessions))
+	mtimes := a.transcriptMtimes()
 	for id, cd := range sessions {
 		createdAt := cd.timeCreated()
 		updatedAt := cd.timeUpdated()
@@ -86,10 +65,10 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			UpdatedAt:    updatedAt,
 			TokensInput:  inputTokens,
 			TokensOutput: outputTokens,
-			MessageCount: len(cd.FullConversationHeadersOnly),
+			MessageCount: cd.MessageCount,
 		}
 
-		if mt := a.transcriptMtime(id); mt.After(session.UpdatedAt) {
+		if mt := mtimes[id]; mt.After(session.UpdatedAt) {
 			session.UpdatedAt = mt
 		}
 
@@ -120,11 +99,12 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	if err == nil {
 		var cd composerData
 		if err := json.Unmarshal(value, &cd); err == nil && cd.ComposerID != "" {
-			createdAt := cd.timeCreated()
-			updatedAt := cd.timeUpdated()
-			title := extractTitle(&cd)
-			dir := resolveDir(&cd)
-			model, cost, inputTokens, outputTokens := cd.usageInfo()
+			sum := summaryOf(&cd)
+			createdAt := sum.timeCreated()
+			updatedAt := sum.timeUpdated()
+			title := extractTitle(sum)
+			dir := resolveDir(sum)
+			model, cost, inputTokens, outputTokens := sum.usageInfo()
 
 			sess := &ingest.Session{
 				ID:           id,
@@ -134,12 +114,12 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 				Agent:        ingest.AgentCursor,
 				Model:        model,
 				Cost:         cost,
-				Status:       mapStatus(cd.Status),
+				Status:       mapStatus(sum.Status),
 				CreatedAt:    createdAt,
 				UpdatedAt:    updatedAt,
 				TokensInput:  inputTokens,
 				TokensOutput: outputTokens,
-				MessageCount: len(cd.FullConversationHeadersOnly),
+				MessageCount: sum.MessageCount,
 			}
 			if mt := a.transcriptMtime(id); mt.After(sess.UpdatedAt) {
 				sess.UpdatedAt = mt
@@ -168,22 +148,101 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	return nil, fmt.Errorf("session not found: %s", id)
 }
 
-func extractTitle(cd *composerData) string {
+func summaryOf(cd *composerData) *composerSummary {
+	sum := &composerSummary{
+		ComposerID:    cd.ComposerID,
+		Name:          cd.Name,
+		CreatedAt:     cd.CreatedAt,
+		LastUpdatedAt: cd.LastUpdatedAt,
+		Status:        cd.Status,
+		MessageCount:  len(cd.FullConversationHeadersOnly),
+		UsageData:     cd.UsageData,
+	}
+	sum.AllAttachedFileCodeChunksUris = append([]string(nil), cd.AllAttachedFileCodeChunksUris...)
+	if cd.LatestConversationSummary != nil && cd.LatestConversationSummary.Summary != nil {
+		sum.SummaryTitle = cd.LatestConversationSummary.Summary.Summary
+	}
+	return sum
+}
+
+// listComposerSummaries returns a lean projection of every composerData row,
+// extracted in SQL so the large conversation/capabilities blobs are never read
+// or parsed into Go.
+func (a *Adapter) listComposerSummaries(ctx context.Context) (map[string]*composerSummary, error) {
+	rows, err := a.db.QueryContext(ctx, `SELECT
+		json_extract(value, '$.composerId'),
+		json_extract(value, '$.name'),
+		json_extract(value, '$.createdAt'),
+		json_extract(value, '$.lastUpdatedAt'),
+		json_extract(value, '$.status'),
+		json_array_length(value, '$.fullConversationHeadersOnly'),
+		json_extract(value, '$.usageData'),
+		json_extract(value, '$.latestConversationSummary.summary.summary'),
+		json_extract(value, '$.allAttachedFileCodeChunksUris')
+		FROM cursorDiskKV WHERE key LIKE 'composerData:%'`)
+	if err != nil {
+		return nil, fmt.Errorf("querying composer sessions: %w", err)
+	}
+	defer rows.Close()
+
+	sessions := make(map[string]*composerSummary)
+	for rows.Next() {
+		var (
+			id, name     sql.NullString
+			created, up  sql.NullString
+			status       sql.NullString
+			msgCount     sql.NullInt64
+			usageData    []byte
+			summaryTitle sql.NullString
+			urisJSON     []byte
+		)
+		if err := rows.Scan(&id, &name, &created, &up, &status,
+			&msgCount, &usageData, &summaryTitle, &urisJSON); err != nil {
+			continue
+		}
+		if !id.Valid || id.String == "" {
+			continue
+		}
+
+		var uris []string
+		if len(urisJSON) > 0 {
+			if err := json.Unmarshal(urisJSON, &uris); err != nil {
+				uris = nil
+			}
+		}
+
+		sessions[id.String] = &composerSummary{
+			ComposerID:                    id.String,
+			Name:                          name.String,
+			CreatedAt:                     json.Number(created.String),
+			LastUpdatedAt:                 json.Number(up.String),
+			Status:                        status.String,
+			MessageCount:                  int(msgCount.Int64),
+			UsageData:                     usageData,
+			SummaryTitle:                  summaryTitle.String,
+			AllAttachedFileCodeChunksUris: uris,
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+func extractTitle(cd *composerSummary) string {
 	if cd.Name != "" {
 		return cd.Name
 	}
-	if cd.LatestConversationSummary != nil && cd.LatestConversationSummary.Summary != nil {
-		if t := cd.LatestConversationSummary.Summary.Summary; t != "" {
-			return t
-		}
+	if cd.SummaryTitle != "" {
+		return cd.SummaryTitle
 	}
-	if len(cd.FullConversationHeadersOnly) > 0 {
+	if cd.MessageCount > 0 {
 		return fmt.Sprintf("Composer %s", cd.ComposerID[:8])
 	}
 	return ""
 }
 
-func resolveDir(cd *composerData) string {
+func resolveDir(cd *composerSummary) string {
 	for _, uri := range cd.AllAttachedFileCodeChunksUris {
 		fp := strings.TrimPrefix(uri, "file://")
 		if fp == uri {
@@ -251,6 +310,32 @@ func (a *Adapter) transcriptMtime(sessionID string) time.Time {
 		return nil
 	})
 	return latest
+}
+
+// transcriptMtimes walks the projects tree once and returns the latest jsonl
+// mtime per session directory, so ListSessions can avoid walking the tree once
+// per session.
+func (a *Adapter) transcriptMtimes() map[string]time.Time {
+	projectsDir := filepath.Join(a.cursorDir, "projects")
+	if !ingestkit.PathExists(projectsDir) {
+		return nil
+	}
+	mtimes := make(map[string]time.Time)
+	filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		sessionID := filepath.Base(filepath.Dir(path))
+		info, err := d.Info()
+		if err == nil && info.ModTime().After(mtimes[sessionID]) {
+			mtimes[sessionID] = info.ModTime()
+		}
+		return nil
+	})
+	return mtimes
 }
 
 func (a *Adapter) discoverTranscriptSessions(ctx context.Context) []transcriptSession {
@@ -332,20 +417,20 @@ func (a *Adapter) readTranscriptMessages(ctx context.Context, sessionID string) 
 	return messages
 }
 
-func (cd *composerData) timeCreated() time.Time {
-	return ingestkit.UnixMillis(ingestkit.ParseMillis(string(cd.CreatedAt)))
+func (s *composerSummary) timeCreated() time.Time {
+	return ingestkit.UnixMillis(ingestkit.ParseMillis(string(s.CreatedAt)))
 }
 
-func (cd *composerData) timeUpdated() time.Time {
-	return ingestkit.UnixMillis(ingestkit.ParseMillis(string(cd.LastUpdatedAt)))
+func (s *composerSummary) timeUpdated() time.Time {
+	return ingestkit.UnixMillis(ingestkit.ParseMillis(string(s.LastUpdatedAt)))
 }
 
-func (cd *composerData) usageInfo() (model string, cost float64, inputTokens, outputTokens int) {
-	if len(cd.UsageData) <= 2 {
+func (s *composerSummary) usageInfo() (model string, cost float64, inputTokens, outputTokens int) {
+	if len(s.UsageData) <= 2 {
 		return "", 0, 0, 0
 	}
 	var m map[string]usageStat
-	if err := json.Unmarshal(cd.UsageData, &m); err != nil {
+	if err := json.Unmarshal(s.UsageData, &m); err != nil {
 		return "", 0, 0, 0
 	}
 	for modelName, stat := range m {

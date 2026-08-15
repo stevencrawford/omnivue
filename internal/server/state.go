@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/store"
@@ -199,7 +200,10 @@ func newPipeline(hub *SessionHub, indexer *Indexer, notif *Notifier, bus *EventB
 func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	listStart := time.Now()
 	ids, liveCount, transitions := p.hub.refreshSessions(ctx)
+	listDur := time.Since(listStart)
 
 	// Broadcast right after the refresh: the hub cache that /api/sessions
 	// serves is already populated, so clients must not wait on the heavier
@@ -214,9 +218,13 @@ func (p *Pipeline) Refresh(ctx context.Context) (liveCount int) {
 		}
 	}
 
+	indexStart := time.Now()
 	p.indexer.IndexSessions(ctx)
+	indexDur := time.Since(indexStart)
 	p.notif.ClassifyChanges(ctx, ids, transitions)
 	p.indexed = true
+
+	slog.Debug("refresh pass complete", "sessions", len(p.hub.Sessions()), "live", liveCount, "list_ms", listDur.Milliseconds(), "index_ms", indexDur.Milliseconds())
 	return liveCount
 }
 

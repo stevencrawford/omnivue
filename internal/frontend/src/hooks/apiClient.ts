@@ -245,7 +245,10 @@ export async function addRecentSearches(searches: string[]): Promise<void> {
 }
 
 export async function fetchStatus(): Promise<StatusInfo> {
-  return fetchJson("/_/api/status", StatusInfoSchema);
+  // Retry the initial status read so the running-version label appears as soon
+  // as the server answers, even when the page loads while the server is still
+  // booting. Matches fetchSessions' resilience.
+  return withRetry(() => fetchJson("/_/api/status", StatusInfoSchema), 3);
 }
 
 export async function fetchSearch(
