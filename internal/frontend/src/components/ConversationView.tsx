@@ -13,6 +13,7 @@ import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useNavigation } from "../hooks/useNavigation";
 
 import { groupMessages } from "../utils/conversationGrouping";
+import { isMessageStreaming } from "../utils/messageStreaming";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./ui/Spinner";
 
@@ -317,6 +318,17 @@ export function ConversationView({
   const hasFocusJump =
     focusPosition !== undefined || focusMessageIndex !== undefined || focusMessageId !== undefined;
 
+  // Reasoning only grows on the message the model is currently writing, so the
+  // streaming indicator targets that single message rather than the whole
+  // session (agents without step events fall back to the last assistant turn).
+  const lastAssistantIndex = useMemo(() => {
+    let last = -1;
+    messagesWithoutReminders.forEach((m, i) => {
+      if (m.role === "assistant") last = i;
+    });
+    return last;
+  }, [messagesWithoutReminders]);
+
   useSearchHighlight(
     scrollRef,
     searchHighlightQuery,
@@ -410,7 +422,7 @@ export function ConversationView({
                   onBookmark={onBookmark}
                   bookmarkIdByRef={bookmarkIdByRef}
                   sessionId={session.id}
-                  live={isActive}
+                  live={isMessageStreaming(msg, idx === lastAssistantIndex, isActive)}
                 />
               </div>
             ))

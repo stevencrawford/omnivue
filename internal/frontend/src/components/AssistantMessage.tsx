@@ -20,9 +20,7 @@ function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean 
   const parentChunks = live ? chunks.slice(0, -1) : chunks;
   const liveChunk = live ? chunks[chunks.length - 1] : undefined;
   const shown = live && open ? chunks : parentChunks;
-  const count = chunks.length;
-  const label = count > 1 ? `Show thinking · ${count}` : "Show thinking";
-  const hideLabel = count > 1 ? `Hide thinking · ${count}` : "Hide thinking";
+  const label = open ? "Hide thinking" : "Show thinking";
 
   return (
     <div className="mb-2">
@@ -33,7 +31,7 @@ function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean 
           onClick={() => setOpen(!open)}
         >
           <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
-          {open ? hideLabel : label}
+          {label}
         </button>
         {live && (
           <Loader2
