@@ -121,6 +121,9 @@ func TestHandleStatus(t *testing.T) {
 	if body["sessions"] != float64(1) {
 		t.Errorf("expected 1 session, got %v", body["sessions"])
 	}
+	if body["indexed"] != false {
+		t.Errorf("expected indexed false before any refresh, got %v", body["indexed"])
+	}
 }
 
 func TestHandleSessions(t *testing.T) {
@@ -564,6 +567,12 @@ func TestPipelineRefresh_DrivesIndexAndClassify(t *testing.T) {
 	}
 	if list[0].Kind != "question" {
 		t.Errorf("expected kind question, got %s", list[0].Kind)
+	}
+
+	// 4) The refresh pass marks the pipeline as indexed so the status endpoint
+	// can tell the frontend "indexing is done".
+	if !pipeline.Indexed() {
+		t.Error("expected pipeline.Indexed() to be true after a refresh pass")
 	}
 }
 

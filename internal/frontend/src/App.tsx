@@ -10,6 +10,7 @@ import { ShortcutsModal } from "./components/ShortcutsModal";
 import { OverviewScreen } from "./components/OverviewScreen";
 import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/EmptyState";
+import { LoadingState } from "./components/LoadingState";
 import { PinMessageModal } from "./components/PinMessageModal";
 import { SearchHighlightContext } from "./hooks/useSearchHighlightContext";
 import { SessionListSettingsProvider } from "./hooks/useSessionListSettings";
@@ -30,7 +31,7 @@ import type { AppNotification, NotificationSettings } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
-import { SEARCH_ROUTE } from "./hooks/useRouteSync";
+import { SEARCH_ROUTE, pathToRoute } from "./hooks/useRouteSync";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -41,6 +42,7 @@ export function App() {
   const {
     sessions,
     loading: sessionsLoading,
+    indexing,
     liveChangedIds,
     connected,
     loadSessions,
@@ -164,6 +166,10 @@ export function App() {
   // `#/search?q=...` opens the full-search drawer pre-filled with the query.
   // The bare /search route resolves to the overview view (see useRouteSync).
   const location = useLocation();
+
+  // A session deep link (`#/session/<id>`) skips the initial-indexing
+  // placeholder so it can land straight on the requested session.
+  const isDeepLink = pathToRoute(location).sessionId !== null;
 
   useEffect(() => {
     if (location.pathname !== SEARCH_ROUTE) return;
@@ -323,6 +329,11 @@ export function App() {
                           />
                         </SearchHighlightContext.Provider>
                       </ErrorBoundary>
+                    ) : !isDeepLink &&
+                      indexing !== false &&
+                      !sessionsLoading &&
+                      sessions.length === 0 ? (
+                      <LoadingState label="Indexing sessions..." />
                     ) : sessionsLoading && sessions.length === 0 ? (
                       <div className="flex-1 flex items-center justify-center">
                         <div className="flex items-center gap-2 text-sm text-ov-text-secondary">

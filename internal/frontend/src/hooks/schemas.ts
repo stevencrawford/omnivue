@@ -205,6 +205,7 @@ export const StatusInfoSchema = z.object({
   pid: coerceNumber,
   sources: coerceNumber,
   sessions: coerceNumber,
+  indexed: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
