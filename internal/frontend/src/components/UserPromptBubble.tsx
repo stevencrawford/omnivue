@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Message } from "../hooks/types";
-import { MarkdownContent } from "./MarkdownContent";
+import { MarkdownContent } from "./ui/MarkdownContent";
 
 export function UserPromptBubble({
   message,

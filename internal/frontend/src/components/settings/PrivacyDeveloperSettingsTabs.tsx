@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { setHideCosts, useHideCosts } from "../../hooks/useHideCosts";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
-import { Toggle } from "../Toggle";
+import { Toggle } from "../ui/Toggle";
 
 export function PrivacySettingsTab() {
   const hideCosts = useHideCosts();

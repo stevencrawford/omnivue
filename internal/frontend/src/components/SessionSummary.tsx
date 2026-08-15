@@ -4,7 +4,7 @@ import { useSessionSummary } from "../hooks/useSessionSummary";
 import { useSessionTokenomics } from "../hooks/useSessionTokenomics";
 import { useHideCosts } from "../hooks/useHideCosts";
 import { formatCost, formatTokens } from "../utils/sessionUtils";
-import { Spinner } from "./Spinner";
+import { Spinner } from "./ui/Spinner";
 import { ActivityBreakdown } from "./sessionSummary/ActivityBreakdown";
 import { TokenBreakdownPie } from "./sessionSummary/TokenBreakdownPie";
 import { TokenTimelineChart } from "./sessionSummary/TokenTimelineChart";

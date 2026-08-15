@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Slash } from "lucide-react";
-import { Modal } from "./Modal";
+import { Modal } from "./ui/Modal";
 import { TAG_COLORS, TAG_NO_COLOR, hasTagColor, tagColor } from "../utils/tagColors";
 
 interface CreateTagModalProps {

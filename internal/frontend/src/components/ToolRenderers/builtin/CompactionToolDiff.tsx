@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Shrink } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../MarkdownContent";
+import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
 
 interface CompactionInput {

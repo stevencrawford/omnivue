@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Bug, FileText, CircleDot, Layers, ArrowRightToLine } from "lucide-react";
 import type { ToolRendererProps } from "../../types";
-import { MarkdownContent } from "../../../MarkdownContent";
-import { CopyButton } from "../../../CopyButton";
+import { MarkdownContent } from "../../../ui/MarkdownContent";
+import { CopyButton } from "../../../ui/CopyButton";
 import { BookmarkButton } from "../../BookmarkButton";
 
 interface JiraIssueType {

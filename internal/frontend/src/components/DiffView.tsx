@@ -3,10 +3,10 @@ import { PanelLeftClose, PanelLeftOpen, MessageSquareText, ArrowRight, File } fr
 import type { FileEdit } from "../hooks/types";
 import { fetchEdits } from "../hooks/apiClient";
 import { HunkRenderer } from "./DiffRenderer";
-import { CopyButton } from "./CopyButton";
+import { CopyButton } from "./ui/CopyButton";
 import { detectLanguage } from "../utils/detectLanguage";
-import { LoadingState } from "./LoadingState";
-import { EmptyPanel } from "./EmptyPanel";
+import { LoadingState } from "./ui/LoadingState";
+import { EmptyPanel } from "./ui/EmptyPanel";
 import { useToast } from "../hooks/useToast";
 import {
   mergeFileEdits,

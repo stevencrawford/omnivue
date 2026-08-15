@@ -4,10 +4,10 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
-import { useCopy } from "../hooks/useCopy";
-import { useSearchHighlight } from "../hooks/useSearchHighlightContext";
-import { BookmarkButton } from "./ToolRenderers/BookmarkButton";
-import { MarkdownScreenshotButton } from "./MarkdownScreenshotButton";
+import { useCopy } from "../../hooks/useCopy";
+import { useSearchHighlight } from "../../hooks/useSearchHighlightContext";
+import { BookmarkButton } from "../ToolRenderers/BookmarkButton";
+import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 
 interface MarkdownContentProps {
   content: string;

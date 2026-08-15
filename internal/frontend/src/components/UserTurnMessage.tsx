@@ -3,10 +3,10 @@ import { ChevronRight, Info } from "lucide-react";
 import type { ToolCall } from "../hooks/types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { detectLanguage } from "../utils/detectLanguage";
-import { MarkdownContent } from "./MarkdownContent";
+import { MarkdownContent } from "./ui/MarkdownContent";
 import { ToolCallList } from "./ToolRenderers/ToolCallList";
 import { FileRenderer } from "./DiffRenderer";
-import { CopyButton } from "./CopyButton";
+import { CopyButton } from "./ui/CopyButton";
 
 function extractInlineBlocks(content: string) {
   const blocks: Array<{

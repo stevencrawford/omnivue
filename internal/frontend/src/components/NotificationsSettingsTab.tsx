@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { NotificationKind, NotificationSettings } from "../hooks/types";
 import { useNotificationPermission } from "../hooks/useNotificationPermission";
-import { Toggle } from "./Toggle";
+import { Toggle } from "./ui/Toggle";
 
 interface NotificationsSettingsTabProps {
   settings: NotificationSettings | null;

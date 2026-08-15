@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Bookmark, Trash2, MessageSquareText, ListTodo } from "lucide-react";
 import type { Bookmark as BookmarkType, Session } from "../hooks/types";
-import { FilterChip } from "./FilterChip";
+import { FilterChip } from "./ui/FilterChip";
 
 const PLAN_KIND = "plan";
 

@@ -1,6 +1,6 @@
 import { BrainCircuit } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../MarkdownContent";
+import { MarkdownContent } from "../../ui/MarkdownContent";
 
 function repoFromOutput(output: string): string {
   const m = output.match(/## Repository memories for `([^`]+)`/);

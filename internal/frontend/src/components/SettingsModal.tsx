@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal } from "./Modal";
+import { Modal } from "./ui/Modal";
 import type { NotificationSettings } from "../hooks/types";
 import { NotificationsSettingsTab } from "./NotificationsSettingsTab";
 import { AgentSettingsTab } from "./settings/AgentSettingsTab";

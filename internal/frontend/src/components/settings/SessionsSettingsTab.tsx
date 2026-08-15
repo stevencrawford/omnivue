@@ -3,7 +3,7 @@ import {
   STALE_DAYS_MIN,
   STALE_DAYS_MAX,
 } from "../../hooks/useSessionListSettings";
-import { Toggle } from "../Toggle";
+import { Toggle } from "../ui/Toggle";
 
 export function SessionsSettingsTab() {
   const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();

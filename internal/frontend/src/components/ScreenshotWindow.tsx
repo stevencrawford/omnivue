@@ -1,5 +1,5 @@
 import type { Ref } from "react";
-import { MarkdownContent } from "./MarkdownContent";
+import { MarkdownContent } from "./ui/MarkdownContent";
 
 interface ScreenshotWindowProps {
   content: string;

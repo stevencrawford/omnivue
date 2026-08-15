@@ -2,7 +2,7 @@ import { memo, useState } from "react";
 import { ChevronDown, ChevronUp, Info, TriangleAlert } from "lucide-react";
 
 import type { Message } from "../hooks/types";
-import { MarkdownContent } from "./MarkdownContent";
+import { MarkdownContent } from "./ui/MarkdownContent";
 import { SystemReminderView } from "./SystemReminderView";
 import { UserTurnView } from "./UserTurnMessage";
 import { AssistantMessageView } from "./AssistantMessage";
