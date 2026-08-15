@@ -576,6 +576,67 @@ func TestPipelineRefresh_DrivesIndexAndClassify(t *testing.T) {
 	}
 }
 
+// TestPipelineRefresh_BroadcastsBeforeIndexing pins the list-first ordering of
+// a refresh pass: the hub session list is populated and the "update" event is
+// broadcast as soon as sessions are read from the adapters, before the (heavier)
+// search-index pass completes. This is what lets /api/sessions answer promptly
+// on first boot while indexing still runs in the background — clients never wait
+// on the full index to see their session list.
+func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
+	now := time.Now()
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{{ID: "ses-early", SourceID: "src-1", Title: "early", UpdatedAt: now}},
+		messages: []ingest.Message{{ID: "m1", Content: "early marker", Timestamp: now}},
+	}
+
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
+	search := newBlockingSearchStore()
+	index := NewIndexer(hub, hub, search, nil)
+	notif := NewNotifier(hub, newFakeNotificationStore(), newFakeConfigStore(), &fakeTagStore{}, bus)
+	pipeline := newPipeline(hub, index, notif, bus)
+
+	ch := bus.Subscribe()
+	defer bus.Unsubscribe(ch)
+
+	done := make(chan struct{})
+	go func() {
+		pipeline.Refresh(context.Background())
+		close(done)
+	}()
+
+	// The index pass has entered its first write, meaning the session list has
+	// already been read into the hub.
+	select {
+	case <-search.entered:
+	case <-time.After(time.Second):
+		t.Fatal("expected the search-index pass to start")
+	}
+
+	// The hub list is populated even though indexing is still blocked.
+	if got := len(hub.Sessions()); got != 1 {
+		t.Fatalf("expected hub to expose 1 session before indexing completes, got %d", got)
+	}
+
+	// The "update" broadcast reached subscribers before indexing finished.
+	select {
+	case ev := <-ch:
+		if ev.Name != "update" {
+			t.Fatalf("expected an 'update' event, got %q", ev.Name)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected the 'update' event to be broadcast before indexing completes")
+	}
+
+	// Release the index pass; the refresh must then complete.
+	close(search.release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected Refresh to complete after releasing the index pass")
+	}
+}
+
 // TestPipelineRefreshLiveness_BroadcastsOnlyOnChange pins the Pipeline's
 // liveness pass: it broadcasts an "update" only when the live session count
 // moved relative to the caller's previous observation, and stays quiet when

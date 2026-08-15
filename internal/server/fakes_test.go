@@ -457,6 +457,32 @@ func (t *trackingSearchStore) maxConcurrent() int {
 	return t.maxActive
 }
 
+// blockingSearchStore blocks its first IndexSessionAt write until release is
+// closed, letting a test observe the pipeline's ordering: the session list is
+// populated and the "update" event is broadcast before the search-index pass
+// finishes.
+type blockingSearchStore struct {
+	fakeSearchStore
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newBlockingSearchStore() *blockingSearchStore {
+	return &blockingSearchStore{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (b *blockingSearchStore) IndexSessionAt(_, _, _, _, _, _, _, _ string, _ int) error {
+	select {
+	case b.entered <- struct{}{}:
+	default:
+	}
+	<-b.release
+	return nil
+}
+
 type fakeNameStore struct {
 	mu    sync.Mutex
 	names map[string]string
