@@ -38,7 +38,12 @@ src/
 │   ├── Sidebar.tsx             # Resizable sidebar with section panels
 │   ├── SessionViewer.tsx       # Tabbed session detail (session/diff/plan/scratch/terminal)
 │   ├── ConversationView.tsx    # Message list with grouping, scroll markers
-│   ├── ...                     # ~40 more component files
+│   ├── ui/                     # Reusable presentational widgets (prop-driven)
+│   │   ├── MarkdownContent.tsx # Markdown renderer with syntax highlighting
+│   │   ├── Modal.tsx           # Dialog shell
+│   │   ├── CopyButton.tsx      # Simple copy-to-clipboard button
+│   │   └── ...                 # Spinner, Toggle, FilterChip, EmptyState, ...
+│   ├── ...                     # ~40 more component files (views/containers)
 │   └── ToolRenderers/         # Plugin-based tool call rendering
 │       ├── AGENTS.md           # Dedicated renderer plugin docs
 │       ├── registry.ts         # Auto-discovery via import.meta.glob
@@ -116,6 +121,18 @@ export async function fetchSessions(): Promise<Session[]> {
 - One component per file, PascalCase filename.
 - Props interface named `{ComponentName}Props`, defined above the function.
 - Default export discouraged — use named exports.
+
+### Presentational vs container
+- **Reusable presentational widgets** (prop-driven, encapsulate only local UI state like
+  open/copy/hover/click-outside) live in `components/ui/`. Examples: `Spinner`, `Modal`,
+  `Toggle`, `FilterChip`, `CopyButton`, `MarkdownContent`, `EmptyState`.
+- **Views / containers** (pull app-level data from `useXxx` hooks or `apiClient`, own a screen
+  or a section of one) live directly in `components/` or in a feature subdir
+  (`sessions/`, `tags/`, `settings/`, `overview/`, `sessionSummary/`, `ToolRenderers/`).
+- A component is presentational if its state is all local (`useState`/`useRef` for UI);
+  it is a container if it reads app data hooks (`useNavigation`, `useTags`, `useBookmarks`,
+  `useSessionSummary`, `apiClient`, etc.). Put it in `ui/` only if it is reusable and
+  prop-driven; don't move a screen or a section.
 
 ### Event handler naming
 - `handleXxx` for event handlers (e.g., `handleSearchSelect`, `handleDrawerClose`).
