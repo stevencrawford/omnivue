@@ -7,8 +7,8 @@ import { MarkdownContent } from "./ui/MarkdownContent";
 import { ToolCallList } from "./tool-renderers/ToolCallList";
 
 // An ever-growing reasoning block. While the session is active and this message
-// holds the most recent reasoning the header reads "thinking" with a spinner;
-// once done it reads "thought <time>". The newest chunk hangs beneath the folded
+// holds the most recent reasoning the header reads "Thinking" with a spinner;
+// once done it reads "Thought <time>". The newest chunk hangs beneath the folded
 // parent as a muted quoted block. Expanding the parent shows every chunk.
 function ThinkingBlock({
   reasoning,
@@ -29,7 +29,7 @@ function ThinkingBlock({
   const thoughtTime = timestamp
     ? new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : "";
-  const label = live ? "thinking" : `thought ${thoughtTime}`;
+  const label = live ? "Thinking" : `Thought ${thoughtTime}`;
 
   return (
     <div className="mb-2">
@@ -157,7 +157,11 @@ export function AssistantMessageView({
           {agent}
         </span>
       )}
-      <ThinkingBlock reasoning={reasoning} live={live} timestamp={message.timestamp} />
+      <ThinkingBlock
+        reasoning={reasoning}
+        live={live}
+        timestamp={message.reasoningAt ?? message.timestamp}
+      />
       {showText && (
         <AssistantStepContent
           content={text}

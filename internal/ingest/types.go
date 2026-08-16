@@ -215,6 +215,12 @@ type Message struct {
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
 
+	// ReasoningAt is when the reasoning was last written. The model writes
+	// thinking as it goes, so this is the true completion time of the thought
+	// block; Timestamp is the message's creation time and can be far earlier.
+	// Falls back to Timestamp in the UI when absent.
+	ReasoningAt *time.Time `json:"reasoningAt,omitempty"`
+
 	// Error holds an API-level error message (rate limit, context length, etc.)
 	Error string `json:"error,omitempty"`
 
