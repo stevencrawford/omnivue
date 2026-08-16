@@ -7,11 +7,18 @@ import { MarkdownContent } from "./ui/MarkdownContent";
 import { ToolCallList } from "./tool-renderers/ToolCallList";
 
 // An ever-growing reasoning block. While the session is active and this message
-// holds the most recent reasoning, the newest chunk hangs beneath the folded
-// parent as a muted quoted block (the same text a "Latest thinking" section
-// used to mirror) and the parent keeps growing. Expanding the parent shows
-// every chunk.
-function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean }) {
+// holds the most recent reasoning the header reads "thinking" with a spinner;
+// once done it reads "thought <time>". The newest chunk hangs beneath the folded
+// parent as a muted quoted block. Expanding the parent shows every chunk.
+function ThinkingBlock({
+  reasoning,
+  live,
+  timestamp,
+}: {
+  reasoning: string;
+  live?: boolean;
+  timestamp?: string;
+}) {
   const chunks = useMemo(() => splitReasoning(reasoning), [reasoning]);
   const [open, setOpen] = useState(false);
 
@@ -19,7 +26,10 @@ function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean 
   const parentChunks = live ? chunks.slice(0, -1) : chunks;
   const liveChunk = live ? chunks[chunks.length - 1] : undefined;
   const shown = live && open ? chunks : parentChunks;
-  const label = open ? "Hide thinking" : "Show thinking";
+  const thoughtTime = timestamp
+    ? new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "";
+  const label = live ? "thinking" : `thought ${thoughtTime}`;
 
   return (
     <div className="mb-2">
@@ -147,7 +157,7 @@ export function AssistantMessageView({
           {agent}
         </span>
       )}
-      <ThinkingBlock reasoning={reasoning} live={live} />
+      <ThinkingBlock reasoning={reasoning} live={live} timestamp={message.timestamp} />
       {showText && (
         <AssistantStepContent
           content={text}
