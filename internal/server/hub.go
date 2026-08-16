@@ -158,7 +158,15 @@ func enrichSession(sess *ingest.Session, names store.SessionNameStore) {
 // applyLiveness flips a session's status between active and completed based on
 // the liveWindow heuristic, returning whether the session is currently live.
 // Shared by enrichSession and refreshSessions so the two paths cannot drift.
+// A session the adapter reports as in-progress (open step, e.g. a model mid
+// think that writes nothing) stays active regardless of the timestamp window.
 func applyLiveness(sess *ingest.Session) bool {
+	if sess.InProgress {
+		if sess.Status != ingest.SessionStatusActive {
+			sess.Status = ingest.SessionStatusActive
+		}
+		return true
+	}
 	if !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < liveWindow {
 		if sess.Status != ingest.SessionStatusActive {
 			sess.Status = ingest.SessionStatusActive

@@ -62,6 +62,52 @@ func extractSubAgentFromTitle(title string) string {
 	return title[idx+2 : idx+2+endIdx]
 }
 
+// openStepSessions returns the session IDs whose newest message has started a
+// step but not finished it — the model is mid-turn (thinking, streaming, or
+// running a tool). OpenCode writes nothing to the DB while it is thinking, so
+// the timestamp-based liveness heuristic alone would flip such a session stale;
+// the open step is the in-progress signal.
+func (a *Adapter) openStepSessions(ctx context.Context) (map[string]bool, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		WITH ranked AS (
+			SELECT id, session_id, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY time_created DESC, id DESC) rn
+			FROM message
+		)
+		SELECT r.session_id FROM ranked r
+		WHERE r.rn = 1
+			AND EXISTS (SELECT 1 FROM part p WHERE p.message_id = r.id AND p.data LIKE '%"type":"step-start"%')
+			AND NOT EXISTS (SELECT 1 FROM part p WHERE p.message_id = r.id AND p.data LIKE '%"type":"step-finish"%')`)
+	if err != nil {
+		return nil, fmt.Errorf("querying open steps: %w", err)
+	}
+	defer rows.Close()
+
+	open := make(map[string]bool)
+	for rows.Next() {
+		var sid string
+		if err := rows.Scan(&sid); err != nil {
+			continue
+		}
+		open[sid] = true
+	}
+	return open, rows.Err()
+}
+
+func (a *Adapter) hasOpenStep(ctx context.Context, sessionID string) (bool, error) {
+	var count int
+	err := a.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM message m
+		WHERE m.id = (
+			SELECT id FROM message WHERE session_id = ? ORDER BY time_created DESC, id DESC LIMIT 1
+		)
+			AND EXISTS (SELECT 1 FROM part p WHERE p.message_id = m.id AND p.data LIKE '%"type":"step-start"%')
+			AND NOT EXISTS (SELECT 1 FROM part p WHERE p.message_id = m.id AND p.data LIKE '%"type":"step-finish"%')`, sessionID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("querying open step: %w", err)
+	}
+	return count > 0, nil
+}
+
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT 
@@ -155,6 +201,13 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 		s.MessageCount = msgCount
 
 		sessions = append(sessions, s)
+	}
+
+	openSteps, err := a.openStepSessions(ctx)
+	if err == nil {
+		for i := range sessions {
+			sessions[i].InProgress = openSteps[sessions[i].ID]
+		}
 	}
 
 	if len(zeroDiffIDs) > 0 {
@@ -262,6 +315,10 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	}
 
 	s.MessageCount = msgCount
+
+	if open, err := a.hasOpenStep(ctx, id); err == nil {
+		s.InProgress = open
+	}
 
 	return &s, nil
 }
