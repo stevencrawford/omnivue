@@ -12,6 +12,7 @@ function msg(reasoning: string): Message {
     reasoning,
     toolCalls: [],
     timestamp: "2026-01-01T00:00:00Z",
+    reasoningAt: "2026-01-01T00:00:05Z",
     agent: "main",
   } as Message;
 }
@@ -22,9 +23,9 @@ const chunkC = "ccc " + "z".repeat(300);
 const multiChunkReasoning = [chunkA, chunkB, chunkC].join("\n\n");
 
 describe("AssistantMessageView ThinkingBlock", () => {
-  it("shows a 'thought <time>' header and collapses by default with no chunks visible", () => {
+  it("shows a 'Thought 5s' duration header and collapses by default with no chunks visible", () => {
     render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" />);
-    expect(screen.getByRole("button", { name: /^Thought / })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Thought 5s$/ })).toBeInTheDocument();
     expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("thinking in progress")).not.toBeInTheDocument();
   });
@@ -32,11 +33,11 @@ describe("AssistantMessageView ThinkingBlock", () => {
   it("renders every chunk when expanded", async () => {
     const user = userEvent.setup();
     render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" />);
-    await user.click(screen.getByRole("button", { name: /^Thought / }));
+    await user.click(screen.getByRole("button", { name: /^Thought 5s$/ }));
     expect(screen.getByText(/aaa x/)).toBeInTheDocument();
     expect(screen.getByText(/bbb y/)).toBeInTheDocument();
     expect(screen.getByText(/ccc z/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^Thought / }));
+    await user.click(screen.getByRole("button", { name: /^Thought 5s$/ }));
     expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
   });
 
@@ -68,7 +69,7 @@ describe("AssistantMessageView ThinkingBlock", () => {
   it("renders no thinking UI for a message without reasoning", () => {
     render(<AssistantMessageView message={msg("")} sessionId="s" />);
     expect(screen.queryByText(/thinking/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Thought /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Thought/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("thinking in progress")).not.toBeInTheDocument();
   });
 });

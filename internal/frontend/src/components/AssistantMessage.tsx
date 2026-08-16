@@ -8,15 +8,18 @@ import { ToolCallList } from "./tool-renderers/ToolCallList";
 
 // An ever-growing reasoning block. While the session is active and this message
 // holds the most recent reasoning the header reads "Thinking" with a spinner;
-// once done it reads "Thought <time>". The newest chunk hangs beneath the folded
-// parent as a muted quoted block. Expanding the parent shows every chunk.
+// once done it reads "Thought <seconds>" (how long that chunk spent thinking).
+// The newest chunk hangs beneath the folded parent as a muted quoted block.
+// Expanding the parent shows every chunk.
 function ThinkingBlock({
   reasoning,
   live,
+  reasoningAt,
   timestamp,
 }: {
   reasoning: string;
   live?: boolean;
+  reasoningAt?: string;
   timestamp?: string;
 }) {
   const chunks = useMemo(() => splitReasoning(reasoning), [reasoning]);
@@ -26,10 +29,14 @@ function ThinkingBlock({
   const parentChunks = live ? chunks.slice(0, -1) : chunks;
   const liveChunk = live ? chunks[chunks.length - 1] : undefined;
   const shown = live && open ? chunks : parentChunks;
-  const thoughtTime = timestamp
-    ? new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : "";
-  const label = live ? "Thinking" : `Thought ${thoughtTime}`;
+  const thoughtSecs =
+    reasoningAt && timestamp
+      ? Math.max(
+          1,
+          Math.round((new Date(reasoningAt).getTime() - new Date(timestamp).getTime()) / 1000),
+        )
+      : undefined;
+  const label = live ? "Thinking" : `Thought${thoughtSecs ? ` ${thoughtSecs}s` : ""}`;
 
   return (
     <div className="mb-2">
@@ -160,7 +167,8 @@ export function AssistantMessageView({
       <ThinkingBlock
         reasoning={reasoning}
         live={live}
-        timestamp={message.reasoningAt ?? message.timestamp}
+        reasoningAt={message.reasoningAt}
+        timestamp={message.timestamp}
       />
       {showText && (
         <AssistantStepContent
