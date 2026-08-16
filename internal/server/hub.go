@@ -159,9 +159,13 @@ func enrichSession(sess *ingest.Session, names store.SessionNameStore) {
 // the liveWindow heuristic, returning whether the session is currently live.
 // Shared by enrichSession and refreshSessions so the two paths cannot drift.
 // A session the adapter reports as in-progress (open step, e.g. a model mid
-// think that writes nothing) stays active regardless of the timestamp window.
+// think that writes nothing) stays active regardless of the timestamp window,
+// but only while the open step is recent — a crashed step from days ago must
+// not pin the session (or, via propagation, its parent) active forever. During
+// a frozen think UpdatedAt is the open step's start, so the recency bound
+// doubles as the window.
 func applyLiveness(sess *ingest.Session) bool {
-	if sess.InProgress {
+	if sess.InProgress && !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < openStepWindow {
 		if sess.Status != ingest.SessionStatusActive {
 			sess.Status = ingest.SessionStatusActive
 		}

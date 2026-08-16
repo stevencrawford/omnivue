@@ -12,6 +12,13 @@ import (
 // mid-think keeps the session live without any new message.
 const liveWindow = 1 * time.Minute
 
+// openStepWindow bounds how long an adapter-reported in-progress session
+// (open step, e.g. a model mid-think) is kept active regardless of writes.
+// OpenCode writes nothing while thinking, so a frozen timestamp alone cannot
+// distinguish a live think from a crashed step; a session whose open step is
+// older than this window is treated as stale again.
+const openStepWindow = 30 * time.Minute
+
 // pollCadenceLive / pollCadenceIdle control the adaptive poll interval. When
 // at least one session is live, the server polls every 2.5s so the UI feels
 // real-time; otherwise it backs off to 30s to save DB queries.
