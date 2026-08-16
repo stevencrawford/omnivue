@@ -72,7 +72,10 @@ export function Sidebar({
   const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
 
   return (
-    <aside className="flex shrink-0 relative" style={{ width: `${renderedWidth}px` }}>
+    <aside
+      className={`flex shrink-0 relative ${sidebarOpen ? "border-r border-ov-border" : ""}`}
+      style={{ width: `${renderedWidth}px` }}
+    >
       <IconChannel
         activeSection={activeSection}
         onSectionChange={onSectionChange}
