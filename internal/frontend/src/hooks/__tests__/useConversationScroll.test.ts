@@ -150,6 +150,22 @@ describe("measureRegistry", () => {
     const b = measureRegistry(el, a);
     expect(b.version).toBe(a.version + 1);
   });
+
+  it("skips the pass and keeps the last measurement while hidden", () => {
+    // A display:none container (e.g. the conversation tab behind the diff view)
+    // reports zero geometry; measuring it would zero every block and scrollHeight.
+    const el = makeContainer([{ index: 0, top: 0, id: "m0" }]);
+    setScrollProps(el as HTMLDivElement, 0, 0, 0);
+    const prev = makeRegistry([{ index: 0, top: 0, id: "m0" }], 4321);
+    expect(measureRegistry(el, prev)).toBe(prev);
+    expect(measureTail(el, 0, prev)).toBe(prev);
+    expect(measureRegistry(el, null)).toEqual({
+      byIndex: new Map(),
+      indexById: new Map(),
+      scrollHeight: 0,
+      version: 0,
+    });
+  });
 });
 
 describe("measureTail", () => {
@@ -346,6 +362,37 @@ describe("scrollToRendered", () => {
     const reg = makeRegistry([{ index: 0, top: 0, id: "m0" }]);
     expect(scrollToRendered(el, reg, 9, "center")).toBe(false);
     expect(el.scrollTop).toBe(0);
+  });
+
+  it("re-measures past a registry zeroed while the container was hidden", () => {
+    // The diff tab's jump ran after a hidden-container measurement pass left
+    // byIndex = {top:0,height:0} and scrollHeight = 0. The container itself is
+    // laid out again (real scrollHeight), so the jump must fall back to a real
+    // element measurement instead of clamping every target to the top.
+    const el = makeContainer([
+      { index: 0, top: 0, id: "m0" },
+      { index: 1, top: 2000, id: "m1" },
+    ]);
+    setScrollProps(el as HTMLDivElement, 0, 5000, 600);
+    const zeroed: BlockRegistry = {
+      byIndex: new Map([
+        [0, { top: 0, height: 0 }],
+        [1, { top: 0, height: 0 }],
+      ]),
+      indexById: new Map([
+        ["m0", 0],
+        ["m1", 1],
+      ]),
+      scrollHeight: 0,
+      version: 5,
+    };
+    expect(scrollToRendered(el, zeroed, 1, "center")).toBe(true);
+    // center: 2000 - (600-200)/2 = 1800, clamped to max (5000-600) = 4400.
+    expect(el.scrollTop).toBe(1800);
+
+    el.scrollTop = 0;
+    expect(scrollToRendered(el, zeroed, "m1", "top")).toBe(true);
+    expect(el.scrollTop).toBe(2000);
   });
 
   it("eases to the true bottom and drops the lift class when done", () => {

@@ -76,6 +76,7 @@ export function measureRegistry(
   container: HTMLElement,
   prev?: BlockRegistry | null,
 ): BlockRegistry {
+  if (!isLaidOut(container)) return prev ?? emptyRegistry();
   container.classList.add(RESTORE_CLASS);
   const reg = scanBlocks(container, prev, 0);
   requestAnimationFrame(() => container.classList.remove(RESTORE_CLASS));
@@ -92,7 +93,20 @@ export function measureTail(
   fromIndex: number,
   prev?: BlockRegistry | null,
 ): BlockRegistry {
+  if (!isLaidOut(container)) return prev ?? emptyRegistry();
   return scanBlocks(container, prev, fromIndex);
+}
+
+// True when the container has real layout to measure. A container hidden by
+// display:none (e.g. the conversation tab behind the diff view) reports zero
+// offsets; measuring it would zero out every block's geometry and scrollHeight,
+// so callers skip the pass and keep the last trusted measurement instead.
+function isLaidOut(container: HTMLElement): boolean {
+  return container.clientHeight > 0 || container.scrollHeight > 0;
+}
+
+function emptyRegistry(): BlockRegistry {
+  return { byIndex: new Map(), indexById: new Map(), scrollHeight: 0, version: 0 };
 }
 
 function scanBlocks(
@@ -142,28 +156,44 @@ function elementFor(
   return target;
 }
 
-function geomFor(
-  container: HTMLElement,
-  registry: BlockRegistry | null,
-  target: number | string | HTMLElement,
-): BlockGeom | undefined {
-  if (typeof target === "number") {
-    return registry?.byIndex.get(target);
-  }
-  if (typeof target === "string") {
-    return resolveGeomFromRegistry(registry, undefined, target);
-  }
-  // Element target: one-off measurement. Lift content-visibility so the block
-  // (and everything above it) reports real geometry, then drop the class. Use
-  // viewport-relative rects (not offsetTop) so nested targets — a tool call
-  // buried inside a message block — resolve against the scroll container, not
-  // an intermediate positioned ancestor.
+// One-off element measurement. Lift content-visibility so the block (and
+// everything above it) reports real geometry, then drop the class. Use
+// viewport-relative rects (not offsetTop) so nested targets — a tool call
+// buried inside a message block — resolve against the scroll container, not
+// an intermediate positioned ancestor.
+function measureElementGeom(container: HTMLElement, target: HTMLElement): BlockGeom {
   container.classList.add(RESTORE_CLASS);
   const cRect = container.getBoundingClientRect();
   const eRect = target.getBoundingClientRect();
   const geom = { top: eRect.top - cRect.top + container.scrollTop, height: eRect.height };
   requestAnimationFrame(() => container.classList.remove(RESTORE_CLASS));
   return geom;
+}
+
+function geomFor(
+  container: HTMLElement,
+  registry: BlockRegistry | null,
+  target: number | string | HTMLElement,
+): BlockGeom | undefined {
+  // A registry measured while the container was hidden (display:none, e.g. the
+  // conversation tab behind the diff view) records {top:0,height:0} and a zero
+  // scrollHeight. Once the container is laid out again, trusting that stale
+  // geometry would land every jump at the top; fall back to a real measurement
+  // of the target element instead.
+  const laidOut = container.scrollHeight > 0;
+  if (typeof target === "number") {
+    const g = registry?.byIndex.get(target);
+    if (g && (!laidOut || g.top !== 0 || g.height !== 0)) return g;
+    const el = laidOut ? elementFor(container, target) : null;
+    return el ? measureElementGeom(container, el) : g;
+  }
+  if (typeof target === "string") {
+    const g = resolveGeomFromRegistry(registry, undefined, target);
+    if (g && (!laidOut || g.top !== 0 || g.height !== 0)) return g;
+    const el = laidOut ? elementFor(container, target) : null;
+    return el ? measureElementGeom(container, el) : g;
+  }
+  return measureElementGeom(container, target);
 }
 
 // The only scroll path for target jumps and marker clicks. Resolves {top,
@@ -183,7 +213,14 @@ export function scrollToRendered(
   const geom = geomFor(container, registry, target);
   if (!geom) return false;
   const clientHeight = container.clientHeight;
-  const max = Math.max(0, (registry?.scrollHeight ?? container.scrollHeight) - clientHeight);
+  // The registry's scrollHeight can be stale (measured while the container was
+  // hidden). The container's live scrollHeight is always current; taking the
+  // larger of the two keeps an under-estimated clamp from pinning the view to
+  // the top on every jump.
+  const max = Math.max(
+    0,
+    Math.max(container.scrollHeight, registry?.scrollHeight ?? 0) - clientHeight,
+  );
   let y = mode === "center" ? geom.top - (clientHeight - geom.height) / 2 : geom.top;
   y = Math.max(0, Math.min(y, max));
   try {
