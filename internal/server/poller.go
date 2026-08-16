@@ -11,10 +11,10 @@ import (
 const liveWindow = 2 * time.Minute
 
 // pollCadenceLive / pollCadenceIdle control the adaptive poll interval. When
-// at least one session is live, the server polls every 5s so the UI feels
+// at least one session is live, the server polls every 2.5s so the UI feels
 // real-time; otherwise it backs off to 30s to save DB queries.
 const (
-	pollCadenceLive = 5 * time.Second
+	pollCadenceLive = 2500 * time.Millisecond
 	pollCadenceIdle = 30 * time.Second
 )
 
