@@ -51,7 +51,10 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
-      <div className="fixed inset-0 bg-black/55 backdrop-blur-sm z-40" onClick={onClose} />
+      <div
+        className="modal-backdrop fixed inset-0 bg-black/55 backdrop-blur-sm z-40"
+        onClick={onClose}
+      />
       <div
         ref={panelRef}
         className={`relative z-50 flex flex-col rounded-xl border border-accent-border bg-surface-elevated shadow-2xl w-full ${SIZE_MAP[size]} max-h-[80vh] overflow-hidden ${className}`}

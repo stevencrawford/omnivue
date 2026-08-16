@@ -85,7 +85,10 @@ export function SearchResultsDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="modal-backdrop fixed inset-0 z-40 bg-black/55 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <div className="fixed top-0 right-0 bottom-0 z-50 w-[420px] max-w-[90vw] flex flex-col bg-surface-elevated border-l border-ov-border shadow-2xl animate-slide-in-right">
         {/* Header */}
         <div className="px-4 py-3 border-b border-ov-border shrink-0 space-y-2">

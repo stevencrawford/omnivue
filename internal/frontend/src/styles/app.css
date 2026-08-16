@@ -2842,3 +2842,95 @@ body {
 [data-contrast="high"][data-mode="dark"] .sess-tag-add:hover {
   color: #8ab4ff;
 }
+
+/* ─── High contrast — modals & dialogs ─────────────────────────────
+   Hardens translucent backdrops and remaps utility colors that the
+   variable-driven palette above cannot reach (danger reds, filled
+   accent buttons, inline-styled tag previews).                        */
+
+/* Backdrops: flatten blur, raise opacity so the modal clearly separates */
+[data-contrast="high"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-contrast="high"][data-mode="dark"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+[data-contrast="high"] .search-overlay-backdrop {
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-contrast="high"][data-mode="dark"] .search-overlay-backdrop {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* Danger buttons (e.g. delete-scratch confirm) — white on #b30000 ≈ 6.2:1 */
+[data-contrast="high"] .bg-red-600 {
+  background-color: #b30000;
+}
+[data-contrast="high"] [class~="hover:bg-red-500"]:hover {
+  background-color: #8f0000;
+}
+
+/* Filled accent buttons: in dark high contrast the accent is a light
+   blue (#8ab4ff), so white text drops below 3:1. Swap to near-black. */
+[data-contrast="high"][data-mode="dark"] .bg-accent.text-white {
+  color: #000000;
+}
+
+/* Danger styling inside settings (agent sources, factory reset) */
+[data-contrast="high"] [class~="text-red-400/80"],
+[data-contrast="high"] [class~="text-red-400/90"] {
+  color: #b30000;
+}
+[data-contrast="high"] [class~="bg-red-500/10"] {
+  background-color: color-mix(in srgb, #b30000 12%, transparent);
+}
+[data-contrast="high"] [class~="bg-red-500/[0.08]"] {
+  background-color: color-mix(in srgb, #b30000 10%, transparent);
+}
+[data-contrast="high"] [class~="hover:bg-red-500/20"]:hover {
+  background-color: color-mix(in srgb, #b30000 24%, transparent);
+}
+[data-contrast="high"] [class~="border-red-500/30"] {
+  border-color: rgba(179, 0, 0, 0.6);
+}
+
+[data-contrast="high"][data-mode="dark"] [class~="text-red-400/80"],
+[data-contrast="high"][data-mode="dark"] [class~="text-red-400/90"] {
+  color: #ff6b6b;
+}
+[data-contrast="high"][data-mode="dark"] [class~="bg-red-500/10"] {
+  background-color: color-mix(in srgb, #ff6b6b 14%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] [class~="bg-red-500/[0.08]"] {
+  background-color: color-mix(in srgb, #ff6b6b 12%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] [class~="hover:bg-red-500/20"]:hover {
+  background-color: color-mix(in srgb, #ff6b6b 26%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] [class~="border-red-500/30"] {
+  border-color: rgba(255, 107, 107, 0.65);
+}
+
+/* Tag preview chip in create/edit modals — inline tag-color styles
+   would otherwise keep mid-tones (amber, green) illegible on white */
+[data-contrast="high"] .tag-preview {
+  color: #000000 !important;
+  border-color: rgba(0, 0, 0, 0.7) !important;
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+[data-contrast="high"][data-mode="dark"] .tag-preview {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.75) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Selected-swatch check: difference blend inverts the white glyph
+   against light swatches so it stays visible on any tag color */
+[data-contrast="high"] .tag-check {
+  mix-blend-mode: difference;
+}
