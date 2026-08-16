@@ -6,16 +6,19 @@ import { splitReasoning } from "../utils/reasoningChunks";
 import { MarkdownContent } from "./ui/MarkdownContent";
 import { ToolCallList } from "./tool-renderers/ToolCallList";
 
-// An ever-growing reasoning block, collapsed by default. While the session is
-// active and this message holds the most recent reasoning, a spinner marks the
-// block as still being written; the live chunk itself is mirrored in the
-// "Latest thinking" section above the prompt drawer, never duplicated here.
-// Expanding the parent shows every chunk.
+// An ever-growing reasoning block. While the session is active and this message
+// holds the most recent reasoning, the newest chunk hangs beneath the folded
+// parent as a muted quoted block (the same text a "Latest thinking" section
+// used to mirror) and the parent keeps growing. Expanding the parent shows
+// every chunk.
 function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean }) {
   const chunks = useMemo(() => splitReasoning(reasoning), [reasoning]);
   const [open, setOpen] = useState(false);
 
   if (!reasoning) return null;
+  const parentChunks = live ? chunks.slice(0, -1) : chunks;
+  const liveChunk = live ? chunks[chunks.length - 1] : undefined;
+  const shown = live && open ? chunks : parentChunks;
   const label = open ? "Hide thinking" : "Show thinking";
 
   return (
@@ -39,13 +42,20 @@ function ThinkingBlock({ reasoning, live }: { reasoning: string; live?: boolean 
       </div>
       {open && (
         <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
-          {chunks.map((chunk, idx) => (
+          {shown.map((chunk, idx) => (
             <div key={idx} className={idx > 0 ? "mt-2" : ""}>
               <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
                 {chunk}
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {!open && liveChunk && (
+        <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
+          <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
+            {liveChunk}
+          </div>
         </div>
       )}
     </div>

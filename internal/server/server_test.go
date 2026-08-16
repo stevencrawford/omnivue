@@ -334,7 +334,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 
 func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	adapter := &mockAdapter{sessions: []ingest.Session{
-		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-time.Minute)},
+		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-30 * time.Second)},
 	}}
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	if _, live, _ := hub.refreshSessions(context.Background()); live != 1 {
@@ -406,7 +406,7 @@ func (f *fakeAdapterProvider) Adapters() map[string]ingest.Adapter {
 func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 		},
 		lastModFn: func() (int64, error) { return 2, nil },
 	}
@@ -441,7 +441,7 @@ func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 		},
 		lastModFn: func() (int64, error) { return 2, nil },
 	}
@@ -644,7 +644,7 @@ func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
 // pipeline stateless and the test deterministic.
 func TestPipelineRefreshLiveness_BroadcastsOnlyOnChange(t *testing.T) {
 	adapter := &mockAdapter{
-		sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+		sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 	}
 
 	bus := NewEventBus()

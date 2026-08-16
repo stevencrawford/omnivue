@@ -7,8 +7,10 @@ import (
 
 // liveWindow defines how recently a session must have been updated to be
 // considered "active" (live). Used as a server-side liveness heuristic since
-// neither OpenCode nor Copilot expose an explicit in-progress flag.
-const liveWindow = 2 * time.Minute
+// neither OpenCode nor Copilot expose an explicit in-progress flag. Reasoning
+// updates count: OpenCode's UpdatedAt tracks the newest part write, so a model
+// mid-think keeps the session live without any new message.
+const liveWindow = 1 * time.Minute
 
 // pollCadenceLive / pollCadenceIdle control the adaptive poll interval. When
 // at least one session is live, the server polls every 2.5s so the UI feels

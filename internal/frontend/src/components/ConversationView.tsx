@@ -6,7 +6,6 @@ import { SystemReminderView } from "./SystemReminderView";
 import { ScrollMarkers } from "./ScrollMarkers";
 import { PinnedPromptBar } from "./PinnedPromptBar";
 import { MessageBlock } from "./MessageBlock";
-import { LatestThinkingBar } from "./LatestThinkingBar";
 
 import { useConversationScroll } from "../hooks/useConversationScroll";
 import { useConversationJumps } from "../hooks/useConversationJumps";
@@ -14,7 +13,7 @@ import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useNavigation } from "../hooks/useNavigation";
 
 import { groupMessages } from "../utils/conversationGrouping";
-import { latestThinkingChunk, latestThinkingIndex } from "../utils/latestThinking";
+import { latestThinkingIndex } from "../utils/latestThinking";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./ui/Spinner";
 
@@ -328,11 +327,6 @@ export function ConversationView({
     [messagesWithoutReminders],
   );
 
-  const latestThinking = useMemo(
-    () => latestThinkingChunk(messagesWithoutReminders, isActive),
-    [messagesWithoutReminders, isActive],
-  );
-
   useSearchHighlight(
     scrollRef,
     searchHighlightQuery,
@@ -367,7 +361,6 @@ export function ConversationView({
         </div>
         {!session.parentId && (
           <>
-            {latestThinking && <LatestThinkingBar chunk={latestThinking.chunk} />}
             <PinnedPromptBar
               session={session}
               firstMessage={firstMessage}
@@ -466,18 +459,15 @@ export function ConversationView({
       </div>
 
       {!session.parentId && (
-        <>
-          {latestThinking && <LatestThinkingBar chunk={latestThinking.chunk} />}
-          <PinnedPromptBar
-            session={session}
-            firstMessage={firstMessage}
-            onOpenModal={onOpenModal}
-            onQueueChanged={onQueueChanged}
-            highlightPromptId={highlightPromptId}
-            onHighlightDone={onHighlightDone}
-            tailActive={tailActive}
-          />
-        </>
+        <PinnedPromptBar
+          session={session}
+          firstMessage={firstMessage}
+          onOpenModal={onOpenModal}
+          onQueueChanged={onQueueChanged}
+          highlightPromptId={highlightPromptId}
+          onHighlightDone={onHighlightDone}
+          tailActive={tailActive}
+        />
       )}
     </div>
   );
