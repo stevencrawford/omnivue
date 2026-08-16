@@ -195,7 +195,9 @@ export function ManageTagsDialog({ isOpen, sessionId, onClose, onChanged }: Mana
                   style={{ backgroundColor: c }}
                   title={c}
                 >
-                  {newColor === c && <Check size={10} className="text-white" strokeWidth={3} />}
+                  {newColor === c && (
+                    <Check size={10} className="tag-check text-white" strokeWidth={3} />
+                  )}
                 </button>
               ))}
             </div>
