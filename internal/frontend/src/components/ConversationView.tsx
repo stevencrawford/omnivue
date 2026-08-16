@@ -14,7 +14,7 @@ import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useNavigation } from "../hooks/useNavigation";
 
 import { groupMessages } from "../utils/conversationGrouping";
-import { isMessageStreaming, latestThinkingChunk } from "../utils/messageStreaming";
+import { latestThinkingChunk, latestThinkingIndex } from "../utils/latestThinking";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./ui/Spinner";
 
@@ -321,14 +321,12 @@ export function ConversationView({
 
   // Reasoning only grows on the message the model is currently writing, so the
   // streaming indicator targets that single message rather than the whole
-  // session (agents without step events fall back to the last assistant turn).
-  const lastAssistantIndex = useMemo(() => {
-    let last = -1;
-    messagesWithoutReminders.forEach((m, i) => {
-      if (m.role === "assistant") last = i;
-    });
-    return last;
-  }, [messagesWithoutReminders]);
+  // session. The step open/close window can be milliseconds, so the trigger is
+  // "the session is active and this message holds the most recent reasoning".
+  const latestThinkingIdx = useMemo(
+    () => latestThinkingIndex(messagesWithoutReminders),
+    [messagesWithoutReminders],
+  );
 
   const latestThinking = useMemo(
     () => latestThinkingChunk(messagesWithoutReminders, isActive),
@@ -431,7 +429,7 @@ export function ConversationView({
                   onBookmark={onBookmark}
                   bookmarkIdByRef={bookmarkIdByRef}
                   sessionId={session.id}
-                  live={isMessageStreaming(msg, idx === lastAssistantIndex, isActive)}
+                  live={isActive && idx === latestThinkingIdx}
                 />
               </div>
             ))

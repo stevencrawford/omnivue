@@ -40,13 +40,13 @@ describe("AssistantMessageView ThinkingBlock", () => {
     expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
   });
 
-  it("while live and collapsed, keeps the parent folded and hangs the newest chunk beneath it", () => {
+  it("while live and collapsed, shows the spinner but never a chunk beneath the parent", () => {
     render(<AssistantMessageView message={msg(multiChunkReasoning)} sessionId="s" live />);
     expect(screen.getByRole("button", { name: /Show thinking/i })).toBeInTheDocument();
     expect(screen.getByLabelText("thinking in progress")).toBeInTheDocument();
     expect(screen.queryByText(/aaa x/)).not.toBeInTheDocument();
     expect(screen.queryByText(/bbb y/)).not.toBeInTheDocument();
-    expect(screen.getByText(/ccc z/)).toBeInTheDocument();
+    expect(screen.queryByText(/ccc z/)).not.toBeInTheDocument();
   });
 
   it("while live and expanded, shows all chunks with no duplicated child", async () => {
@@ -58,10 +58,10 @@ describe("AssistantMessageView ThinkingBlock", () => {
     expect(screen.getByLabelText("thinking in progress")).toBeInTheDocument();
   });
 
-  it("hangs a single live chunk beneath the parent while it is the only chunk", () => {
+  it("while live with a single chunk, no chunk hangs beneath the collapsed parent", () => {
     render(<AssistantMessageView message={msg(chunkC)} sessionId="s" live />);
     expect(screen.getByRole("button", { name: /Show thinking/i })).toBeInTheDocument();
-    expect(screen.getByText(/ccc z/)).toBeInTheDocument();
+    expect(screen.queryByText(/ccc z/)).not.toBeInTheDocument();
     expect(screen.getByLabelText("thinking in progress")).toBeInTheDocument();
   });
 
