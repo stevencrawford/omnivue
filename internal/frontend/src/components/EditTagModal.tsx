@@ -78,7 +78,9 @@ export function EditTagModal({ isOpen, tag, onClose, onSave }: EditTagModalProps
                 style={{ backgroundColor: c }}
                 title={c}
               >
-                {color === c && <Check size={12} className="text-white" strokeWidth={3} />}
+                {color === c && (
+                  <Check size={12} className="tag-check text-white" strokeWidth={3} />
+                )}
               </button>
             ))}
           </div>
@@ -88,7 +90,7 @@ export function EditTagModal({ isOpen, tag, onClose, onSave }: EditTagModalProps
           <span className="flex items-center gap-1.5 text-xs text-ov-text-secondary">
             Preview:
             <span
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-ov-border bg-surface"
+              className="tag-preview inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-ov-border bg-surface"
               style={
                 hasTagColor(color)
                   ? {

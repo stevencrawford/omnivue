@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface AppHeaderProps {
@@ -73,9 +73,7 @@ export function AppHeader({
         className={`sess-search-trigger ${searchHighlightQuery ? "sess-search-active" : ""}`}
         onClick={onOpenSearch}
       >
-        <svg className="size-3.5 shrink-0 opacity-60" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z" />
-        </svg>
+        <Search size={14} className="shrink-0 opacity-60" />
         <span className="flex-1 text-left truncate">
           {searchHighlightQuery ? (
             <span className="text-accent font-medium">
