@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.2.4](https://github.com/stevencrawford/omnivue/compare/v0.2.3...v0.2.4) - 2026-08-17
+
+### Other Changes
+- refactor: Rename Filesystem resume command option to Absolute by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/143
+- fix(summary): stop loading spinner flash on live SSE updates by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/145
+- feat: Show indexing placeholder while initial ingest runs by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/146
+- feat(ui): Show running version in app header by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/147
+- fix(nav): Resolve summary step jumps by stable message id by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/149
+- refactor(frontend): Introduce presentational vs container boundary by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/150
+- fix: Faster first-startup session detection + prompt header version by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/151
+- feat(ui): Match app header and favicon to status bar icon by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/152
+- fix(ui): Add permanent divider between sidebar and content by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/153
+- fix(ui): High contrast compliance for modals and overlays by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/154
+- feat(ui): Make long thinking streams visible as they grow by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/148
+- fix(diff): Jump to message by stable message id by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/155
+
 ## [v0.2.3](https://github.com/stevencrawford/omnivue/compare/v0.2.2...v0.2.3) - 2026-08-14
 
 ### Dependency Updates ⬆️
