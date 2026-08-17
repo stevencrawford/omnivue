@@ -53,7 +53,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	}
 
 	partRows, err := a.db.QueryContext(ctx, `
-		SELECT message_id, data FROM part
+		SELECT message_id, data, time_created, time_updated FROM part
 		WHERE message_id IN (SELECT id FROM message WHERE session_id = ?)
 		ORDER BY message_id, time_created ASC, id ASC
 	`, sessionID)
@@ -62,15 +62,23 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	}
 	defer partRows.Close()
 
-	partsByMsg := make(map[string][]partData, len(msgRows))
+	type partRow struct {
+		messageID   string
+		dataJSON    string
+		timeCreated int64
+		timeUpdated int64
+		partData
+	}
+	partsByMsg := make(map[string][]partRow, len(msgRows))
 	for partRows.Next() {
-		var messageID, dataJSON string
-		if err := partRows.Scan(&messageID, &dataJSON); err != nil {
+		var pr partRow
+		if err := partRows.Scan(&pr.messageID, &pr.dataJSON, &pr.timeCreated, &pr.timeUpdated); err != nil {
 			continue
 		}
 		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err == nil {
-			partsByMsg[messageID] = append(partsByMsg[messageID], p)
+		if err := json.Unmarshal([]byte(pr.dataJSON), &p); err == nil {
+			pr.partData = p
+			partsByMsg[pr.messageID] = append(partsByMsg[pr.messageID], pr)
 		}
 	}
 
@@ -120,6 +128,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 			}
 		}
 
+		var reasoningUpdated int64
 		for _, p := range partsByMsg[m.id] {
 			switch p.Type {
 			case "text":
@@ -133,6 +142,9 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					msg.Reasoning = p.Text
 				} else {
 					msg.Reasoning += "\n" + p.Text
+				}
+				if p.timeUpdated > reasoningUpdated {
+					reasoningUpdated = p.timeUpdated
 				}
 			case "step-start":
 				trk.curStep++
@@ -184,7 +196,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 				}
 				msg.ToolCalls = append(msg.ToolCalls, tc)
 			case "compaction":
-				inputJSON := marshalCompactionInput(p)
+				inputJSON := marshalCompactionInput(p.partData)
 				pendingCompaction = &ingest.ToolCall{
 					ID:     p.CallID,
 					Name:   "compaction",
@@ -193,9 +205,15 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 				}
 				msg.Content = ""
 				msg.Reasoning = ""
+				reasoningUpdated = 0
 				msg.StepEvents = nil
 				msg.ToolCalls = nil
 			}
+		}
+
+		if reasoningUpdated > 0 {
+			t := time.UnixMilli(reasoningUpdated)
+			msg.ReasoningAt = &t
 		}
 
 		if curModel != "" && prevModel != "" && curModel != prevModel && msg.Role == ingest.MessageRoleAssistant {

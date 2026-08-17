@@ -68,6 +68,7 @@ export const MessageSchema = z.object({
   role: z.string(),
   content: z.string(),
   reasoning: optionalString,
+  reasoningAt: optionalString,
   toolCalls: z.array(ToolCallSchema).optional(),
   stepEvents: z.array(StepEventSchema).optional(),
   timestamp: z.string(),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../utils/toolDisplay";
+import { splitReasoning } from "../utils/reasoningChunks";
 import { toolRendererRegistry } from "./tool-renderers/registry";
 
 const LEGACY_MARKER_COLORS: Record<string, string> = {
@@ -63,10 +64,12 @@ function computeMarkers(messages: Message[]): MarkerDef[] {
           label: marker.label,
         });
       } else if (msg.reasoning) {
+        const chunks = splitReasoning(msg.reasoning);
+        const firstChunk = chunks[0]?.slice(0, 120) || "";
         result.push({
           id: `msg-${idx}`,
           type: "thinking",
-          summary: msg.reasoning.slice(0, 120),
+          summary: chunks.length > 1 ? `${firstChunk} (${chunks.length} parts)` : firstChunk,
           color: LEGACY_MARKER_COLORS["thinking"],
           label: LEGACY_MARKER_LABELS["thinking"],
         });

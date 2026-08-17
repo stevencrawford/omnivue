@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useNavigation, type ScrollPosition } from "./useNavigation";
 import type { Position } from "./types";
 
-interface UseConversationScrollOptions {
+export interface UseConversationScrollOptions {
   sessionId: string;
   messageCount: number;
   /**
@@ -428,6 +428,17 @@ function updateButtons(el: HTMLDivElement) {
   };
 }
 
+// Signature of the last rendered block. When the message count stays flat but
+// this changes, the tail message is being updated in place (e.g. a reasoning
+// part streamed while the model thinks) and pinned users should follow.
+function tailSignature(messages: unknown[]): string {
+  const last = messages[messages.length - 1] as
+    | { id?: string; reasoning?: string; content?: string }
+    | undefined;
+  if (!last) return "";
+  return `${last.id ?? ""}:${last.reasoning?.length ?? 0}:${last.content?.length ?? 0}`;
+}
+
 export function useConversationScroll({
   sessionId,
   messageCount,
@@ -439,6 +450,7 @@ export function useConversationScroll({
 }: UseConversationScrollOptions) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
+  const prevTailSigRef = useRef("");
   const restoredRef = useRef(false);
   const registryRef = useRef<BlockRegistry | null>(null);
   // Set true around every programmatic scrollTop write so a pending jump's
@@ -528,6 +540,7 @@ export function useConversationScroll({
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const tailSig = tailSignature(messages);
     const isInitialLoad = prevLengthRef.current === 0;
     const focusPending = hasPendingFocus({ focusPosition, focusMessageIndex, focusMessageId });
 
@@ -577,8 +590,17 @@ export function useConversationScroll({
       }
     } else {
       // Same block count but the render changed (SSE in-place updates re-group
-      // middle blocks): let the idle settle re-measure them at true sizes.
-      settle();
+      // middle blocks). If the tail message itself grew in place (reasoning or
+      // content streaming into the last block) and the user is pinned, follow
+      // the bottom so live thinking stays visible; otherwise let the idle
+      // settle re-measure them at true sizes.
+      const tailChanged = tailSig !== prevTailSigRef.current;
+      const pinned = followingBottomRef.current || tailActiveRef.current;
+      if (tailChanged && pinned) {
+        followToBottom(null);
+      } else {
+        settle();
+      }
     }
 
     const btn = updateButtons(el);
@@ -586,6 +608,7 @@ export function useConversationScroll({
     setShowScrollBottom(btn.showScrollBottom);
 
     prevLengthRef.current = messageCount;
+    prevTailSigRef.current = tailSig;
   }, [
     messageCount,
     messages,
