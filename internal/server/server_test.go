@@ -334,7 +334,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 
 func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	adapter := &mockAdapter{sessions: []ingest.Session{
-		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-time.Minute)},
+		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-30 * time.Second)},
 	}}
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	if _, live, _ := hub.refreshSessions(context.Background()); live != 1 {
@@ -343,6 +343,40 @@ func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	changed, live, _ := hub.refreshSessions(context.Background())
 	if live != 1 || len(changed) != 0 {
 		t.Errorf("second refresh: expected 1 live and 0 changed, got live=%d changed=%v", live, changed)
+	}
+}
+
+func TestRefreshSessions_OpenStepStaysLiveButNotWhenStale(t *testing.T) {
+	now := time.Now()
+	hub := &SessionHub{
+		adapters: map[string]ingest.Adapter{
+			"src-1": &mockAdapter{sessions: []ingest.Session{
+				// Frozen mid-think: open step, but the last write was minutes
+				// ago (outside liveWindow, inside openStepWindow) — must stay
+				// live so the thinking UI keeps streaming.
+				{ID: "ses-thinking", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-5 * time.Minute), InProgress: true},
+				// Crashed step from long ago — must revert to completed
+				// instead of pinning the session (and its parent) active.
+				{ID: "ses-crashed", Status: ingest.SessionStatusActive, UpdatedAt: now.Add(-10 * 24 * time.Hour), InProgress: true},
+			}},
+		},
+	}
+	changed, live, _ := hub.refreshSessions(context.Background())
+	if live != 1 {
+		t.Errorf("expected 1 live session, got %d", live)
+	}
+	statusByID := map[string]ingest.SessionStatus{}
+	for _, s := range hub.Sessions() {
+		statusByID[s.ID] = s.Status
+	}
+	if statusByID["ses-thinking"] != ingest.SessionStatusActive {
+		t.Errorf("ses-thinking: expected active, got %q", statusByID["ses-thinking"])
+	}
+	if statusByID["ses-crashed"] != ingest.SessionStatusCompleted {
+		t.Errorf("ses-crashed: expected completed, got %q", statusByID["ses-crashed"])
+	}
+	if len(changed) != 2 {
+		t.Errorf("expected 2 changed IDs on first refresh, got %d", len(changed))
 	}
 }
 
@@ -406,7 +440,7 @@ func (f *fakeAdapterProvider) Adapters() map[string]ingest.Adapter {
 func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 		},
 		lastModFn: func() (int64, error) { return 2, nil },
 	}
@@ -441,7 +475,7 @@ func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 		},
 		lastModFn: func() (int64, error) { return 2, nil },
 	}
@@ -644,7 +678,7 @@ func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
 // pipeline stateless and the test deterministic.
 func TestPipelineRefreshLiveness_BroadcastsOnlyOnChange(t *testing.T) {
 	adapter := &mockAdapter{
-		sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+		sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 	}
 
 	bus := NewEventBus()

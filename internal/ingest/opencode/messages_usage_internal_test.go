@@ -33,7 +33,8 @@ func TestMessages_StepAttributedUsage(t *testing.T) {
 		id INTEGER PRIMARY KEY,
 		message_id TEXT NOT NULL,
 		data TEXT NOT NULL,
-		time_created INTEGER NOT NULL
+		time_created INTEGER NOT NULL,
+		time_updated INTEGER NOT NULL
 	)`); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestMessages_StepAttributedUsage(t *testing.T) {
 		{3, 3, `{"type":"step-finish","tokens":{"input":100,"output":50,"reasoning":5,"cache":{"read":20,"write":10}},"cost":0.004}`},
 	}
 	for _, p := range parts {
-		if _, err := db.Exec(`INSERT INTO part VALUES (?, 'm1', ?, ?)`, p.id, p.data, p.ts); err != nil {
+		if _, err := db.Exec(`INSERT INTO part VALUES (?, 'm1', ?, ?, ?)`, p.id, p.data, p.ts, p.ts); err != nil {
 			t.Fatal(err)
 		}
 	}

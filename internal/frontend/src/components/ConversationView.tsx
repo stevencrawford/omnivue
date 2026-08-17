@@ -13,6 +13,7 @@ import { useSearchHighlight } from "../hooks/useSearchHighlight";
 import { useNavigation } from "../hooks/useNavigation";
 
 import { groupMessages } from "../utils/conversationGrouping";
+import { latestThinkingIndex } from "../utils/latestThinking";
 import { relativeTime } from "../utils/sessionUtils";
 import { Spinner } from "./ui/Spinner";
 
@@ -317,6 +318,15 @@ export function ConversationView({
   const hasFocusJump =
     focusPosition !== undefined || focusMessageIndex !== undefined || focusMessageId !== undefined;
 
+  // Reasoning only grows on the message the model is currently writing, so the
+  // streaming indicator targets that single message rather than the whole
+  // session. The step open/close window can be milliseconds, so the trigger is
+  // "the session is active and this message holds the most recent reasoning".
+  const latestThinkingIdx = useMemo(
+    () => latestThinkingIndex(messagesWithoutReminders),
+    [messagesWithoutReminders],
+  );
+
   useSearchHighlight(
     scrollRef,
     searchHighlightQuery,
@@ -350,15 +360,17 @@ export function ConversationView({
           </div>
         </div>
         {!session.parentId && (
-          <PinnedPromptBar
-            session={session}
-            firstMessage={firstMessage}
-            onOpenModal={onOpenModal}
-            onQueueChanged={onQueueChanged}
-            highlightPromptId={highlightPromptId}
-            onHighlightDone={onHighlightDone}
-            tailActive={tailActive}
-          />
+          <>
+            <PinnedPromptBar
+              session={session}
+              firstMessage={firstMessage}
+              onOpenModal={onOpenModal}
+              onQueueChanged={onQueueChanged}
+              highlightPromptId={highlightPromptId}
+              onHighlightDone={onHighlightDone}
+              tailActive={tailActive}
+            />
+          </>
         )}
       </div>
     );
@@ -410,6 +422,7 @@ export function ConversationView({
                   onBookmark={onBookmark}
                   bookmarkIdByRef={bookmarkIdByRef}
                   sessionId={session.id}
+                  live={isActive && idx === latestThinkingIdx}
                 />
               </div>
             ))

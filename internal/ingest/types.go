@@ -143,6 +143,13 @@ type Session struct {
 	CreatedAt  time.Time     `json:"createdAt"`
 	UpdatedAt  time.Time     `json:"updatedAt"`
 
+	// InProgress marks a session whose current step has not finished (e.g.
+	// OpenCode's step-start without step-finish). Adapters that can detect an
+	// in-flight turn set it so the liveness heuristic keeps the session active
+	// even while no data is written — OpenCode writes nothing during a long
+	// think, so a pure timestamp window would flip it stale.
+	InProgress bool `json:"inProgress,omitempty"`
+
 	// Token usage
 	TokensInput      int `json:"tokensInput"`
 	TokensOutput     int `json:"tokensOutput"`
@@ -214,6 +221,12 @@ type Message struct {
 
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
+
+	// ReasoningAt is when the reasoning was last written. The model writes
+	// thinking as it goes, so this is the true completion time of the thought
+	// block; Timestamp is the message's creation time and can be far earlier.
+	// Falls back to Timestamp in the UI when absent.
+	ReasoningAt *time.Time `json:"reasoningAt,omitempty"`
 
 	// Error holds an API-level error message (rate limit, context length, etc.)
 	Error string `json:"error,omitempty"`
