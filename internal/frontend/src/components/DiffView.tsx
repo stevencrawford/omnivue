@@ -240,10 +240,18 @@ export function DiffView({
               </div>
               {selectedDiff.hunks.map((hunk, i) => {
                 const msgIdx = hunk.messageIndex;
-                const prevMsgIdx = i > 0 ? selectedDiff.hunks[i - 1].messageIndex : -2;
-                const showIndicator = msgIdx >= 0 && msgIdx !== prevMsgIdx && onNavigateToMessage;
-                const edit = edits.find((e) => e.messageIndex === msgIdx);
-                const msgId = edit?.messageId;
+                const msgId = hunk.messageId;
+                const prev = i > 0 ? selectedDiff.hunks[i - 1] : undefined;
+                // The canonical message id is the stable anchor; the raw index
+                // is only a fallback for edits with no id. Keying the indicator
+                // on whichever anchor exists stops adjacent hunks from the same
+                // message from each drawing their own link.
+                const anchorKey = msgId ?? `idx:${msgIdx}`;
+                const prevAnchorKey = prev ? (prev.messageId ?? `idx:${prev.messageIndex}`) : "";
+                const showIndicator =
+                  onNavigateToMessage &&
+                  (msgId !== undefined || msgIdx >= 0) &&
+                  anchorKey !== prevAnchorKey;
                 return (
                   <div key={i}>
                     {showIndicator && (
@@ -251,10 +259,10 @@ export function DiffView({
                         type="button"
                         onClick={() => onNavigateToMessage(msgIdx, msgId)}
                         className="flex items-center gap-1 px-2 py-1 text-[10px] text-ov-text-secondary/60 hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors w-full"
-                        title={`Jump to message #${msgIdx + 1}`}
+                        title={msgIdx >= 0 ? `Jump to message #${msgIdx + 1}` : "Jump to message"}
                       >
                         <MessageSquareText size={10} />
-                        <span>Message #{msgIdx + 1}</span>
+                        <span>{msgIdx >= 0 ? `Message #${msgIdx + 1}` : "Message"}</span>
                         <ArrowRight size={10} />
                       </button>
                     )}

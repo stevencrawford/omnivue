@@ -1,12 +1,20 @@
 import type { FileEdit } from "../hooks/types";
 import { computeDiff, parseUnifiedDiff, type DiffHunk } from "./diff";
 
+// Merged hunks keep the stable message identity that produced them so jump
+// targets resolve by message id, not by a raw array index that drifts when
+// assistant tool-call messages are grouped for display.
+export interface MergedHunk extends DiffHunk {
+  messageIndex: number;
+  messageId?: string;
+}
+
 export interface MergedFileDiff {
   path: string;
   status: "added" | "modified" | "deleted";
   additions: number;
   deletions: number;
-  hunks: Array<DiffHunk & { messageIndex: number }>;
+  hunks: MergedHunk[];
 }
 
 export interface FileTreeNode {
@@ -19,23 +27,24 @@ export interface FileTreeNode {
 }
 
 export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
-  const allHunks: Array<DiffHunk & { messageIndex: number }> = [];
+  const allHunks: MergedHunk[] = [];
   let isNew = false;
 
   for (const edit of edits) {
     const mi = edit.messageIndex ?? -1;
+    const mid = edit.messageId;
     const body = edit.newStr || edit.content || "";
     if (body && !edit.oldStr) {
       isNew = true;
       if (body.startsWith("@@")) {
         for (const hunk of parseUnifiedDiff(body)) {
-          allHunks.push({ ...hunk, messageIndex: mi });
+          allHunks.push({ ...hunk, messageIndex: mi, messageId: mid });
         }
       } else {
         const lines = body.split("\n");
         const count = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
         if (count === 0) continue;
-        const hunks: Array<DiffHunk & { messageIndex: number }> = [
+        const hunks: MergedHunk[] = [
           {
             deletionStart: 0,
             deletionCount: 0,
@@ -48,6 +57,7 @@ export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileD
               newLine: i + 1,
             })),
             messageIndex: mi,
+            messageId: mid,
           },
         ];
         allHunks.push(...hunks);
@@ -60,7 +70,7 @@ export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileD
     const oldContent = edit.oldStr || "";
     const newContent = edit.newStr || edit.content || "";
     for (const hunk of computeDiff(oldContent, newContent)) {
-      allHunks.push({ ...hunk, messageIndex: mi });
+      allHunks.push({ ...hunk, messageIndex: mi, messageId: mid });
     }
   }
 
