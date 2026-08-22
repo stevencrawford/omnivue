@@ -57,6 +57,7 @@ func NewHandler(dep Dep) http.Handler {
 	mux.HandleFunc("GET /_/api/recent-searches", handleGetRecentSearches(dep.Config))
 	mux.HandleFunc("POST /_/api/recent-searches", handleSetRecentSearches(dep.Config))
 	mux.HandleFunc("GET /_/api/search", handleSearch(dep.Search, dep.Hub))
+	mux.HandleFunc("GET /_/api/files/graph", handleFileGraph(dep.Hub, dep.Activity))
 	mux.HandleFunc("GET /_/api/tags", handleListTags(dep.Tags))
 	mux.HandleFunc("POST /_/api/tags", handleCreateTag(dep.Tags))
 	mux.HandleFunc("PATCH /_/api/tags/{id}", handleUpdateTag(dep.Tags))

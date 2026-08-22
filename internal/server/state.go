@@ -31,6 +31,7 @@ type Dep struct {
 	Notifs    store.NotificationStore
 	Prompts   store.PromptStore
 	Search    store.SearchStore
+	Activity  store.FileActivityStore
 	Meta      store.SchemaVersioner
 	Reset     store.Resetter
 
@@ -68,7 +69,7 @@ func NewState(ctx context.Context) *State {
 
 	bus := NewEventBus()
 	hub := NewSessionHub(roles.names)
-	index := NewIndexer(hub, hub, roles.search, roles.scratch)
+	index := NewIndexer(hub, hub, roles.search, roles.scratch, roles.activity)
 	notif := NewNotifier(hub, roles.notifs, roles.config, roles.tags, bus)
 	p := newPipeline(hub, index, notif, bus)
 	poller := NewPoller(hub, p)
@@ -139,6 +140,7 @@ type storeRoles struct {
 	notifs    store.NotificationStore
 	prompts   store.PromptStore
 	search    store.SearchStore
+	activity  store.FileActivityStore
 	meta      store.SchemaVersioner
 	reset     store.Resetter
 	names     store.SessionNameStore
@@ -159,6 +161,7 @@ func storeRolesOf(st *store.Store) storeRoles {
 		notifs:    st,
 		prompts:   st,
 		search:    st,
+		activity:  st,
 		meta:      st,
 		reset:     st,
 		names:     st,
@@ -275,6 +278,7 @@ func newDep(p *Pipeline, roles storeRoles) Dep {
 		Notifs:    roles.notifs,
 		Prompts:   roles.prompts,
 		Search:    roles.search,
+		Activity:  roles.activity,
 		Meta:      roles.meta,
 		Reset:     roles.reset,
 	}

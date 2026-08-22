@@ -448,7 +448,7 @@ func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	notif := NewNotifier(hub, nil, nil, nil, bus)
-	index := NewIndexer(hub, hub, nil, nil)
+	index := NewIndexer(hub, hub, nil, nil, nil)
 	// The provider the poller watches is empty, so the hub's changing source is
 	// invisible to the watch pass.
 	poller := NewPoller(&fakeAdapterProvider{adapters: map[string]ingest.Adapter{}}, newPipeline(hub, index, notif, bus))
@@ -485,7 +485,7 @@ func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
 	notif := NewNotifier(hub, nil, nil, nil, bus)
-	index := NewIndexer(hub, hub, nil, nil)
+	index := NewIndexer(hub, hub, nil, nil, nil)
 	poller := NewPoller(hub, newPipeline(hub, index, notif, bus))
 	// Seed the previous observation so the next tick is a real change.
 	poller.lastMod["src-1"] = 1
@@ -551,7 +551,7 @@ func TestPipelineRefresh_DrivesIndexAndClassify(t *testing.T) {
 	hub := &SessionHub{
 		adapters: map[string]ingest.Adapter{"src-1": adapter},
 	}
-	index := NewIndexer(hub, hub, st, st)
+	index := NewIndexer(hub, hub, st, st, nil)
 	notif := NewNotifier(hub, st, st, st, bus)
 	pipeline := newPipeline(hub, index, notif, bus)
 
@@ -626,7 +626,7 @@ func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	search := newBlockingSearchStore()
-	index := NewIndexer(hub, hub, search, nil)
+	index := NewIndexer(hub, hub, search, nil, nil)
 	notif := NewNotifier(hub, newFakeNotificationStore(), newFakeConfigStore(), &fakeTagStore{}, bus)
 	pipeline := newPipeline(hub, index, notif, bus)
 
@@ -683,7 +683,7 @@ func TestPipelineRefreshLiveness_BroadcastsOnlyOnChange(t *testing.T) {
 
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
-	pipeline := newPipeline(hub, NewIndexer(hub, hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus)
+	pipeline := newPipeline(hub, NewIndexer(hub, hub, nil, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus)
 
 	ch := bus.Subscribe()
 	defer bus.Unsubscribe(ch)
@@ -733,7 +733,7 @@ func TestPipeline_SerializesConcurrentRefreshPasses(t *testing.T) {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	search := newTrackingSearchStore()
-	pipeline := newPipeline(hub, NewIndexer(hub, hub, search, nil), NewNotifier(hub, nil, nil, nil, bus), bus)
+	pipeline := newPipeline(hub, NewIndexer(hub, hub, search, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus)
 
 	const goroutines = 8
 	start := make(chan struct{})
@@ -942,7 +942,7 @@ func TestHandleCreateTag_FakeStore(t *testing.T) {
 func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	bus := NewEventBus()
 	hub := &SessionHub{adapters: make(map[string]ingest.Adapter)}
-	dep := newDep(newPipeline(hub, NewIndexer(hub, hub, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus), storeRolesOf(nil))
+	dep := newDep(newPipeline(hub, NewIndexer(hub, hub, nil, nil, nil), NewNotifier(hub, nil, nil, nil, bus), bus), storeRolesOf(nil))
 	dep.Tags = tags
 	return dep
 }
@@ -1055,7 +1055,7 @@ func TestIndexer_IndexSessions(t *testing.T) {
 		},
 	}
 
-	ix := NewIndexer(catalog, reader, st, st)
+	ix := NewIndexer(catalog, reader, st, st, nil)
 	ix.IndexSessions(context.Background())
 
 	results, err := st.Search("unique", 10, "")
@@ -1096,7 +1096,7 @@ func TestIndexer_ReindexSessionScratch(t *testing.T) {
 		messages: map[string][]ingest.Message{"ses-1": nil},
 	}
 
-	ix := NewIndexer(catalog, reader, st, st)
+	ix := NewIndexer(catalog, reader, st, st, nil)
 	ix.ReindexSessionScratch("ses-1")
 
 	results, err := st.Search("scratch", 10, "")
