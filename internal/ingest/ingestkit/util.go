@@ -182,6 +182,34 @@ func ExpandHome(path string) string {
 	return path
 }
 
+// filePathKeys lists the JSON input field names that may carry a file path
+// across the various agents' tool call shapes. ExtractFilePath tries each in
+// order so a read/edit tool call yields its path regardless of the agent.
+var filePathKeys = []string{
+	"filePath", "path", "file_path", "filename", "file",
+	"targetFile", "effectiveUri", "relativeWorkspacePath", "uri",
+}
+
+// ExtractFilePath returns the file path referenced by a tool call's JSON input,
+// or empty string when none is present or the input is not valid JSON.
+func ExtractFilePath(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	for _, k := range filePathKeys {
+		if v, ok := m[k]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
 // DeriveRepository creates a repository identifier from directory and project name.
 func DeriveRepository(directory, projectName string) string {
 	if projectName != "" {

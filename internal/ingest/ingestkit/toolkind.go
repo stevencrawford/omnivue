@@ -20,7 +20,28 @@ const (
 	KindTaskComplete ToolKind = "task_complete"
 	// KindPlan marks tool calls whose input is searchable plan content.
 	KindPlan ToolKind = "plan"
+	// KindRead marks tool calls that read a file's contents (read / view),
+	// distinct from write/edit operations, for file-activity aggregation.
+	KindRead ToolKind = "read"
 )
+
+// readToolNames is the set of canonical (or raw) tool call names that read a
+// file's contents. Reads are extracted from message tool calls to populate the
+// file-activity graph; writes come from the Editor seam (Edits).
+var readToolNames = map[string]bool{
+	"read": true,
+	"view": true,
+}
+
+// IsReadTool reports whether the given tool call name signals a file read.
+// Names are matched both raw and after CanonicalizeToolName so agent-native
+// spellings (read_file, Read, read_*) classify correctly.
+func IsReadTool(name string) bool {
+	if readToolNames[name] {
+		return true
+	}
+	return CanonicalizeToolName(name) == "read"
+}
 
 // toolKinds is the single declaration of every tool-call name (lowercased)
 // that maps to one or more semantic kinds. It is the union of the literal
