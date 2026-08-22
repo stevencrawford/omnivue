@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.2.5](https://github.com/stevencrawford/omnivue/compare/v0.2.4...v0.2.5) - 2026-08-22
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group in /internal/frontend with 10 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/156
+
 ## [v0.2.4](https://github.com/stevencrawford/omnivue/compare/v0.2.3...v0.2.4) - 2026-08-17
 
 ### Other Changes
