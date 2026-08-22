@@ -89,6 +89,12 @@ type PromptStore interface {
 	BatchDeletePrompts(ids []string) error
 }
 
+// FileActivityStore exposes read/write file-touch aggregation across sessions.
+type FileActivityStore interface {
+	UpsertFileActivity(sessionID, sourceID, repository string, rows []FileActivityRow) error
+	FileActivityRows(sessionIDs []string) ([]FileActivityRow, error)
+}
+
 // SearchStore exposes the FTS5 search index read/write operations.
 type SearchStore interface {
 	ClearSessionIndex(sessionID string) error
@@ -121,6 +127,7 @@ var (
 	_ NotificationStore = (*Store)(nil)
 	_ PromptStore       = (*Store)(nil)
 	_ SearchStore       = (*Store)(nil)
+	_ FileActivityStore = (*Store)(nil)
 	_ Resetter          = (*Store)(nil)
 	_ SchemaVersioner   = (*Store)(nil)
 	_ io.Closer         = (*Store)(nil)
