@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchFileGraph } from "./apiClient";
-import type { FileGraph, FileGraphParams } from "./types";
+import type { FileGraph } from "./types";
+import type { FilesFilters } from "./types";
 
 interface FileGraphState {
   graph: FileGraph | null;
@@ -9,22 +10,32 @@ interface FileGraphState {
 }
 
 // useFileGraph fetches the cross-session file-activity graph for the given
-// filters. Refetches whenever the filter params change.
-export function useFileGraph(params: FileGraphParams): FileGraphState {
+// explorer filters. Nothing is fetched until a repository is selected; the
+// graph only ever spans one project. Date filters arrive as YYYY-MM-DD
+// strings and are widened to UTC-day ISO timestamps for the API.
+export function useFileGraph(filters: FilesFilters): FileGraphState {
   const [graph, setGraph] = useState<FileGraph | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const agent = params.agent ?? "";
-  const repo = params.repo ?? "";
-  const from = params.from ?? "";
-  const to = params.to ?? "";
+  const { repo, from, to, agent } = filters;
 
   useEffect(() => {
+    if (!repo) {
+      setGraph(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchFileGraph({ agent, repo, from, to })
+    fetchFileGraph({
+      agent,
+      repo,
+      from: from ? new Date(`${from}T00:00:00Z`).toISOString() : "",
+      to: to ? new Date(`${to}T23:59:59Z`).toISOString() : "",
+    })
       .then((data) => {
         if (!cancelled) setGraph(data);
       })
@@ -37,7 +48,7 @@ export function useFileGraph(params: FileGraphParams): FileGraphState {
     return () => {
       cancelled = true;
     };
-  }, [agent, repo, from, to]);
+  }, [repo, from, to, agent]);
 
   return { graph, loading, error };
 }

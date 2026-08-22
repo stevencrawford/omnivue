@@ -29,7 +29,9 @@ import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
-import type { AppNotification, NotificationSettings } from "./hooks/types";
+import type { AppNotification, NotificationSettings, FilesFilters } from "./hooks/types";
+import { EMPTY_FILES_FILTERS } from "./hooks/types";
+import { useFileGraph } from "./hooks/useFileGraph";
 import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
@@ -201,6 +203,24 @@ export function App() {
     setTab(tab as Tab),
   );
 
+  // ---- Files section (Touched Files) ----
+  // Filter + selection state lives here because the sidebar panel (filters and
+  // file tree) and the canvas view (graph and drill-down) share it.
+  const [filesFilters, setFilesFilters] = useState<FilesFilters>(EMPTY_FILES_FILTERS);
+  const [filesSelectedPath, setFilesSelectedPath] = useState("");
+  const {
+    graph: filesGraph,
+    loading: filesLoading,
+    error: filesError,
+  } = useFileGraph(filesFilters);
+  const handleFilesFiltersChange = useCallback((next: FilesFilters) => {
+    setFilesFilters((prev) => {
+      if (prev.repo !== next.repo) setFilesSelectedPath("");
+      return next;
+    });
+  }, []);
+  const handleFilesSelect = useCallback((path: string) => setFilesSelectedPath(path), []);
+
   // ---- Pin message modal ----
   const {
     pinningContent,
@@ -311,6 +331,13 @@ export function App() {
                       queueCount={queueCount}
                       promptVersion={promptVersion}
                       onPromptClick={handlePromptClick}
+                      filesFilters={filesFilters}
+                      onFilesFiltersChange={handleFilesFiltersChange}
+                      filesGraph={filesGraph}
+                      filesLoading={filesLoading}
+                      filesError={filesError}
+                      filesSelectedPath={filesSelectedPath}
+                      onFileSelect={handleFilesSelect}
                     />
                   </ErrorBoundary>
                   <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
@@ -318,7 +345,12 @@ export function App() {
                       <ErrorBoundary>
                         <FileGraphView
                           sessions={sessions}
-                          onFileSearch={handleSearchOpenDrawer}
+                          filters={filesFilters}
+                          graph={filesGraph}
+                          loading={filesLoading}
+                          error={filesError}
+                          selectedPath={filesSelectedPath}
+                          onFileSelect={handleFilesSelect}
                           onSessionSelect={handleSessionSelect}
                         />
                       </ErrorBoundary>

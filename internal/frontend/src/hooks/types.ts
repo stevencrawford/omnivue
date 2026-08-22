@@ -12,6 +12,7 @@ import type {
   FileGraphEdgeSchema,
   FileGraphNodeSchema,
   FileGraphSchema,
+  FileGraphTouchSchema,
   MessageSchema,
   NotificationKindSchema,
   NotificationScopeSchema,
@@ -58,6 +59,7 @@ export type AppNotification = z.infer<typeof NotificationSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type QueuedPrompt = z.infer<typeof QueuedPromptSchema>;
 export type FileGraphNode = z.infer<typeof FileGraphNodeSchema>;
+export type FileGraphTouch = z.infer<typeof FileGraphTouchSchema>;
 export type FileGraphEdge = z.infer<typeof FileGraphEdgeSchema>;
 export type FileGraph = z.infer<typeof FileGraphSchema>;
 
@@ -69,6 +71,18 @@ export interface FileGraphParams {
   from?: string;
   to?: string;
 }
+
+// UI-side explorer filter state for the Files section. `from`/`to` are
+// date-only (YYYY-MM-DD) strings as produced by <input type="date">; they are
+// converted to ISO timestamps at fetch time.
+export interface FilesFilters {
+  repo: string;
+  from: string;
+  to: string;
+  agent: string;
+}
+
+export const EMPTY_FILES_FILTERS: FilesFilters = { repo: "", from: "", to: "", agent: "" };
 
 // Decoding target for AppNotification.payload (an opaque JSON string stored in
 // the wire format). Not runtime-validated, so it stays a hand-written shape.

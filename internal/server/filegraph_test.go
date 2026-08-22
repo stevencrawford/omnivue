@@ -27,13 +27,14 @@ func nodeByPath(t *testing.T, g FileGraph, path string) FileGraphNode {
 }
 
 // TestBuildFileGraph_Aggregation pins node aggregation across sessions: touch
-// counts sum, Sessions counts distinct sessions, and SessionIDs lists them
-// sorted so the UI drill-down is stable.
+// counts sum, Sessions counts distinct sessions, and Touches breaks the
+// contribution down per session in stable (sorted) order for UI drill-down.
 func TestBuildFileGraph_Aggregation(t *testing.T) {
 	rows := []store.FileActivityRow{
 		activityRow("s2", "a.go", 1, 0),
 		activityRow("s1", "a.go", 3, 1),
 		activityRow("s1", "b.go", 2, 0),
+		activityRow("s1", "a.go", 2, 0),
 		// Zero-touch rows carry no information and must be dropped.
 		activityRow("s1", "empty.go", 0, 0),
 	}
@@ -41,14 +42,18 @@ func TestBuildFileGraph_Aggregation(t *testing.T) {
 	g := buildFileGraph(rows)
 
 	a := nodeByPath(t, g, "a.go")
-	if a.Reads != 4 || a.Writes != 1 || a.Total != 5 {
-		t.Fatalf("a.go = reads %d writes %d total %d, want 4/1/5", a.Reads, a.Writes, a.Total)
+	if a.Reads != 6 || a.Writes != 1 || a.Total != 7 {
+		t.Fatalf("a.go = reads %d writes %d total %d, want 6/1/7", a.Reads, a.Writes, a.Total)
 	}
 	if a.Sessions != 2 {
 		t.Fatalf("a.go sessions = %d, want 2", a.Sessions)
 	}
-	if want := []string{"s1", "s2"}; !slices.Equal(a.SessionIDs, want) {
-		t.Fatalf("a.go sessionIds = %v, want %v", a.SessionIDs, want)
+	want := []FileGraphTouch{
+		{SessionID: "s1", Reads: 5, Writes: 1},
+		{SessionID: "s2", Reads: 1},
+	}
+	if !slices.Equal(a.Touches, want) {
+		t.Fatalf("a.go touches = %+v, want %+v", a.Touches, want)
 	}
 
 	b := nodeByPath(t, g, "b.go")

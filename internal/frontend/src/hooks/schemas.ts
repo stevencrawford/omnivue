@@ -356,13 +356,19 @@ export const DispatchResponseSchema = z.object({
 // File Activity Graph
 // ---------------------------------------------------------------------------
 
+export const FileGraphTouchSchema = z.object({
+  sessionId: z.string(),
+  reads: z.number(),
+  writes: z.number(),
+});
+
 export const FileGraphNodeSchema = z.object({
   path: z.string(),
   reads: z.number(),
   writes: z.number(),
   total: z.number(),
   sessions: z.number(),
-  sessionIds: z.array(z.string()),
+  touches: z.array(FileGraphTouchSchema),
 });
 
 export const FileGraphEdgeSchema = z.object({

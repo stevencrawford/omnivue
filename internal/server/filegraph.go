@@ -11,17 +11,24 @@ import (
 	"github.com/stevencrawford/omnivue/internal/store"
 )
 
+// FileGraphTouch is one session's read/write contribution to a single file.
+type FileGraphTouch struct {
+	SessionID string `json:"sessionId"`
+	Reads     int    `json:"reads"`
+	Writes    int    `json:"writes"`
+}
+
 // FileGraphNode is a single file in the activity graph. Total is the sum of
 // read and write touches across the filtered sessions; Sessions is the count of
-// distinct sessions that touched the file; SessionIDs lists those session IDs
-// (sorted) so the UI can offer drill-down without a second request.
+// distinct sessions that touched the file; Touches breaks those contributions
+// down per session so the UI can offer drill-down without a second request.
 type FileGraphNode struct {
-	Path       string   `json:"path"`
-	Reads      int      `json:"reads"`
-	Writes     int      `json:"writes"`
-	Total      int      `json:"total"`
-	Sessions   int      `json:"sessions"`
-	SessionIDs []string `json:"sessionIds"`
+	Path     string           `json:"path"`
+	Reads    int              `json:"reads"`
+	Writes   int              `json:"writes"`
+	Total    int              `json:"total"`
+	Sessions int              `json:"sessions"`
+	Touches  []FileGraphTouch `json:"touches"`
 }
 
 // FileGraphEdge links two files co-touched within the same session. Weight is
@@ -103,10 +110,14 @@ func parseGraphTime(s string) time.Time {
 // depends on the workspace's hottest files; use the repo/agent/date filters to
 // narrow the population before reading too much into a sparse topology.
 func buildFileGraph(rows []store.FileActivityRow) FileGraph {
+	type sessionAcc struct {
+		reads  int
+		writes int
+	}
 	type acc struct {
 		reads    int
 		writes   int
-		sessions map[string]struct{}
+		sessions map[string]*sessionAcc
 	}
 	nodes := make(map[string]*acc)
 	// sessionFiles maps session id -> set of file paths touched in that session.
@@ -118,12 +129,18 @@ func buildFileGraph(rows []store.FileActivityRow) FileGraph {
 		}
 		a, ok := nodes[r.Path]
 		if !ok {
-			a = &acc{sessions: make(map[string]struct{})}
+			a = &acc{sessions: make(map[string]*sessionAcc)}
 			nodes[r.Path] = a
 		}
 		a.reads += r.Reads
 		a.writes += r.Writes
-		a.sessions[r.SessionID] = struct{}{}
+		sa, ok := a.sessions[r.SessionID]
+		if !ok {
+			sa = &sessionAcc{}
+			a.sessions[r.SessionID] = sa
+		}
+		sa.reads += r.Reads
+		sa.writes += r.Writes
 
 		files, ok := sessionFiles[r.SessionID]
 		if !ok {
@@ -160,13 +177,18 @@ func buildFileGraph(rows []store.FileActivityRow) FileGraph {
 	graphNodes := make([]FileGraphNode, 0, len(kept))
 	for path := range kept {
 		a := nodes[path]
+		touches := make([]FileGraphTouch, 0, len(a.sessions))
+		for _, id := range slices.Sorted(maps.Keys(a.sessions)) {
+			sa := a.sessions[id]
+			touches = append(touches, FileGraphTouch{SessionID: id, Reads: sa.reads, Writes: sa.writes})
+		}
 		graphNodes = append(graphNodes, FileGraphNode{
-			Path:       path,
-			Reads:      a.reads,
-			Writes:     a.writes,
-			Total:      a.reads + a.writes,
-			Sessions:   len(a.sessions),
-			SessionIDs: slices.Sorted(maps.Keys(a.sessions)),
+			Path:     path,
+			Reads:    a.reads,
+			Writes:   a.writes,
+			Total:    a.reads + a.writes,
+			Sessions: len(a.sessions),
+			Touches:  touches,
 		})
 	}
 

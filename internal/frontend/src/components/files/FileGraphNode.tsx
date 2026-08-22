@@ -9,7 +9,20 @@ export interface FileNodeData {
   writes: number;
   total: number;
   sessions: number;
+  /** Largest total across the current graph; sizes are relative to it. */
+  maxTotal: number;
   [key: string]: unknown;
+}
+
+const SIZE_MIN = 22;
+const SIZE_MAX = 84;
+
+// nodeDiameter scales relative to the busiest file in the current graph so the
+// spread of touch counts is always visible — an absolute scale flattens to
+// uniform dots whenever most files have single-digit touches.
+export function nodeDiameter(total: number, maxTotal: number): number {
+  const t = Math.sqrt(Math.max(0, total) / Math.max(1, maxTotal));
+  return SIZE_MIN + (SIZE_MAX - SIZE_MIN) * t;
 }
 
 // dominantColor blends cyan (read-dominant) and amber (write-dominant) by the
@@ -26,16 +39,9 @@ function dominantColor(reads: number, writes: number): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-const SIZE_MIN = 22;
-const SIZE_MAX = 84;
-
-function nodeSize(total: number): number {
-  return Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.sqrt(total) * 3.2));
-}
-
 export const FileNode = memo(function FileNode({ data, selected }: NodeProps) {
   const d = data as FileNodeData;
-  const size = nodeSize(d.total);
+  const size = nodeDiameter(d.total, d.maxTotal);
   const color = dominantColor(d.reads, d.writes);
   const label = d.path.split("/").pop() || d.path;
   const title = `${d.path}\nreads: ${d.reads}  writes: ${d.writes}  sessions: ${d.sessions}`;

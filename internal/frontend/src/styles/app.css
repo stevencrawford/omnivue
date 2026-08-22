@@ -2934,3 +2934,49 @@ body {
 [data-contrast="high"] .tag-check {
   mix-blend-mode: difference;
 }
+
+/* ---------------------------------------------------------------------------
+   Touched Files graph (React Flow) — theme-aware chrome
+   The stock controls/minimap are hard-coded white; re-skin them with the
+   app's CSS variables so they follow the active theme.
+--------------------------------------------------------------------------- */
+.react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--color-ov-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--color-ov-bg-secondary);
+  border-bottom: 1px solid var(--color-ov-border);
+  color: var(--color-ov-text);
+  fill: currentColor;
+  width: 26px;
+  height: 26px;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+.react-flow__controls-button:hover {
+  background: var(--color-ov-bg-hover);
+}
+.react-flow__controls-button svg {
+  fill: var(--color-ov-text-secondary);
+}
+.react-flow__minimap {
+  background-color: var(--color-ov-bg-secondary) !important;
+  border: 1px solid var(--color-ov-border);
+  border-radius: 6px;
+}
+.react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--color-ov-bg) 72%, transparent);
+}
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__node {
+  cursor: grab;
+}
+.react-flow__node.dragging {
+  cursor: grabbing;
+}

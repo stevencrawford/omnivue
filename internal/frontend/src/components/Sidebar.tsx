@@ -1,4 +1,4 @@
-import type { Session, Bookmark, AppNotification } from "../hooks/types";
+import type { Session, Bookmark, AppNotification, FilesFilters, FileGraph } from "../hooks/types";
 import { IconChannel } from "./IconChannel";
 import type { Section } from "./IconChannel";
 import { SessionPanel } from "./SessionPanel";
@@ -31,6 +31,13 @@ interface SidebarProps {
   queueCount?: number;
   promptVersion?: number;
   onPromptClick?: (sessionId: string, promptId: string) => void;
+  filesFilters: FilesFilters;
+  onFilesFiltersChange: (filters: FilesFilters) => void;
+  filesGraph: FileGraph | null;
+  filesLoading: boolean;
+  filesError: string | null;
+  filesSelectedPath: string;
+  onFileSelect: (path: string) => void;
 }
 
 const SIDEBAR_WIDTH_KEY = STORAGE_KEYS.SIDEBAR_WIDTH;
@@ -56,6 +63,13 @@ export function Sidebar({
   queueCount = 0,
   promptVersion = 0,
   onPromptClick,
+  filesFilters,
+  onFilesFiltersChange,
+  filesGraph,
+  filesLoading,
+  filesError,
+  filesSelectedPath,
+  onFileSelect,
 }: SidebarProps) {
   const {
     value: width,
@@ -143,7 +157,16 @@ export function Sidebar({
         <div
           className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "files" ? "hidden" : ""}`}
         >
-          <FilesPanel sessions={sessions} onSessionSelect={onSessionSelect} />
+          <FilesPanel
+            sessions={sessions}
+            filters={filesFilters}
+            onFiltersChange={onFilesFiltersChange}
+            graph={filesGraph}
+            loading={filesLoading}
+            error={filesError}
+            selectedPath={filesSelectedPath}
+            onFileSelect={onFileSelect}
+          />
         </div>
       </div>
       {sidebarOpen && (

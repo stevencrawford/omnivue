@@ -120,7 +120,19 @@ describe("fetchFileGraph", () => {
   });
 
   const mockGraph = {
-    nodes: [{ path: "a.go", reads: 3, writes: 1, total: 4, sessions: 2, sessionIds: ["s1", "s2"] }],
+    nodes: [
+      {
+        path: "a.go",
+        reads: 3,
+        writes: 1,
+        total: 4,
+        sessions: 2,
+        touches: [
+          { sessionId: "s1", reads: 2, writes: 1 },
+          { sessionId: "s2", reads: 1, writes: 0 },
+        ],
+      },
+    ],
     edges: [{ source: "a.go", target: "b.go", weight: 2 }],
   };
 
@@ -129,7 +141,7 @@ describe("fetchFileGraph", () => {
     const result = await fetchFileGraph({ agent: "opencode", repo: "org/repo" });
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].total).toBe(4);
-    expect(result.nodes[0].sessionIds).toEqual(["s1", "s2"]);
+    expect(result.nodes[0].touches[0].sessionId).toBe("s1");
     expect(fetchMock).toHaveBeenCalledOnce();
     const url = (fetchMock.mock.calls[0] as unknown as [string])[0];
     expect(url).toContain("agent=opencode");
