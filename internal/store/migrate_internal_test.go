@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected legacy db stamped to version 10, got %d", v)
+	if v != 11 {
+		t.Fatalf("expected legacy db stamped to version 11, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 on fresh install, got %d", v)
+	if v != 11 {
+		t.Fatalf("expected version 11 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -111,6 +111,82 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	}
 	if len(matches) != 0 {
 		t.Fatalf("expected no backup on fresh install, got %d: %v", len(matches), matches)
+	}
+}
+
+// TestMigrate_BackfillFileActivity seeds a legacy database with a stale
+// index_state row, then verifies that the migrations clear index_state (the
+// rebuildable cache) so the next poll re-indexes every session and backfills
+// its file_activity rows.
+func TestMigrate_BackfillFileActivity(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	stateDir := filepath.Join(tmpDir, "omnivue")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(stateDir, "omnivue.db")
+
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A pre-versioning database with application tables: sources plus a
+	// populated search_index/index_state pair, as an existing user would have.
+	if _, err := db.Exec(`
+		CREATE TABLE sources (
+			id TEXT PRIMARY KEY,
+			path TEXT NOT NULL UNIQUE,
+			agent_type TEXT NOT NULL,
+			label TEXT,
+			enabled INTEGER DEFAULT 1,
+			last_scanned_at TEXT,
+			created_at TEXT NOT NULL
+		);
+		CREATE TABLE index_state (
+			session_id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			content_hash TEXT NOT NULL
+		);
+		INSERT INTO sources (id, path, agent_type, label, enabled, created_at)
+		VALUES ('legacy-src', '/legacy/path', 'opencode', 'Legacy', 1, '2024-01-01T00:00:00Z');
+		INSERT INTO index_state (session_id, source_id, content_hash)
+		VALUES ('sess-1', 'src-1', 'deadbeef');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	v, err := s.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 11 {
+		t.Fatalf("expected version 11 after migration, got %d", v)
+	}
+
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM index_state`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("expected index_state cleared for file-activity backfill, got %d rows", n)
+	}
+
+	// User data survives.
+	sources, err := s.ListSources()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sources) != 1 || sources[0].ID != "legacy-src" {
+		t.Fatalf("expected legacy source preserved, got %+v", sources)
 	}
 }
 
@@ -185,8 +261,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 11 {
+		t.Fatalf("expected version 11 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -267,8 +343,8 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 11 {
+		t.Fatalf("expected version 11 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -325,8 +401,8 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 11 {
+		t.Fatalf("expected version 11 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()

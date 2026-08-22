@@ -17,7 +17,12 @@ import { LoadingState } from "./ui/LoadingState";
 interface FileGraphViewProps {
   sessions: Session[];
   onFileSearch: (path: string) => void;
+  onSessionSelect: (sessionId: string) => void;
 }
+
+// SESSION_LIST_CAP keeps the detail panel bounded for hub files touched by
+// dozens of sessions; the remainder collapses into a "+N more" line.
+const SESSION_LIST_CAP = 8;
 
 interface SimNode extends SimulationNodeDatum, FileGraphNode {
   id: string;
@@ -67,7 +72,7 @@ function layout(
   return positions;
 }
 
-export function FileGraphView({ sessions, onFileSearch }: FileGraphViewProps) {
+export function FileGraphView({ sessions, onFileSearch, onSessionSelect }: FileGraphViewProps) {
   const repos = useMemo(
     () => Array.from(new Set(sessions.map((s) => s.repository).filter(Boolean))).sort(),
     [sessions],
@@ -122,6 +127,14 @@ export function FileGraphView({ sessions, onFileSearch }: FileGraphViewProps) {
   const selectedNode =
     selected && graph ? (graph.nodes.find((n) => n.path === selected.path) ?? null) : null;
 
+  const sessionById = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
+  const selectedSessions = useMemo(() => {
+    if (!selectedNode) return [];
+    return selectedNode.sessionIds
+      .map((id) => sessionById.get(id))
+      .filter((s): s is Session => Boolean(s));
+  }, [selectedNode, sessionById]);
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-ov-border px-3 py-2 text-xs">
@@ -170,7 +183,7 @@ export function FileGraphView({ sessions, onFileSearch }: FileGraphViewProps) {
           <span className="flex items-center gap-1">
             <span className="inline-block size-3 rounded-full bg-[#f59e0b]" /> write
           </span>
-          <span>size = total touches</span>
+          <span>size = total touches; bar = read/write split</span>
         </div>
       </div>
 
@@ -223,6 +236,31 @@ export function FileGraphView({ sessions, onFileSearch }: FileGraphViewProps) {
                 <dd className="text-ov-text">{selectedNode.sessions}</dd>
               </div>
             </dl>
+            <div className="mt-3">
+              <div className="mb-1 font-medium text-ov-text-secondary">Sessions</div>
+              <ul className="space-y-0.5">
+                {selectedSessions.slice(0, SESSION_LIST_CAP).map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className="w-full truncate rounded px-1 py-0.5 text-left text-accent hover:bg-ov-bg-sidebar"
+                      title={s.title}
+                      onClick={() => onSessionSelect(s.id)}
+                    >
+                      {s.title}
+                    </button>
+                  </li>
+                ))}
+                {selectedSessions.length > SESSION_LIST_CAP && (
+                  <li className="px-1 py-0.5 text-ov-text-secondary">
+                    +{selectedSessions.length - SESSION_LIST_CAP} more
+                  </li>
+                )}
+                {selectedSessions.length === 0 && (
+                  <li className="px-1 py-0.5 text-ov-text-secondary">Session list unavailable</li>
+                )}
+              </ul>
+            </div>
             <button
               type="button"
               className="mt-3 w-full rounded border border-ov-border bg-ov-bg px-2 py-1 text-accent hover:bg-ov-bg-sidebar"

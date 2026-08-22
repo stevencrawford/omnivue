@@ -1,7 +1,10 @@
 package server
 
 import (
+	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -10,13 +13,15 @@ import (
 
 // FileGraphNode is a single file in the activity graph. Total is the sum of
 // read and write touches across the filtered sessions; Sessions is the count of
-// distinct sessions that touched the file.
+// distinct sessions that touched the file; SessionIDs lists those session IDs
+// (sorted) so the UI can offer drill-down without a second request.
 type FileGraphNode struct {
-	Path     string `json:"path"`
-	Reads    int    `json:"reads"`
-	Writes   int    `json:"writes"`
-	Total    int    `json:"total"`
-	Sessions int    `json:"sessions"`
+	Path       string   `json:"path"`
+	Reads      int      `json:"reads"`
+	Writes     int      `json:"writes"`
+	Total      int      `json:"total"`
+	Sessions   int      `json:"sessions"`
+	SessionIDs []string `json:"sessionIds"`
 }
 
 // FileGraphEdge links two files co-touched within the same session. Weight is
@@ -76,21 +81,27 @@ func handleFileGraph(hub *SessionHub, activity store.FileActivityStore) http.Han
 	}
 }
 
-// parseGraphTime parses an RFC3339 timestamp, returning the zero time on empty
-// or unparseable input so callers can treat it as "no bound".
+// parseGraphTime parses an RFC3339 timestamp, returning the zero time for
+// empty input ("no bound"). Unparseable input is logged and treated as no
+// bound rather than silently narrowing or emptying the result set.
 func parseGraphTime(s string) time.Time {
 	if s == "" {
 		return time.Time{}
 	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		slog.Warn("ignoring unparseable file-graph time filter", "value", s)
+		return time.Time{}
 	}
-	return time.Time{}
+	return t
 }
 
 // buildFileGraph aggregates persisted file-activity rows into a node/edge graph.
 // Nodes are capped to the most-touched files and edges to pairs co-touched in at
-// least two sessions, keeping large histories legible.
+// least two sessions, keeping large histories legible. The cap ranks purely by
+// total touches, so which files survive — and therefore which edges exist —
+// depends on the workspace's hottest files; use the repo/agent/date filters to
+// narrow the population before reading too much into a sparse topology.
 func buildFileGraph(rows []store.FileActivityRow) FileGraph {
 	type acc struct {
 		reads    int
@@ -150,15 +161,19 @@ func buildFileGraph(rows []store.FileActivityRow) FileGraph {
 	for path := range kept {
 		a := nodes[path]
 		graphNodes = append(graphNodes, FileGraphNode{
-			Path:     path,
-			Reads:    a.reads,
-			Writes:   a.writes,
-			Total:    a.reads + a.writes,
-			Sessions: len(a.sessions),
+			Path:       path,
+			Reads:      a.reads,
+			Writes:     a.writes,
+			Total:      a.reads + a.writes,
+			Sessions:   len(a.sessions),
+			SessionIDs: slices.Sorted(maps.Keys(a.sessions)),
 		})
 	}
 
-	// Edges: count sessions where each file pair co-occurs.
+	// Edges count sessions where each file pair co-occurs. Counting runs over
+	// the kept node set only: a pair involving a capped-out file is dropped
+	// entirely (it could not be drawn), so graph topology reflects the top-N
+	// files rather than the full history.
 	type edgeKey struct{ a, b string }
 	edgeWeights := make(map[edgeKey]int)
 	for _, files := range sessionFiles {

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Other Changes
+- feat(files): Touched Files graph view — cross-session graph of files each
+  agent read or wrote, sized by total touches and colored by read/write blend
+  (`GET /_/api/files/graph`, new Files sidebar section). Schema migrations
+  `0010_file_activity` (new `file_activity` table) and
+  `0011_backfill_file_activity` (clears the rebuildable `index_state` cache so
+  existing sessions backfill their file activity on the next poll) ship with
+  this change; `schemaVersion` reported by `GET /_/api/status` is now 11. User
+  data (sources, tags, scratch notes, bookmarks) is preserved.
+
 ## [v0.2.4](https://github.com/stevencrawford/omnivue/compare/v0.2.3...v0.2.4) - 2026-08-17
 
 ### Other Changes

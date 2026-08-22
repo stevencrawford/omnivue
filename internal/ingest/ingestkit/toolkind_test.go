@@ -70,3 +70,42 @@ func TestHasKind(t *testing.T) {
 		})
 	}
 }
+
+// TestIsReadTool pins the read classification used by the search indexer to
+// populate the file-activity graph: raw canonical names, agent-native
+// spellings resolved through CanonicalizeToolName, and non-read names.
+func TestIsReadTool(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		// Canonical read names
+		{"read", true},
+		{"view", true},
+		// Agent-native spellings that canonicalize to read
+		{"Read", true},            // Claude Code alias
+		{"read_file", true},       // Cursor alias
+		{"read_file_v2", true},    // Cursor alias
+		{"view_file", true},       // Pi alias
+		{"read_files", true},      // Pi alias
+		{"read_workspace", true},  // Codex read_* prefix rule
+		// Write/edit/bash names must not classify as reads
+		{"edit", false},
+		{"write", false},
+		{"Edit", false},
+		{"Write", false},
+		{"bash", false},
+		{"exec_command", false},
+		// Unknown names are not reads
+		{"totally_unknown", false},
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsReadTool(tc.name); got != tc.want {
+				t.Errorf("IsReadTool(%q) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}

@@ -362,6 +362,7 @@ export const FileGraphNodeSchema = z.object({
   writes: z.number(),
   total: z.number(),
   sessions: z.number(),
+  sessionIds: z.array(z.string()),
 });
 
 export const FileGraphEdgeSchema = z.object({

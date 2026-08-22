@@ -39,6 +39,10 @@ export const FileNode = memo(function FileNode({ data, selected }: NodeProps) {
   const color = dominantColor(d.reads, d.writes);
   const label = d.path.split("/").pop() || d.path;
   const title = `${d.path}\nreads: ${d.reads}  writes: ${d.writes}  sessions: ${d.sessions}`;
+  // Read/write share rendered as a two-segment bar, so a mixed file shows its
+  // blend explicitly instead of only through the node's blended fill color.
+  const total = Math.max(1, d.reads + d.writes);
+  const readPct = (d.reads / total) * 100;
 
   return (
     <div className="flex flex-col items-center" style={{ width: SIZE_MAX }}>
@@ -56,6 +60,15 @@ export const FileNode = memo(function FileNode({ data, selected }: NodeProps) {
           cursor: "pointer",
         }}
       />
+      <div
+        aria-hidden
+        className="mt-1 flex h-1 overflow-hidden rounded-full"
+        style={{ width: size }}
+        title={`reads ${d.reads} / writes ${d.writes}`}
+      >
+        {d.reads > 0 && <div style={{ width: `${readPct}%`, background: "#06b6d4" }} />}
+        {d.writes > 0 && <div style={{ width: `${100 - readPct}%`, background: "#f59e0b" }} />}
+      </div>
       <span
         className="mt-1 max-w-[120px] truncate text-[10px] text-ov-text-secondary"
         title={label}

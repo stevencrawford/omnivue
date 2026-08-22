@@ -316,7 +316,11 @@ export function App() {
                   <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
                     {activeSection === "files" ? (
                       <ErrorBoundary>
-                        <FileGraphView sessions={sessions} onFileSearch={handleSearchOpenDrawer} />
+                        <FileGraphView
+                          sessions={sessions}
+                          onFileSearch={handleSearchOpenDrawer}
+                          onSessionSelect={handleSessionSelect}
+                        />
                       </ErrorBoundary>
                     ) : activeSession && !showOverview ? (
                       <ErrorBoundary>

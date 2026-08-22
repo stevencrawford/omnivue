@@ -7,6 +7,7 @@ import type {
   Source,
   DiscoveredSource,
   FileGraph,
+  FileGraphParams,
   Message,
   Plan,
   DiffFile,
@@ -268,12 +269,7 @@ export async function fetchSearch(
 // File Activity Graph
 // ---------------------------------------------------------------------------
 
-export async function fetchFileGraph(params: {
-  agent?: string;
-  repo?: string;
-  from?: string;
-  to?: string;
-}): Promise<FileGraph> {
+export async function fetchFileGraph(params: FileGraphParams): Promise<FileGraph> {
   const search = new URLSearchParams();
   if (params.agent) search.set("agent", params.agent);
   if (params.repo) search.set("repo", params.repo);
