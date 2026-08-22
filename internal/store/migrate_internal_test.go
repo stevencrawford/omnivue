@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected legacy db stamped to version 9, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected legacy db stamped to version 10, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 on fresh install, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -185,8 +185,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 after migration, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -267,8 +267,8 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 after migration, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -325,8 +325,8 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 after migration, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()

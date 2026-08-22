@@ -6,6 +6,7 @@ import type {
   Session,
   Source,
   DiscoveredSource,
+  FileGraph,
   Message,
   Plan,
   DiffFile,
@@ -32,6 +33,7 @@ import {
   SourcesSchema,
   SourceSchema,
   DiscoveredSourcesSchema,
+  FileGraphSchema,
   TagsSchema,
   TagSchema,
   TagSessionsSchema,
@@ -260,6 +262,25 @@ export async function fetchSearch(
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (sessionId) params.set("session_id", sessionId);
   return fetchJson(`/_/api/search?${params}`, SearchResultsSchema, signal ? { signal } : undefined);
+}
+
+// ---------------------------------------------------------------------------
+// File Activity Graph
+// ---------------------------------------------------------------------------
+
+export async function fetchFileGraph(params: {
+  agent?: string;
+  repo?: string;
+  from?: string;
+  to?: string;
+}): Promise<FileGraph> {
+  const search = new URLSearchParams();
+  if (params.agent) search.set("agent", params.agent);
+  if (params.repo) search.set("repo", params.repo);
+  if (params.from) search.set("from", params.from);
+  if (params.to) search.set("to", params.to);
+  const qs = search.toString();
+  return fetchJson(`/_/api/files/graph${qs ? `?${qs}` : ""}`, FileGraphSchema);
 }
 
 // ---------------------------------------------------------------------------

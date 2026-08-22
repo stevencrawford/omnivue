@@ -8,6 +8,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { OverviewScreen } from "./components/OverviewScreen";
+import { FileGraphView } from "./components/FileGraphView";
 import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/ui/EmptyState";
 import { LoadingState } from "./components/ui/LoadingState";
@@ -313,7 +314,11 @@ export function App() {
                     />
                   </ErrorBoundary>
                   <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
-                    {activeSession && !showOverview ? (
+                    {activeSection === "files" ? (
+                      <ErrorBoundary>
+                        <FileGraphView sessions={sessions} onFileSearch={handleSearchOpenDrawer} />
+                      </ErrorBoundary>
+                    ) : activeSession && !showOverview ? (
                       <ErrorBoundary>
                         <SearchHighlightContext.Provider value={searchHighlightQuery ?? ""}>
                           <SessionViewer

@@ -17,16 +17,18 @@ import (
 // current cached session list through the SessionCatalog and per-session
 // content through the SessionReader seam, persisting index rows through a
 // narrowed SearchStore, so indexing is testable without the poll machinery or
-// any live adapter.
+// any live adapter. It also derives per-session file read/write activity into
+// the FileActivityStore for the file-activity graph.
 type Indexer struct {
-	catalog SessionCatalog
-	reader  SessionReader
-	search  store.SearchStore
-	scratch store.ScratchStore
+	catalog  SessionCatalog
+	reader   SessionReader
+	search   store.SearchStore
+	scratch  store.ScratchStore
+	activity store.FileActivityStore
 }
 
-func NewIndexer(catalog SessionCatalog, reader SessionReader, search store.SearchStore, scratch store.ScratchStore) *Indexer {
-	return &Indexer{catalog: catalog, reader: reader, search: search, scratch: scratch}
+func NewIndexer(catalog SessionCatalog, reader SessionReader, search store.SearchStore, scratch store.ScratchStore, activity store.FileActivityStore) *Indexer {
+	return &Indexer{catalog: catalog, reader: reader, search: search, scratch: scratch, activity: activity}
 }
 
 // isSQLiteBusy reports whether an error is a transient SQLITE_BUSY failure.
@@ -153,6 +155,18 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 		if err := retryOnBusy(func() error { return ix.search.UpdateIndexState(sess.ID, sess.SourceID, sessionHash) }); err != nil {
 			slog.Warn("failed to update index state", "session", sess.ID, "error", err)
 		}
+
+		// Derive per-session file read/write activity for the graph. Writes
+		// come from the Editor seam (Edits); reads are extracted from message
+		// tool calls. Skipped (unchanged) sessions keep their prior activity.
+		if ix.activity != nil {
+			rows := ix.computeFileActivity(ctx, sess.ID, messages)
+			if err := retryOnBusy(func() error {
+				return ix.activity.UpsertFileActivity(sess.ID, sess.SourceID, sess.Repository, rows)
+			}); err != nil {
+				slog.Warn("failed to upsert file activity", "session", sess.ID, "error", err)
+			}
+		}
 	}
 }
 
@@ -181,6 +195,51 @@ func (ix *Indexer) ReindexSessionScratch(sessionID string) {
 	}
 	ix.indexScratchChunk(sessionID, sourceID, repository, scratchFiles)
 	ix.updateIndexState(context.Background(), sessionID, sourceID, repository)
+}
+
+// computeFileActivity tallies read and write tool-call touches per file for a
+// single session. Writes are taken from the adapter's Edits; reads are taken
+// from message tool calls classified as read by ingestkit. Files referenced by
+// multiple tool calls within the session are summed.
+func (ix *Indexer) computeFileActivity(ctx context.Context, sessionID string, messages []ingest.Message) []store.FileActivityRow {
+	touch := make(map[string]*store.FileActivityRow)
+
+	record := func(path string, write bool) {
+		if path == "" {
+			return
+		}
+		row, ok := touch[path]
+		if !ok {
+			row = &store.FileActivityRow{Path: path}
+			touch[path] = row
+		}
+		if write {
+			row.Writes++
+		} else {
+			row.Reads++
+		}
+	}
+
+	if edits, err := ix.reader.Edits(ctx, sessionID); err == nil {
+		for _, e := range edits {
+			record(e.FilePath, true)
+		}
+	}
+
+	for _, msg := range messages {
+		for _, tc := range msg.ToolCalls {
+			if !ingestkit.IsReadTool(tc.Name) {
+				continue
+			}
+			record(ingestkit.ExtractFilePath(tc.Input), false)
+		}
+	}
+
+	rows := make([]store.FileActivityRow, 0, len(touch))
+	for _, r := range touch {
+		rows = append(rows, *r)
+	}
+	return rows
 }
 
 // indexScratchChunk writes the scratch files chunk for a session. Shared by the

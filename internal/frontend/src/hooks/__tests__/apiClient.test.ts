@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { fetchSessions, fetchStatus, ApiError } from "../apiClient";
+import { fetchSessions, fetchStatus, fetchFileGraph, ApiError } from "../apiClient";
 
 const fetchMock = vi.fn();
 
@@ -106,5 +106,38 @@ describe("fetchStatus", () => {
     const result = await fetchStatus();
     expect(result.version).toBe("0.2.3");
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("fetchFileGraph", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  const mockGraph = {
+    nodes: [{ path: "a.go", reads: 3, writes: 1, total: 4, sessions: 2 }],
+    edges: [{ source: "a.go", target: "b.go", weight: 2 }],
+  };
+
+  it("requests with filter params and validates the graph", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(mockGraph));
+    const result = await fetchFileGraph({ agent: "opencode", repo: "org/repo" });
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].total).toBe(4);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const url = (fetchMock.mock.calls[0] as unknown as [string])[0];
+    expect(url).toContain("agent=opencode");
+    expect(url).toContain("repo=org%2Frepo");
+  });
+
+  it("throws ApiError on validation failure", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ nodes: "not-an-array" }));
+    const err = await fetchFileGraph({}).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
   });
 });

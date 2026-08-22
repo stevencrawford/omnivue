@@ -1,7 +1,7 @@
 import React from "react";
-import { Tags, Bookmark, Bell, Settings, Layers, type LucideProps } from "lucide-react";
+import { Tags, Bookmark, Bell, Settings, Layers, GitGraph, type LucideProps } from "lucide-react";
 
-export type Section = "sessions" | "queue" | "tags" | "bookmarks" | "notifications";
+export type Section = "sessions" | "queue" | "tags" | "bookmarks" | "notifications" | "files";
 
 interface IconChannelProps {
   activeSection: Section;
@@ -42,6 +42,7 @@ const sections: {
   { id: "tags", label: "Tags", Icon: Tags },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
   { id: "notifications", label: "Notifications", Icon: Bell },
+  { id: "files", label: "Touched Files", Icon: GitGraph },
 ];
 
 export function IconChannel({

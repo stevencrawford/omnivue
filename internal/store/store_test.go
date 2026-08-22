@@ -416,8 +416,8 @@ func TestMigrate_FreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected schema version 9 on fresh install, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected schema version 10 on fresh install, got %d", v)
 	}
 }
 
@@ -463,8 +463,8 @@ func TestMigrate_LegacyDatabaseIsBaselined(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected legacy db stamped to version 9, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected legacy db stamped to version 10, got %d", v)
 	}
 
 	sources, err := s.ListSources()
@@ -488,8 +488,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v1 != 9 {
-		t.Fatalf("expected version 9 after first open, got %d", v1)
+	if v1 != 10 {
+		t.Fatalf("expected version 10 after first open, got %d", v1)
 	}
 	s1.Close()
 
@@ -502,8 +502,8 @@ func TestMigrate_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 9 {
-		t.Fatalf("expected version 9 after second open, got %d", v2)
+	if v2 != 10 {
+		t.Fatalf("expected version 10 after second open, got %d", v2)
 	}
 }
 
@@ -581,5 +581,55 @@ func TestStore_BookmarkCRUD(t *testing.T) {
 	}
 	if len(bookmarks) != 1 || bookmarks[0].ID != "bm-msg" {
 		t.Fatalf("expected only bm-msg after delete, got %+v", bookmarks)
+	}
+}
+
+func TestStore_FileActivity(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	s, err := store.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Migration 0010 must have created the table.
+	if _, err := s.FileActivityRows([]string{"s1"}); err != nil {
+		t.Fatalf("file_activity query failed (migration missing?): %v", err)
+	}
+
+	rows := []store.FileActivityRow{
+		{SessionID: "s1", SourceID: "src", Repository: "repo", Path: "a.go", Reads: 3, Writes: 1},
+		{SessionID: "s1", SourceID: "src", Repository: "repo", Path: "b.go", Reads: 0, Writes: 2},
+	}
+	if err := s.UpsertFileActivity("s1", "src", "repo", rows); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-upsert replaces prior rows (idempotent per session).
+	if err := s.UpsertFileActivity("s1", "src", "repo", []store.FileActivityRow{
+		{SessionID: "s1", SourceID: "src", Repository: "repo", Path: "a.go", Reads: 5, Writes: 0},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.FileActivityRows([]string{"s1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected upsert to replace session rows, got %d", len(got))
+	}
+	if got[0].Path != "a.go" || got[0].Reads != 5 || got[0].Writes != 0 {
+		t.Fatalf("unexpected row after upsert: %+v", got[0])
+	}
+
+	// Empty session ID list returns no rows.
+	none, err := s.FileActivityRows(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("expected no rows for empty id list, got %d", len(none))
 	}
 }

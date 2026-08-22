@@ -11,6 +11,7 @@ const SECTION_ROUTES: Record<string, Section> = {
   tags: "tags",
   bookmarks: "bookmarks",
   notifications: "notifications",
+  files: "files",
 };
 
 export interface RouteState {

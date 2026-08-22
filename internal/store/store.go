@@ -487,6 +487,77 @@ type ScratchFile struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// FileActivityRow records the read/write touch counts for a single file within
+// a single session. Persisted incrementally during ingest so the file-activity
+// graph can be served from a cheap aggregate query.
+type FileActivityRow struct {
+	SessionID  string `json:"sessionId"`
+	SourceID   string `json:"sourceId"`
+	Repository string `json:"repository"`
+	Path       string `json:"path"`
+	Reads      int    `json:"reads"`
+	Writes     int    `json:"writes"`
+}
+
+// UpsertFileActivity replaces all file-activity rows for a session with the
+// supplied set, so re-indexing a changed session stays idempotent. A nil/empty
+// rows slice clears the session's activity (e.g. when it has no file touches).
+func (s *Store) UpsertFileActivity(sessionID, sourceID, repository string, rows []FileActivityRow) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			if rerr := tx.Rollback(); rerr != nil {
+				slog.Warn("file activity rollback failed", "error", rerr)
+			}
+		}
+	}()
+	if _, err = tx.Exec(`DELETE FROM file_activity WHERE session_id = ?`, sessionID); err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if _, err = tx.Exec(`
+			INSERT INTO file_activity (session_id, source_id, repository, path, reads, writes)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, sessionID, sourceID, repository, r.Path, r.Reads, r.Writes); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// FileActivityRows returns the file-activity rows for the given session IDs.
+// An empty sessionIDs returns no rows. Callers aggregate these into graph
+// nodes/edges; filtering by session membership keeps the query O(matches).
+func (s *Store) FileActivityRows(sessionIDs []string) ([]FileActivityRow, error) {
+	if len(sessionIDs) == 0 {
+		return []FileActivityRow{}, nil
+	}
+	placeholders := strings.Repeat("?,", len(sessionIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(sessionIDs))
+	for i, id := range sessionIDs {
+		args[i] = id
+	}
+	query := `SELECT session_id, source_id, repository, path, reads, writes FROM file_activity WHERE session_id IN (` + placeholders + `)` //nolint:gosec // placeholders are "?", not user input
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FileActivityRow
+	for rows.Next() {
+		var r FileActivityRow
+		if err := rows.Scan(&r.SessionID, &r.SourceID, &r.Repository, &r.Path, &r.Reads, &r.Writes); err != nil {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // CreateScratchFile creates a new scratch file.
 func (s *Store) CreateScratchFile(f ScratchFile) error {
 	mode := f.Mode
