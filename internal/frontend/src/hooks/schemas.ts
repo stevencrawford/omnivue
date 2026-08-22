@@ -351,3 +351,26 @@ export const DispatchResponseSchema = z.object({
   status: z.string(),
   promptText: z.string(),
 });
+
+// ---------------------------------------------------------------------------
+// File Activity Graph
+// ---------------------------------------------------------------------------
+
+export const FileGraphNodeSchema = z.object({
+  path: z.string(),
+  reads: z.number(),
+  writes: z.number(),
+  total: z.number(),
+  sessions: z.number(),
+});
+
+export const FileGraphEdgeSchema = z.object({
+  source: z.string(),
+  target: z.string(),
+  weight: z.number(),
+});
+
+export const FileGraphSchema = z.object({
+  nodes: z.array(FileGraphNodeSchema),
+  edges: z.array(FileGraphEdgeSchema),
+});

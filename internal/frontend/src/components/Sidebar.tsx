@@ -6,6 +6,7 @@ import { TagPanel } from "./TagPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
 import { QueuePanel } from "./QueuePanel";
+import { FilesPanel } from "./FilesPanel";
 import { useResizable } from "../hooks/useResizable";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
@@ -138,6 +139,11 @@ export function Sidebar({
             onMarkAllRead={onMarkAllNotificationsRead}
             onClearAll={onClearNotifications}
           />
+        </div>
+        <div
+          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "files" ? "hidden" : ""}`}
+        >
+          <FilesPanel sessions={sessions} onSessionSelect={onSessionSelect} />
         </div>
       </div>
       {sidebarOpen && (

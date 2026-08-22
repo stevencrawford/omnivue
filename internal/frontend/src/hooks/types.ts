@@ -9,6 +9,9 @@ import type {
   DiffFileSchema,
   DiscoveredSourceSchema,
   FileEditSchema,
+  FileGraphEdgeSchema,
+  FileGraphNodeSchema,
+  FileGraphSchema,
   MessageSchema,
   NotificationKindSchema,
   NotificationScopeSchema,
@@ -54,6 +57,18 @@ export type NotificationScope = z.infer<typeof NotificationScopeSchema>;
 export type AppNotification = z.infer<typeof NotificationSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type QueuedPrompt = z.infer<typeof QueuedPromptSchema>;
+export type FileGraphNode = z.infer<typeof FileGraphNodeSchema>;
+export type FileGraphEdge = z.infer<typeof FileGraphEdgeSchema>;
+export type FileGraph = z.infer<typeof FileGraphSchema>;
+
+// Filter parameters for the file-activity graph endpoint. All optional;
+// omitted filters mean "no constraint on that dimension".
+export interface FileGraphParams {
+  agent?: string;
+  repo?: string;
+  from?: string;
+  to?: string;
+}
 
 // Decoding target for AppNotification.payload (an opaque JSON string stored in
 // the wire format). Not runtime-validated, so it stays a hand-written shape.
