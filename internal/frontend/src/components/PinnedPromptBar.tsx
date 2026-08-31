@@ -17,6 +17,7 @@ export function PinnedPromptBar({
   highlightPromptId,
   onHighlightDone,
   tailActive,
+  defaultExpanded,
 }: {
   session: Session;
   firstMessage?: Message | null;
@@ -25,8 +26,9 @@ export function PinnedPromptBar({
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
   tailActive?: boolean;
+  defaultExpanded?: boolean;
 }) {
-  const [pinnedExpanded, setPinnedExpanded] = useState(false);
+  const [pinnedExpanded, setPinnedExpanded] = useState(!!defaultExpanded);
   const [prompts, setPrompts] = useState<QueuedPrompt[]>([]);
   const [promptsLoaded, setPromptsLoaded] = useState(false);
   const [inputText, setInputText] = useState("");

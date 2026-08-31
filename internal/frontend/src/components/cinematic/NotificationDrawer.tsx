@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare, Brain, ChevronRight } from "lucide-react";
 import type { Message } from "../../hooks/types";
 import { effectiveToolKind } from "../../utils/toolDisplay";
@@ -47,80 +47,8 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
-function TokenBar({
-  messages,
-  cursor,
-  maxIndex,
-}: Pick<NotificationDrawerProps, "messages" | "cursor" | "maxIndex">) {
-  const { input, output, total, percent } = useMemo(() => {
-    let eventIdx = 0;
-    let inp = 0,
-      out = 0;
-    for (const msg of messages) {
-      const isUser = msg.role === "user";
-      const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
-      const msgEnd = eventIdx + msgEvents - 1;
-      const visible = msgEnd <= cursor || cursor >= maxIndex;
-      if (visible) {
-        inp += msg.tokensInput ?? 0;
-        out += msg.tokensOutput ?? 0;
-      }
-      eventIdx += msgEvents;
-    }
-    const tot = inp + out;
-    let full = 0;
-    for (const m of messages) full += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
-    const pct = full > 0 ? Math.round((tot / full) * 100) : 0;
-    return { input: inp, output: out, total: tot, percent: pct };
-  }, [messages, cursor, maxIndex]);
-
-  const hasTokens = input + output > 0;
-  return (
-    <div className="shrink-0 border-t border-ov-border bg-surface-elevated px-3 py-2">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] font-semibold text-ov-text-secondary uppercase tracking-wider">
-          Tokens at cursor
-        </span>
-        <span className="text-[11px] font-mono text-ov-text-secondary tabular-nums">
-          {percent}% of session
-        </span>
-      </div>
-      <div className="h-1.5 bg-ov-border rounded-full overflow-hidden flex">
-        <div
-          className="bg-accent"
-          style={{ width: `${Math.min(100, (input / Math.max(1, total)) * 100)}%` }}
-          title={`input ${input}`}
-        />
-        <div
-          className="bg-accent-secondary"
-          style={{ width: `${Math.min(100, (output / Math.max(1, total)) * 100)}%` }}
-          title={`output ${output}`}
-        />
-      </div>
-      <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px] font-mono">
-        <div className="flex flex-col">
-          <span className="text-ov-text-secondary">in</span>
-          <span className="text-ov-text tabular-nums">{input.toLocaleString()}</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-ov-text-secondary">out</span>
-          <span className="text-ov-text tabular-nums">{output.toLocaleString()}</span>
-        </div>
-        <div className="flex flex-col text-right">
-          <span className="text-ov-text-secondary">total</span>
-          <span className="text-ov-text tabular-nums">{total.toLocaleString()}</span>
-        </div>
-      </div>
-      {!hasTokens && (
-        <div className="mt-1 text-[11px] text-ov-text-secondary/60">
-          No token data at this point
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationDrawerProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
     const out: Message[] = [];
@@ -190,9 +118,15 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
     return items;
   }, [visibleMessages]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [visibleMessages, cursor, maxIndex]);
+
   return (
-    <div className="flex flex-col overflow-hidden bg-ov-bg shrink-0">
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
+    <div className="flex flex-col h-full overflow-hidden bg-ov-bg">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
         {drawerItems.length === 0 ? (
           <div className="text-xs text-ov-text-secondary text-center py-6">
             Assistant activity appears here
@@ -201,7 +135,6 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
           drawerItems.map((it) => <div key={it.key}>{it.node}</div>)
         )}
       </div>
-      <TokenBar messages={messages} cursor={cursor} maxIndex={maxIndex} />
     </div>
   );
 }

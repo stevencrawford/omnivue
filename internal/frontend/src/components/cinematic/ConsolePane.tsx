@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { Terminal, MessageSquare, FileText } from "lucide-react";
 import type { Message, Plan, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
-import { toolRendererRegistry } from "../tool-renderers/registry";
-import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { PinnedPromptBar } from "../PinnedPromptBar";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { extractJSONField } from "../../utils/jsonField";
@@ -68,48 +66,31 @@ function ConsoleStream({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-2 space-y-1.5 font-mono text-xs bg-[#0b0e14] rounded">
+    <div className="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs bg-[#0b0e14]">
       {tools.map((item) => {
-        const kind = effectiveToolKind(item.tool);
-        const renderer = toolRendererRegistry.getRenderer(kind);
         const command = extractJSONField(item.tool.input, "command") || item.summary;
         const output = item.tool.output || "";
-        // ghostty/fish style: prompt line + output block
-        if (!renderer) {
-          return (
-            <div
-              key={item.tool.id}
-              className="border border-white/5 rounded bg-[#151a21] overflow-hidden"
-            >
-              <div className="flex items-center gap-2 px-2.5 py-1 bg-white/[0.03] border-b border-white/5 text-[11px]">
-                <span className="text-emerald-400">❯</span>
-                <span className="text-[#bfbdb6] truncate">{command}</span>
-                <span
-                  className={`ml-auto text-[10px] px-1 py-0.5 rounded ${item.tool.status === "completed" ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"}`}
-                >
-                  {item.tool.status}
-                </span>
-              </div>
-              {output && (
-                <pre className="px-3 py-2 whitespace-pre-wrap break-words text-[#abb2bf] leading-relaxed max-h-60 overflow-y-auto">
-                  {output.slice(0, 4000)}
-                </pre>
-              )}
-            </div>
-          );
-        }
+        const isCompleted = item.tool.status === "completed";
         return (
-          <div
-            key={item.tool.id}
-            className="border border-white/5 rounded overflow-hidden bg-[#0b0e14]"
-          >
-            <div className="flex items-center gap-2 px-2.5 py-1 bg-white/[0.04] border-b border-white/5 text-[11px] font-mono">
-              <span className="text-emerald-400">❯</span>
-              <span className="text-[#bfbdb6] truncate flex-1">{command}</span>
+          <div key={item.tool.id} className="space-y-1">
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="text-emerald-400 select-none">❯</span>
+              <span className="text-[#e6e6e6] truncate" title={command}>
+                {command}
+              </span>
+              <span
+                className={`ml-auto text-[10px] font-mono ${isCompleted ? "text-emerald-400/70" : "text-amber-400/70"}`}
+              >
+                {item.tool.status}
+              </span>
             </div>
-            <div className="p-2 bg-[#0b0e14]">
-              <ToolRendererWrapper renderer={renderer} tool={item.tool} variant="detail" />
-            </div>
+            {output ? (
+              <pre className="ml-4 whitespace-pre-wrap break-words text-[#a9b1c7] leading-relaxed text-[12px] opacity-90">
+                {output.slice(0, 8000)}
+              </pre>
+            ) : (
+              <div className="ml-4 text-[11px] text-white/30 italic">no output</div>
+            )}
           </div>
         );
       })}
@@ -144,6 +125,42 @@ export function ConsolePane(props: ConsolePaneProps) {
   } = props;
   const [active, setActive] = useState<ConsoleTab>("prompt");
 
+  const tokenBreakdown = useMemo(() => {
+    let eventIdx = 0;
+    let inp = 0,
+      out = 0,
+      cached = 0;
+    for (const msg of messages) {
+      const isUser = msg.role === "user";
+      const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
+      const msgEnd = eventIdx + msgEvents - 1;
+      const visible = msgEnd <= cursor || cursor >= maxIndex;
+      if (visible) {
+        inp += msg.tokensInput ?? 0;
+        out += msg.tokensOutput ?? 0;
+        // cache tokens are not per-message; approximate from session ratio if needed
+      }
+      eventIdx += msgEvents;
+    }
+    // Include session cache proportionally to visible percent
+    let totalVisible = 0;
+    for (const m of messages) totalVisible += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
+    let full = 0;
+    for (const m of messages) full += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
+    const pct = full > 0 ? totalVisible / full : 1;
+    cached = Math.round((session.tokensCacheRead ?? 0) * pct);
+    const fmt = (n: number) => {
+      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+      if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+      return `${n}`;
+    };
+    const parts: string[] = [];
+    if (inp > 0) parts.push(`${fmt(inp)} in`);
+    if (cached > 0) parts.push(`${fmt(cached)} cached`);
+    if (out > 0) parts.push(`${fmt(out)} out`);
+    return parts.join(" / ") || "—";
+  }, [messages, cursor, maxIndex, session.tokensCacheRead]);
+
   const tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] = [
     { id: "prompt", label: "Prompt", icon: <MessageSquare size={12} /> },
     { id: "plan", label: "Plan", icon: <FileText size={12} /> },
@@ -167,12 +184,16 @@ export function ConsolePane(props: ConsolePaneProps) {
             )}
           </button>
         ))}
-        <span className="ml-auto text-[11px] text-ov-text-secondary hidden sm:inline">
-          {active === "console"
-            ? `${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds`
-            : active === "plan"
-              ? (plan?.source ?? "")
-              : ""}
+        <span className="ml-auto text-[11px] font-mono text-ov-text-secondary hidden sm:inline-flex items-center gap-2">
+          <span className="tabular-nums">{tokenBreakdown}</span>
+          <span className="opacity-50">•</span>
+          <span>
+            {active === "console"
+              ? `${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds`
+              : active === "plan"
+                ? (plan?.source ?? "")
+                : ""}
+          </span>
         </span>
       </div>
 
@@ -186,6 +207,7 @@ export function ConsolePane(props: ConsolePaneProps) {
               onQueueChanged={onQueueChanged}
               highlightPromptId={highlightPromptId}
               onHighlightDone={onHighlightDone}
+              defaultExpanded
             />
           </div>
         )}

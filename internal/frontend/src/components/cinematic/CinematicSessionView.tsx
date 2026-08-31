@@ -14,7 +14,7 @@ import { deriveFileAccess } from "../../utils/fileAccess";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
@@ -104,6 +104,13 @@ export function CinematicSessionView({
     null,
   );
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [drawerCollapsed, setDrawerCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("omnivue-cinematic-drawer-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const { showErrorToast } = useToast();
 
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
@@ -289,6 +296,18 @@ export function CinematicSessionView({
     setTerminalOpen((v) => !v);
   }, [onJumpTerminal]);
 
+  const toggleDrawer = useCallback(() => {
+    setDrawerCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("omnivue-cinematic-drawer-collapsed", String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
   const firstMessage = messages[0];
 
   useEffect(() => {
@@ -385,23 +404,49 @@ export function CinematicSessionView({
           </div>
         </div>
 
-        <div
-          className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-          onMouseDown={startDrawerResize}
-        >
-          <div className="absolute inset-y-0 -left-1 -right-1" />
-        </div>
-        <div
-          className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border"
-          style={{ width: drawerWidth }}
-        >
-          <NotificationDrawer
-            messages={messages}
-            cursor={cursor}
-            maxIndex={maxIndex}
-            session={session}
-          />
-        </div>
+        {drawerCollapsed ? (
+          <div className="w-8 shrink-0 border-l border-ov-border bg-ov-bg flex flex-col items-center py-2">
+            <button
+              type="button"
+              onClick={toggleDrawer}
+              className="size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
+              title="Expand notifications"
+            >
+              <PanelRightOpen size={14} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <div
+              className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+              onMouseDown={startDrawerResize}
+            >
+              <div className="absolute inset-y-0 -left-1 -right-1" />
+            </div>
+            <div
+              className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
+              style={{ width: drawerWidth }}
+            >
+              <div className="flex items-center justify-between px-2 py-1 border-b border-ov-border bg-surface-elevated shrink-0">
+                <span className="text-[11px] font-semibold text-ov-text">Activity</span>
+                <button
+                  type="button"
+                  onClick={toggleDrawer}
+                  className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
+                  title="Collapse notifications"
+                >
+                  <PanelRightClose size={14} />
+                </button>
+              </div>
+              <NotificationDrawer
+                messages={messages}
+                cursor={cursor}
+                maxIndex={maxIndex}
+                session={session}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {terminalOpen && (
