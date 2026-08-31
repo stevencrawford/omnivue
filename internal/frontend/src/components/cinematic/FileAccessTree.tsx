@@ -195,14 +195,6 @@ function FileAccessTreeInner({
 export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessTreeProps) {
   const tree = useMemo(() => buildTree(accesses), [accesses]);
 
-  if (accesses.length === 0) {
-    return (
-      <div className="p-4 text-xs text-ov-text-secondary text-center">
-        No file reads or edits in visible range
-      </div>
-    );
-  }
-
   const treeSummary = useMemo(() => {
     let reads = 0,
       edits = 0;
@@ -212,6 +204,14 @@ export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessT
     }
     return { reads, edits, total: accesses.length };
   }, [accesses]);
+
+  if (accesses.length === 0) {
+    return (
+      <div className="p-4 text-xs text-ov-text-secondary text-center">
+        No file reads or edits in visible range
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

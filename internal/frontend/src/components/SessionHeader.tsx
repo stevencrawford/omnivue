@@ -15,6 +15,7 @@ import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
+import { useCinematicMode } from "../hooks/useCinematicMode";
 
 export function SessionHeader({
   session,
@@ -29,6 +30,7 @@ export function SessionHeader({
   onJumpTerminal?: () => void;
   terminalActive?: boolean;
 }) {
+  const { enabled: cinematicEnabled } = useCinematicMode();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [displayTitle, setDisplayTitle] = useState(session.title);
@@ -414,20 +416,22 @@ export function SessionHeader({
           {session.repository || session.directory}
         </span>
 
-        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
-          <ResumeButton sessionId={session.id} />
-          {onJumpTerminal && (
-            <button
-              type="button"
-              onClick={onJumpTerminal}
-              className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-              title="Jump to terminal"
-              aria-label="Jump to terminal"
-            >
-              <Terminal size={14} />
-            </button>
-          )}
-        </div>
+        {cinematicEnabled && (
+          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
+            <ResumeButton sessionId={session.id} />
+            {onJumpTerminal && (
+              <button
+                type="button"
+                onClick={onJumpTerminal}
+                className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+                title="Jump to terminal"
+                aria-label="Jump to terminal"
+              >
+                <Terminal size={14} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <CreateTagModal
