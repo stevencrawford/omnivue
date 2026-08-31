@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, Plus, Tag as TagIcon, X, Check } from "lucide-react";
+import { Pencil, Plus, Tag as TagIcon, X, Check, Terminal } from "lucide-react";
 import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
@@ -14,15 +14,20 @@ import { agentLabel } from "../utils/sessionUtils";
 import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
+import { ResumeButton } from "./ResumeButton";
 
 export function SessionHeader({
   session,
   hasPrivacy,
   onNameChanged,
+  onJumpTerminal,
+  terminalActive,
 }: {
   session: Session;
   hasPrivacy?: boolean;
   onNameChanged?: () => void;
+  onJumpTerminal?: () => void;
+  terminalActive?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -403,11 +408,26 @@ export function SessionHeader({
         </div>
 
         <span
-          className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[40%]"
+          className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[32%]"
           title={session.directory}
         >
           {session.repository || session.directory}
         </span>
+
+        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
+          <ResumeButton sessionId={session.id} />
+          {onJumpTerminal && (
+            <button
+              type="button"
+              onClick={onJumpTerminal}
+              className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+              title="Jump to terminal"
+              aria-label="Jump to terminal"
+            >
+              <Terminal size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       <CreateTagModal
