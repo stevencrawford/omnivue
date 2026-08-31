@@ -9,15 +9,15 @@ import { FileAccessTree } from "./FileAccessTree";
 import { FileDetail } from "./FileDetail";
 import { ConsolePane } from "./ConsolePane";
 import { NotificationDrawer } from "./NotificationDrawer";
-import { PlanDrawer } from "./PlanDrawer";
 import { useTimeline } from "../../hooks/useTimeline";
 import { deriveFileAccess } from "../../utils/fileAccess";
-import { groupMessages } from "../../utils/conversationGrouping";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
 import { Check, Copy } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
+import { useResizable } from "../../hooks/useResizable";
+import { STORAGE_KEYS } from "../../utils/storageKeys";
 
 function reconcileMessages(prev: Message[], next: Message[]): Message[] {
   if (prev.length === 0 || next.length === 0 || prev.length !== next.length) return next;
@@ -99,19 +99,35 @@ export function CinematicSessionView({
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
-  const [planOpen, setPlanOpen] = useState(() => {
-    try {
-      return localStorage.getItem("omnivue-cinematic-plan-open") === "true";
-    } catch {
-      return false;
-    }
-  });
   const [selectedPath, setSelectedPath] = useState("");
   const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
     null,
   );
   const [terminalOpen, setTerminalOpen] = useState(false);
   const { showErrorToast } = useToast();
+
+  const { value: treeWidth, startResize: startTreeResize } = useResizable({
+    storageKey: STORAGE_KEYS.CINEMATIC_TREE_WIDTH,
+    axis: "horizontal",
+    min: 180,
+    max: 560,
+    defaultValue: 280,
+  });
+  const { value: drawerWidth, startResize: startDrawerResize } = useResizable({
+    storageKey: STORAGE_KEYS.CINEMATIC_DRAWER_WIDTH,
+    axis: "horizontal",
+    min: 260,
+    max: 520,
+    defaultValue: 360,
+    invert: true,
+  });
+  const { value: consoleHeight, startResize: startConsoleResize } = useResizable({
+    storageKey: STORAGE_KEYS.CINEMATIC_CONSOLE_HEIGHT,
+    axis: "vertical",
+    min: 140,
+    max: 520,
+    defaultValue: 260,
+  });
 
   const loadRef = useRef<{ id: number; controller: AbortController | null }>({
     id: 0,
@@ -205,11 +221,9 @@ export function CinematicSessionView({
 
   const fileAccessAll = useMemo(() => deriveFileAccess(messages), [messages]);
 
-  // Map timeline cursor to visible file access by event index filtering
   const visibleAccess = useMemo(() => {
     if (events.length === 0) return fileAccessAll;
     if (cursor >= maxIndex) return fileAccessAll;
-    // Build mapping from tool id to event index
     const eventByToolId = new Map<string, number>();
     let ei = 0;
     for (const msg of messages) {
@@ -254,7 +268,6 @@ export function CinematicSessionView({
     }
   }, [visibleAccess, selectedPath]);
 
-  // When scrub moves to earlier point where selected file no longer visible, clear selection
   useEffect(() => {
     if (
       selectedPath &&
@@ -271,27 +284,13 @@ export function CinematicSessionView({
     setMarkdownModal({ content, title });
   }, []);
 
-  const handleTogglePlan = useCallback(() => {
-    setPlanOpen((v) => {
-      const next = !v;
-      try {
-        localStorage.setItem("omnivue-cinematic-plan-open", String(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
   const handleJumpTerminal = useCallback(() => {
     if (onJumpTerminal) onJumpTerminal();
     setTerminalOpen((v) => !v);
   }, [onJumpTerminal]);
 
   const firstMessage = messages[0];
-  const groupedInfo = useMemo(() => groupMessages(messages.slice(1)), [messages]);
 
-  // Keep timeline keyboard: ← → space
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -311,8 +310,6 @@ export function CinematicSessionView({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [step, setPlaying]);
-
-  void groupedInfo;
 
   return (
     <div className="flex flex-col h-full">
@@ -340,25 +337,24 @@ export function CinematicSessionView({
       />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {planOpen && (
-          <PlanDrawer
-            plan={plan}
-            loading={planLoading}
-            open={planOpen}
-            onClose={handleTogglePlan}
-          />
-        )}
-
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
           <div className="flex flex-1 overflow-hidden min-h-0">
-            <div className="w-[280px] shrink-0 border-r border-ov-border overflow-hidden flex flex-col">
+            <div
+              className="shrink-0 overflow-hidden flex flex-col border-r border-ov-border"
+              style={{ width: treeWidth }}
+            >
               <FileAccessTree
                 accesses={visibleAccess}
                 selectedPath={selectedPath}
                 onSelect={setSelectedPath}
               />
             </div>
-            <div className="w-1 shrink-0 bg-ov-border" />
+            <div
+              className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+              onMouseDown={startTreeResize}
+            >
+              <div className="absolute inset-y-0 -left-1 -right-1" />
+            </div>
             <FileDetail
               access={selectedAccess}
               fileName={selectedPath.split("/").pop() || selectedPath}
@@ -366,24 +362,46 @@ export function CinematicSessionView({
             />
           </div>
 
-          <ConsolePane messages={messages} cursor={cursor} maxIndex={maxIndex} />
+          <div
+            className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative"
+            onMouseDown={startConsoleResize}
+          >
+            <div className="absolute inset-x-0 -top-1 -bottom-1" />
+          </div>
+          <div className="shrink-0 overflow-hidden flex flex-col" style={{ height: consoleHeight }}>
+            <ConsolePane
+              session={session}
+              messages={messages}
+              cursor={cursor}
+              maxIndex={maxIndex}
+              plan={plan}
+              planLoading={planLoading}
+              firstMessage={firstMessage}
+              onOpenModal={handleOpenModal}
+              onQueueChanged={onQueueChanged}
+              highlightPromptId={highlightPromptId}
+              onHighlightDone={onHighlightDone}
+            />
+          </div>
         </div>
 
-        <NotificationDrawer
-          session={session}
-          messages={messages}
-          cursor={cursor}
-          maxIndex={maxIndex}
-          plan={plan}
-          planLoading={planLoading}
-          onTogglePlan={handleTogglePlan}
-          planOpen={planOpen}
-          firstMessage={firstMessage}
-          onOpenModal={handleOpenModal}
-          onQueueChanged={onQueueChanged}
-          highlightPromptId={highlightPromptId}
-          onHighlightDone={onHighlightDone}
-        />
+        <div
+          className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+          onMouseDown={startDrawerResize}
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1" />
+        </div>
+        <div
+          className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border"
+          style={{ width: drawerWidth }}
+        >
+          <NotificationDrawer
+            messages={messages}
+            cursor={cursor}
+            maxIndex={maxIndex}
+            session={session}
+          />
+        </div>
       </div>
 
       {terminalOpen && (

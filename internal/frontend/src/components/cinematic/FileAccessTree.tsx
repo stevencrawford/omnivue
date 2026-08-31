@@ -51,7 +51,23 @@ function buildTree(accesses: FileAccess[]): TreeNode[] {
     for (const n of nodes) if (n.children.length) sortNodes(n.children);
   }
   sortNodes(root);
+  flattenDirectoryChains(root);
   return root;
+}
+
+function flattenDirectoryChains(nodes: TreeNode[]): void {
+  for (const node of nodes) {
+    if (node.isDirectory) {
+      flattenDirectoryChains(node.children);
+      while (node.children.length === 1 && node.children[0].isDirectory) {
+        const child = node.children[0];
+        node.name = node.name + "/" + child.name;
+        node.fullPath = child.fullPath;
+        node.children = child.children;
+        for (const c of node.children) c.depth = node.depth + 1;
+      }
+    }
+  }
 }
 
 function kindIcon(kind: string) {
