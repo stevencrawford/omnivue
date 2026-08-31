@@ -3,10 +3,12 @@ import {
   STALE_DAYS_MIN,
   STALE_DAYS_MAX,
 } from "../../hooks/useSessionListSettings";
+import { useCinematicMode } from "../../hooks/useCinematicMode";
 import { Toggle } from "../ui/Toggle";
 
 export function SessionsSettingsTab() {
   const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();
+  const { enabled: cinematicEnabled, setEnabled: setCinematicEnabled } = useCinematicMode();
 
   return (
     <div>
@@ -47,6 +49,19 @@ export function SessionsSettingsTab() {
         <p className="text-[11px] text-ov-text-secondary mt-1.5">
           Hidden sessions remain searchable with ⌘K.
         </p>
+      </div>
+
+      <div className="mt-6 pt-6 border-t border-ov-border">
+        <h4 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
+          Session viewing
+        </h4>
+        <p className="text-xs text-ov-text-secondary mb-3">Choose how a session is displayed.</p>
+        <Toggle
+          checked={cinematicEnabled}
+          onChange={setCinematicEnabled}
+          label="Cinematic session view"
+          hint="Tree + console + drawer + timeline scrubber. Replaces tabs with a playable, time-travel view (experimental)."
+        />
       </div>
     </div>
   );
