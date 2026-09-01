@@ -502,24 +502,9 @@ export function CinematicSessionView({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleCollapsedActivitySelect("activity");
-              }}
-              className={`relative flex items-center justify-center w-full h-10 transition-colors ${activityTab === "activity" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
-              title="Activity"
-              aria-label="Activity"
-            >
-              {activityTab === "activity" && (
-                <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
-              )}
-              <Activity className="size-4" strokeWidth={1.5} />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
                 handleCollapsedActivitySelect("prompt");
               }}
-              className={`relative flex items-center justify-center w-full h-10 transition-colors ${activityTab === "prompt" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
+              className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${activityTab === "prompt" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
               title="Prompt"
               aria-label="Prompt"
             >
@@ -532,9 +517,24 @@ export function CinematicSessionView({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                handleCollapsedActivitySelect("activity");
+              }}
+              className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${activityTab === "activity" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
+              title="Activity"
+              aria-label="Activity"
+            >
+              {activityTab === "activity" && (
+                <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
+              )}
+              <Activity className="size-4" strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
                 handleCollapsedActivitySelect("plan");
               }}
-              className={`relative flex items-center justify-center w-full h-10 transition-colors ${activityTab === "plan" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
+              className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${activityTab === "plan" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
               title="Plan"
               aria-label="Plan"
             >

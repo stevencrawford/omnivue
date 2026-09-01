@@ -105,14 +105,21 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
       }
 
       if (!isInput && !e.metaKey && !e.ctrlKey) {
-        if (e.key === "j" || e.key === "ArrowDown") {
+        // Arrow keys are reserved for file tree navigation when it has focus
+        const inTree = !!(
+          (target as HTMLElement).closest?.("[data-tree-path]") ||
+          (target as HTMLElement).closest?.('[role="tree"]') ||
+          document.activeElement?.closest?.('[role="tree"]')
+        );
+        if (inTree) return;
+        if (e.key === "j") {
           e.preventDefault();
           clearSearchHighlight();
           setShowOverview(false);
           navigateSession(1, sessions);
           return;
         }
-        if (e.key === "k" || e.key === "ArrowUp") {
+        if (e.key === "k") {
           e.preventDefault();
           clearSearchHighlight();
           setShowOverview(false);

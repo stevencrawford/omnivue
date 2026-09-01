@@ -299,21 +299,21 @@ export function NotificationDrawer({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setActiveTab("activity");
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "activity" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-        >
-          <Activity size={12} /> Activity
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
             setActiveTab("prompt");
           }}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "prompt" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
         >
           <MessageSquare size={12} /> Prompt
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("activity");
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "activity" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+        >
+          <Activity size={12} /> Activity
         </button>
         <button
           type="button"
