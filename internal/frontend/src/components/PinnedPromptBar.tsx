@@ -164,15 +164,15 @@ export function PinnedPromptBar({
         style={fillHeight ? undefined : pinnedExpanded ? { height: pinnedHeight } : undefined}
       >
         <div className="flex-1 overflow-y-auto min-h-0">
-          <div className="px-4 pb-2 pt-3">
+          <div className="p-2">
             {firstMessage && (
-              <div className="ml-6 mt-1">
+              <div className="mt-1">
                 <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
               </div>
             )}
           </div>
           {prompts.length > 0 && (
-            <div className="px-4 pb-2 space-y-1">
+            <div className="space-y-1">
               {prompts.map((prompt) => (
                 <div
                   key={prompt.id}
@@ -225,14 +225,14 @@ export function PinnedPromptBar({
             </div>
           )}
           {queuedCount > 0 && (
-            <div className="px-4 pb-1">
+            <div className="pb-1">
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">
                 {queuedCount} queued
               </span>
             </div>
           )}
         </div>
-        <div className="shrink-0 border-t border-ov-border px-4 py-2 bg-ov-bg-sidebar mt-auto">
+        <div className="shrink-0 border-t border-ov-border px-2 py-2 bg-ov-bg-sidebar mt-auto">
           <div className="flex items-end gap-2">
             <textarea
               ref={textareaRef}
