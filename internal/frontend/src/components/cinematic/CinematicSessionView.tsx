@@ -4,65 +4,24 @@ import { fetchMessages, fetchPlan, fetchEdits } from "../../hooks/apiClient";
 import { isAbortError } from "../../utils/errors";
 import { useToast } from "../../hooks/useToast";
 import { SessionHeader } from "../SessionHeader";
+import { reconcileMessages } from "../SessionViewer";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { FileAccessTree } from "./FileAccessTree";
 import { FileDetail } from "./FileDetail";
 import { ConsolePane } from "./ConsolePane";
-import { NotificationDrawer } from "./NotificationDrawer";
+import { NotificationDrawer, type ActivityTab } from "./NotificationDrawer";
+import { TerminalPanel } from "../TerminalPanel";
 import { useTimeline } from "../../hooks/useTimeline";
 import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
 import { mergeFileEdits, relativizePath, type MergedFileDiff } from "../../utils/diffTree";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
+import { LoadingState } from "../ui/LoadingState";
 import { useCopy } from "../../hooks/useCopy";
 import { Check, Copy, PanelRightOpen, Activity, MessageSquare, FileText } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
-import { STORAGE_KEYS } from "../../utils/storageKeys";
-
-function reconcileMessages(prev: Message[], next: Message[]): Message[] {
-  if (prev.length === 0 || next.length === 0 || prev.length !== next.length) return next;
-  const prevById = new Map(prev.map((m) => [m.id, m]));
-  let same = true;
-  const merged = next.map((m) => {
-    const old = prevById.get(m.id);
-    if (old && messagesEqual(old, m)) return old;
-    same = false;
-    return m;
-  });
-  return same ? prev : merged;
-}
-
-function messagesEqual(a: Message, b: Message): boolean {
-  if (
-    a.id !== b.id ||
-    a.role !== b.role ||
-    a.content !== b.content ||
-    a.reasoning !== b.reasoning ||
-    a.error !== b.error ||
-    a.model !== b.model
-  )
-    return false;
-  if (JSON.stringify(a.metadata ?? null) !== JSON.stringify(b.metadata ?? null)) return false;
-  const ta = a.toolCalls ?? [];
-  const tb = b.toolCalls ?? [];
-  if (ta.length !== tb.length) return false;
-  for (let i = 0; i < ta.length; i++) {
-    const x = ta[i];
-    const y = tb[i];
-    if (
-      x.id !== y.id ||
-      x.name !== y.name ||
-      x.status !== y.status ||
-      x.input !== y.input ||
-      x.output !== y.output ||
-      x.duration !== y.duration ||
-      JSON.stringify(x.metadata ?? null) !== JSON.stringify(y.metadata ?? null)
-    )
-      return false;
-  }
-  return true;
-}
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
 
 interface CinematicSessionViewProps {
   session: Session;
@@ -106,28 +65,15 @@ export function CinematicSessionView({
     null,
   );
   const [terminalOpen, setTerminalOpen] = useState(false);
-  const [drawerCollapsed, setDrawerCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("omnivue-cinematic-drawer-collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [consoleCollapsed, setConsoleCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("omnivue-cinematic-console-collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [activityTab, setActivityTab] = useState<"activity" | "prompt" | "plan">(() => {
-    try {
-      const v = localStorage.getItem("omnivue-cinematic-activity-tab");
-      if (v === "activity" || v === "prompt" || v === "plan")
-        return v as "activity" | "prompt" | "plan";
-    } catch {
-      /* ignore */
-    }
+  const [drawerCollapsed, setDrawerCollapsed] = useState(
+    () => getStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED) === "true",
+  );
+  const [consoleCollapsed, setConsoleCollapsed] = useState(
+    () => getStorageItem(STORAGE_KEYS.CINEMATIC_CONSOLE_COLLAPSED) === "true",
+  );
+  const [activityTab, setActivityTab] = useState<ActivityTab>(() => {
+    const v = getStorageItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_TAB);
+    if (v === "activity" || v === "prompt" || v === "plan") return v;
     return "activity";
   });
   const { showErrorToast } = useToast();
@@ -366,31 +312,13 @@ export function CinematicSessionView({
   );
 
   const visibleAccess = useMemo(() => {
-    if (events.length === 0) return fileAccessAll;
-    if (cursor >= maxIndex) return fileAccessAll;
-    const eventByToolId = new Map<string, number>();
-    let ei = 0;
-    for (const msg of messages) {
-      if (msg.role === "user") {
-        ei++;
-        continue;
-      }
-      const tools = msg.toolCalls ?? [];
-      if (tools.length > 0) {
-        for (const t of tools) {
-          eventByToolId.set(t.id, ei);
-          ei++;
-        }
-      } else {
-        ei++;
-      }
-    }
+    if (events.length === 0 || cursor >= maxIndex) return fileAccessAll;
     return fileAccessAll.filter((fa) => {
-      const eIdx = eventByToolId.get(fa.tool.id);
+      const eIdx = eventIndexByToolId.get(fa.tool.id);
       if (eIdx === undefined) return true;
       return eIdx <= cursor;
     });
-  }, [fileAccessAll, messages, events.length, cursor, maxIndex]);
+  }, [fileAccessAll, events.length, cursor, maxIndex, eventIndexByToolId]);
 
   const visibleEdits = useMemo(() => {
     if (edits.length === 0) return [];
@@ -551,11 +479,7 @@ export function CinematicSessionView({
   const toggleDrawer = useCallback(() => {
     setDrawerCollapsed((v) => {
       const next = !v;
-      try {
-        localStorage.setItem("omnivue-cinematic-drawer-collapsed", String(next));
-      } catch {
-        /* ignore */
-      }
+      setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, String(next));
       return next;
     });
   }, []);
@@ -563,34 +487,22 @@ export function CinematicSessionView({
   const toggleConsole = useCallback(() => {
     setConsoleCollapsed((v) => {
       const next = !v;
-      try {
-        localStorage.setItem("omnivue-cinematic-console-collapsed", String(next));
-      } catch {
-        /* ignore */
-      }
+      setStorageItem(STORAGE_KEYS.CINEMATIC_CONSOLE_COLLAPSED, String(next));
       return next;
     });
   }, []);
 
-  const handleActivityTabChange = useCallback((tab: "activity" | "prompt" | "plan") => {
+  const handleActivityTabChange = useCallback((tab: ActivityTab) => {
     setActivityTab(tab);
-    try {
-      localStorage.setItem("omnivue-cinematic-activity-tab", tab);
-    } catch {
-      /* ignore */
-    }
+    setStorageItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_TAB, tab);
   }, []);
 
   const handleCollapsedActivitySelect = useCallback(
-    (tab: "activity" | "prompt" | "plan") => {
+    (tab: ActivityTab) => {
       handleActivityTabChange(tab);
       if (drawerCollapsed) {
         setDrawerCollapsed(false);
-        try {
-          localStorage.setItem("omnivue-cinematic-drawer-collapsed", "false");
-        } catch {
-          /* ignore */
-        }
+        setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "false");
       }
     },
     [drawerCollapsed, handleActivityTabChange],
@@ -600,7 +512,11 @@ export function CinematicSessionView({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest('[role="tree"], [contenteditable="true"], .xterm')) return;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         step(-1);
@@ -608,8 +524,7 @@ export function CinematicSessionView({
         e.preventDefault();
         step(1);
       } else if (e.key === " ") {
-        const active = document.activeElement;
-        if (active && (active.tagName === "BUTTON" || active.tagName === "INPUT")) return;
+        if (target.tagName === "BUTTON") return;
         e.preventDefault();
         setPlaying((p) => !p);
       }
@@ -644,166 +559,140 @@ export function CinematicSessionView({
       />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <div className="flex flex-1 overflow-hidden min-h-0">
-            <div
-              className="shrink-0 overflow-hidden flex flex-col border-r border-ov-border"
-              style={{ width: treeWidth }}
-            >
-              <FileAccessTree
-                accesses={treeAccesses}
-                selectedPath={selectedPath}
-                onSelect={setSelectedPath}
-              />
-            </div>
-            <div
-              className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-              onMouseDown={startTreeResize}
-            >
-              <div className="absolute inset-y-0 -left-1 -right-1" />
-            </div>
-            <FileDetail
-              access={selectedAccess}
-              fileName={selectedPath.split("/").pop() || selectedPath}
-              mergedDiff={selectedMergedDiff}
-              sessionDirectory={session.directory}
-              onJump={handleJumpToMessage}
-            />
-          </div>
-
-          <div
-            className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative group"
-            onMouseDown={consoleCollapsed ? undefined : startConsoleResize}
-            onClick={toggleConsole}
-            onDoubleClick={toggleConsole}
-            title={
-              consoleCollapsed ? "Click to expand console" : "Drag to resize, click to collapse"
-            }
-          >
-            <div className="absolute inset-x-0 -top-1 -bottom-1" />
-          </div>
-          <div
-            className="shrink-0 overflow-hidden flex flex-col"
-            style={{ height: consoleCollapsed ? 36 : consoleHeight }}
-          >
-            <ConsolePane
-              session={session}
-              messages={messages}
-              cursor={cursor}
-              maxIndex={maxIndex}
-              collapsed={consoleCollapsed}
-              onToggleCollapse={toggleConsole}
-            />
-          </div>
-        </div>
-
-        {drawerCollapsed ? (
-          <div
-            className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5 cursor-pointer"
-            onClick={toggleDrawer}
-            role="button"
-            title="Expand"
-            aria-label="Expand activity panel"
-          >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCollapsedActivitySelect("prompt");
-              }}
-              className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${activityTab === "prompt" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
-              title="Prompt"
-              aria-label="Prompt"
-            >
-              {activityTab === "prompt" && (
-                <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
-              )}
-              <MessageSquare className="size-4" strokeWidth={1.5} />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCollapsedActivitySelect("activity");
-              }}
-              className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${activityTab === "activity" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
-              title="Activity"
-              aria-label="Activity"
-            >
-              {activityTab === "activity" && (
-                <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
-              )}
-              <Activity className="size-4" strokeWidth={1.5} />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCollapsedActivitySelect("plan");
-              }}
-              className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${activityTab === "plan" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
-              title="Plan"
-              aria-label="Plan"
-            >
-              {activityTab === "plan" && (
-                <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
-              )}
-              <FileText className="size-4" strokeWidth={1.5} />
-            </button>
-            <div className="flex-1" />
-            <div className="flex items-center justify-center w-full h-10 text-ov-text-secondary">
-              <PanelRightOpen className="size-4" strokeWidth={1.5} />
-            </div>
-          </div>
+        {loading && messages.length === 0 ? (
+          <LoadingState label="Loading session…" />
         ) : (
           <>
-            <div
-              className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-              onMouseDown={startDrawerResize}
-            >
-              <div className="absolute inset-y-0 -left-1 -right-1" />
+            <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+              <div className="flex flex-1 overflow-hidden min-h-0">
+                <div
+                  className="shrink-0 overflow-hidden flex flex-col border-r border-ov-border"
+                  style={{ width: treeWidth }}
+                >
+                  <FileAccessTree
+                    accesses={treeAccesses}
+                    selectedPath={selectedPath}
+                    onSelect={setSelectedPath}
+                  />
+                </div>
+                <div
+                  className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+                  onMouseDown={startTreeResize}
+                >
+                  <div className="absolute inset-y-0 -left-1 -right-1" />
+                </div>
+                <FileDetail
+                  access={selectedAccess}
+                  fileName={selectedPath.split("/").pop() || selectedPath}
+                  mergedDiff={selectedMergedDiff}
+                  sessionDirectory={session.directory}
+                  onJump={handleJumpToMessage}
+                />
+              </div>
+
+              {!consoleCollapsed && (
+                <div
+                  className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative"
+                  onMouseDown={startConsoleResize}
+                  title="Drag to resize console"
+                >
+                  <div className="absolute inset-x-0 -top-1 -bottom-1" />
+                </div>
+              )}
+              <div
+                className="shrink-0 overflow-hidden flex flex-col"
+                style={{ height: consoleCollapsed ? 36 : consoleHeight }}
+              >
+                <ConsolePane
+                  session={session}
+                  messages={messages}
+                  cursor={cursor}
+                  maxIndex={maxIndex}
+                  collapsed={consoleCollapsed}
+                  onToggleCollapse={toggleConsole}
+                />
+              </div>
             </div>
-            <div
-              className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
-              style={{ width: drawerWidth }}
-            >
-              <NotificationDrawer
-                messages={messages}
-                cursor={cursor}
-                maxIndex={maxIndex}
-                session={session}
-                onOpenModal={handleOpenModal}
-                plan={plan}
-                planLoading={planLoading}
-                onToggleCollapse={toggleDrawer}
-                activeTab={activityTab}
-                onTabChange={handleActivityTabChange}
-                firstMessage={firstMessage}
-                onQueueChanged={onQueueChanged}
-                highlightPromptId={highlightPromptId}
-                onHighlightDone={onHighlightDone}
-              />
-            </div>
+
+            {drawerCollapsed ? (
+              <aside
+                className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5"
+                aria-label="Activity panel (collapsed)"
+              >
+                {(
+                  [
+                    ["prompt", MessageSquare, "Prompt"],
+                    ["activity", Activity, "Activity"],
+                    ["plan", FileText, "Plan"],
+                  ] as const
+                ).map(([tab, Icon, label]) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => handleCollapsedActivitySelect(tab)}
+                    className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${
+                      activityTab === tab
+                        ? "text-accent"
+                        : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+                    }`}
+                    title={label}
+                    aria-label={label}
+                  >
+                    {activityTab === tab && (
+                      <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
+                    )}
+                    <Icon className="size-4" strokeWidth={1.5} />
+                  </button>
+                ))}
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={toggleDrawer}
+                  className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                  title="Expand activity panel"
+                  aria-label="Expand activity panel"
+                >
+                  <PanelRightOpen className="size-4" strokeWidth={1.5} />
+                </button>
+              </aside>
+            ) : (
+              <>
+                <div
+                  className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+                  onMouseDown={startDrawerResize}
+                >
+                  <div className="absolute inset-y-0 -left-1 -right-1" />
+                </div>
+                <div
+                  className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
+                  style={{ width: drawerWidth }}
+                >
+                  <NotificationDrawer
+                    messages={messages}
+                    cursor={cursor}
+                    maxIndex={maxIndex}
+                    session={session}
+                    onOpenModal={handleOpenModal}
+                    plan={plan}
+                    planLoading={planLoading}
+                    onToggleCollapse={toggleDrawer}
+                    activeTab={activityTab}
+                    onTabChange={handleActivityTabChange}
+                    firstMessage={firstMessage}
+                    onQueueChanged={onQueueChanged}
+                    highlightPromptId={highlightPromptId}
+                    onHighlightDone={onHighlightDone}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
 
-      {terminalOpen && (
-        <div className="h-[300px] shrink-0 border-t border-ov-border bg-ov-bg flex flex-col">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-ov-border bg-surface-elevated">
-            <span className="text-xs font-semibold text-ov-text">Terminal</span>
-            <button
-              type="button"
-              onClick={() => setTerminalOpen(false)}
-              className="text-xs text-ov-text-secondary hover:text-ov-text cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-          <div className="flex-1 flex items-center justify-center text-xs text-ov-text-secondary">
-            Terminal for {session.id} — use “Copy resume” from header to resume in external
-            terminal.
-          </div>
+      {terminalOpen && !session.parentId && (
+        <div className="h-[300px] shrink-0 border-t border-ov-border flex flex-col overflow-hidden">
+          <TerminalPanel sessionId={session.id} />
         </div>
       )}
 
