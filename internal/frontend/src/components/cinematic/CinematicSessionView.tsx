@@ -705,181 +705,183 @@ export function CinematicSessionView({
         session={session}
         hasPrivacy={hasPrivacy}
         onNameChanged={onNameChanged}
-        onJumpTerminal={handleJumpTerminal}
+        onJumpTerminal={!session.parentId ? handleJumpTerminal : undefined}
         terminalActive={terminalOpen}
       />
 
-      <TimelineScrubber
-        events={events}
-        cursor={cursor}
-        maxIndex={maxIndex}
-        playing={playing}
-        speed={speed}
-        onSpeedChange={setSpeed}
-        onCursorChange={setCursor}
-        onEndScrub={endScrub}
-        onTogglePlay={() => {
-          if (selectedSpan) setSelectedSpan(null);
-          setPlaying((p) => !p);
-        }}
-        onStep={step}
-        onGoLive={goLive}
-        atLive={atLive}
-        behind={behind}
-        isActive={isActive}
-        selectedSpan={selectedSpan}
-        onSpanSelect={handleSpanSelect}
-        onClearSpan={handleClearSpan}
-      />
-
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        {loading && messages.length === 0 ? (
-          <LoadingState label="Loading session…" />
-        ) : (
-          <>
-            <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-              <div className="flex flex-1 overflow-hidden min-h-0">
-                <div
-                  className="shrink-0 overflow-hidden flex flex-col border-r border-ov-border"
-                  style={{ width: treeWidth }}
-                >
-                  <FileAccessTree
-                    accesses={treeAccesses}
-                    selectedPath={selectedPath}
-                    onSelect={setSelectedPath}
-                    tokenTotals={fileTokenTotals}
-                  />
-                </div>
-                <div
-                  className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-                  onMouseDown={startTreeResize}
-                >
-                  <div className="absolute inset-y-0 -left-1 -right-1" />
-                </div>
-                <FileDetail
-                  access={selectedAccess}
-                  fileName={selectedPath.split("/").pop() || selectedPath}
-                  mergedDiff={selectedMergedDiff}
-                  sessionDirectory={session.directory}
-                  onJump={handleJumpToMessage}
-                />
-              </div>
-
-              {!consoleCollapsed && (
-                <div
-                  className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative"
-                  onMouseDown={startConsoleResize}
-                  title="Drag to resize console"
-                >
-                  <div className="absolute inset-x-0 -top-1 -bottom-1" />
-                </div>
-              )}
-              <div
-                className="shrink-0 overflow-hidden flex flex-col"
-                style={{ height: consoleCollapsed ? 36 : consoleHeight }}
-              >
-                <ConsolePane
-                  session={session}
-                  messages={messages}
-                  cursor={cursor}
-                  maxIndex={maxIndex}
-                  selectedSpan={selectedSpan}
-                  collapsed={consoleCollapsed}
-                  onToggleCollapse={toggleConsole}
-                />
-              </div>
-            </div>
-
-            {drawerCollapsed ? (
-              <aside
-                className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5 cursor-pointer"
-                aria-label="Activity panel (collapsed)"
-                role="button"
-                title="Expand activity panel"
-                onClick={toggleDrawer}
-              >
-                {(
-                  [
-                    ["prompt", MessageSquare, "Prompt"],
-                    ["activity", Activity, "Activity"],
-                    ["plan", FileText, "Plan"],
-                  ] as const
-                ).map(([tab, Icon, label]) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCollapsedActivitySelect(tab);
-                    }}
-                    className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${
-                      activityTab === tab
-                        ? "text-accent"
-                        : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-                    }`}
-                    title={label}
-                    aria-label={label}
-                  >
-                    {activityTab === tab && (
-                      <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
-                    )}
-                    <Icon className="size-4" strokeWidth={1.5} />
-                  </button>
-                ))}
-                <div className="flex-1" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleDrawer();
-                  }}
-                  className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-                  title="Expand activity panel"
-                  aria-label="Expand activity panel"
-                >
-                  <PanelRightOpen className="size-4" strokeWidth={1.5} />
-                </button>
-              </aside>
-            ) : (
-              <>
-                <div
-                  className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-                  onMouseDown={startDrawerResize}
-                >
-                  <div className="absolute inset-y-0 -left-1 -right-1" />
-                </div>
-                <div
-                  className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
-                  style={{ width: drawerWidth }}
-                >
-                  <NotificationDrawer
-                    messages={messages}
-                    cursor={cursor}
-                    maxIndex={maxIndex}
-                    selectedSpan={selectedSpan}
-                    session={session}
-                    onOpenModal={handleOpenModal}
-                    plan={plan}
-                    planLoading={planLoading}
-                    onToggleCollapse={toggleDrawer}
-                    activeTab={activityTab}
-                    onTabChange={handleActivityTabChange}
-                    firstMessage={firstMessage}
-                    onQueueChanged={onQueueChanged}
-                    highlightPromptId={highlightPromptId}
-                    onHighlightDone={onHighlightDone}
-                  />
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
-
-      {terminalOpen && !session.parentId && (
-        <div className="h-[300px] shrink-0 border-t border-ov-border flex flex-col overflow-hidden">
+      {terminalOpen && !session.parentId ? (
+        <div className="flex-1 min-h-0 relative overflow-hidden border-t border-ov-border">
           <TerminalPanel sessionId={session.id} />
         </div>
+      ) : (
+        <>
+          <TimelineScrubber
+            events={events}
+            cursor={cursor}
+            maxIndex={maxIndex}
+            playing={playing}
+            speed={speed}
+            onSpeedChange={setSpeed}
+            onCursorChange={setCursor}
+            onEndScrub={endScrub}
+            onTogglePlay={() => {
+              if (selectedSpan) setSelectedSpan(null);
+              setPlaying((p) => !p);
+            }}
+            onStep={step}
+            onGoLive={goLive}
+            atLive={atLive}
+            behind={behind}
+            isActive={isActive}
+            selectedSpan={selectedSpan}
+            onSpanSelect={handleSpanSelect}
+            onClearSpan={handleClearSpan}
+          />
+
+          <div className="flex flex-1 overflow-hidden min-h-0">
+            {loading && messages.length === 0 ? (
+              <LoadingState label="Loading session…" />
+            ) : (
+              <>
+                <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+                  <div className="flex flex-1 overflow-hidden min-h-0">
+                    <div
+                      className="shrink-0 overflow-hidden flex flex-col border-r border-ov-border"
+                      style={{ width: treeWidth }}
+                    >
+                      <FileAccessTree
+                        accesses={treeAccesses}
+                        selectedPath={selectedPath}
+                        onSelect={setSelectedPath}
+                        tokenTotals={fileTokenTotals}
+                      />
+                    </div>
+                    <div
+                      className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+                      onMouseDown={startTreeResize}
+                    >
+                      <div className="absolute inset-y-0 -left-1 -right-1" />
+                    </div>
+                    <FileDetail
+                      access={selectedAccess}
+                      fileName={selectedPath.split("/").pop() || selectedPath}
+                      mergedDiff={selectedMergedDiff}
+                      sessionDirectory={session.directory}
+                      onJump={handleJumpToMessage}
+                    />
+                  </div>
+
+                  {!consoleCollapsed && (
+                    <div
+                      className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative"
+                      onMouseDown={startConsoleResize}
+                      title="Drag to resize console"
+                    >
+                      <div className="absolute inset-x-0 -top-1 -bottom-1" />
+                    </div>
+                  )}
+                  <div
+                    className="shrink-0 overflow-hidden flex flex-col"
+                    style={{ height: consoleCollapsed ? 36 : consoleHeight }}
+                  >
+                    <ConsolePane
+                      session={session}
+                      messages={messages}
+                      cursor={cursor}
+                      maxIndex={maxIndex}
+                      selectedSpan={selectedSpan}
+                      collapsed={consoleCollapsed}
+                      onToggleCollapse={toggleConsole}
+                    />
+                  </div>
+                </div>
+
+                {drawerCollapsed ? (
+                  <aside
+                    className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5 cursor-pointer"
+                    aria-label="Activity panel (collapsed)"
+                    role="button"
+                    title="Expand activity panel"
+                    onClick={toggleDrawer}
+                  >
+                    {(
+                      [
+                        ["prompt", MessageSquare, "Prompt"],
+                        ["activity", Activity, "Activity"],
+                        ["plan", FileText, "Plan"],
+                      ] as const
+                    ).map(([tab, Icon, label]) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCollapsedActivitySelect(tab);
+                        }}
+                        className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${
+                          activityTab === tab
+                            ? "text-accent"
+                            : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+                        }`}
+                        title={label}
+                        aria-label={label}
+                      >
+                        {activityTab === tab && (
+                          <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
+                        )}
+                        <Icon className="size-4" strokeWidth={1.5} />
+                      </button>
+                    ))}
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDrawer();
+                      }}
+                      className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                      title="Expand activity panel"
+                      aria-label="Expand activity panel"
+                    >
+                      <PanelRightOpen className="size-4" strokeWidth={1.5} />
+                    </button>
+                  </aside>
+                ) : (
+                  <>
+                    <div
+                      className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
+                      onMouseDown={startDrawerResize}
+                    >
+                      <div className="absolute inset-y-0 -left-1 -right-1" />
+                    </div>
+                    <div
+                      className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
+                      style={{ width: drawerWidth }}
+                    >
+                      <NotificationDrawer
+                        messages={messages}
+                        cursor={cursor}
+                        maxIndex={maxIndex}
+                        selectedSpan={selectedSpan}
+                        session={session}
+                        onOpenModal={handleOpenModal}
+                        plan={plan}
+                        planLoading={planLoading}
+                        onToggleCollapse={toggleDrawer}
+                        activeTab={activityTab}
+                        onTabChange={handleActivityTabChange}
+                        firstMessage={firstMessage}
+                        onQueueChanged={onQueueChanged}
+                        highlightPromptId={highlightPromptId}
+                        onHighlightDone={onHighlightDone}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </>
       )}
 
       <Modal

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, Plus, Tag as TagIcon, X, Check, Terminal } from "lucide-react";
+import { Pencil, Plus, Tag as TagIcon, X, Check, Terminal, PanelsTopLeft } from "lucide-react";
 import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
@@ -419,15 +419,15 @@ export function SessionHeader({
         {cinematicEnabled && (
           <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
             <ResumeButton sessionId={session.id} />
-            {onJumpTerminal && (
+            {onJumpTerminal && !session.parentId && (
               <button
                 type="button"
                 onClick={onJumpTerminal}
                 className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-                title="Jump to terminal"
-                aria-label="Jump to terminal"
+                title={terminalActive ? "Back to session view" : "Jump to terminal"}
+                aria-label={terminalActive ? "Back to session view" : "Jump to terminal"}
               >
-                <Terminal size={14} />
+                {terminalActive ? <PanelsTopLeft size={14} /> : <Terminal size={14} />}
               </button>
             )}
           </div>
