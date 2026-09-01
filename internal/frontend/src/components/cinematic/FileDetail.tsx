@@ -1,11 +1,12 @@
-import { File, BookOpen, Copy, Check, ArrowRight, MessageSquareText } from "lucide-react";
+import { BookOpen, File, ArrowRight, MessageSquareText } from "lucide-react";
+import type { ReactNode } from "react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { readPreviewContent } from "../../utils/fileAccess";
 import { detectLanguage } from "../../utils/detectLanguage";
 import { FileRenderer, HunkRenderer } from "../DiffRenderer";
 import { CopyButton } from "../ui/CopyButton";
+import { EmptyPanel } from "../ui/EmptyPanel";
 import type { MergedFileDiff } from "../../utils/diffTree";
-import { useCopy } from "../../hooks/useCopy";
 
 interface FileDetailProps {
   access: FileAccess | null;
@@ -15,6 +16,62 @@ interface FileDetailProps {
   onJump?: (messageIndex: number, messageId?: string) => void;
 }
 
+function FileDetailHeader({
+  icon,
+  fileName,
+  fullPath,
+  actions,
+}: {
+  icon: ReactNode;
+  fileName: string;
+  fullPath: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="group flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
+      {icon}
+      <span className="font-mono text-xs text-ov-text truncate min-w-0" title={fullPath}>
+        {fileName}
+      </span>
+      <span
+        className="text-[11px] text-ov-text-secondary truncate hidden sm:inline min-w-0"
+        title={fullPath}
+      >
+        {fullPath}
+      </span>
+      <div className="ml-auto flex items-center gap-1 shrink-0">
+        {actions}
+        <CopyButton text={fullPath} iconSize={12} />
+      </div>
+    </div>
+  );
+}
+
+function JumpButton({
+  messageIndex,
+  messageId,
+  onJump,
+  title,
+}: {
+  messageIndex: number;
+  messageId?: string;
+  onJump: (messageIndex: number, messageId?: string) => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onJump(messageIndex, messageId)}
+      className="flex items-center gap-1 px-2 py-1 text-[11px] text-ov-text-secondary hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors"
+      title={title}
+    >
+      <MessageSquareText size={11} />
+      <span>Jump to</span>
+      <ArrowRight size={11} />
+    </button>
+  );
+}
+
 export function FileDetail({
   access,
   fileName,
@@ -22,38 +79,27 @@ export function FileDetail({
   sessionDirectory,
   onJump,
 }: FileDetailProps) {
-  const { copied, copy } = useCopy(2000);
-
-  // Show placeholder when neither a read access nor a merged diff is available
   if (!access && !mergedDiff) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 text-sm text-ov-text-secondary">
-        <div className="text-center">
-          <File size={28} className="mx-auto mb-2 opacity-40" />
-          Select a file to view its content
-        </div>
-      </div>
+      <EmptyPanel
+        icon={<File size={20} />}
+        title="Select a file to view its content"
+        hint="Reads and edits from the timeline appear in the file tree."
+      />
     );
   }
 
-  // Edit/write takes priority over read when a file was both read and edited.
-  // Render the merged diff exactly like DiffView does when it exists.
   if (mergedDiff) {
     const fullPath = sessionDirectory ? `${sessionDirectory}/${mergedDiff.path}` : mergedDiff.path;
     const lang = detectLanguage(mergedDiff.path);
     if (mergedDiff.hunks.length > 0) {
       return (
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="group flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
-            <File size={14} className="shrink-0 text-ov-text-secondary" />
-            <span
-              className="font-mono text-xs text-ov-text-secondary truncate min-w-0"
-              title={fullPath}
-            >
-              {fullPath}
-            </span>
-            <CopyButton text={fullPath} iconSize={12} />
-          </div>
+          <FileDetailHeader
+            icon={<File size={14} className="shrink-0 text-ov-text-secondary" />}
+            fileName={mergedDiff.path.split("/").pop() || mergedDiff.path}
+            fullPath={fullPath}
+          />
           <div className="flex-1 overflow-y-auto p-4 space-y-3 min-w-0">
             {mergedDiff.hunks.map((hunk, i) => {
               const msgIdx = hunk.messageIndex;
@@ -87,19 +133,12 @@ export function FileDetail({
     }
     return (
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="group flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
-          <File size={14} className="shrink-0 text-ov-text-secondary" />
-          <span
-            className="font-mono text-xs text-ov-text-secondary truncate min-w-0"
-            title={fullPath}
-          >
-            {fullPath}
-          </span>
-          <CopyButton text={fullPath} iconSize={12} />
-        </div>
-        <div className="flex-1 flex items-center justify-center p-6 text-sm text-ov-text-secondary">
-          Patch content not available for this file
-        </div>
+        <FileDetailHeader
+          icon={<File size={14} className="shrink-0 text-ov-text-secondary" />}
+          fileName={mergedDiff.path.split("/").pop() || mergedDiff.path}
+          fullPath={fullPath}
+        />
+        <EmptyPanel icon={<File size={20} />} title="Patch content not available for this file" />
       </div>
     );
   }
@@ -111,93 +150,52 @@ export function FileDetail({
     const fullPath = sessionDirectory ? `${sessionDirectory}/${access.filePath}` : access.filePath;
     return (
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
-          <BookOpen size={14} className="text-cyan-400 shrink-0" />
-          <span className="text-xs font-mono text-ov-text truncate" title={fullPath}>
-            {fileName}
-          </span>
-          <span
-            className="text-[11px] text-ov-text-secondary truncate hidden sm:inline"
-            title={fullPath}
-          >
-            {fullPath}
-          </span>
-          <div className="ml-auto flex items-center gap-1">
-            {onJump && (
-              <button
-                type="button"
-                onClick={() => onJump(access.messageIndex, access.messageId)}
-                className="flex items-center gap-1 px-2 py-1 text-[11px] text-ov-text-secondary hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors"
+        <FileDetailHeader
+          icon={<BookOpen size={14} className="text-cyan-400 shrink-0" />}
+          fileName={fileName}
+          fullPath={fullPath}
+          actions={
+            onJump ? (
+              <JumpButton
+                messageIndex={access.messageIndex}
+                messageId={access.messageId}
+                onJump={onJump}
                 title="Jump timeline to this read"
-              >
-                <MessageSquareText size={11} />
-                <span>Jump to</span>
-                <ArrowRight size={11} />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => copy(content || access.filePath)}
-              className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
-              title="Copy"
-            >
-              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-            </button>
-          </div>
-        </div>
+              />
+            ) : undefined
+          }
+        />
         <div className="flex-1 overflow-y-auto p-3">
           {content ? (
             <FileRenderer content={content} lang={lang} />
           ) : (
-            <div className="text-xs text-ov-text-secondary">No preview available for this read</div>
+            <p className="text-xs text-ov-text-secondary">No preview available for this read</p>
           )}
         </div>
       </div>
     );
   }
 
-  // Fallback for edit/write without a merged diff (e.g. edits not yet loaded)
   const fallbackRel = access?.filePath ?? fileName;
   const fallbackPath = sessionDirectory ? `${sessionDirectory}/${fallbackRel}` : fallbackRel;
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
-        <File size={14} className="text-ov-text-secondary shrink-0" />
-        <span className="text-xs font-mono text-ov-text truncate" title={fallbackPath}>
-          {fileName}
-        </span>
-        <span
-          className="text-[11px] text-ov-text-secondary truncate hidden sm:inline"
-          title={fallbackPath}
-        >
-          {fallbackPath}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {access && onJump && (
-            <button
-              type="button"
-              onClick={() => onJump(access.messageIndex, access.messageId)}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] text-ov-text-secondary hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors"
+      <FileDetailHeader
+        icon={<File size={14} className="text-ov-text-secondary shrink-0" />}
+        fileName={fileName}
+        fullPath={fallbackPath}
+        actions={
+          access && onJump ? (
+            <JumpButton
+              messageIndex={access.messageIndex}
+              messageId={access.messageId}
+              onJump={onJump}
               title="Jump timeline to this change"
-            >
-              <MessageSquareText size={11} />
-              <span>Jump to</span>
-              <ArrowRight size={11} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => copy(fallbackPath)}
-            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
-            title="Copy"
-          >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-          </button>
-        </div>
-      </div>
-      <div className="flex-1 flex items-center justify-center p-6 text-sm text-ov-text-secondary">
-        No diff content
-      </div>
+            />
+          ) : undefined
+        }
+      />
+      <EmptyPanel icon={<File size={20} />} title="No diff content available yet" />
     </div>
   );
 }

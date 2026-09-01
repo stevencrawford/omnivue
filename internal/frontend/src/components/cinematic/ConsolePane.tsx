@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Check, Copy, Terminal } from "lucide-react";
+import { Terminal } from "lucide-react";
 import type { Message, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { extractJSONField } from "../../utils/jsonField";
-import { useCopy } from "../../hooks/useCopy";
+import { CopyButton } from "../ui/CopyButton";
 import { formatCost } from "../../utils/sessionUtils";
 import { useHideCosts } from "../../hooks/useHideCosts";
+import { EmptyPanel } from "../ui/EmptyPanel";
 
 interface ConsolePaneProps {
   session: Session;
@@ -14,20 +15,6 @@ interface ConsolePaneProps {
   maxIndex: number;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
-}
-
-function ConsoleCopyButton({ text, title }: { text: string; title?: string }) {
-  const { copied, copy } = useCopy(2000);
-  return (
-    <button
-      type="button"
-      onClick={() => copy(text)}
-      className="size-6 flex items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 cursor-pointer transition-colors shrink-0"
-      title={title ?? "Copy"}
-    >
-      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-    </button>
-  );
 }
 
 function ConsoleStream({
@@ -50,9 +37,9 @@ function ConsoleStream({
       const toolsInMsg = msg.toolCalls ?? [];
       if (toolsInMsg.length > 0) {
         for (const t of toolsInMsg) {
-          const isBash = effectiveToolKind(t) === "bash" || effectiveToolKind(t) === "sql";
+          const isShell = effectiveToolKind(t) === "bash" || effectiveToolKind(t) === "sql";
           if (eventIdx <= cursor || cursor >= maxIndex) {
-            if (isBash) list.push({ tool: t, summary: getToolSummary(t, msg.agent), msg });
+            if (isShell) list.push({ tool: t, summary: getToolSummary(t, msg.agent), msg });
           }
           eventIdx++;
         }
@@ -73,18 +60,18 @@ function ConsoleStream({
 
   if (tools.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-xs text-ov-text-secondary font-mono">
-        <span className="flex items-center gap-2 opacity-60">
-          <Terminal size={12} /> no shell activity in range
-        </span>
-      </div>
+      <EmptyPanel
+        icon={<Terminal size={20} />}
+        title="No shell activity in visible range"
+        hint="Shell commands appear here as the timeline advances."
+      />
     );
   }
 
   return (
     <div
       ref={scrollRef}
-      className="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs bg-[#0b0e14]"
+      className="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs bg-ov-bg"
     >
       {tools.map((item) => {
         const command = extractJSONField(item.tool.input, "command") || item.summary;
@@ -94,13 +81,16 @@ function ConsoleStream({
           <div key={item.tool.id} className="space-y-1 group">
             <div className="flex items-center gap-2 text-[12px]">
               <span className="text-emerald-400 select-none">❯</span>
-              <span className="text-[#e6e6e6] truncate flex-1" title={command}>
+              <span className="text-ov-text truncate flex-1" title={command}>
                 {command}
               </span>
-              <span className="text-[11px] font-mono text-white/30 hidden sm:inline tabular-nums">
+              <span className="text-[11px] font-mono text-ov-text-secondary hidden sm:inline tabular-nums">
                 {item.tool.duration ? `${item.tool.duration}ms` : ""}
               </span>
-              <ConsoleCopyButton text={command} title="Copy command" />
+              <CopyButton
+                text={command}
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              />
               <span
                 className={`text-[10px] font-mono ${isCompleted ? "text-emerald-400/70" : "text-amber-400/70"}`}
               >
@@ -109,15 +99,15 @@ function ConsoleStream({
             </div>
             {output ? (
               <div className="ml-4 relative group/output">
-                <pre className="whitespace-pre-wrap break-words text-[#a9b1c7] leading-relaxed text-[12px] opacity-90 pr-8">
+                <pre className="whitespace-pre-wrap break-words text-ov-text-secondary leading-relaxed text-[12px] pr-8">
                   {output.slice(0, 8000)}
                 </pre>
                 <div className="absolute top-0 right-0 opacity-0 group-hover/output:opacity-100 transition-opacity">
-                  <ConsoleCopyButton text={output} title="Copy output" />
+                  <CopyButton text={output} />
                 </div>
               </div>
             ) : (
-              <div className="ml-4 text-[11px] text-white/30 italic">no output</div>
+              <div className="ml-4 text-[11px] text-ov-text-secondary/60 italic">no output</div>
             )}
           </div>
         );
@@ -163,17 +153,14 @@ export function ConsolePane(props: ConsolePaneProps) {
       const pct = visTotal / full;
       cached = Math.round((session.tokensCacheRead ?? 0) * pct);
       cost = (session.cost ?? 0) * pct;
-      // fallback to proportional session tokens when messages have no per-message tokens
       if (fullIn === 0 && session.tokensInput > 0) inTokens = Math.round(session.tokensInput * pct);
       if (fullOut === 0 && session.tokensOutput > 0)
         outTokens = Math.round(session.tokensOutput * pct);
     } else {
-      // no per-message tokens, derive directly from session
       inTokens = session.tokensInput ?? 0;
       outTokens = session.tokensOutput ?? 0;
       cached = session.tokensCacheRead ?? 0;
       cost = session.cost ?? 0;
-      // if not at live, scale by pct based on cursor position (approx)
       if (cursor < maxIndex && maxIndex > 0) {
         const pct = (cursor + 1) / (maxIndex + 1);
         inTokens = Math.round(inTokens * pct);
@@ -212,9 +199,7 @@ export function ConsolePane(props: ConsolePaneProps) {
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg-secondary border-t border-ov-border">
       <div
         className={`flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0 ${props.onToggleCollapse ? "cursor-pointer" : ""}`}
-        onClick={() => {
-          if (props.onToggleCollapse) props.onToggleCollapse();
-        }}
+        onClick={() => props.onToggleCollapse?.()}
         role={props.onToggleCollapse ? "button" : undefined}
         title={
           props.onToggleCollapse
