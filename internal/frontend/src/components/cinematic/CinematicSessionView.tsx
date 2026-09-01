@@ -10,11 +10,11 @@ import { FileDetail } from "./FileDetail";
 import { ConsolePane } from "./ConsolePane";
 import { NotificationDrawer } from "./NotificationDrawer";
 import { useTimeline } from "../../hooks/useTimeline";
-import { deriveFileAccess } from "../../utils/fileAccess";
+import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
-import { Check, Copy, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Check, Copy, PanelRightOpen } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
@@ -235,6 +235,35 @@ export function CinematicSessionView({
 
   const fileAccessAll = useMemo(() => deriveFileAccess(messages), [messages]);
 
+  const eventIndexByToolId = useMemo(() => {
+    const map = new Map<string, number>();
+    let ei = 0;
+    for (const msg of messages) {
+      if (msg.role === "user") {
+        ei++;
+        continue;
+      }
+      const tools = msg.toolCalls ?? [];
+      if (tools.length > 0) {
+        for (const t of tools) {
+          map.set(t.id, ei);
+          ei++;
+        }
+      } else {
+        ei++;
+      }
+    }
+    return map;
+  }, [messages]);
+
+  const handleJumpToAccess = useCallback(
+    (access: FileAccess) => {
+      const idx = eventIndexByToolId.get(access.tool.id);
+      if (idx !== undefined) setCursor(idx);
+    },
+    [eventIndexByToolId, setCursor],
+  );
+
   const visibleAccess = useMemo(() => {
     if (events.length === 0) return fileAccessAll;
     if (cursor >= maxIndex) return fileAccessAll;
@@ -397,6 +426,7 @@ export function CinematicSessionView({
               access={selectedAccess}
               fileName={selectedPath.split("/").pop() || selectedPath}
               allAccessForFile={allForSelected}
+              onJump={handleJumpToAccess}
             />
           </div>
 
@@ -420,8 +450,6 @@ export function CinematicSessionView({
               messages={messages}
               cursor={cursor}
               maxIndex={maxIndex}
-              plan={plan}
-              planLoading={planLoading}
               firstMessage={firstMessage}
               onOpenModal={handleOpenModal}
               onQueueChanged={onQueueChanged}
@@ -464,31 +492,15 @@ export function CinematicSessionView({
               className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
               style={{ width: drawerWidth }}
             >
-              <div
-                className="flex items-center justify-between px-2 py-1 border-b border-ov-border bg-surface-elevated shrink-0 cursor-pointer hover:bg-ov-bg-hover"
-                onClick={toggleDrawer}
-                role="button"
-                title="Collapse notifications"
-              >
-                <span className="text-[11px] font-semibold text-ov-text">Activity</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleDrawer();
-                  }}
-                  className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
-                  title="Collapse notifications"
-                >
-                  <PanelRightClose size={14} />
-                </button>
-              </div>
               <NotificationDrawer
                 messages={messages}
                 cursor={cursor}
                 maxIndex={maxIndex}
                 session={session}
                 onOpenModal={handleOpenModal}
+                plan={plan}
+                planLoading={planLoading}
+                onToggleCollapse={toggleDrawer}
               />
             </div>
           </>

@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Brain, ChevronRight, User as UserIcon } from "lucide-react";
-import type { Message } from "../../hooks/types";
+import {
+  MessageSquare,
+  Brain,
+  ChevronRight,
+  User as UserIcon,
+  FileText,
+  Maximize2,
+} from "lucide-react";
+import type { Message, Plan } from "../../hooks/types";
 import { effectiveToolKind } from "../../utils/toolDisplay";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import type { Session } from "../../hooks/types";
@@ -13,17 +20,31 @@ interface NotificationDrawerProps {
   cursor: number;
   maxIndex: number;
   onOpenModal?: (content: string, title?: string) => void;
+  plan?: Plan | null;
+  planLoading?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60000);
+  const s = Math.round((ms % 60000) / 1000);
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
 function ThinkingBlock({
   reasoning,
   defaultExpanded,
+  durationMs,
 }: {
   reasoning: string;
   defaultExpanded?: boolean;
+  durationMs?: number;
 }) {
   const [expanded, setExpanded] = useState(!!defaultExpanded);
   if (!reasoning) return null;
+  const timeLabel = durationMs !== undefined ? formatDuration(durationMs) : undefined;
   return (
     <div className="border border-violet-500/20 rounded overflow-hidden bg-violet-500/[0.04]">
       <button
@@ -37,11 +58,9 @@ function ThinkingBlock({
         />
         <Brain size={12} className="shrink-0" />
         <span className="font-medium">Thinking</span>
-        <span className="ml-auto text-[10px] text-violet-300/60">
-          {reasoning.length > 80
-            ? `${Math.round(reasoning.length / 1000)}k`
-            : `${reasoning.split(/\s+/).length}w`}
-        </span>
+        {timeLabel && (
+          <span className="ml-auto text-[10px] text-violet-300/60 tabular-nums">{timeLabel}</span>
+        )}
       </button>
       {expanded && (
         <div className="px-3 py-2 border-t border-violet-500/15 bg-violet-500/[0.03] max-h-64 overflow-y-auto">
@@ -54,14 +73,21 @@ function ThinkingBlock({
   );
 }
 
+type ActivityTab = "activity" | "plan";
+
 export function NotificationDrawer({
   session,
   messages,
   cursor,
   maxIndex,
   onOpenModal,
+  plan,
+  planLoading,
+  onToggleCollapse,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<ActivityTab>("activity");
+
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
     const out: Message[] = [];
@@ -78,21 +104,31 @@ export function NotificationDrawer({
 
   const drawerItems = useMemo(() => {
     const items: Array<{ key: string; node: React.ReactNode }> = [];
-    const reasoningMap = new Map<string, string>();
+    const reasoningMap = new Map<string, { reasoning: string; durationMs?: number }>();
     let pendingReasoning: string | null = null;
     let pendingKey: string | null = null;
+    let pendingStart: string | null = null;
+    let pendingEnd: string | null = null;
     const flushReasoning = () => {
       if (pendingReasoning !== null && pendingKey !== null) {
         const key = pendingKey;
         const reasoning = pendingReasoning;
-        reasoningMap.set(`${key}-reasoning`, reasoning);
+        let durationMs: number | undefined;
+        if (pendingStart && pendingEnd) {
+          const s = new Date(pendingStart).getTime();
+          const e = new Date(pendingEnd).getTime();
+          if (!Number.isNaN(s) && !Number.isNaN(e) && e >= s) durationMs = e - s;
+        }
+        reasoningMap.set(`${key}-reasoning`, { reasoning, durationMs });
         items.push({
           key: `${key}-reasoning`,
-          node: <ThinkingBlock reasoning={reasoning} />,
+          node: <ThinkingBlock reasoning={reasoning} durationMs={durationMs} />,
         });
       }
       pendingReasoning = null;
       pendingKey = null;
+      pendingStart = null;
+      pendingEnd = null;
     };
     for (const msg of visibleMessages) {
       if (msg.role === "user") {
@@ -125,8 +161,11 @@ export function NotificationDrawer({
         if (pendingReasoning === null) {
           pendingReasoning = msg.reasoning;
           pendingKey = msg.id;
+          pendingStart = msg.timestamp;
+          pendingEnd = msg.reasoningAt ?? msg.timestamp;
         } else {
           pendingReasoning += "\n\n" + msg.reasoning;
+          pendingEnd = msg.reasoningAt ?? pendingEnd;
         }
       } else {
         flushReasoning();
@@ -180,14 +219,12 @@ export function NotificationDrawer({
         hasVisibleTool = true;
         const renderer = toolRendererRegistry.getRenderer(kind);
         if (!renderer) continue;
-        // Flush reasoning before tool so tool breaks sequential chain
         flushReasoning();
         items.push({
           key: tool.id,
           node: <ToolRendererWrapper renderer={renderer} tool={tool} variant="detail" />,
         });
       }
-      // If message had reasoning but also visible tool, flush already done; if it had reasoning and no content/tool, keep pending for next iteration to allow collapse
       if (msg.content?.trim() || hasVisibleTool) {
         // already flushed
       } else if (!msg.reasoning) {
@@ -195,16 +232,21 @@ export function NotificationDrawer({
       }
     }
     flushReasoning();
-    // Latest thinking should be expanded while session is active
     if (session.status === "active") {
       for (let i = items.length - 1; i >= 0; i--) {
         if (items[i].key.endsWith("-reasoning")) {
           const key = items[i].key;
-          const reasoning = reasoningMap.get(key);
-          if (reasoning) {
+          const entry = reasoningMap.get(key);
+          if (entry) {
             items[i] = {
               key,
-              node: <ThinkingBlock reasoning={reasoning} defaultExpanded />,
+              node: (
+                <ThinkingBlock
+                  reasoning={entry.reasoning}
+                  durationMs={entry.durationMs}
+                  defaultExpanded
+                />
+              ),
             };
           }
           break;
@@ -218,19 +260,74 @@ export function NotificationDrawer({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [visibleMessages, cursor, maxIndex]);
+  }, [drawerItems, cursor, maxIndex, activeTab]);
+
+  const planContent = plan?.markdown ?? "";
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
-        {drawerItems.length === 0 ? (
-          <div className="text-xs text-ov-text-secondary text-center py-6">
-            Assistant activity appears here
-          </div>
-        ) : (
-          drawerItems.map((it) => <div key={it.key}>{it.node}</div>)
-        )}
+      <div
+        className={`flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0 ${onToggleCollapse ? "cursor-pointer" : ""}`}
+        onClick={() => onToggleCollapse?.()}
+        role={onToggleCollapse ? "button" : undefined}
+        title={onToggleCollapse ? "Collapse activity" : undefined}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("activity");
+          }}
+          className={`px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer ${activeTab === "activity" ? "border-accent text-ov-text" : "border-transparent text-ov-text-secondary hover:text-ov-text"}`}
+        >
+          Activity
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("plan");
+          }}
+          className={`px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer flex items-center gap-1 ${activeTab === "plan" ? "border-accent text-ov-text" : "border-transparent text-ov-text-secondary hover:text-ov-text"}`}
+        >
+          <FileText size={12} /> Plan
+          {plan?.markdown && <span className="size-1.5 rounded-full bg-amber-400 ml-1" />}
+        </button>
       </div>
+
+      {activeTab === "activity" ? (
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
+          {drawerItems.length === 0 ? (
+            <div className="text-xs text-ov-text-secondary text-center py-6">
+              Assistant activity appears here
+            </div>
+          ) : (
+            drawerItems.map((it) => <div key={it.key}>{it.node}</div>)
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+          {planLoading ? (
+            <div className="text-xs text-ov-text-secondary">Loading plan…</div>
+          ) : planContent ? (
+            <div className="relative group">
+              <MarkdownContent content={planContent} className="markdown-body--wide text-xs" />
+              {onOpenModal && (
+                <button
+                  type="button"
+                  onClick={() => onOpenModal(planContent, "Plan")}
+                  className="absolute top-0 right-0 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent hover:border-ov-border bg-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Expand plan"
+                >
+                  <Maximize2 size={12} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-ov-text-secondary">No plan for this session yet.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

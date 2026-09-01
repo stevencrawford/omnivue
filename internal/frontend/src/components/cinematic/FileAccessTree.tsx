@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Folder, File, BookOpen, Trash2 } from "lucide-react";
+import { ChevronRight, Folder, FilePlus, FilePen, BookOpen, Trash2 } from "lucide-react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { detectLanguage } from "../../utils/detectLanguage";
 
@@ -73,14 +73,16 @@ function flattenDirectoryChains(nodes: TreeNode[]): void {
 function kindIcon(kind: string) {
   if (kind === "read") return <BookOpen size={12} className="text-cyan-400 shrink-0" />;
   if (kind === "delete") return <Trash2 size={12} className="text-red-400 shrink-0" />;
-  return <File size={12} className="text-accent shrink-0" />;
+  if (kind === "write") return <FilePlus size={12} className="text-green-400 shrink-0" />;
+  if (kind === "edit") return <FilePen size={12} className="text-yellow-400 shrink-0" />;
+  return <FilePlus size={12} className="text-accent shrink-0" />;
 }
 
 function kindLetter(kind: string): { letter: string; color: string } {
   if (kind === "read") return { letter: "R", color: "text-cyan-400" };
   if (kind === "delete") return { letter: "D", color: "text-red-400" };
-  if (kind === "write") return { letter: "A", color: "text-green-400" };
-  return { letter: "M", color: "text-yellow-400" };
+  if (kind === "write") return { letter: "A", color: "text-green-500" };
+  return { letter: "M", color: "text-yellow-500" };
 }
 
 interface FileAccessTreeProps {

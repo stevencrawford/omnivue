@@ -1,5 +1,4 @@
-import { File, BookOpen, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { File, BookOpen, Copy, Check, ArrowRight, MessageSquareText } from "lucide-react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { readPreviewContent } from "../../utils/fileAccess";
 import { detectLanguage } from "../../utils/detectLanguage";
@@ -11,11 +10,11 @@ interface FileDetailProps {
   access: FileAccess | null;
   fileName: string;
   allAccessForFile: FileAccess[];
+  onJump?: (access: FileAccess) => void;
 }
 
-export function FileDetail({ access, fileName, allAccessForFile }: FileDetailProps) {
+export function FileDetail({ access, fileName, allAccessForFile, onJump }: FileDetailProps) {
   const { copied, copy } = useCopy(2000);
-  const [expanded, setExpanded] = useState(true);
 
   if (!access) {
     return (
@@ -61,8 +60,6 @@ export function FileDetail({ access, fileName, allAccessForFile }: FileDetailPro
     }
   }
 
-  const headerTitle = isRead ? `read: ${fileName}` : `edit: ${fileName}`;
-
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
@@ -72,7 +69,7 @@ export function FileDetail({ access, fileName, allAccessForFile }: FileDetailPro
           <File size={14} className="text-ov-text-secondary shrink-0" />
         )}
         <span className="text-xs font-mono text-ov-text truncate" title={access.filePath}>
-          {headerTitle}
+          {fileName}
         </span>
         <span
           className="text-[11px] text-ov-text-secondary truncate hidden sm:inline"
@@ -81,13 +78,18 @@ export function FileDetail({ access, fileName, allAccessForFile }: FileDetailPro
           {access.filePath}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="text-[11px] px-2 py-1 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
-          >
-            {expanded ? "Collapse" : "Expand"}
-          </button>
+          {onJump && (
+            <button
+              type="button"
+              onClick={() => onJump(access)}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] text-ov-text-secondary hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors"
+              title="Jump timeline to this change"
+            >
+              <MessageSquareText size={11} />
+              <span>Jump to</span>
+              <ArrowRight size={11} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => copy(content || access.filePath)}
@@ -99,9 +101,7 @@ export function FileDetail({ access, fileName, allAccessForFile }: FileDetailPro
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        {!expanded ? (
-          <div className="text-xs text-ov-text-secondary">Collapsed</div>
-        ) : isRead ? (
+        {isRead ? (
           content ? (
             <FileRenderer content={content} lang={lang} />
           ) : (

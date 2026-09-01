@@ -1,21 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Terminal, MessageSquare, FileText } from "lucide-react";
-import type { Message, Plan, Session } from "../../hooks/types";
+import { Check, Copy, Terminal, MessageSquare } from "lucide-react";
+import type { Message, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { PinnedPromptBar } from "../PinnedPromptBar";
-import { MarkdownContent } from "../ui/MarkdownContent";
 import { extractJSONField } from "../../utils/jsonField";
 import { useCopy } from "../../hooks/useCopy";
 
-type ConsoleTab = "prompt" | "plan" | "console";
+type ConsoleTab = "prompt" | "console";
 
 interface ConsolePaneProps {
   session: Session;
   messages: Message[];
   cursor: number;
   maxIndex: number;
-  plan: Plan | null;
-  planLoading: boolean;
   firstMessage?: Message | null;
   onOpenModal?: (content: string, title?: string) => void;
   onQueueChanged?: () => void;
@@ -135,25 +132,12 @@ function ConsoleStream({
   );
 }
 
-function PlanTab({ plan, loading }: { plan: Plan | null; loading: boolean }) {
-  if (loading) return <div className="p-4 text-xs text-ov-text-secondary">Loading plan…</div>;
-  if (!plan?.markdown)
-    return <div className="p-4 text-xs text-ov-text-secondary">No plan for this session yet.</div>;
-  return (
-    <div className="flex-1 overflow-y-auto p-4">
-      <MarkdownContent content={plan.markdown} className="markdown-body--wide" />
-    </div>
-  );
-}
-
 export function ConsolePane(props: ConsolePaneProps) {
   const {
     session,
     messages,
     cursor,
     maxIndex,
-    plan,
-    planLoading,
     firstMessage,
     onOpenModal,
     onQueueChanged,
@@ -163,44 +147,32 @@ export function ConsolePane(props: ConsolePaneProps) {
   const [active, setActive] = useState<ConsoleTab>("prompt");
 
   const tokenBreakdown = useMemo(() => {
+    // Only cached tokens per latest feedback
     let eventIdx = 0;
-    let inp = 0,
-      out = 0,
-      cached = 0;
-    for (const msg of messages) {
-      const isUser = msg.role === "user";
-      const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
+    let totalVisible = 0;
+    for (const m of messages) {
+      const isUser = m.role === "user";
+      const msgEvents = isUser ? 1 : m.toolCalls?.length ? m.toolCalls.length : 1;
       const msgEnd = eventIdx + msgEvents - 1;
       const visible = msgEnd <= cursor || cursor >= maxIndex;
-      if (visible) {
-        inp += msg.tokensInput ?? 0;
-        out += msg.tokensOutput ?? 0;
-        // cache tokens are not per-message; approximate from session ratio if needed
-      }
+      if (visible) totalVisible += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
       eventIdx += msgEvents;
     }
-    // Include session cache proportionally to visible percent
-    let totalVisible = 0;
-    for (const m of messages) totalVisible += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
     let full = 0;
     for (const m of messages) full += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
     const pct = full > 0 ? totalVisible / full : 1;
-    cached = Math.round((session.tokensCacheRead ?? 0) * pct);
+    const cached = Math.round((session.tokensCacheRead ?? 0) * pct);
     const fmt = (n: number) => {
       if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
       if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
       return `${n}`;
     };
-    const parts: string[] = [];
-    if (inp > 0) parts.push(`${fmt(inp)} in`);
-    if (cached > 0) parts.push(`${fmt(cached)} cached`);
-    if (out > 0) parts.push(`${fmt(out)} out`);
-    return parts.join(" / ") || "—";
+    if (cached > 0) return `${fmt(cached)} cached`;
+    return "—";
   }, [messages, cursor, maxIndex, session.tokensCacheRead]);
 
   const tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] = [
     { id: "prompt", label: "Prompt", icon: <MessageSquare size={12} /> },
-    { id: "plan", label: "Plan", icon: <FileText size={12} /> },
     { id: "console", label: "Console", icon: <Terminal size={12} /> },
   ];
 
@@ -235,21 +207,12 @@ export function ConsolePane(props: ConsolePaneProps) {
           >
             {t.icon}
             {t.label}
-            {t.id === "plan" && plan?.markdown && (
-              <span className="size-1.5 rounded-full bg-amber-400 ml-1" />
-            )}
           </button>
         ))}
         <span className="ml-auto text-[11px] font-mono text-ov-text-secondary hidden sm:inline-flex items-center gap-2">
           <span className="tabular-nums">{tokenBreakdown}</span>
           <span className="opacity-50">•</span>
-          <span>
-            {active === "console"
-              ? `${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds`
-              : active === "plan"
-                ? (plan?.source ?? "")
-                : ""}
-          </span>
+          <span>{active === "console" ? `${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds` : ""}</span>
         </span>
       </div>
 
@@ -270,7 +233,6 @@ export function ConsolePane(props: ConsolePaneProps) {
               />
             </div>
           )}
-          {active === "plan" && <PlanTab plan={plan} loading={planLoading} />}
           {active === "console" && (
             <ConsoleStream messages={messages} cursor={cursor} maxIndex={maxIndex} />
           )}
