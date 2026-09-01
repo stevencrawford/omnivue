@@ -25,6 +25,7 @@ interface NotificationDrawerProps {
   messages: Message[];
   cursor: number;
   maxIndex: number;
+  selectedSpan?: { start: number; end: number } | null;
   onOpenModal?: (content: string, title?: string) => void;
   plan?: Plan | null;
   planLoading?: boolean;
@@ -117,6 +118,7 @@ export function NotificationDrawer({
   messages,
   cursor,
   maxIndex,
+  selectedSpan,
   onOpenModal,
   plan,
   planLoading,
@@ -139,13 +141,16 @@ export function NotificationDrawer({
     for (const msg of messages) {
       const isUser = msg.role === "user";
       const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
+      const msgStart = eventIdx;
       const msgEnd = eventIdx + msgEvents - 1;
-      const visible = msgEnd <= cursor || cursor >= maxIndex;
+      const visible = selectedSpan
+        ? msgEnd >= selectedSpan.start && msgStart < selectedSpan.end
+        : msgEnd <= cursor || cursor >= maxIndex;
       if (visible) out.push(msg);
       eventIdx += msgEvents;
     }
     return out;
-  }, [messages, cursor, maxIndex]);
+  }, [messages, cursor, maxIndex, selectedSpan]);
 
   const drawerItems = useMemo(() => {
     const items: Array<{ key: string; node: ReactNode }> = [];

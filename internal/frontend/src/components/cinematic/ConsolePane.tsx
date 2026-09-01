@@ -13,6 +13,7 @@ interface ConsolePaneProps {
   messages: Message[];
   cursor: number;
   maxIndex: number;
+  selectedSpan?: { start: number; end: number } | null;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -21,7 +22,8 @@ function ConsoleStream({
   messages,
   cursor,
   maxIndex,
-}: Pick<ConsolePaneProps, "messages" | "cursor" | "maxIndex">) {
+  selectedSpan,
+}: Pick<ConsolePaneProps, "messages" | "cursor" | "maxIndex" | "selectedSpan">) {
   const tools = useMemo(() => {
     const list: Array<{
       tool: NonNullable<Message["toolCalls"]>[number];
@@ -38,7 +40,10 @@ function ConsoleStream({
       if (toolsInMsg.length > 0) {
         for (const t of toolsInMsg) {
           const isShell = effectiveToolKind(t) === "bash" || effectiveToolKind(t) === "sql";
-          if (eventIdx <= cursor || cursor >= maxIndex) {
+          const visible = selectedSpan
+            ? eventIdx >= selectedSpan.start && eventIdx < selectedSpan.end
+            : eventIdx <= cursor || cursor >= maxIndex;
+          if (visible) {
             if (isShell) list.push({ tool: t, summary: getToolSummary(t, msg.agent), msg });
           }
           eventIdx++;
@@ -48,7 +53,7 @@ function ConsoleStream({
       }
     }
     return list;
-  }, [messages, cursor, maxIndex]);
+  }, [messages, cursor, maxIndex, selectedSpan]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -87,15 +92,15 @@ function ConsoleStream({
               <span className="text-[11px] font-mono text-ov-text-secondary hidden sm:inline tabular-nums">
                 {item.tool.duration ? `${item.tool.duration}ms` : ""}
               </span>
-              <CopyButton
-                text={command}
-                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-              />
               <span
                 className={`text-[10px] font-mono ${isCompleted ? "text-emerald-400/70" : "text-amber-400/70"}`}
               >
                 {item.tool.status}
               </span>
+              <CopyButton
+                text={command}
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              />
             </div>
             {output ? (
               <div className="ml-4 relative group/output">
@@ -117,7 +122,7 @@ function ConsoleStream({
 }
 
 export function ConsolePane(props: ConsolePaneProps) {
-  const { session, messages, cursor, maxIndex } = props;
+  const { session, messages, cursor, maxIndex, selectedSpan } = props;
   const isCollapsed = !!props.collapsed;
   const hideCosts = useHideCosts();
 
@@ -131,8 +136,11 @@ export function ConsolePane(props: ConsolePaneProps) {
     for (const m of messages) {
       const isUser = m.role === "user";
       const msgEvents = isUser ? 1 : m.toolCalls?.length ? m.toolCalls.length : 1;
+      const msgStart = eventIdx;
       const msgEnd = eventIdx + msgEvents - 1;
-      const visible = msgEnd <= cursor || cursor >= maxIndex;
+      const visible = selectedSpan
+        ? msgEnd >= selectedSpan.start && msgStart < selectedSpan.end
+        : msgEnd <= cursor || cursor >= maxIndex;
       const ti = m.tokensInput ?? 0;
       const to = m.tokensOutput ?? 0;
       if (visible) {
@@ -161,7 +169,20 @@ export function ConsolePane(props: ConsolePaneProps) {
       outTokens = session.tokensOutput ?? 0;
       cached = session.tokensCacheRead ?? 0;
       cost = session.cost ?? 0;
-      if (cursor < maxIndex && maxIndex > 0) {
+      if (selectedSpan) {
+        if (maxIndex > 0 && selectedSpan.end > selectedSpan.start) {
+          const pct = (selectedSpan.end - selectedSpan.start) / (maxIndex + 1);
+          inTokens = Math.round(inTokens * pct);
+          outTokens = Math.round(outTokens * pct);
+          cached = Math.round(cached * pct);
+          cost *= pct;
+        } else {
+          inTokens = 0;
+          outTokens = 0;
+          cached = 0;
+          cost = 0;
+        }
+      } else if (cursor < maxIndex && maxIndex > 0) {
         const pct = (cursor + 1) / (maxIndex + 1);
         inTokens = Math.round(inTokens * pct);
         outTokens = Math.round(outTokens * pct);
@@ -174,6 +195,7 @@ export function ConsolePane(props: ConsolePaneProps) {
     messages,
     cursor,
     maxIndex,
+    selectedSpan,
     session.tokensCacheRead,
     session.tokensInput,
     session.tokensOutput,
@@ -251,7 +273,14 @@ export function ConsolePane(props: ConsolePaneProps) {
         </span>
       </div>
 
-      {!isCollapsed && <ConsoleStream messages={messages} cursor={cursor} maxIndex={maxIndex} />}
+      {!isCollapsed && (
+        <ConsoleStream
+          messages={messages}
+          cursor={cursor}
+          maxIndex={maxIndex}
+          selectedSpan={selectedSpan}
+        />
+      )}
     </div>
   );
 }
