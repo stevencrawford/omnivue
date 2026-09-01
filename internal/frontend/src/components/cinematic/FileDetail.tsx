@@ -81,11 +81,13 @@ export function FileDetail({
 }: FileDetailProps) {
   if (!access && !mergedDiff) {
     return (
-      <EmptyPanel
-        icon={<File size={20} />}
-        title="Select a file to view its content"
-        hint="Reads and edits from the timeline appear in the file tree."
-      />
+      <div className="flex-1 flex items-center justify-center p-4">
+        <EmptyPanel
+          icon={<File size={20} />}
+          title="Select a file to view its content"
+          hint="Reads and edits from the timeline appear in the file tree."
+        />
+      </div>
     );
   }
 
@@ -138,7 +140,9 @@ export function FileDetail({
           fileName={mergedDiff.path.split("/").pop() || mergedDiff.path}
           fullPath={fullPath}
         />
-        <EmptyPanel icon={<File size={20} />} title="Patch content not available for this file" />
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyPanel icon={<File size={20} />} title="Patch content not available for this file" />
+        </div>
       </div>
     );
   }
@@ -195,7 +199,9 @@ export function FileDetail({
           ) : undefined
         }
       />
-      <EmptyPanel icon={<File size={20} />} title="No diff content available yet" />
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyPanel icon={<File size={20} />} title="No diff content available yet" />
+      </div>
     </div>
   );
 }
