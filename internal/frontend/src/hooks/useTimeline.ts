@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Message } from "./types";
 
 export interface TimelineEvent {
@@ -83,11 +83,11 @@ export function useTimeline({ messages, isActive }: UseTimelineOptions) {
   const maxIndex = events.length > 0 ? events.length - 1 : 0;
   const [cursor, setCursor] = useState<number>(() => maxIndex);
   const [playing, setPlaying] = useState(false);
-  const [speed] = useState(1);
+  const [speed, setSpeed] = useState<number>(1);
   const isScrubbingRef = useRef(false);
   const wasAtLiveRef = useRef(true);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const newMax = events.length > 0 ? events.length - 1 : 0;
     if (wasAtLiveRef.current || !isScrubbingRef.current) {
       setCursor(newMax);
@@ -97,7 +97,7 @@ export function useTimeline({ messages, isActive }: UseTimelineOptions) {
     if (events.length === 0) wasAtLiveRef.current = true;
   }, [events.length]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     wasAtLiveRef.current = cursor >= maxIndex;
   }, [cursor, maxIndex]);
 
@@ -118,7 +118,7 @@ export function useTimeline({ messages, isActive }: UseTimelineOptions) {
     return () => clearInterval(id);
   }, [playing, maxIndex, speed, events.length, isActive]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isActive || !wasAtLiveRef.current || isScrubbingRef.current || playing) return;
     if (cursor !== maxIndex) setCursor(maxIndex);
   }, [maxIndex, isActive, cursor, playing]);
@@ -157,6 +157,7 @@ export function useTimeline({ messages, isActive }: UseTimelineOptions) {
     playing,
     setPlaying,
     speed,
+    setSpeed,
     atLive,
     behind,
     goLive,
