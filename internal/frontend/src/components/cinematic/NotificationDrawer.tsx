@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   MessageSquare,
   Brain,
@@ -7,14 +7,18 @@ import {
   FileText,
   Maximize2,
   Activity,
+  PanelRightClose,
 } from "lucide-react";
-import type { Message, Plan } from "../../hooks/types";
+import type { Message, Plan, Session } from "../../hooks/types";
 import { effectiveToolKind } from "../../utils/toolDisplay";
 import { MarkdownContent } from "../ui/MarkdownContent";
-import type { Session } from "../../hooks/types";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { toolRendererRegistry } from "../tool-renderers/registry";
 import { PinnedPromptBar } from "../PinnedPromptBar";
+import { LoadingState } from "../ui/LoadingState";
+import { EmptyPanel } from "../ui/EmptyPanel";
+
+export type ActivityTab = "activity" | "prompt" | "plan";
 
 interface NotificationDrawerProps {
   session: Session;
@@ -81,7 +85,32 @@ function ThinkingBlock({
   );
 }
 
-type ActivityTab = "activity" | "prompt" | "plan";
+function ActivityTabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${
+        active
+          ? "border-accent text-ov-text bg-ov-bg"
+          : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
 
 export function NotificationDrawer({
   session,
@@ -100,7 +129,6 @@ export function NotificationDrawer({
   onTabChange,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const planScrollRef = useRef<HTMLDivElement>(null);
   const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = onTabChange ?? setInternalTab;
@@ -120,7 +148,7 @@ export function NotificationDrawer({
   }, [messages, cursor, maxIndex]);
 
   const drawerItems = useMemo(() => {
-    const items: Array<{ key: string; node: React.ReactNode }> = [];
+    const items: Array<{ key: string; node: ReactNode }> = [];
     const reasoningMap = new Map<string, { reasoning: string; durationMs?: number }>();
     let pendingReasoning: string | null = null;
     let pendingKey: string | null = null;
@@ -242,9 +270,7 @@ export function NotificationDrawer({
           node: <ToolRendererWrapper renderer={renderer} tool={tool} variant="detail" />,
         });
       }
-      if (msg.content?.trim() || hasVisibleTool) {
-        // already flushed
-      } else if (!msg.reasoning) {
+      if (!(msg.content?.trim() || hasVisibleTool) && !msg.reasoning) {
         flushReasoning();
       }
     }
@@ -274,106 +300,98 @@ export function NotificationDrawer({
   }, [visibleMessages, session.status, onOpenModal]);
 
   useEffect(() => {
+    if (activeTab !== "activity") return;
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [drawerItems, cursor, maxIndex, activeTab]);
 
-  useEffect(() => {
-    if (activeTab === "plan" && planScrollRef.current) {
-      planScrollRef.current.scrollTop = 0;
-    }
-  }, [activeTab, plan?.markdown]);
-
   const planContent = plan?.markdown ?? "";
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg">
-      <div
-        className={`flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0 ${onToggleCollapse ? "cursor-pointer" : ""}`}
-        onClick={() => onToggleCollapse?.()}
-        role={onToggleCollapse ? "button" : undefined}
-        title={onToggleCollapse ? "Collapse activity" : undefined}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTab("prompt");
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "prompt" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-        >
-          <MessageSquare size={12} /> Prompt
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTab("activity");
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "activity" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-        >
-          <Activity size={12} /> Activity
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTab("plan");
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "plan" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-        >
-          <FileText size={12} /> Plan
-        </button>
+      <div className="flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0">
+        <ActivityTabButton
+          active={activeTab === "prompt"}
+          onClick={() => setActiveTab("prompt")}
+          icon={<MessageSquare size={12} />}
+          label="Prompt"
+        />
+        <ActivityTabButton
+          active={activeTab === "activity"}
+          onClick={() => setActiveTab("activity")}
+          icon={<Activity size={12} />}
+          label="Activity"
+        />
+        <ActivityTabButton
+          active={activeTab === "plan"}
+          onClick={() => setActiveTab("plan")}
+          icon={<FileText size={12} />}
+          label="Plan"
+        />
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="ml-auto mr-1 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            title="Collapse activity panel"
+            aria-label="Collapse activity panel"
+          >
+            <PanelRightClose size={14} />
+          </button>
+        )}
       </div>
 
-      {activeTab === "activity" ? (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
+      <div className={`flex-1 min-h-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}>
+        <div ref={scrollRef} className="h-full overflow-y-auto p-2 space-y-2">
           {drawerItems.length === 0 ? (
-            <div className="text-xs text-ov-text-secondary text-center py-6">
-              Assistant activity appears here
-            </div>
+            <EmptyPanel
+              icon={<Activity size={20} />}
+              title="Assistant activity appears here"
+              hint="Scrub the timeline to reveal messages and tool calls."
+            />
           ) : (
             drawerItems.map((it) => <div key={it.key}>{it.node}</div>)
           )}
         </div>
-      ) : activeTab === "prompt" ? (
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          <PinnedPromptBar
-            session={session}
-            firstMessage={firstMessage ?? null}
-            onOpenModal={onOpenModal}
-            onQueueChanged={onQueueChanged}
-            highlightPromptId={highlightPromptId}
-            onHighlightDone={onHighlightDone}
-            defaultExpanded
-            hideHeader
-            fillHeight
-          />
-        </div>
-      ) : (
-        <div ref={planScrollRef} className="flex-1 overflow-y-auto p-4 min-h-0">
-          {planLoading ? (
-            <div className="text-xs text-ov-text-secondary">Loading plan…</div>
-          ) : planContent ? (
-            <div className="relative group">
-              <MarkdownContent content={planContent} className="markdown-body--wide text-xs" />
-              {onOpenModal && (
-                <button
-                  type="button"
-                  onClick={() => onOpenModal(planContent, "Plan")}
-                  className="absolute top-0 right-0 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent hover:border-ov-border bg-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Expand plan"
-                >
-                  <Maximize2 size={12} />
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="text-xs text-ov-text-secondary">No plan for this session yet.</div>
-          )}
-        </div>
-      )}
+      </div>
+
+      <div className={`flex-1 min-h-0 overflow-hidden ${activeTab !== "prompt" ? "hidden" : ""}`}>
+        <PinnedPromptBar
+          session={session}
+          firstMessage={firstMessage ?? null}
+          onOpenModal={onOpenModal}
+          onQueueChanged={onQueueChanged}
+          highlightPromptId={highlightPromptId}
+          onHighlightDone={onHighlightDone}
+          defaultExpanded
+          hideHeader
+          fillHeight
+        />
+      </div>
+
+      <div className={`flex-1 min-h-0 overflow-y-auto p-4 ${activeTab !== "plan" ? "hidden" : ""}`}>
+        {planLoading ? (
+          <LoadingState label="Loading plan…" className="h-32" />
+        ) : planContent ? (
+          <div className="relative group">
+            <MarkdownContent content={planContent} className="markdown-body--wide text-xs" />
+            {onOpenModal && (
+              <button
+                type="button"
+                onClick={() => onOpenModal(planContent, "Plan")}
+                className="absolute top-0 right-0 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent hover:border-ov-border bg-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Expand plan"
+                aria-label="Expand plan"
+              >
+                <Maximize2 size={12} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <EmptyPanel icon={<FileText size={20} />} title="No plan for this session yet" />
+        )}
+      </div>
     </div>
   );
 }
