@@ -14,7 +14,14 @@ import { deriveFileAccess } from "../../utils/fileAccess";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
-import { Check, Copy, PanelRightClose, PanelRightOpen } from "lucide-react";
+import {
+  Check,
+  Copy,
+  PanelRightClose,
+  PanelRightOpen,
+  PanelBottomClose,
+  PanelBottomOpen,
+} from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
@@ -111,6 +118,13 @@ export function CinematicSessionView({
       return false;
     }
   });
+  const [consoleCollapsed, setConsoleCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("omnivue-cinematic-console-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const { showErrorToast } = useToast();
 
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
@@ -124,7 +138,7 @@ export function CinematicSessionView({
     storageKey: STORAGE_KEYS.CINEMATIC_DRAWER_WIDTH,
     axis: "horizontal",
     min: 260,
-    max: 520,
+    max: 720,
     defaultValue: 360,
     invert: true,
   });
@@ -308,6 +322,18 @@ export function CinematicSessionView({
     });
   }, []);
 
+  const toggleConsole = useCallback(() => {
+    setConsoleCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("omnivue-cinematic-console-collapsed", String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
   const firstMessage = messages[0];
 
   useEffect(() => {
@@ -381,27 +407,59 @@ export function CinematicSessionView({
             />
           </div>
 
-          <div
-            className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative"
-            onMouseDown={startConsoleResize}
-          >
-            <div className="absolute inset-x-0 -top-1 -bottom-1" />
-          </div>
-          <div className="shrink-0 overflow-hidden flex flex-col" style={{ height: consoleHeight }}>
-            <ConsolePane
-              session={session}
-              messages={messages}
-              cursor={cursor}
-              maxIndex={maxIndex}
-              plan={plan}
-              planLoading={planLoading}
-              firstMessage={firstMessage}
-              onOpenModal={handleOpenModal}
-              onQueueChanged={onQueueChanged}
-              highlightPromptId={highlightPromptId}
-              onHighlightDone={onHighlightDone}
-            />
-          </div>
+          {consoleCollapsed ? (
+            <div className="h-8 shrink-0 border-t border-ov-border bg-surface-elevated flex items-center justify-between px-2">
+              <span className="text-[11px] font-semibold text-ov-text-secondary">
+                Console collapsed
+              </span>
+              <button
+                type="button"
+                onClick={toggleConsole}
+                className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
+                title="Expand console"
+              >
+                <PanelBottomOpen size={14} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div
+                className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative group"
+                onMouseDown={startConsoleResize}
+                onDoubleClick={toggleConsole}
+                title="Drag to resize, double-click to collapse"
+              >
+                <div className="absolute inset-x-0 -top-1 -bottom-1" />
+                <button
+                  type="button"
+                  onClick={toggleConsole}
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-5 flex items-center justify-center rounded bg-ov-bg border border-ov-border text-ov-text-secondary opacity-0 group-hover:opacity-100 hover:text-ov-text cursor-pointer transition-opacity"
+                  title="Collapse console"
+                >
+                  <PanelBottomClose size={10} />
+                </button>
+              </div>
+              <div
+                className="shrink-0 overflow-hidden flex flex-col"
+                style={{ height: consoleHeight }}
+              >
+                <ConsolePane
+                  session={session}
+                  messages={messages}
+                  cursor={cursor}
+                  maxIndex={maxIndex}
+                  plan={plan}
+                  planLoading={planLoading}
+                  firstMessage={firstMessage}
+                  onOpenModal={handleOpenModal}
+                  onQueueChanged={onQueueChanged}
+                  highlightPromptId={highlightPromptId}
+                  onHighlightDone={onHighlightDone}
+                  onCollapse={toggleConsole}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {drawerCollapsed ? (
