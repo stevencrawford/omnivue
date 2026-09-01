@@ -1,23 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Terminal, MessageSquare } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { Check, Copy, Terminal } from "lucide-react";
 import type { Message, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
-import { PinnedPromptBar } from "../PinnedPromptBar";
 import { extractJSONField } from "../../utils/jsonField";
 import { useCopy } from "../../hooks/useCopy";
-
-type ConsoleTab = "prompt" | "console";
 
 interface ConsolePaneProps {
   session: Session;
   messages: Message[];
   cursor: number;
   maxIndex: number;
-  firstMessage?: Message | null;
-  onOpenModal?: (content: string, title?: string) => void;
-  onQueueChanged?: () => void;
-  highlightPromptId?: string | null;
-  onHighlightDone?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -133,21 +125,10 @@ function ConsoleStream({
 }
 
 export function ConsolePane(props: ConsolePaneProps) {
-  const {
-    session,
-    messages,
-    cursor,
-    maxIndex,
-    firstMessage,
-    onOpenModal,
-    onQueueChanged,
-    highlightPromptId,
-    onHighlightDone,
-  } = props;
-  const [active, setActive] = useState<ConsoleTab>("prompt");
+  const { session, messages, cursor, maxIndex } = props;
+  const isCollapsed = !!props.collapsed;
 
   const tokenBreakdown = useMemo(() => {
-    // Only cached tokens per latest feedback
     let eventIdx = 0;
     let totalVisible = 0;
     for (const m of messages) {
@@ -171,13 +152,6 @@ export function ConsolePane(props: ConsolePaneProps) {
     return "—";
   }, [messages, cursor, maxIndex, session.tokensCacheRead]);
 
-  const tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] = [
-    { id: "prompt", label: "Prompt", icon: <MessageSquare size={12} /> },
-    { id: "console", label: "Console", icon: <Terminal size={12} /> },
-  ];
-
-  const isCollapsed = !!props.collapsed;
-
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg-secondary border-t border-ov-border">
       <div
@@ -194,50 +168,22 @@ export function ConsolePane(props: ConsolePaneProps) {
             : undefined
         }
       >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isCollapsed && props.onToggleCollapse) props.onToggleCollapse();
-              setActive(t.id);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${active === t.id ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 border-accent text-ov-text bg-ov-bg cursor-pointer"
+        >
+          <Terminal size={12} />
+          Console
+        </button>
         <span className="ml-auto text-[11px] font-mono text-ov-text-secondary hidden sm:inline-flex items-center gap-2">
           <span className="tabular-nums">{tokenBreakdown}</span>
           <span className="opacity-50">•</span>
-          <span>{active === "console" ? `${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds` : ""}</span>
+          <span>{`${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds`}</span>
         </span>
       </div>
 
-      {!isCollapsed && (
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {active === "prompt" && (
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <PinnedPromptBar
-                session={session}
-                firstMessage={firstMessage ?? null}
-                onOpenModal={onOpenModal}
-                onQueueChanged={onQueueChanged}
-                highlightPromptId={highlightPromptId}
-                onHighlightDone={onHighlightDone}
-                defaultExpanded
-                hideHeader
-                fillHeight
-              />
-            </div>
-          )}
-          {active === "console" && (
-            <ConsoleStream messages={messages} cursor={cursor} maxIndex={maxIndex} />
-          )}
-        </div>
-      )}
+      {!isCollapsed && <ConsoleStream messages={messages} cursor={cursor} maxIndex={maxIndex} />}
     </div>
   );
 }

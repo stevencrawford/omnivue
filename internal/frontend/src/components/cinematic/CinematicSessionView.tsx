@@ -14,7 +14,7 @@ import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
-import { Check, Copy, PanelRightOpen } from "lucide-react";
+import { Check, Copy, PanelRightOpen, Activity, MessageSquare, FileText } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
@@ -117,6 +117,16 @@ export function CinematicSessionView({
     } catch {
       return false;
     }
+  });
+  const [activityTab, setActivityTab] = useState<"activity" | "prompt" | "plan">(() => {
+    try {
+      const v = localStorage.getItem("omnivue-cinematic-activity-tab");
+      if (v === "activity" || v === "prompt" || v === "plan")
+        return v as "activity" | "prompt" | "plan";
+    } catch {
+      /* ignore */
+    }
+    return "activity";
   });
   const { showErrorToast } = useToast();
 
@@ -356,6 +366,30 @@ export function CinematicSessionView({
     });
   }, []);
 
+  const handleActivityTabChange = useCallback((tab: "activity" | "prompt" | "plan") => {
+    setActivityTab(tab);
+    try {
+      localStorage.setItem("omnivue-cinematic-activity-tab", tab);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleCollapsedActivitySelect = useCallback(
+    (tab: "activity" | "prompt" | "plan") => {
+      handleActivityTabChange(tab);
+      if (drawerCollapsed) {
+        setDrawerCollapsed(false);
+        try {
+          localStorage.setItem("omnivue-cinematic-drawer-collapsed", "false");
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [drawerCollapsed, handleActivityTabChange],
+  );
+
   const firstMessage = messages[0];
 
   useEffect(() => {
@@ -450,11 +484,6 @@ export function CinematicSessionView({
               messages={messages}
               cursor={cursor}
               maxIndex={maxIndex}
-              firstMessage={firstMessage}
-              onOpenModal={handleOpenModal}
-              onQueueChanged={onQueueChanged}
-              highlightPromptId={highlightPromptId}
-              onHighlightDone={onHighlightDone}
               collapsed={consoleCollapsed}
               onToggleCollapse={toggleConsole}
             />
@@ -462,20 +491,37 @@ export function CinematicSessionView({
         </div>
 
         {drawerCollapsed ? (
-          <div
-            className="w-8 shrink-0 border-l border-ov-border bg-ov-bg flex flex-col items-center py-2 cursor-pointer hover:bg-ov-bg-hover"
-            onClick={toggleDrawer}
-            role="button"
-            title="Expand notifications"
-          >
+          <div className="w-8 shrink-0 border-l border-ov-border bg-ov-bg flex flex-col items-center py-1 gap-1">
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleDrawer();
-              }}
+              onClick={() => handleCollapsedActivitySelect("activity")}
+              className={`size-7 flex items-center justify-center rounded cursor-pointer transition-colors ${activityTab === "activity" ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+              title="Activity"
+            >
+              <Activity size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCollapsedActivitySelect("prompt")}
+              className={`size-7 flex items-center justify-center rounded cursor-pointer transition-colors ${activityTab === "prompt" ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+              title="Prompt"
+            >
+              <MessageSquare size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCollapsedActivitySelect("plan")}
+              className={`size-7 flex items-center justify-center rounded cursor-pointer transition-colors ${activityTab === "plan" ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+              title="Plan"
+            >
+              <FileText size={14} />
+            </button>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={toggleDrawer}
               className="size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
-              title="Expand notifications"
+              title="Expand"
             >
               <PanelRightOpen size={14} />
             </button>
@@ -501,6 +547,12 @@ export function CinematicSessionView({
                 plan={plan}
                 planLoading={planLoading}
                 onToggleCollapse={toggleDrawer}
+                activeTab={activityTab}
+                onTabChange={handleActivityTabChange}
+                firstMessage={firstMessage}
+                onQueueChanged={onQueueChanged}
+                highlightPromptId={highlightPromptId}
+                onHighlightDone={onHighlightDone}
               />
             </div>
           </>

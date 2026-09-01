@@ -6,6 +6,7 @@ import {
   User as UserIcon,
   FileText,
   Maximize2,
+  Activity,
 } from "lucide-react";
 import type { Message, Plan } from "../../hooks/types";
 import { effectiveToolKind } from "../../utils/toolDisplay";
@@ -13,6 +14,7 @@ import { MarkdownContent } from "../ui/MarkdownContent";
 import type { Session } from "../../hooks/types";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { toolRendererRegistry } from "../tool-renderers/registry";
+import { PinnedPromptBar } from "../PinnedPromptBar";
 
 interface NotificationDrawerProps {
   session: Session;
@@ -23,6 +25,12 @@ interface NotificationDrawerProps {
   plan?: Plan | null;
   planLoading?: boolean;
   onToggleCollapse?: () => void;
+  firstMessage?: Message | null;
+  onQueueChanged?: () => void;
+  highlightPromptId?: string | null;
+  onHighlightDone?: () => void;
+  activeTab?: ActivityTab;
+  onTabChange?: (tab: ActivityTab) => void;
 }
 
 function formatDuration(ms: number): string {
@@ -73,7 +81,7 @@ function ThinkingBlock({
   );
 }
 
-type ActivityTab = "activity" | "plan";
+type ActivityTab = "activity" | "prompt" | "plan";
 
 export function NotificationDrawer({
   session,
@@ -84,9 +92,18 @@ export function NotificationDrawer({
   plan,
   planLoading,
   onToggleCollapse,
+  firstMessage,
+  onQueueChanged,
+  highlightPromptId,
+  onHighlightDone,
+  activeTab: controlledTab,
+  onTabChange,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<ActivityTab>("activity");
+  const planScrollRef = useRef<HTMLDivElement>(null);
+  const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
+  const activeTab = controlledTab ?? internalTab;
+  const setActiveTab = onTabChange ?? setInternalTab;
 
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
@@ -262,6 +279,12 @@ export function NotificationDrawer({
     el.scrollTop = el.scrollHeight;
   }, [drawerItems, cursor, maxIndex, activeTab]);
 
+  useEffect(() => {
+    if (activeTab === "plan" && planScrollRef.current) {
+      planScrollRef.current.scrollTop = 0;
+    }
+  }, [activeTab, plan?.markdown]);
+
   const planContent = plan?.markdown ?? "";
 
   return (
@@ -278,9 +301,19 @@ export function NotificationDrawer({
             e.stopPropagation();
             setActiveTab("activity");
           }}
-          className={`px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer ${activeTab === "activity" ? "border-accent text-ov-text" : "border-transparent text-ov-text-secondary hover:text-ov-text"}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "activity" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
         >
-          Activity
+          <Activity size={12} /> Activity
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("prompt");
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "prompt" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+        >
+          <MessageSquare size={12} /> Prompt
         </button>
         <button
           type="button"
@@ -288,7 +321,7 @@ export function NotificationDrawer({
             e.stopPropagation();
             setActiveTab("plan");
           }}
-          className={`px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer flex items-center gap-1 ${activeTab === "plan" ? "border-accent text-ov-text" : "border-transparent text-ov-text-secondary hover:text-ov-text"}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "plan" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
         >
           <FileText size={12} /> Plan
           {plan?.markdown && <span className="size-1.5 rounded-full bg-amber-400 ml-1" />}
@@ -305,8 +338,22 @@ export function NotificationDrawer({
             drawerItems.map((it) => <div key={it.key}>{it.node}</div>)
           )}
         </div>
+      ) : activeTab === "prompt" ? (
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <PinnedPromptBar
+            session={session}
+            firstMessage={firstMessage ?? null}
+            onOpenModal={onOpenModal}
+            onQueueChanged={onQueueChanged}
+            highlightPromptId={highlightPromptId}
+            onHighlightDone={onHighlightDone}
+            defaultExpanded
+            hideHeader
+            fillHeight
+          />
+        </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+        <div ref={planScrollRef} className="flex-1 overflow-y-auto p-4 min-h-0">
           {planLoading ? (
             <div className="text-xs text-ov-text-secondary">Loading plan…</div>
           ) : planContent ? (
