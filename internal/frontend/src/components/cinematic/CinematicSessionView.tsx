@@ -76,6 +76,7 @@ export function CinematicSessionView({
     if (v === "activity" || v === "prompt" || v === "plan") return v;
     return "activity";
   });
+  const [selectedSpan, setSelectedSpan] = useState<{ start: number; end: number } | null>(null);
   const { showErrorToast } = useToast();
 
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
@@ -106,25 +107,28 @@ export function CinematicSessionView({
     controller: null,
   });
 
-  const loadMessages = useCallback(async () => {
-    const id = loadRef.current.id + 1;
-    loadRef.current.controller?.abort();
-    const controller = new AbortController();
-    loadRef.current = { id, controller };
-    setLoading(true);
-    try {
-      const data = await fetchMessages(session.id, controller.signal);
-      if (loadRef.current.id !== id) return;
-      setMessages((prev) => reconcileMessages(prev, data || []));
-    } catch (err: unknown) {
-      if (isAbortError(err)) return;
-      if (loadRef.current.id !== id) return;
-      showErrorToast(err, "Failed to load messages");
-      setMessages([]);
-    } finally {
-      if (loadRef.current.id === id) setLoading(false);
-    }
-  }, [session.id, showErrorToast]);
+  const loadMessages = useCallback(
+    async (background = false) => {
+      const id = loadRef.current.id + 1;
+      loadRef.current.controller?.abort();
+      const controller = new AbortController();
+      loadRef.current = { id, controller };
+      if (!background) setLoading(true);
+      try {
+        const data = await fetchMessages(session.id, controller.signal);
+        if (loadRef.current.id !== id) return;
+        setMessages((prev) => reconcileMessages(prev, data || []));
+      } catch (err: unknown) {
+        if (isAbortError(err)) return;
+        if (loadRef.current.id !== id) return;
+        showErrorToast(err, "Failed to load messages");
+        setMessages([]);
+      } finally {
+        if (!background && loadRef.current.id === id) setLoading(false);
+      }
+    },
+    [session.id, showErrorToast],
+  );
 
   const loadPlan = useCallback(async () => {
     setPlanLoading(true);
@@ -164,7 +168,7 @@ export function CinematicSessionView({
     if (messages.length === 0 && loading) return;
     const handle = setTimeout(() => {
       ackSessionChange?.(session.id);
-      loadMessages();
+      loadMessages(true);
       loadPlan();
       loadEdits();
     }, 300);
@@ -207,7 +211,7 @@ export function CinematicSessionView({
     if (messages.length === 0 && loading) return;
     if (liveChangedIds.has(session.id)) return; // already scheduled via SSE
     const handle = setTimeout(() => {
-      loadMessages();
+      loadMessages(true);
       loadPlan();
       loadEdits();
     }, 300);
@@ -231,7 +235,7 @@ export function CinematicSessionView({
   useEffect(() => {
     if (!isActive) return;
     const iv = setInterval(() => {
-      loadMessages();
+      loadMessages(true);
       loadPlan();
       loadEdits();
     }, 5000);
@@ -244,16 +248,70 @@ export function CinematicSessionView({
     events,
     playing,
     setPlaying,
-    setCursor,
+    speed,
+    setSpeed,
+    setCursor: setCursorRaw,
     endScrub,
     atLive,
     behind,
-    goLive,
-    step,
+    goLive: goLiveRaw,
+    step: stepRaw,
   } = useTimeline({
     messages,
     isActive,
   });
+
+  // selectedSpan isolates the view to a turn between two user prompts.
+  // Any scrub/play/live navigation should clear the isolation so the
+  // prefix-time filter (cursor) resumes.
+  const setCursor = useCallback(
+    (next: number) => {
+      setSelectedSpan(null);
+      setCursorRaw(next);
+    },
+    [setCursorRaw],
+  );
+
+  const goLive = useCallback(() => {
+    setSelectedSpan(null);
+    goLiveRaw();
+  }, [goLiveRaw]);
+
+  const step = useCallback(
+    (delta: number) => {
+      setSelectedSpan(null);
+      stepRaw(delta);
+    },
+    [stepRaw],
+  );
+
+  const handleSpanSelect = useCallback((start: number, end: number) => {
+    setSelectedSpan((prev) =>
+      prev && prev.start === start && prev.end === end ? null : { start, end },
+    );
+  }, []);
+
+  const handleClearSpan = useCallback(() => setSelectedSpan(null), []);
+
+  // keep span valid when the event list changes (e.g. live growth or session switch)
+  useEffect(() => {
+    if (!selectedSpan) return;
+    if (events.length === 0 || selectedSpan.start > maxIndex || selectedSpan.end > events.length) {
+      setSelectedSpan(null);
+      return;
+    }
+    const hasStart = events.some(
+      (e) => e.index === selectedSpan.start && e.kind === "user-request",
+    );
+    const isTrailing = selectedSpan.end === events.length;
+    const hasEnd =
+      isTrailing || events.some((e) => e.index === selectedSpan.end && e.kind === "user-request");
+    if (!hasStart || !hasEnd) setSelectedSpan(null);
+  }, [events, maxIndex, selectedSpan]);
+
+  useEffect(() => {
+    setSelectedSpan(null);
+  }, [session.id]);
 
   const fileAccessAll = useMemo(() => {
     const accesses = deriveFileAccess(messages);
@@ -286,6 +344,7 @@ export function CinematicSessionView({
 
   const handleJumpToMessage = useCallback(
     (messageIndex: number, messageId?: string) => {
+      setSelectedSpan(null);
       let idx = -1;
       if (messageId) {
         idx = events.findIndex((e) => e.messageId === messageId);
@@ -293,7 +352,7 @@ export function CinematicSessionView({
       if (idx === -1 && messageIndex >= 0) {
         idx = events.findIndex((e) => e.messageIndex === messageIndex);
       }
-      if (idx >= 0) setCursor(idx);
+      if (idx >= 0) setCursorRaw(idx);
       else if (messageIndex >= 0) {
         // fallback to tool id mapping via messageIndex if not found in events
         // find first tool with that messageIndex
@@ -302,27 +361,53 @@ export function CinematicSessionView({
             (fa) => fa.tool.id === toolId && fa.messageIndex === messageIndex,
           );
           if (acc) {
-            setCursor(eventIdx);
+            setCursorRaw(eventIdx);
             break;
           }
         }
       }
     },
-    [events, setCursor, eventIndexByToolId, fileAccessAll],
+    [events, setCursorRaw, eventIndexByToolId, fileAccessAll],
   );
 
   const visibleAccess = useMemo(() => {
+    if (selectedSpan) {
+      return fileAccessAll.filter((fa) => {
+        const eIdx = eventIndexByToolId.get(fa.tool.id);
+        if (eIdx === undefined) return true;
+        return eIdx >= selectedSpan.start && eIdx < selectedSpan.end;
+      });
+    }
     if (events.length === 0 || cursor >= maxIndex) return fileAccessAll;
     return fileAccessAll.filter((fa) => {
       const eIdx = eventIndexByToolId.get(fa.tool.id);
       if (eIdx === undefined) return true;
       return eIdx <= cursor;
     });
-  }, [fileAccessAll, events.length, cursor, maxIndex, eventIndexByToolId]);
+  }, [fileAccessAll, events.length, cursor, maxIndex, eventIndexByToolId, selectedSpan]);
 
   const visibleEdits = useMemo(() => {
     if (edits.length === 0) return [];
     if (events.length === 0) return edits;
+    if (selectedSpan) {
+      const visibility = new Map<number, boolean>();
+      let eventIdx = 0;
+      for (let mi = 0; mi < messages.length; mi++) {
+        const msg = messages[mi];
+        const isUser = msg.role === "user";
+        const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
+        const msgStart = eventIdx;
+        const msgEnd = eventIdx + msgEvents - 1;
+        const visible = msgEnd >= selectedSpan.start && msgStart < selectedSpan.end;
+        visibility.set(mi, visible);
+        eventIdx += msgEvents;
+      }
+      return edits.filter((e) => {
+        const mi = e.messageIndex;
+        if (mi === undefined || mi < 0) return true;
+        return visibility.get(mi) ?? true;
+      });
+    }
     if (cursor >= maxIndex) return edits;
     const visibility = new Map<number, boolean>();
     let eventIdx = 0;
@@ -340,7 +425,7 @@ export function CinematicSessionView({
       if (mi === undefined || mi < 0) return true;
       return visibility.get(mi) ?? true;
     });
-  }, [edits, messages, cursor, maxIndex, events.length]);
+  }, [edits, messages, cursor, maxIndex, events.length, selectedSpan]);
 
   const mergedDiffs = useMemo(() => {
     const grouped = new Map<string, FileEdit[]>();
@@ -436,6 +521,83 @@ export function CinematicSessionView({
     return Array.from(fileMap.values());
   }, [visibleAccess, mergedDiffs, session.directory]);
 
+  const fileTokenTotals = useMemo(() => {
+    const totals = new Map<string, { in: number; out: number }>();
+    const fileToIndices = new Map<string, Set<number>>();
+    const add = (filePath: string, mi: number) => {
+      if (mi < 0 || mi >= messages.length) return;
+      let set = fileToIndices.get(filePath);
+      if (!set) {
+        set = new Set<number>();
+        fileToIndices.set(filePath, set);
+      }
+      set.add(mi);
+    };
+    for (const acc of visibleAccess) {
+      add(acc.filePath, acc.messageIndex);
+    }
+    for (const diff of mergedDiffs) {
+      for (const hunk of diff.hunks) {
+        const mi = hunk.messageIndex;
+        if (mi != null && mi >= 0) add(diff.path, mi);
+      }
+    }
+    // primary: sum per-message tokens per file (accumulates when touched >1)
+    let hasPerMessageTokens = false;
+    for (const [filePath, set] of fileToIndices) {
+      let inSum = 0;
+      let outSum = 0;
+      for (const mi of set) {
+        const msg = messages[mi];
+        if (!msg) continue;
+        inSum += msg.tokensInput ?? 0;
+        outSum += msg.tokensOutput ?? 0;
+      }
+      if (inSum !== 0 || outSum !== 0) hasPerMessageTokens = true;
+      if (inSum !== 0 || outSum !== 0) totals.set(filePath, { in: inSum, out: outSum });
+    }
+    // fallback: per-message tokens are all zero (common for some adapters) → distribute session totals
+    if (!hasPerMessageTokens && fileToIndices.size > 0) {
+      const distinct = new Set<number>();
+      for (const set of fileToIndices.values()) for (const mi of set) distinct.add(mi);
+      const totalDistinct = distinct.size;
+      if (totalDistinct > 0 && (session.tokensInput > 0 || session.tokensOutput > 0)) {
+        let visiblePct = 1;
+        if (selectedSpan && events.length > 0) {
+          visiblePct = (selectedSpan.end - selectedSpan.start) / events.length;
+        } else if (cursor < maxIndex && maxIndex > 0) {
+          visiblePct = (cursor + 1) / (maxIndex + 1);
+        } else if (events.length === 0) {
+          visiblePct = 1;
+        }
+        // when showing all (atLive) visiblePct stays 1
+        const totalInVisible = Math.round(session.tokensInput * visiblePct);
+        const totalOutVisible = Math.round(session.tokensOutput * visiblePct);
+        for (const [filePath, set] of fileToIndices) {
+          const share = set.size / totalDistinct;
+          const inShare = Math.round(totalInVisible * share);
+          const outShare = Math.round(totalOutVisible * share);
+          if (inShare !== 0 || outShare !== 0) totals.set(filePath, { in: inShare, out: outShare });
+        }
+        // if still empty due to rounding (very small), ensure at least one file gets a minimal display
+        if (totals.size === 0 && totalInVisible === 0 && totalOutVisible === 0) {
+          // keep empty — nothing to show
+        }
+      }
+    }
+    return totals;
+  }, [
+    visibleAccess,
+    mergedDiffs,
+    messages,
+    session.tokensInput,
+    session.tokensOutput,
+    selectedSpan,
+    cursor,
+    maxIndex,
+    events.length,
+  ]);
+
   const selectedAccess = useMemo(() => {
     if (!selectedPath) return null;
     const normSelected = selectedPath.replace(/^\/+/, "");
@@ -526,12 +688,16 @@ export function CinematicSessionView({
       } else if (e.key === " ") {
         if (target.tagName === "BUTTON") return;
         e.preventDefault();
+        if (selectedSpan) setSelectedSpan(null);
         setPlaying((p) => !p);
+      } else if (e.key === "Escape" && selectedSpan) {
+        e.preventDefault();
+        setSelectedSpan(null);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [step, setPlaying]);
+  }, [step, setPlaying, selectedSpan]);
 
   return (
     <div className="flex flex-col h-full">
@@ -548,14 +714,22 @@ export function CinematicSessionView({
         cursor={cursor}
         maxIndex={maxIndex}
         playing={playing}
+        speed={speed}
+        onSpeedChange={setSpeed}
         onCursorChange={setCursor}
         onEndScrub={endScrub}
-        onTogglePlay={() => setPlaying((p) => !p)}
+        onTogglePlay={() => {
+          if (selectedSpan) setSelectedSpan(null);
+          setPlaying((p) => !p);
+        }}
         onStep={step}
         onGoLive={goLive}
         atLive={atLive}
         behind={behind}
         isActive={isActive}
+        selectedSpan={selectedSpan}
+        onSpanSelect={handleSpanSelect}
+        onClearSpan={handleClearSpan}
       />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
@@ -573,6 +747,7 @@ export function CinematicSessionView({
                     accesses={treeAccesses}
                     selectedPath={selectedPath}
                     onSelect={setSelectedPath}
+                    tokenTotals={fileTokenTotals}
                   />
                 </div>
                 <div
@@ -608,6 +783,7 @@ export function CinematicSessionView({
                   messages={messages}
                   cursor={cursor}
                   maxIndex={maxIndex}
+                  selectedSpan={selectedSpan}
                   collapsed={consoleCollapsed}
                   onToggleCollapse={toggleConsole}
                 />
@@ -680,6 +856,7 @@ export function CinematicSessionView({
                     messages={messages}
                     cursor={cursor}
                     maxIndex={maxIndex}
+                    selectedSpan={selectedSpan}
                     session={session}
                     onOpenModal={handleOpenModal}
                     plan={plan}
