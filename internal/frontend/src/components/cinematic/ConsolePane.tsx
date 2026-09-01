@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Terminal, MessageSquare, FileText, PanelBottomClose } from "lucide-react";
+import { Check, Copy, Terminal, MessageSquare, FileText } from "lucide-react";
 import type { Message, Plan, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { PinnedPromptBar } from "../PinnedPromptBar";
@@ -21,7 +21,8 @@ interface ConsolePaneProps {
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
-  onCollapse?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 function ConsoleCopyButton({ text, title }: { text: string; title?: string }) {
@@ -203,14 +204,33 @@ export function ConsolePane(props: ConsolePaneProps) {
     { id: "console", label: "Console", icon: <Terminal size={12} /> },
   ];
 
+  const isCollapsed = !!props.collapsed;
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg-secondary border-t border-ov-border">
-      <div className="flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0">
+      <div
+        className={`flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0 ${props.onToggleCollapse ? "cursor-pointer" : ""}`}
+        onClick={() => {
+          if (props.onToggleCollapse) props.onToggleCollapse();
+        }}
+        role={props.onToggleCollapse ? "button" : undefined}
+        title={
+          props.onToggleCollapse
+            ? isCollapsed
+              ? "Click to expand console"
+              : "Click to collapse console"
+            : undefined
+        }
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
-            onClick={() => setActive(t.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isCollapsed && props.onToggleCollapse) props.onToggleCollapse();
+              setActive(t.id);
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${active === t.id ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
           >
             {t.icon}
@@ -231,39 +251,31 @@ export function ConsolePane(props: ConsolePaneProps) {
                 : ""}
           </span>
         </span>
-        {props.onCollapse && (
-          <button
-            type="button"
-            onClick={props.onCollapse}
-            className="ml-2 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer shrink-0"
-            title="Collapse console"
-          >
-            <PanelBottomClose size={14} />
-          </button>
-        )}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {active === "prompt" && (
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <PinnedPromptBar
-              session={session}
-              firstMessage={firstMessage ?? null}
-              onOpenModal={onOpenModal}
-              onQueueChanged={onQueueChanged}
-              highlightPromptId={highlightPromptId}
-              onHighlightDone={onHighlightDone}
-              defaultExpanded
-              hideHeader
-              fillHeight
-            />
-          </div>
-        )}
-        {active === "plan" && <PlanTab plan={plan} loading={planLoading} />}
-        {active === "console" && (
-          <ConsoleStream messages={messages} cursor={cursor} maxIndex={maxIndex} />
-        )}
-      </div>
+      {!isCollapsed && (
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {active === "prompt" && (
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <PinnedPromptBar
+                session={session}
+                firstMessage={firstMessage ?? null}
+                onOpenModal={onOpenModal}
+                onQueueChanged={onQueueChanged}
+                highlightPromptId={highlightPromptId}
+                onHighlightDone={onHighlightDone}
+                defaultExpanded
+                hideHeader
+                fillHeight
+              />
+            </div>
+          )}
+          {active === "plan" && <PlanTab plan={plan} loading={planLoading} />}
+          {active === "console" && (
+            <ConsoleStream messages={messages} cursor={cursor} maxIndex={maxIndex} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

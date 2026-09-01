@@ -14,14 +14,7 @@ import { deriveFileAccess } from "../../utils/fileAccess";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
-import {
-  Check,
-  Copy,
-  PanelRightClose,
-  PanelRightOpen,
-  PanelBottomClose,
-  PanelBottomOpen,
-} from "lucide-react";
+import { Check, Copy, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
@@ -407,66 +400,52 @@ export function CinematicSessionView({
             />
           </div>
 
-          {consoleCollapsed ? (
-            <div className="h-8 shrink-0 border-t border-ov-border bg-surface-elevated flex items-center justify-between px-2">
-              <span className="text-[11px] font-semibold text-ov-text-secondary">
-                Console collapsed
-              </span>
-              <button
-                type="button"
-                onClick={toggleConsole}
-                className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
-                title="Expand console"
-              >
-                <PanelBottomOpen size={14} />
-              </button>
-            </div>
-          ) : (
-            <>
-              <div
-                className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative group"
-                onMouseDown={startConsoleResize}
-                onDoubleClick={toggleConsole}
-                title="Drag to resize, double-click to collapse"
-              >
-                <div className="absolute inset-x-0 -top-1 -bottom-1" />
-                <button
-                  type="button"
-                  onClick={toggleConsole}
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-5 flex items-center justify-center rounded bg-ov-bg border border-ov-border text-ov-text-secondary opacity-0 group-hover:opacity-100 hover:text-ov-text cursor-pointer transition-opacity"
-                  title="Collapse console"
-                >
-                  <PanelBottomClose size={10} />
-                </button>
-              </div>
-              <div
-                className="shrink-0 overflow-hidden flex flex-col"
-                style={{ height: consoleHeight }}
-              >
-                <ConsolePane
-                  session={session}
-                  messages={messages}
-                  cursor={cursor}
-                  maxIndex={maxIndex}
-                  plan={plan}
-                  planLoading={planLoading}
-                  firstMessage={firstMessage}
-                  onOpenModal={handleOpenModal}
-                  onQueueChanged={onQueueChanged}
-                  highlightPromptId={highlightPromptId}
-                  onHighlightDone={onHighlightDone}
-                  onCollapse={toggleConsole}
-                />
-              </div>
-            </>
-          )}
+          <div
+            className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative group"
+            onMouseDown={consoleCollapsed ? undefined : startConsoleResize}
+            onClick={toggleConsole}
+            onDoubleClick={toggleConsole}
+            title={
+              consoleCollapsed ? "Click to expand console" : "Drag to resize, click to collapse"
+            }
+          >
+            <div className="absolute inset-x-0 -top-1 -bottom-1" />
+          </div>
+          <div
+            className="shrink-0 overflow-hidden flex flex-col"
+            style={{ height: consoleCollapsed ? 36 : consoleHeight }}
+          >
+            <ConsolePane
+              session={session}
+              messages={messages}
+              cursor={cursor}
+              maxIndex={maxIndex}
+              plan={plan}
+              planLoading={planLoading}
+              firstMessage={firstMessage}
+              onOpenModal={handleOpenModal}
+              onQueueChanged={onQueueChanged}
+              highlightPromptId={highlightPromptId}
+              onHighlightDone={onHighlightDone}
+              collapsed={consoleCollapsed}
+              onToggleCollapse={toggleConsole}
+            />
+          </div>
         </div>
 
         {drawerCollapsed ? (
-          <div className="w-8 shrink-0 border-l border-ov-border bg-ov-bg flex flex-col items-center py-2">
+          <div
+            className="w-8 shrink-0 border-l border-ov-border bg-ov-bg flex flex-col items-center py-2 cursor-pointer hover:bg-ov-bg-hover"
+            onClick={toggleDrawer}
+            role="button"
+            title="Expand notifications"
+          >
             <button
               type="button"
-              onClick={toggleDrawer}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleDrawer();
+              }}
               className="size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
               title="Expand notifications"
             >
@@ -485,11 +464,19 @@ export function CinematicSessionView({
               className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
               style={{ width: drawerWidth }}
             >
-              <div className="flex items-center justify-between px-2 py-1 border-b border-ov-border bg-surface-elevated shrink-0">
+              <div
+                className="flex items-center justify-between px-2 py-1 border-b border-ov-border bg-surface-elevated shrink-0 cursor-pointer hover:bg-ov-bg-hover"
+                onClick={toggleDrawer}
+                role="button"
+                title="Collapse notifications"
+              >
                 <span className="text-[11px] font-semibold text-ov-text">Activity</span>
                 <button
                   type="button"
-                  onClick={toggleDrawer}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleDrawer();
+                  }}
                   className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
                   title="Collapse notifications"
                 >
@@ -501,6 +488,7 @@ export function CinematicSessionView({
                 cursor={cursor}
                 maxIndex={maxIndex}
                 session={session}
+                onOpenModal={handleOpenModal}
               />
             </div>
           </>

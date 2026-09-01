@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Brain, ChevronRight } from "lucide-react";
+import { MessageSquare, Brain, ChevronRight, User as UserIcon } from "lucide-react";
 import type { Message } from "../../hooks/types";
 import { effectiveToolKind } from "../../utils/toolDisplay";
 import { MarkdownContent } from "../ui/MarkdownContent";
@@ -12,10 +12,17 @@ interface NotificationDrawerProps {
   messages: Message[];
   cursor: number;
   maxIndex: number;
+  onOpenModal?: (content: string, title?: string) => void;
 }
 
-function ThinkingBlock({ reasoning }: { reasoning: string }) {
-  const [expanded, setExpanded] = useState(false);
+function ThinkingBlock({
+  reasoning,
+  defaultExpanded,
+}: {
+  reasoning: string;
+  defaultExpanded?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(!!defaultExpanded);
   if (!reasoning) return null;
   return (
     <div className="border border-violet-500/20 rounded overflow-hidden bg-violet-500/[0.04]">
@@ -47,7 +54,13 @@ function ThinkingBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
-export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationDrawerProps) {
+export function NotificationDrawer({
+  session,
+  messages,
+  cursor,
+  maxIndex,
+  onOpenModal,
+}: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
@@ -65,12 +78,14 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
 
   const drawerItems = useMemo(() => {
     const items: Array<{ key: string; node: React.ReactNode }> = [];
+    const reasoningMap = new Map<string, string>();
     let pendingReasoning: string | null = null;
     let pendingKey: string | null = null;
     const flushReasoning = () => {
       if (pendingReasoning !== null && pendingKey !== null) {
         const key = pendingKey;
         const reasoning = pendingReasoning;
+        reasoningMap.set(`${key}-reasoning`, reasoning);
         items.push({
           key: `${key}-reasoning`,
           node: <ThinkingBlock reasoning={reasoning} />,
@@ -80,7 +95,32 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
       pendingKey = null;
     };
     for (const msg of visibleMessages) {
-      if (msg.role === "user") continue;
+      if (msg.role === "user") {
+        flushReasoning();
+        if (msg.content?.trim()) {
+          items.push({
+            key: `${msg.id}-user`,
+            node: (
+              <div className="px-3 py-2 border border-blue-500/20 rounded bg-blue-500/[0.04]">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <UserIcon size={12} className="text-blue-400" />
+                  <span className="text-[11px] font-semibold text-blue-400">User</span>
+                </div>
+                <MarkdownContent
+                  content={msg.content}
+                  className="markdown-body--wide text-xs"
+                  onOpenModal={
+                    msg.content.length > 100 && onOpenModal
+                      ? () => onOpenModal(msg.content, "User message")
+                      : undefined
+                  }
+                />
+              </div>
+            ),
+          });
+        }
+        continue;
+      }
       if (msg.reasoning) {
         if (pendingReasoning === null) {
           pendingReasoning = msg.reasoning;
@@ -93,6 +133,7 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
       }
       if (msg.content?.trim()) {
         flushReasoning();
+        const isLong = msg.content.length > 100;
         items.push({
           key: `${msg.id}-content`,
           node: (
@@ -106,7 +147,15 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
                   </span>
                 )}
               </div>
-              <MarkdownContent content={msg.content} className="markdown-body--wide text-xs" />
+              <MarkdownContent
+                content={msg.content}
+                className="markdown-body--wide text-xs"
+                onOpenModal={
+                  isLong && onOpenModal
+                    ? () => onOpenModal(msg.content, "Assistant message")
+                    : undefined
+                }
+              />
             </div>
           ),
         });
@@ -124,6 +173,7 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
             "compaction",
             "permission_request",
             "store_memory",
+            "todowrite",
           ].includes(kind)
         )
           continue;
@@ -145,8 +195,24 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
       }
     }
     flushReasoning();
+    // Latest thinking should be expanded while session is active
+    if (session.status === "active") {
+      for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i].key.endsWith("-reasoning")) {
+          const key = items[i].key;
+          const reasoning = reasoningMap.get(key);
+          if (reasoning) {
+            items[i] = {
+              key,
+              node: <ThinkingBlock reasoning={reasoning} defaultExpanded />,
+            };
+          }
+          break;
+        }
+      }
+    }
     return items;
-  }, [visibleMessages]);
+  }, [visibleMessages, session.status, onOpenModal]);
 
   useEffect(() => {
     const el = scrollRef.current;
