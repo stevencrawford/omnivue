@@ -6,8 +6,8 @@ import {
   FilePen,
   BookOpen,
   Trash2,
-  Expand,
-  Shrink,
+  UnfoldVertical,
+  FoldVertical,
 } from "lucide-react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { detectLanguage } from "../../utils/detectLanguage";
@@ -395,7 +395,7 @@ export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessT
           className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
           title={isAllExpanded ? "Collapse all" : "Expand all"}
         >
-          {isAllExpanded ? <Shrink size={14} /> : <Expand size={14} />}
+          {isAllExpanded ? <FoldVertical size={14} /> : <UnfoldVertical size={14} />}
         </button>
       </div>
       <div

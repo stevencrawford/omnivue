@@ -324,7 +324,6 @@ export function NotificationDrawer({
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${activeTab === "plan" ? "border-accent text-ov-text bg-ov-bg" : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
         >
           <FileText size={12} /> Plan
-          {plan?.markdown && <span className="size-1.5 rounded-full bg-amber-400 ml-1" />}
         </button>
       </div>
 

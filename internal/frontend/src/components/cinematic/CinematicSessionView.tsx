@@ -10,7 +10,7 @@ import { FileDetail } from "./FileDetail";
 import { ConsolePane } from "./ConsolePane";
 import { NotificationDrawer } from "./NotificationDrawer";
 import { useTimeline } from "../../hooks/useTimeline";
-import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
+import { deriveFileAccess } from "../../utils/fileAccess";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
@@ -266,12 +266,31 @@ export function CinematicSessionView({
     return map;
   }, [messages]);
 
-  const handleJumpToAccess = useCallback(
-    (access: FileAccess) => {
-      const idx = eventIndexByToolId.get(access.tool.id);
-      if (idx !== undefined) setCursor(idx);
+  const handleJumpToMessage = useCallback(
+    (messageIndex: number, messageId?: string) => {
+      let idx = -1;
+      if (messageId) {
+        idx = events.findIndex((e) => e.messageId === messageId);
+      }
+      if (idx === -1 && messageIndex >= 0) {
+        idx = events.findIndex((e) => e.messageIndex === messageIndex);
+      }
+      if (idx >= 0) setCursor(idx);
+      else if (messageIndex >= 0) {
+        // fallback to tool id mapping via messageIndex if not found in events
+        // find first tool with that messageIndex
+        for (const [toolId, eventIdx] of eventIndexByToolId) {
+          const acc = fileAccessAll.find(
+            (fa) => fa.tool.id === toolId && fa.messageIndex === messageIndex,
+          );
+          if (acc) {
+            setCursor(eventIdx);
+            break;
+          }
+        }
+      }
     },
-    [eventIndexByToolId, setCursor],
+    [events, setCursor, eventIndexByToolId, fileAccessAll],
   );
 
   const visibleAccess = useMemo(() => {
@@ -460,7 +479,7 @@ export function CinematicSessionView({
               access={selectedAccess}
               fileName={selectedPath.split("/").pop() || selectedPath}
               allAccessForFile={allForSelected}
-              onJump={handleJumpToAccess}
+              onJump={handleJumpToMessage}
             />
           </div>
 
