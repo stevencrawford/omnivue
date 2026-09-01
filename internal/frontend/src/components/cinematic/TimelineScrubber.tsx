@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Pause, SkipBack, SkipForward, X, ChevronDown } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, ChevronDown } from "lucide-react";
 import type { TimelineEvent } from "../../hooks/useTimeline";
 
 interface TimelineScrubberProps {
@@ -396,17 +396,7 @@ export function TimelineScrubber({
         {selectedSpan ? selectedSpanLabel : `${cursor + 1}/${events.length}`}
       </span>
 
-      {selectedSpan ? (
-        <button
-          type="button"
-          onClick={onClearSpan}
-          className="shrink-0 inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-ov-bg-hover text-ov-text hover:bg-ov-bg-active cursor-pointer transition-colors border border-ov-border"
-          title="Clear turn filter and show all events"
-        >
-          <X size={12} />
-          Show all
-        </button>
-      ) : !atLive ? (
+      {!selectedSpan && !atLive ? (
         <button
           type="button"
           onClick={onGoLive}
@@ -415,13 +405,11 @@ export function TimelineScrubber({
         >
           Live +{behind}
         </button>
-      ) : (
-        isActive && (
-          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">
-            LIVE
-          </span>
-        )
-      )}
+      ) : !selectedSpan && isActive && atLive ? (
+        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+          LIVE
+        </span>
+      ) : null}
     </div>
   );
 }
