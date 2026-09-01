@@ -6,6 +6,7 @@ import { TagPanel } from "./TagPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
 import { QueuePanel } from "./QueuePanel";
+import { useCallback, useEffect, useRef } from "react";
 import { useResizable } from "../hooks/useResizable";
 import { useCinematicMode } from "../hooks/useCinematicMode";
 import { STORAGE_KEYS } from "../utils/storageKeys";
@@ -72,6 +73,53 @@ export function Sidebar({
   const renderedWidth = sidebarOpen ? width : 48;
   const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
   const { enabled: isCinematic } = useCinematicMode();
+  const hasAutoClosedRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasAutoClosedRef.current && isCinematic && activeSessionId === null && sidebarOpen) {
+      hasAutoClosedRef.current = true;
+      onSidebarToggle();
+    }
+    if (activeSessionId !== null) {
+      hasAutoClosedRef.current = true;
+    }
+  }, [isCinematic, activeSessionId, sidebarOpen, onSidebarToggle]);
+
+  const closeIfCinematic = useCallback(() => {
+    if (isCinematic && sidebarOpen) onSidebarToggle();
+  }, [isCinematic, sidebarOpen, onSidebarToggle]);
+
+  const handleSessionSelectWrapped = useCallback(
+    (id: string) => {
+      onSessionSelect(id);
+      closeIfCinematic();
+    },
+    [onSessionSelect, closeIfCinematic],
+  );
+
+  const handlePromptClickWrapped = useCallback(
+    (sessionId: string, promptId: string) => {
+      onPromptClick?.(sessionId, promptId);
+      closeIfCinematic();
+    },
+    [onPromptClick, closeIfCinematic],
+  );
+
+  const handleBookmarkSelectWrapped = useCallback(
+    (b: Bookmark) => {
+      onBookmarkSelect(b);
+      closeIfCinematic();
+    },
+    [onBookmarkSelect, closeIfCinematic],
+  );
+
+  const handleNotificationClickWrapped = useCallback(
+    (n: AppNotification) => {
+      onNotificationClick(n);
+      closeIfCinematic();
+    },
+    [onNotificationClick, closeIfCinematic],
+  );
 
   const panels = (
     <>
@@ -81,7 +129,7 @@ export function Sidebar({
         <SessionPanel
           sessions={sessions}
           activeSessionId={activeSessionId}
-          onSessionSelect={onSessionSelect}
+          onSessionSelect={handleSessionSelectWrapped}
           sessionUnread={sessionUnread}
         />
       </div>
@@ -91,8 +139,8 @@ export function Sidebar({
         <QueuePanel
           sessions={sessions}
           promptVersion={promptVersion}
-          onSessionSelect={onSessionSelect}
-          onPromptClick={onPromptClick}
+          onSessionSelect={handleSessionSelectWrapped}
+          onPromptClick={handlePromptClickWrapped}
         />
       </div>
       <div
@@ -101,7 +149,7 @@ export function Sidebar({
         <TagPanel
           sessions={sessions}
           activeSessionId={activeSessionId}
-          onSessionSelect={onSessionSelect}
+          onSessionSelect={handleSessionSelectWrapped}
         />
       </div>
       <div
@@ -110,7 +158,7 @@ export function Sidebar({
         <BookmarkPanel
           bookmarks={bookmarks}
           sessions={sessions}
-          onBookmarkSelect={onBookmarkSelect}
+          onBookmarkSelect={handleBookmarkSelectWrapped}
           onBookmarkDelete={onBookmarkDelete}
         />
       </div>
@@ -120,7 +168,7 @@ export function Sidebar({
         <NotificationPanel
           notifications={notifications}
           sessions={sessions}
-          onNotificationClick={onNotificationClick}
+          onNotificationClick={handleNotificationClickWrapped}
           onMarkAllRead={onMarkAllNotificationsRead}
           onClearAll={onClearNotifications}
         />
@@ -145,7 +193,7 @@ export function Sidebar({
         {sidebarOpen && (
           <>
             <div
-              className="absolute inset-0 left-12 z-20 bg-black/20 backdrop-blur-[1px]"
+              className="absolute inset-0 left-12 z-20 bg-black/55"
               onClick={onSidebarToggle}
               aria-hidden="true"
             />
