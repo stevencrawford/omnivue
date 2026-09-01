@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Session, Message, BookmarkKind, Plan } from "../../hooks/types";
-import { fetchMessages, fetchPlan } from "../../hooks/apiClient";
+import type { Session, Message, BookmarkKind, Plan, FileEdit } from "../../hooks/types";
+import { fetchMessages, fetchPlan, fetchEdits } from "../../hooks/apiClient";
 import { isAbortError } from "../../utils/errors";
 import { useToast } from "../../hooks/useToast";
 import { SessionHeader } from "../SessionHeader";
@@ -10,7 +10,8 @@ import { FileDetail } from "./FileDetail";
 import { ConsolePane } from "./ConsolePane";
 import { NotificationDrawer } from "./NotificationDrawer";
 import { useTimeline } from "../../hooks/useTimeline";
-import { deriveFileAccess } from "../../utils/fileAccess";
+import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
+import { mergeFileEdits, relativizePath, type MergedFileDiff } from "../../utils/diffTree";
 import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { useCopy } from "../../hooks/useCopy";
@@ -99,6 +100,7 @@ export function CinematicSessionView({
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [edits, setEdits] = useState<FileEdit[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
     null,
@@ -190,10 +192,20 @@ export function CinematicSessionView({
     }
   }, [session.id]);
 
+  const loadEdits = useCallback(async () => {
+    try {
+      const data = await fetchEdits(session.id);
+      setEdits(data || []);
+    } catch {
+      setEdits([]);
+    }
+  }, [session.id]);
+
   useEffect(() => {
     loadMessages();
     loadPlan();
-  }, [loadMessages, loadPlan]);
+    loadEdits();
+  }, [loadMessages, loadPlan, loadEdits]);
 
   useEffect(() => {
     return () => {
@@ -208,6 +220,7 @@ export function CinematicSessionView({
       ackSessionChange?.(session.id);
       loadMessages();
       loadPlan();
+      loadEdits();
     }, 300);
     return () => clearTimeout(handle);
   }, [
@@ -215,6 +228,7 @@ export function CinematicSessionView({
     session.id,
     loadMessages,
     loadPlan,
+    loadEdits,
     messages.length,
     loading,
     ackSessionChange,
@@ -225,6 +239,58 @@ export function CinematicSessionView({
     [messages],
   );
   const isActive = session.status === "active";
+
+  // Fallback for live sessions: the parent's liveChangedIds is deduped by
+  // contents, so a continuously-active session can appear as "unchanged" to
+  // React even though its DB row keeps moving. When the session row itself
+  // advances (updatedAt / cost / tokens), force a message reload so the file
+  // tree, console, and activity panels stay live even if the SSE dedup skips.
+  const lastSessionTickRef = useRef<string>(session.updatedAt);
+  useEffect(() => {
+    // reset tick when switching sessions
+    lastSessionTickRef.current = session.updatedAt;
+  }, [session.id]);
+  useEffect(() => {
+    if (session.status !== "active") {
+      lastSessionTickRef.current = session.updatedAt;
+      return;
+    }
+    if (session.updatedAt === lastSessionTickRef.current) return;
+    // session row moved but liveChangedIds may not have flipped yet
+    lastSessionTickRef.current = session.updatedAt;
+    if (messages.length === 0 && loading) return;
+    if (liveChangedIds.has(session.id)) return; // already scheduled via SSE
+    const handle = setTimeout(() => {
+      loadMessages();
+      loadPlan();
+      loadEdits();
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [
+    session.updatedAt,
+    session.status,
+    session.id,
+    liveChangedIds,
+    messages.length,
+    loading,
+    loadMessages,
+    loadPlan,
+    loadEdits,
+  ]);
+
+  // Polling fallback when a session is active: guarantees the cinematic
+  // panels (tree, file detail, console, activity + timeline) keep moving even
+  // if an SSE event is dropped or deduped. Backs off immediately once the
+  // session goes idle.
+  useEffect(() => {
+    if (!isActive) return;
+    const iv = setInterval(() => {
+      loadMessages();
+      loadPlan();
+      loadEdits();
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [isActive, loadMessages, loadPlan, loadEdits]);
 
   const {
     cursor,
@@ -243,7 +309,13 @@ export function CinematicSessionView({
     isActive,
   });
 
-  const fileAccessAll = useMemo(() => deriveFileAccess(messages), [messages]);
+  const fileAccessAll = useMemo(() => {
+    const accesses = deriveFileAccess(messages);
+    return accesses.map((a) => ({
+      ...a,
+      filePath: relativizePath(a.filePath, session.directory),
+    }));
+  }, [messages, session.directory]);
 
   const eventIndexByToolId = useMemo(() => {
     const map = new Map<string, number>();
@@ -320,37 +392,152 @@ export function CinematicSessionView({
     });
   }, [fileAccessAll, messages, events.length, cursor, maxIndex]);
 
+  const visibleEdits = useMemo(() => {
+    if (edits.length === 0) return [];
+    if (events.length === 0) return edits;
+    if (cursor >= maxIndex) return edits;
+    const visibility = new Map<number, boolean>();
+    let eventIdx = 0;
+    for (let mi = 0; mi < messages.length; mi++) {
+      const msg = messages[mi];
+      const isUser = msg.role === "user";
+      const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
+      const msgEnd = eventIdx + msgEvents - 1;
+      const visible = msgEnd <= cursor;
+      visibility.set(mi, visible);
+      eventIdx += msgEvents;
+    }
+    return edits.filter((e) => {
+      const mi = e.messageIndex;
+      if (mi === undefined || mi < 0) return true;
+      return visibility.get(mi) ?? true;
+    });
+  }, [edits, messages, cursor, maxIndex, events.length]);
+
+  const mergedDiffs = useMemo(() => {
+    const grouped = new Map<string, FileEdit[]>();
+    for (const edit of visibleEdits) {
+      if (!edit.filePath) continue;
+      const relPath = relativizePath(edit.filePath, session.directory);
+      const list = grouped.get(relPath) || [];
+      list.push({ ...edit, filePath: relPath });
+      grouped.set(relPath, list);
+    }
+    const result: MergedFileDiff[] = [];
+    for (const [filePath, fileEdits] of grouped) {
+      result.push(mergeFileEdits(filePath, fileEdits));
+    }
+    result.sort((a, b) => a.path.localeCompare(b.path));
+    return result;
+  }, [visibleEdits, session.directory]);
+
+  const selectedMergedDiff = useMemo(() => {
+    if (!selectedPath) return null;
+    const normSelected = selectedPath.replace(/^\/+/, "");
+    const relSelected = relativizePath(normSelected, session.directory);
+    const found =
+      mergedDiffs.find((d) => d.path === relSelected || d.path === normSelected) ?? null;
+    if (found) return found;
+    const selectedAccessForLookup = visibleAccess.find(
+      (a) => a.filePath.replace(/^\/+/, "") === normSelected,
+    );
+    if (selectedAccessForLookup) {
+      const rel = relativizePath(selectedAccessForLookup.filePath, session.directory);
+      return mergedDiffs.find((d) => d.path === rel) ?? null;
+    }
+    return null;
+  }, [mergedDiffs, selectedPath, session.directory, visibleAccess]);
+
+  // Tree should show both reads (from fileAccess) and edits (from merged diffs).
+  // fileAccess may miss some edits due to alias handling, and a file that was
+  // both read and edited should appear as an edit (edit/write takes priority
+  // over read — the diff is more useful than the preview).
+  const treeAccesses = useMemo(() => {
+    const fileMap = new Map<string, FileAccess>();
+    for (const acc of visibleAccess) {
+      const rel = relativizePath(acc.filePath.replace(/^\/+/, ""), session.directory);
+      const normalized = { ...acc, filePath: rel } as FileAccess;
+      const existing = fileMap.get(rel);
+      if (!existing) {
+        fileMap.set(rel, normalized);
+      } else if (existing.kind === "read" && normalized.kind !== "read") {
+        fileMap.set(rel, normalized);
+      }
+    }
+    for (const diff of mergedDiffs) {
+      const rel = diff.path;
+      const existing = fileMap.get(rel);
+      const kind =
+        diff.status === "added" ? "write" : diff.status === "deleted" ? "delete" : "edit";
+      if (!existing) {
+        const synthetic = {
+          id: `edit:${rel}`,
+          filePath: rel,
+          kind: kind as FileAccess["kind"],
+          tool: {
+            id: `edit:${rel}`,
+            name: kind,
+            input: JSON.stringify({ filePath: rel }),
+            output: "",
+            status: "completed",
+          } as unknown as FileAccess["tool"],
+          messageId: diff.hunks[0]?.messageId ?? "",
+          messageIndex: diff.hunks[0]?.messageIndex ?? -1,
+          timestamp: "",
+        } as FileAccess;
+        fileMap.set(rel, synthetic);
+      } else if (existing.kind === "read") {
+        const synthetic = {
+          id: `edit:${rel}`,
+          filePath: rel,
+          kind: kind as FileAccess["kind"],
+          tool: {
+            id: `edit:${rel}`,
+            name: kind,
+            input: JSON.stringify({ filePath: rel }),
+            output: "",
+            status: "completed",
+          } as unknown as FileAccess["tool"],
+          messageId: diff.hunks[0]?.messageId ?? existing.messageId,
+          messageIndex: diff.hunks[0]?.messageIndex ?? existing.messageIndex,
+          timestamp: existing.timestamp,
+        } as FileAccess;
+        fileMap.set(rel, synthetic);
+      }
+    }
+    return Array.from(fileMap.values());
+  }, [visibleAccess, mergedDiffs, session.directory]);
+
   const selectedAccess = useMemo(() => {
     if (!selectedPath) return null;
-    return (
-      visibleAccess.find(
-        (a) => a.filePath.replace(/^\/+/, "") === selectedPath.replace(/^\/+/, ""),
-      ) ?? null
-    );
-  }, [visibleAccess, selectedPath]);
-
-  const allForSelected = useMemo(() => {
-    if (!selectedAccess) return [];
-    return visibleAccess.filter((a) => a.filePath === selectedAccess.filePath);
-  }, [visibleAccess, selectedAccess]);
+    const normSelected = selectedPath.replace(/^\/+/, "");
+    const relSelected = relativizePath(normSelected, session.directory);
+    const fromTree =
+      treeAccesses.find(
+        (a) => a.filePath.replace(/^\/+/, "") === normSelected || a.filePath === relSelected,
+      ) ?? null;
+    if (fromTree) return fromTree;
+    return visibleAccess.find((a) => a.filePath.replace(/^\/+/, "") === normSelected) ?? null;
+  }, [visibleAccess, treeAccesses, selectedPath, session.directory]);
 
   useEffect(() => {
-    if (!selectedPath && visibleAccess.length > 0) {
-      setSelectedPath(visibleAccess[0].filePath);
+    if (!selectedPath && treeAccesses.length > 0) {
+      setSelectedPath(treeAccesses[0].filePath);
     }
-  }, [visibleAccess, selectedPath]);
+  }, [treeAccesses, selectedPath]);
 
   useEffect(() => {
-    if (
-      selectedPath &&
-      !visibleAccess.some(
-        (a) => a.filePath.replace(/^\/+/, "") === selectedPath.replace(/^\/+/, ""),
-      )
-    ) {
-      if (visibleAccess.length > 0) setSelectedPath(visibleAccess[0].filePath);
+    if (!selectedPath) return;
+    const normSelected = selectedPath.replace(/^\/+/, "");
+    const relSelected = relativizePath(normSelected, session.directory);
+    const inTree = treeAccesses.some(
+      (a) => a.filePath.replace(/^\/+/, "") === normSelected || a.filePath === relSelected,
+    );
+    if (!inTree) {
+      if (treeAccesses.length > 0) setSelectedPath(treeAccesses[0].filePath);
       else setSelectedPath("");
     }
-  }, [visibleAccess, selectedPath]);
+  }, [treeAccesses, selectedPath, session.directory]);
 
   const handleOpenModal = useCallback((content: string, title?: string) => {
     setMarkdownModal({ content, title });
@@ -464,7 +651,7 @@ export function CinematicSessionView({
               style={{ width: treeWidth }}
             >
               <FileAccessTree
-                accesses={visibleAccess}
+                accesses={treeAccesses}
                 selectedPath={selectedPath}
                 onSelect={setSelectedPath}
               />
@@ -478,7 +665,8 @@ export function CinematicSessionView({
             <FileDetail
               access={selectedAccess}
               fileName={selectedPath.split("/").pop() || selectedPath}
-              allAccessForFile={allForSelected}
+              mergedDiff={selectedMergedDiff}
+              sessionDirectory={session.directory}
               onJump={handleJumpToMessage}
             />
           </div>
