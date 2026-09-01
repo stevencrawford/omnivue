@@ -87,13 +87,6 @@ function kindIcon(kind: string) {
   return <FilePlus size={12} className="text-accent shrink-0" />;
 }
 
-function kindLetter(kind: string): { letter: string; color: string } {
-  if (kind === "read") return { letter: "R", color: "text-cyan-400" };
-  if (kind === "delete") return { letter: "D", color: "text-red-400" };
-  if (kind === "write") return { letter: "A", color: "text-green-500" };
-  return { letter: "M", color: "text-yellow-500" };
-}
-
 interface FileAccessTreeProps {
   accesses: FileAccess[];
   selectedPath: string;
@@ -138,8 +131,15 @@ function TreeFileRow({
   depth: number;
   isFocused?: boolean;
 }) {
-  const acc = node.access!;
-  const info = kindLetter(acc.kind);
+  const accesses = node.accesses;
+  const hasRead = accesses.some((a) => a.kind === "read");
+  const hasEdit = accesses.some((a) => a.kind !== "read");
+  const showBoth = hasRead && hasEdit;
+  const firstKind = accesses[0]?.kind;
+  const lastEdit = [...accesses].reverse().find((a) => a.kind !== "read");
+  const editKind = lastEdit?.kind ?? "edit";
+  const titleKind = showBoth ? `${firstKind}+${editKind}` : (accesses[0]?.kind ?? "");
+  const titlePath = accesses[0]?.filePath ?? node.fullPath;
   return (
     <button
       type="button"
@@ -148,10 +148,23 @@ function TreeFileRow({
       className={`flex items-center gap-2 w-full text-left cursor-pointer py-0.5 ${selected ? "bg-accent-muted" : isFocused ? "bg-ov-bg-hover" : "hover:bg-ov-bg-hover"} ${isFocused ? "ring-1 ring-accent/40" : ""}`}
       style={{ paddingLeft: 12 + depth * 16 }}
       onClick={onSelect}
-      title={`${acc.kind}: ${acc.filePath} — ${detectLanguage(acc.filePath)}`}
+      title={`${titleKind}: ${titlePath} — ${detectLanguage(titlePath)}`}
     >
-      <span className={`text-[11px] font-bold shrink-0 ${info.color}`}>{info.letter}</span>
-      {kindIcon(acc.kind)}
+      {showBoth ? (
+        firstKind === "read" ? (
+          <>
+            {kindIcon("read")}
+            {kindIcon(editKind)}
+          </>
+        ) : (
+          <>
+            {kindIcon(editKind)}
+            {kindIcon("read")}
+          </>
+        )
+      ) : (
+        kindIcon(accesses[0]?.kind ?? "read")
+      )}
       <span className="text-xs font-mono truncate min-w-0 text-ov-text">{node.name}</span>
     </button>
   );
@@ -233,13 +246,19 @@ export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessT
   const tree = useMemo(() => buildTree(accesses), [accesses]);
 
   const treeSummary = useMemo(() => {
+    const fileMap = new Map<string, FileAccess[]>();
+    for (const a of accesses) {
+      const list = fileMap.get(a.filePath) ?? [];
+      list.push(a);
+      fileMap.set(a.filePath, list);
+    }
     let reads = 0,
       edits = 0;
-    for (const a of accesses) {
-      if (a.kind === "read") reads++;
-      else edits++;
+    for (const [, list] of fileMap) {
+      if (list.some((a) => a.kind === "read")) reads++;
+      if (list.some((a) => a.kind !== "read")) edits++;
     }
-    return { reads, edits, total: accesses.length };
+    return { reads, edits, total: fileMap.size };
   }, [accesses]);
 
   const allDirPaths = useMemo(() => collectAllDirectoryPaths(tree), [tree]);
