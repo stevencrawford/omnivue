@@ -65,15 +65,34 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
 
   const drawerItems = useMemo(() => {
     const items: Array<{ key: string; node: React.ReactNode }> = [];
+    let pendingReasoning: string | null = null;
+    let pendingKey: string | null = null;
+    const flushReasoning = () => {
+      if (pendingReasoning !== null && pendingKey !== null) {
+        const key = pendingKey;
+        const reasoning = pendingReasoning;
+        items.push({
+          key: `${key}-reasoning`,
+          node: <ThinkingBlock reasoning={reasoning} />,
+        });
+      }
+      pendingReasoning = null;
+      pendingKey = null;
+    };
     for (const msg of visibleMessages) {
       if (msg.role === "user") continue;
       if (msg.reasoning) {
-        items.push({
-          key: `${msg.id}-reasoning`,
-          node: <ThinkingBlock reasoning={msg.reasoning} />,
-        });
+        if (pendingReasoning === null) {
+          pendingReasoning = msg.reasoning;
+          pendingKey = msg.id;
+        } else {
+          pendingReasoning += "\n\n" + msg.reasoning;
+        }
+      } else {
+        flushReasoning();
       }
       if (msg.content?.trim()) {
+        flushReasoning();
         items.push({
           key: `${msg.id}-content`,
           node: (
@@ -92,6 +111,7 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
           ),
         });
       }
+      let hasVisibleTool = false;
       for (const tool of msg.toolCalls ?? []) {
         const kind = effectiveToolKind(tool);
         if (
@@ -107,14 +127,24 @@ export function NotificationDrawer({ messages, cursor, maxIndex }: NotificationD
           ].includes(kind)
         )
           continue;
+        hasVisibleTool = true;
         const renderer = toolRendererRegistry.getRenderer(kind);
         if (!renderer) continue;
+        // Flush reasoning before tool so tool breaks sequential chain
+        flushReasoning();
         items.push({
           key: tool.id,
           node: <ToolRendererWrapper renderer={renderer} tool={tool} variant="detail" />,
         });
       }
+      // If message had reasoning but also visible tool, flush already done; if it had reasoning and no content/tool, keep pending for next iteration to allow collapse
+      if (msg.content?.trim() || hasVisibleTool) {
+        // already flushed
+      } else if (!msg.reasoning) {
+        flushReasoning();
+      }
     }
+    flushReasoning();
     return items;
   }, [visibleMessages]);
 

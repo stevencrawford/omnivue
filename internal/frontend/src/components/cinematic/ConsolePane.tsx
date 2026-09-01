@@ -199,7 +199,7 @@ export function ConsolePane(props: ConsolePaneProps) {
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {active === "prompt" && (
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             <PinnedPromptBar
               session={session}
               firstMessage={firstMessage ?? null}
@@ -208,6 +208,8 @@ export function ConsolePane(props: ConsolePaneProps) {
               highlightPromptId={highlightPromptId}
               onHighlightDone={onHighlightDone}
               defaultExpanded
+              hideHeader
+              fillHeight
             />
           </div>
         )}
