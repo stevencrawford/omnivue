@@ -491,10 +491,19 @@ export function CinematicSessionView({
         </div>
 
         {drawerCollapsed ? (
-          <div className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5">
+          <div
+            className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5 cursor-pointer"
+            onClick={toggleDrawer}
+            role="button"
+            title="Expand"
+            aria-label="Expand activity panel"
+          >
             <button
               type="button"
-              onClick={() => handleCollapsedActivitySelect("activity")}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCollapsedActivitySelect("activity");
+              }}
               className={`relative flex items-center justify-center w-full h-10 transition-colors ${activityTab === "activity" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
               title="Activity"
               aria-label="Activity"
@@ -502,11 +511,14 @@ export function CinematicSessionView({
               {activityTab === "activity" && (
                 <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
               )}
-              <Activity className="size-5" strokeWidth={1.5} />
+              <Activity className="size-4" strokeWidth={1.5} />
             </button>
             <button
               type="button"
-              onClick={() => handleCollapsedActivitySelect("prompt")}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCollapsedActivitySelect("prompt");
+              }}
               className={`relative flex items-center justify-center w-full h-10 transition-colors ${activityTab === "prompt" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
               title="Prompt"
               aria-label="Prompt"
@@ -514,11 +526,14 @@ export function CinematicSessionView({
               {activityTab === "prompt" && (
                 <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
               )}
-              <MessageSquare className="size-5" strokeWidth={1.5} />
+              <MessageSquare className="size-4" strokeWidth={1.5} />
             </button>
             <button
               type="button"
-              onClick={() => handleCollapsedActivitySelect("plan")}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCollapsedActivitySelect("plan");
+              }}
               className={`relative flex items-center justify-center w-full h-10 transition-colors ${activityTab === "plan" ? "text-accent" : "text-ov-text-secondary hover:text-ov-text"}`}
               title="Plan"
               aria-label="Plan"
@@ -526,18 +541,12 @@ export function CinematicSessionView({
               {activityTab === "plan" && (
                 <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
               )}
-              <FileText className="size-5" strokeWidth={1.5} />
+              <FileText className="size-4" strokeWidth={1.5} />
             </button>
             <div className="flex-1" />
-            <button
-              type="button"
-              onClick={toggleDrawer}
-              className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text cursor-pointer transition-colors"
-              title="Expand"
-              aria-label="Expand"
-            >
-              <PanelRightOpen className="size-5" strokeWidth={1.5} />
-            </button>
+            <div className="flex items-center justify-center w-full h-10 text-ov-text-secondary">
+              <PanelRightOpen className="size-4" strokeWidth={1.5} />
+            </div>
           </div>
         ) : (
           <>

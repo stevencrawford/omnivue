@@ -1,5 +1,14 @@
-import { useMemo, useState } from "react";
-import { ChevronRight, Folder, FilePlus, FilePen, BookOpen, Trash2 } from "lucide-react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import {
+  ChevronRight,
+  Folder,
+  FilePlus,
+  FilePen,
+  BookOpen,
+  Trash2,
+  Expand,
+  Shrink,
+} from "lucide-react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { detectLanguage } from "../../utils/detectLanguage";
 
@@ -91,23 +100,52 @@ interface FileAccessTreeProps {
   onSelect: (path: string) => void;
 }
 
+function collectAllDirectoryPaths(nodes: TreeNode[], out: string[] = []): string[] {
+  for (const n of nodes) {
+    if (n.isDirectory) {
+      out.push(n.fullPath);
+      collectAllDirectoryPaths(n.children, out);
+    }
+  }
+  return out;
+}
+
+function flattenVisibleNodes(
+  nodes: TreeNode[],
+  expandedMap: Record<string, boolean>,
+  out: { node: TreeNode; depth: number }[] = [],
+  depth = 0,
+): { node: TreeNode; depth: number }[] {
+  for (const n of nodes) {
+    out.push({ node: n, depth });
+    if (n.isDirectory && expandedMap[n.fullPath] !== false) {
+      flattenVisibleNodes(n.children, expandedMap, out, depth + 1);
+    }
+  }
+  return out;
+}
+
 function TreeFileRow({
   node,
   selected,
   onSelect,
   depth,
+  isFocused,
 }: {
   node: TreeNode;
   selected: boolean;
   onSelect: () => void;
   depth: number;
+  isFocused?: boolean;
 }) {
   const acc = node.access!;
   const info = kindLetter(acc.kind);
   return (
     <button
       type="button"
-      className={`flex items-center gap-2 w-full text-left cursor-pointer py-0.5 ${selected ? "bg-accent-muted" : "hover:bg-ov-bg-hover"}`}
+      data-tree-path={node.fullPath}
+      data-tree-kind="file"
+      className={`flex items-center gap-2 w-full text-left cursor-pointer py-0.5 ${selected ? "bg-accent-muted" : isFocused ? "bg-ov-bg-hover" : "hover:bg-ov-bg-hover"} ${isFocused ? "ring-1 ring-accent/40" : ""}`}
       style={{ paddingLeft: 12 + depth * 16 }}
       onClick={onSelect}
       title={`${acc.kind}: ${acc.filePath} — ${detectLanguage(acc.filePath)}`}
@@ -119,83 +157,63 @@ function TreeFileRow({
   );
 }
 
-function DirectoryNode({
-  node,
-  selectedPath,
-  onSelect,
-  depth,
-}: {
-  node: TreeNode;
-  selectedPath: string;
-  onSelect: (path: string) => void;
-  depth: number;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const count = useMemo(() => {
-    let c = 0;
-    const walk = (n: TreeNode) => {
-      for (const ch of n.children) {
-        if (!ch.isDirectory) c++;
-        walk(ch);
-      }
-    };
-    walk(node);
-    return c;
-  }, [node]);
-  return (
-    <div>
-      <button
-        type="button"
-        className="flex items-center gap-1 w-full px-1 py-1 text-left text-[11px] text-ov-text-secondary hover:text-ov-text cursor-pointer hover:bg-ov-bg-hover"
-        style={{ paddingLeft: 8 + depth * 16 }}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <ChevronRight
-          size={12}
-          className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
-        />
-        <Folder size={14} className="shrink-0" />
-        <span className="font-medium truncate">{node.name}/</span>
-        <span className="text-[10px] text-ov-text-secondary/60">({count})</span>
-      </button>
-      {expanded && (
-        <FileAccessTreeInner
-          nodes={node.children}
-          selectedPath={selectedPath}
-          onSelect={onSelect}
-          depth={depth + 1}
-        />
-      )}
-    </div>
-  );
-}
-
+// Inner component that respects centralized expandedMap
 function FileAccessTreeInner({
   nodes,
   selectedPath,
   onSelect,
   depth = 0,
+  expandedMap,
+  onToggleDir,
+  focusedPath,
 }: {
   nodes: TreeNode[];
   selectedPath: string;
   onSelect: (path: string) => void;
   depth?: number;
+  expandedMap: Record<string, boolean>;
+  onToggleDir: (path: string) => void;
+  focusedPath: string | null;
 }) {
   return (
     <div>
       {nodes.map((node) => {
         if (node.isDirectory) {
+          const expanded = expandedMap[node.fullPath] !== false;
+          const isFocused = focusedPath === node.fullPath;
           return (
-            <DirectoryNode
-              key={node.fullPath}
-              node={node}
-              selectedPath={selectedPath}
-              onSelect={onSelect}
-              depth={depth}
-            />
+            <div key={node.fullPath}>
+              <button
+                type="button"
+                data-tree-path={node.fullPath}
+                data-tree-kind="dir"
+                className={`flex items-center gap-1 w-full px-1 py-1 text-left text-[11px] cursor-pointer ${isFocused ? "bg-ov-bg-hover ring-1 ring-accent/40 text-ov-text" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+                style={{ paddingLeft: 8 + depth * 16 }}
+                onClick={() => onToggleDir(node.fullPath)}
+              >
+                <ChevronRight
+                  size={12}
+                  className={`shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
+                />
+                <Folder size={14} className="shrink-0" />
+                <span className="font-medium truncate">{node.name}/</span>
+              </button>
+              {expanded && (
+                <FileAccessTreeInner
+                  nodes={node.children}
+                  selectedPath={selectedPath}
+                  onSelect={onSelect}
+                  depth={depth + 1}
+                  expandedMap={expandedMap}
+                  onToggleDir={onToggleDir}
+                  focusedPath={focusedPath}
+                />
+              )}
+            </div>
           );
         }
         if (!node.access) return null;
+        const isFocused = focusedPath === node.fullPath;
         return (
           <TreeFileRow
             key={node.fullPath}
@@ -203,6 +221,7 @@ function FileAccessTreeInner({
             selected={selectedPath === node.fullPath}
             onSelect={() => onSelect(node.fullPath)}
             depth={depth}
+            isFocused={isFocused}
           />
         );
       })}
@@ -223,6 +242,137 @@ export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessT
     return { reads, edits, total: accesses.length };
   }, [accesses]);
 
+  const allDirPaths = useMemo(() => collectAllDirectoryPaths(tree), [tree]);
+
+  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const p of allDirPaths) init[p] = true;
+    return init;
+  });
+
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keep expandedMap in sync when tree changes (new dirs default expanded)
+  useEffect(() => {
+    setExpandedMap((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const p of allDirPaths) next[p] = prev[p] !== undefined ? prev[p] : true;
+      return next;
+    });
+    // also set focused to selectedPath if not set
+    if (selectedPath && !focusedPath) setFocusedPath(selectedPath);
+  }, [allDirPaths, selectedPath, focusedPath]);
+
+  const toggleDir = useCallback((path: string) => {
+    setExpandedMap((prev) => ({ ...prev, [path]: !prev[path] }));
+  }, []);
+
+  const handleExpandAll = useCallback(() => {
+    const next: Record<string, boolean> = {};
+    for (const p of allDirPaths) next[p] = true;
+    setExpandedMap(next);
+  }, [allDirPaths]);
+
+  const handleCollapseAll = useCallback(() => {
+    const next: Record<string, boolean> = {};
+    for (const p of allDirPaths) next[p] = false;
+    setExpandedMap(next);
+  }, [allDirPaths]);
+
+  const isAllExpanded = useMemo(() => {
+    if (allDirPaths.length === 0) return true;
+    return allDirPaths.every((p) => expandedMap[p] !== false);
+  }, [allDirPaths, expandedMap]);
+
+  const visibleFlattened = useMemo(
+    () => flattenVisibleNodes(tree, expandedMap),
+    [tree, expandedMap],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (visibleFlattened.length === 0) return;
+      const currentIdx = focusedPath
+        ? visibleFlattened.findIndex((v) => v.node.fullPath === focusedPath)
+        : -1;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIdx = currentIdx < visibleFlattened.length - 1 ? currentIdx + 1 : currentIdx;
+        const next = visibleFlattened[nextIdx];
+        if (next) {
+          setFocusedPath(next.node.fullPath);
+          if (!next.node.isDirectory) onSelect(next.node.fullPath);
+          // ensure visible
+          requestAnimationFrame(() => {
+            const el = containerRef.current?.querySelector(
+              `[data-tree-path="${CSS.escape(next.node.fullPath)}"]`,
+            ) as HTMLElement | null;
+            el?.scrollIntoView({ block: "nearest" });
+          });
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIdx = currentIdx > 0 ? currentIdx - 1 : 0;
+        const prev = visibleFlattened[prevIdx];
+        if (prev) {
+          setFocusedPath(prev.node.fullPath);
+          if (!prev.node.isDirectory) onSelect(prev.node.fullPath);
+          requestAnimationFrame(() => {
+            const el = containerRef.current?.querySelector(
+              `[data-tree-path="${CSS.escape(prev.node.fullPath)}"]`,
+            ) as HTMLElement | null;
+            el?.scrollIntoView({ block: "nearest" });
+          });
+        }
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const cur = currentIdx >= 0 ? visibleFlattened[currentIdx] : null;
+        if (cur && cur.node.isDirectory) {
+          if (!expandedMap[cur.node.fullPath]) {
+            setExpandedMap((prev) => ({ ...prev, [cur.node.fullPath]: true }));
+          } else {
+            // if already expanded, move to first child
+            const nextIdx = currentIdx + 1;
+            const next = visibleFlattened[nextIdx];
+            if (next && next.depth > cur.depth) {
+              setFocusedPath(next.node.fullPath);
+              if (!next.node.isDirectory) onSelect(next.node.fullPath);
+            }
+          }
+        }
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const cur = currentIdx >= 0 ? visibleFlattened[currentIdx] : null;
+        if (cur && cur.node.isDirectory && expandedMap[cur.node.fullPath] !== false) {
+          setExpandedMap((prev) => ({ ...prev, [cur.node.fullPath]: false }));
+        } else if (cur) {
+          // move to parent
+          let parentIdx = currentIdx - 1;
+          while (parentIdx >= 0) {
+            const cand = visibleFlattened[parentIdx];
+            if (cand && cand.depth < cur.depth) {
+              setFocusedPath(cand.node.fullPath);
+              break;
+            }
+            parentIdx--;
+          }
+        }
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const cur = currentIdx >= 0 ? visibleFlattened[currentIdx] : null;
+        if (cur) {
+          if (cur.node.isDirectory) {
+            setExpandedMap((prev) => ({ ...prev, [cur.node.fullPath]: !prev[cur.node.fullPath] }));
+          } else {
+            onSelect(cur.node.fullPath);
+          }
+        }
+      }
+    },
+    [visibleFlattened, focusedPath, expandedMap, onSelect],
+  );
+
   if (accesses.length === 0) {
     return (
       <div className="p-4 text-xs text-ov-text-secondary text-center">
@@ -239,9 +389,40 @@ export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessT
         </span>
         <span className="text-yellow-500">{treeSummary.edits} edits</span>
         <span className="text-cyan-400">{treeSummary.reads} reads</span>
+        <button
+          type="button"
+          onClick={() => (isAllExpanded ? handleCollapseAll() : handleExpandAll())}
+          className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer"
+          title={isAllExpanded ? "Collapse all" : "Expand all"}
+        >
+          {isAllExpanded ? <Shrink size={14} /> : <Expand size={14} />}
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <FileAccessTreeInner nodes={tree} selectedPath={selectedPath} onSelect={onSelect} />
+      <div
+        ref={containerRef}
+        tabIndex={0}
+        role="tree"
+        aria-label="File tree"
+        onKeyDown={handleKeyDown}
+        onFocus={() => {
+          if (!focusedPath && visibleFlattened.length > 0) {
+            const sel = selectedPath || visibleFlattened[0].node.fullPath;
+            setFocusedPath(sel);
+          }
+        }}
+        className="flex-1 overflow-y-auto overflow-x-hidden outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+      >
+        <FileAccessTreeInner
+          nodes={tree}
+          selectedPath={selectedPath}
+          onSelect={(p) => {
+            onSelect(p);
+            setFocusedPath(p);
+          }}
+          expandedMap={expandedMap}
+          onToggleDir={toggleDir}
+          focusedPath={focusedPath}
+        />
       </div>
     </div>
   );
