@@ -616,8 +616,11 @@ export function CinematicSessionView({
 
             {drawerCollapsed ? (
               <aside
-                className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5"
+                className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5 cursor-pointer"
                 aria-label="Activity panel (collapsed)"
+                role="button"
+                title="Expand activity panel"
+                onClick={toggleDrawer}
               >
                 {(
                   [
@@ -629,7 +632,10 @@ export function CinematicSessionView({
                   <button
                     key={tab}
                     type="button"
-                    onClick={() => handleCollapsedActivitySelect(tab)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCollapsedActivitySelect(tab);
+                    }}
                     className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${
                       activityTab === tab
                         ? "text-accent"
@@ -647,7 +653,10 @@ export function CinematicSessionView({
                 <div className="flex-1" />
                 <button
                   type="button"
-                  onClick={toggleDrawer}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleDrawer();
+                  }}
                   className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
                   title="Expand activity panel"
                   aria-label="Expand activity panel"
