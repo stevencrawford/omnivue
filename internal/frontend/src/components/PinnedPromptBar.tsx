@@ -241,7 +241,7 @@ export function PinnedPromptBar({
               onKeyDown={handleKeyDown}
               placeholder="Type a prompt to queue for this session..."
               rows={Math.min(10, Math.max(3, inputText.split("\n").length))}
-              className="flex-1 resize-none bg-ov-bg-hover border border-ov-border rounded-lg px-3 py-2 text-sm text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent transition-colors"
+              className="flex-1 resize-none bg-ov-bg-secondary border border-ov-border rounded-[0.625rem] px-3 py-[0.4375rem] text-[0.75rem] text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent-border focus:shadow-[0_0_0_3px_var(--color-glow)] transition-[border-color,box-shadow,background] duration-150"
             />
             <button
               type="button"
@@ -392,7 +392,7 @@ export function PinnedPromptBar({
                 onKeyDown={handleKeyDown}
                 placeholder="Type a prompt to queue for this session..."
                 rows={Math.min(10, Math.max(3, inputText.split("\n").length))}
-                className="flex-1 resize-none bg-ov-bg-hover border border-ov-border rounded-lg px-3 py-2 text-sm text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent transition-colors"
+                className="flex-1 resize-none bg-ov-bg-secondary border border-ov-border rounded-[0.625rem] px-3 py-[0.4375rem] text-[0.75rem] text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent-border focus:shadow-[0_0_0_3px_var(--color-glow)] transition-[border-color,box-shadow,background] duration-150"
               />
               <button
                 type="button"

@@ -100,7 +100,7 @@ export function FileDetail({
             fileName={mergedDiff.path.split("/").pop() || mergedDiff.path}
             fullPath={fullPath}
           />
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-w-0">
+          <div className="flex-1 overflow-y-auto p-0 min-w-0">
             {mergedDiff.hunks.map((hunk, i) => {
               const msgIdx = hunk.messageIndex;
               const msgId = hunk.messageId;
@@ -165,11 +165,11 @@ export function FileDetail({
             ) : undefined
           }
         />
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="flex-1 overflow-y-auto p-0">
           {content ? (
             <FileRenderer content={content} lang={lang} />
           ) : (
-            <p className="text-xs text-ov-text-secondary">No preview available for this read</p>
+            <p className="text-xs text-ov-text-secondary p-3">No preview available for this read</p>
           )}
         </div>
       </div>
