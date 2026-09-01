@@ -92,7 +92,7 @@ function ActivityTabButton({
   label,
 }: {
   active: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   icon: ReactNode;
   label: string;
 }) {
@@ -100,7 +100,7 @@ function ActivityTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 cursor-pointer transition-colors ${
+      className={`flex items-center gap-1.5 px-3 h-full text-xs font-medium border-b-2 cursor-pointer transition-colors ${
         active
           ? "border-accent text-ov-text bg-ov-bg"
           : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
@@ -310,29 +310,46 @@ export function NotificationDrawer({
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg">
-      <div className="flex items-center gap-0 px-2 border-b border-ov-border bg-surface-elevated shrink-0">
+      <div
+        className={`flex items-center gap-0 px-3 h-10 border-b border-ov-border bg-surface-elevated shrink-0 ${onToggleCollapse ? "cursor-pointer" : ""}`}
+        onClick={() => onToggleCollapse?.()}
+        role={onToggleCollapse ? "button" : undefined}
+        title={onToggleCollapse ? "Click to collapse" : undefined}
+      >
         <ActivityTabButton
           active={activeTab === "prompt"}
-          onClick={() => setActiveTab("prompt")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("prompt");
+          }}
           icon={<MessageSquare size={12} />}
           label="Prompt"
         />
         <ActivityTabButton
           active={activeTab === "activity"}
-          onClick={() => setActiveTab("activity")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("activity");
+          }}
           icon={<Activity size={12} />}
           label="Activity"
         />
         <ActivityTabButton
           active={activeTab === "plan"}
-          onClick={() => setActiveTab("plan")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveTab("plan");
+          }}
           icon={<FileText size={12} />}
           label="Plan"
         />
         {onToggleCollapse && (
           <button
             type="button"
-            onClick={onToggleCollapse}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCollapse();
+            }}
             className="ml-auto mr-1 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
             title="Collapse activity panel"
             aria-label="Collapse activity panel"

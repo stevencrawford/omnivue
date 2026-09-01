@@ -405,7 +405,7 @@ export function FileAccessTree({ accesses, selectedPath, onSelect }: FileAccessT
 
   return (
     <div className="flex flex-col h-full bg-ov-bg-sidebar">
-      <div className="px-3 py-2 border-b border-ov-border bg-surface-elevated text-[11px] flex items-center gap-2 shrink-0">
+      <div className="h-10 px-3 border-b border-ov-border bg-surface-elevated text-[11px] flex items-center gap-2 shrink-0">
         <span className="font-semibold text-ov-text">
           {treeSummary.total} {treeSummary.total === 1 ? "file" : "files"}
         </span>

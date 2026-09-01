@@ -28,7 +28,7 @@ function FileDetailHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="group flex items-center gap-2 px-3 py-2 border-b border-ov-border bg-surface-elevated shrink-0">
+    <div className="group flex items-center gap-2 px-3 h-10 border-b border-ov-border bg-surface-elevated shrink-0">
       {icon}
       <span className="font-mono text-xs text-ov-text truncate min-w-0" title={fullPath}>
         {fileName}
