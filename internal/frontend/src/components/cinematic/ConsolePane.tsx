@@ -4,6 +4,8 @@ import type { Message, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { extractJSONField } from "../../utils/jsonField";
 import { useCopy } from "../../hooks/useCopy";
+import { formatCost } from "../../utils/sessionUtils";
+import { useHideCosts } from "../../hooks/useHideCosts";
 
 interface ConsolePaneProps {
   session: Session;
@@ -127,30 +129,84 @@ function ConsoleStream({
 export function ConsolePane(props: ConsolePaneProps) {
   const { session, messages, cursor, maxIndex } = props;
   const isCollapsed = !!props.collapsed;
+  const hideCosts = useHideCosts();
 
-  const tokenBreakdown = useMemo(() => {
+  const tokenStats = useMemo(() => {
     let eventIdx = 0;
-    let totalVisible = 0;
+    let visIn = 0;
+    let visOut = 0;
+    let visTotal = 0;
+    let fullIn = 0;
+    let fullOut = 0;
     for (const m of messages) {
       const isUser = m.role === "user";
       const msgEvents = isUser ? 1 : m.toolCalls?.length ? m.toolCalls.length : 1;
       const msgEnd = eventIdx + msgEvents - 1;
       const visible = msgEnd <= cursor || cursor >= maxIndex;
-      if (visible) totalVisible += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
+      const ti = m.tokensInput ?? 0;
+      const to = m.tokensOutput ?? 0;
+      if (visible) {
+        visIn += ti;
+        visOut += to;
+        visTotal += ti + to;
+      }
+      fullIn += ti;
+      fullOut += to;
       eventIdx += msgEvents;
     }
-    let full = 0;
-    for (const m of messages) full += (m.tokensInput ?? 0) + (m.tokensOutput ?? 0);
-    const pct = full > 0 ? totalVisible / full : 1;
-    const cached = Math.round((session.tokensCacheRead ?? 0) * pct);
-    const fmt = (n: number) => {
-      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-      if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
-      return `${n}`;
-    };
-    if (cached > 0) return `${fmt(cached)} cached`;
-    return "—";
-  }, [messages, cursor, maxIndex, session.tokensCacheRead]);
+    const full = fullIn + fullOut;
+    let inTokens = visIn;
+    let outTokens = visOut;
+    let cached = 0;
+    let cost = 0;
+    if (full > 0) {
+      const pct = visTotal / full;
+      cached = Math.round((session.tokensCacheRead ?? 0) * pct);
+      cost = (session.cost ?? 0) * pct;
+      // fallback to proportional session tokens when messages have no per-message tokens
+      if (fullIn === 0 && session.tokensInput > 0) inTokens = Math.round(session.tokensInput * pct);
+      if (fullOut === 0 && session.tokensOutput > 0)
+        outTokens = Math.round(session.tokensOutput * pct);
+    } else {
+      // no per-message tokens, derive directly from session
+      inTokens = session.tokensInput ?? 0;
+      outTokens = session.tokensOutput ?? 0;
+      cached = session.tokensCacheRead ?? 0;
+      cost = session.cost ?? 0;
+      // if not at live, scale by pct based on cursor position (approx)
+      if (cursor < maxIndex && maxIndex > 0) {
+        const pct = (cursor + 1) / (maxIndex + 1);
+        inTokens = Math.round(inTokens * pct);
+        outTokens = Math.round(outTokens * pct);
+        cached = Math.round(cached * pct);
+        cost *= pct;
+      }
+    }
+    return { inTokens, outTokens, cached, cost };
+  }, [
+    messages,
+    cursor,
+    maxIndex,
+    session.tokensCacheRead,
+    session.tokensInput,
+    session.tokensOutput,
+    session.cost,
+  ]);
+
+  const bashCount = useMemo(
+    () =>
+      messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash"))
+        .length,
+    [messages],
+  );
+
+  const fmt = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
+    return `${n}`;
+  };
+
+  const costLabel = !hideCosts && tokenStats.cost > 0 ? formatCost(tokenStats.cost) : "";
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg-secondary border-t border-ov-border">
@@ -176,10 +232,37 @@ export function ConsolePane(props: ConsolePaneProps) {
           <Terminal size={12} />
           Console
         </button>
-        <span className="ml-auto text-[11px] font-mono text-ov-text-secondary hidden sm:inline-flex items-center gap-2">
-          <span className="tabular-nums">{tokenBreakdown}</span>
-          <span className="opacity-50">•</span>
-          <span>{`${messages.filter((m) => (m.toolCalls ?? []).some((tc) => effectiveToolKind(tc) === "bash")).length} cmds`}</span>
+        <span className="ml-auto text-[11px] font-mono text-ov-text-secondary hidden sm:inline-flex items-center gap-1.5 tabular-nums">
+          {tokenStats.inTokens > 0 && (
+            <span title="Input tokens">{fmt(tokenStats.inTokens)} in</span>
+          )}
+          {tokenStats.inTokens > 0 && tokenStats.outTokens > 0 && (
+            <span className="opacity-40">/</span>
+          )}
+          {tokenStats.outTokens > 0 && (
+            <span title="Output tokens">{fmt(tokenStats.outTokens)} out</span>
+          )}
+          {tokenStats.cached > 0 && (
+            <>
+              {(tokenStats.inTokens > 0 || tokenStats.outTokens > 0) && (
+                <span className="opacity-40">/</span>
+              )}
+              <span title="Cached tokens">{fmt(tokenStats.cached)} cached</span>
+            </>
+          )}
+          {costLabel && (
+            <>
+              <span className="opacity-40">•</span>
+              <span title="Cost" className="text-ov-text">
+                {costLabel}
+              </span>
+            </>
+          )}
+          {tokenStats.inTokens === 0 && tokenStats.outTokens === 0 && tokenStats.cached === 0 && (
+            <span>—</span>
+          )}
+          <span className="opacity-40">•</span>
+          <span>{bashCount} cmds</span>
         </span>
       </div>
 
