@@ -290,7 +290,7 @@ export function App() {
                     clearFilter: clearFilterTag,
                   }}
                 >
-                  <div className="flex flex-1 overflow-hidden">
+                  <div className="flex flex-1 overflow-hidden relative">
                     <ErrorBoundary>
                       <Sidebar
                         sessions={sessions}

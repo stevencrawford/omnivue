@@ -7,6 +7,7 @@ import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
 import { QueuePanel } from "./QueuePanel";
 import { useResizable } from "../hooks/useResizable";
+import { useCinematicMode } from "../hooks/useCinematicMode";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
 interface SidebarProps {
@@ -70,6 +71,100 @@ export function Sidebar({
 
   const renderedWidth = sidebarOpen ? width : 48;
   const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
+  const { enabled: isCinematic } = useCinematicMode();
+
+  const panels = (
+    <>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "sessions" ? "hidden" : ""}`}
+      >
+        <SessionPanel
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSessionSelect={onSessionSelect}
+          sessionUnread={sessionUnread}
+        />
+      </div>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "queue" ? "hidden" : ""}`}
+      >
+        <QueuePanel
+          sessions={sessions}
+          promptVersion={promptVersion}
+          onSessionSelect={onSessionSelect}
+          onPromptClick={onPromptClick}
+        />
+      </div>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "tags" ? "hidden" : ""}`}
+      >
+        <TagPanel
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSessionSelect={onSessionSelect}
+        />
+      </div>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "bookmarks" ? "hidden" : ""}`}
+      >
+        <BookmarkPanel
+          bookmarks={bookmarks}
+          sessions={sessions}
+          onBookmarkSelect={onBookmarkSelect}
+          onBookmarkDelete={onBookmarkDelete}
+        />
+      </div>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "notifications" ? "hidden" : ""}`}
+      >
+        <NotificationPanel
+          notifications={notifications}
+          sessions={sessions}
+          onNotificationClick={onNotificationClick}
+          onMarkAllRead={onMarkAllNotificationsRead}
+          onClearAll={onClearNotifications}
+        />
+      </div>
+    </>
+  );
+
+  if (isCinematic) {
+    return (
+      <>
+        <aside className="flex shrink-0 relative" style={{ width: "48px" }}>
+          <IconChannel
+            activeSection={activeSection}
+            onSectionChange={onSectionChange}
+            onSettingsOpen={onSettingsOpen}
+            sidebarOpen={sidebarOpen}
+            onSidebarToggle={onSidebarToggle}
+            notificationUnreadCount={notificationUnreadCount}
+            queueCount={queueCount}
+          />
+        </aside>
+        {sidebarOpen && (
+          <>
+            <div
+              className="absolute inset-0 left-12 z-20 bg-black/20 backdrop-blur-[1px]"
+              onClick={onSidebarToggle}
+              aria-hidden="true"
+            />
+            <div
+              className="absolute left-12 top-0 bottom-0 z-30 flex flex-col bg-ov-bg-sidebar border-r border-ov-border shadow-xl overflow-hidden"
+              style={{ width: `${panelWidth}px` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">{panels}</div>
+              <div
+                className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
+                onMouseDown={startResize}
+              />
+            </div>
+          </>
+        )}
+      </>
+    );
+  }
 
   return (
     <aside
@@ -89,56 +184,7 @@ export function Sidebar({
         className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
         style={{ width: `${panelWidth}px` }}
       >
-        <div
-          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "sessions" ? "hidden" : ""}`}
-        >
-          <SessionPanel
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSessionSelect={onSessionSelect}
-            sessionUnread={sessionUnread}
-          />
-        </div>
-        <div
-          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "queue" ? "hidden" : ""}`}
-        >
-          <QueuePanel
-            sessions={sessions}
-            promptVersion={promptVersion}
-            onSessionSelect={onSessionSelect}
-            onPromptClick={onPromptClick}
-          />
-        </div>
-        <div
-          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "tags" ? "hidden" : ""}`}
-        >
-          <TagPanel
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSessionSelect={onSessionSelect}
-          />
-        </div>
-        <div
-          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "bookmarks" ? "hidden" : ""}`}
-        >
-          <BookmarkPanel
-            bookmarks={bookmarks}
-            sessions={sessions}
-            onBookmarkSelect={onBookmarkSelect}
-            onBookmarkDelete={onBookmarkDelete}
-          />
-        </div>
-        <div
-          className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "notifications" ? "hidden" : ""}`}
-        >
-          <NotificationPanel
-            notifications={notifications}
-            sessions={sessions}
-            onNotificationClick={onNotificationClick}
-            onMarkAllRead={onMarkAllNotificationsRead}
-            onClearAll={onClearNotifications}
-          />
-        </div>
+        {panels}
       </div>
       {sidebarOpen && (
         <div
