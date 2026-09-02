@@ -33,6 +33,8 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 	toolCallsByID := make(map[string]*ingest.ToolCall)
 	hasDeveloperContent := false
 	var pendingUsage *ingest.ToolUsage
+	var lastTotalInput, lastTotalOutput, lastTotalCached int
+	var haveLastTotal bool
 
 	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
@@ -176,13 +178,51 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 					break
 				}
 				u := pl.Info.TotalTokenUsage
-				pendingUsage = &ingest.ToolUsage{
-					Tokens: ingest.StepTokens{
-						Input:     u.InputTokens,
-						Output:    u.OutputTokens,
-						CacheRead: u.CachedInputTokens,
-					},
-					Source: ingest.UsageMessage,
+				// TotalTokenUsage is cumulative across the session. Convert to per-turn
+				// delta for attribution, handling counter rebases (smaller than previous)
+				// the same way Copilot's shutdown interval does.
+				curIn := u.InputTokens
+				curOut := u.OutputTokens
+				curCached := u.CachedInputTokens
+				var deltaIn, deltaOut, deltaCached int
+				if haveLastTotal {
+					if curIn >= lastTotalInput {
+						deltaIn = curIn - lastTotalInput
+					} else {
+						deltaIn = curIn
+					}
+					if curOut >= lastTotalOutput {
+						deltaOut = curOut - lastTotalOutput
+					} else {
+						deltaOut = curOut
+					}
+					if curCached >= lastTotalCached {
+						deltaCached = curCached - lastTotalCached
+					} else {
+						deltaCached = curCached
+					}
+				} else {
+					deltaIn = curIn
+					deltaOut = curOut
+					deltaCached = curCached
+				}
+				lastTotalInput = curIn
+				lastTotalOutput = curOut
+				lastTotalCached = curCached
+				haveLastTotal = true
+				if pendingUsage != nil {
+					pendingUsage.Tokens.Input += deltaIn
+					pendingUsage.Tokens.Output += deltaOut
+					pendingUsage.Tokens.CacheRead += deltaCached
+				} else {
+					pendingUsage = &ingest.ToolUsage{
+						Tokens: ingest.StepTokens{
+							Input:     deltaIn,
+							Output:    deltaOut,
+							CacheRead: deltaCached,
+						},
+						Source: ingest.UsageMessage,
+					}
 				}
 
 			case "task_complete":
