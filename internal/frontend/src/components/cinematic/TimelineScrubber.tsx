@@ -43,6 +43,7 @@ export function TimelineScrubber({
 }: TimelineScrubberProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const speedRef = useRef<HTMLDivElement>(null);
 
@@ -96,6 +97,7 @@ export function TimelineScrubber({
       // if a span is selected, dragging should clear selection and start scrubbing
       if (selectedSpan && onClearSpan) onClearSpan();
       draggingRef.current = true;
+      setIsDragging(true);
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       updateFromClientX(e.clientX);
     },
@@ -114,8 +116,71 @@ export function TimelineScrubber({
     (e: React.PointerEvent) => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      setIsDragging(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore if capture already released
+      }
       onEndScrub();
+    },
+    [onEndScrub],
+  );
+
+  const handlePointerCancel = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setIsDragging(false);
+      onEndScrub();
+      e.stopPropagation();
+    },
+    [onEndScrub],
+  );
+
+  const handleThumbPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (selectedSpan && onClearSpan) onClearSpan();
+      draggingRef.current = true;
+      setIsDragging(true);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      updateFromClientX(e.clientX);
+    },
+    [updateFromClientX, selectedSpan, onClearSpan],
+  );
+
+  const handleThumbPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingRef.current) return;
+      updateFromClientX(e.clientX);
+    },
+    [updateFromClientX],
+  );
+
+  const handleThumbPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setIsDragging(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer capture may have been released already
+      }
+      onEndScrub();
+      e.stopPropagation();
+    },
+    [onEndScrub],
+  );
+
+  const handleThumbPointerCancel = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setIsDragging(false);
+      onEndScrub();
+      e.stopPropagation();
     },
     [onEndScrub],
   );
@@ -236,7 +301,7 @@ export function TimelineScrubber({
 
       <div
         ref={trackRef}
-        className="relative flex-1 h-7 flex items-center select-none"
+        className="relative flex-1 h-7 flex items-center select-none touch-none"
         role="slider"
         aria-valuemin={0}
         aria-valuemax={maxIndex}
@@ -246,12 +311,13 @@ export function TimelineScrubber({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         {/* base track */}
         <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 bg-ov-border rounded-full overflow-hidden">
           {!selectedSpan && (
             <div
-              className="absolute left-0 top-0 bottom-0 bg-accent rounded-full transition-[width] duration-75"
+              className={`absolute left-0 top-0 bottom-0 bg-accent rounded-full ${isDragging ? "" : "transition-[width] duration-75"}`}
               style={{ width: `${pct}%` }}
             />
           )}
@@ -383,12 +449,24 @@ export function TimelineScrubber({
           );
         })}
 
-        {/* thumb (hidden when a span is isolated) */}
+        {/* thumb - draggable to scrub timeline, hidden when a span is isolated */}
         {!selectedSpan && (
           <div
-            className="absolute top-1/2 -translate-y-1/2 size-3 rounded-full bg-ov-bg border-2 border-accent shadow-sm -ml-1.5 pointer-events-none z-30 transition-all duration-200 ease-out"
+            className={`absolute top-1/2 -translate-y-1/2 -ml-2.5 size-5 flex items-center justify-center z-30 touch-none select-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
             style={{ left: `${pct}%` }}
-          />
+            onPointerDown={handleThumbPointerDown}
+            onPointerMove={handleThumbPointerMove}
+            onPointerUp={handleThumbPointerUp}
+            onPointerCancel={handleThumbPointerCancel}
+            role="button"
+            tabIndex={-1}
+            aria-label="Drag to scrub timeline"
+            title="Drag to jump to a point in the timeline"
+          >
+            <div
+              className={`size-3 rounded-full bg-ov-bg border-2 border-accent shadow-sm transition-all duration-150 ease-out pointer-events-none ${isDragging ? "scale-125 shadow-md" : "hover:scale-110"}`}
+            />
+          </div>
         )}
       </div>
 
