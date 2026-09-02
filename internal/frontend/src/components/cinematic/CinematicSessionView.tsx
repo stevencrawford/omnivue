@@ -523,68 +523,212 @@ export function CinematicSessionView({
 
   const fileTokenTotals = useMemo(() => {
     const totals = new Map<string, { in: number; out: number }>();
-    const fileToIndices = new Map<string, Set<number>>();
-    const add = (filePath: string, mi: number) => {
-      if (mi < 0 || mi >= messages.length) return;
-      let set = fileToIndices.get(filePath);
-      if (!set) {
-        set = new Set<number>();
-        fileToIndices.set(filePath, set);
+    if (visibleAccess.length === 0 && mergedDiffs.length === 0) return totals;
+
+    // Convert per-message cumulative tokens to incremental deltas when the backend
+    // reports cumulative totals (e.g. Codex TotalTokenUsage). Detection: sum of
+    // per-message tokens far exceeds the session total.
+    const msgDeltas: Array<{ in: number; out: number }> = messages.map((m) => ({
+      in: m.tokensInput ?? 0,
+      out: m.tokensOutput ?? 0,
+    }));
+    const sumIn = msgDeltas.reduce((s, d) => s + d.in, 0);
+    const sumOut = msgDeltas.reduce((s, d) => s + d.out, 0);
+    const isCumulativeIn = sumIn > session.tokensInput * 1.5 && session.tokensInput > 0;
+    const isCumulativeOut = sumOut > session.tokensOutput * 1.5 && session.tokensOutput > 0;
+    if (isCumulativeIn || isCumulativeOut) {
+      let prevIn = 0;
+      let prevOut = 0;
+      for (let i = 0; i < messages.length; i++) {
+        const rawIn = messages[i].tokensInput ?? 0;
+        const rawOut = messages[i].tokensOutput ?? 0;
+        if (isCumulativeIn) {
+          if (rawIn > 0) {
+            const delta = rawIn >= prevIn ? rawIn - prevIn : rawIn;
+            msgDeltas[i].in = delta;
+            prevIn = rawIn;
+          } else {
+            msgDeltas[i].in = 0;
+          }
+        }
+        if (isCumulativeOut) {
+          if (rawOut > 0) {
+            const delta = rawOut >= prevOut ? rawOut - prevOut : rawOut;
+            msgDeltas[i].out = delta;
+            prevOut = rawOut;
+          } else {
+            msgDeltas[i].out = 0;
+          }
+        }
       }
-      set.add(mi);
+    }
+
+    // Per-message denominator data for fair per-tool attribution. Backends
+    // attribute the same step/message totals to every tool in the group, so
+    // summing full totals per file double-counts. Splitting equally among
+    // tools sharing the same usage (or among all tools in the message as
+    // fallback) makes per-file totals sum to the session total.
+    const msgToolCounts = new Map<number, number>();
+    const msgUsageGroups = new Map<number, Map<string, number>>();
+    for (let mi = 0; mi < messages.length; mi++) {
+      const tcs = messages[mi].toolCalls ?? [];
+      msgToolCounts.set(mi, tcs.length);
+      const group = new Map<string, number>();
+      for (const tc of tcs) {
+        if (tc.usage?.tokens) {
+          const ut = tc.usage.tokens;
+          const key = `${tc.usage.source}:${ut.input ?? 0},${ut.output ?? 0},${ut.cacheRead ?? 0},${ut.cacheWrite ?? 0},${ut.reasoning ?? 0}`;
+          group.set(key, (group.get(key) ?? 0) + 1);
+        }
+      }
+      if (group.size > 0) msgUsageGroups.set(mi, group);
+    }
+
+    const getShareForAccess = (mi: number, toolId: string): { in: number; out: number } | null => {
+      if (mi < 0 || mi >= messages.length) return null;
+      const msg = messages[mi];
+      // Prefer per-tool usage when available (already split-aware via group size), but
+      // skip it when we detected cumulative message totals — usage is then also
+      // cumulative and would re-introduce the inflation; the corrected msgDeltas
+      // are the accurate per-turn split instead.
+      const tc = (msg.toolCalls ?? []).find((t) => t.id === toolId);
+      const usage = tc?.usage;
+      if (usage?.tokens && !(isCumulativeIn || isCumulativeOut)) {
+        const ut = usage.tokens;
+        const key = `${usage.source}:${ut.input ?? 0},${ut.output ?? 0},${ut.cacheRead ?? 0},${ut.cacheWrite ?? 0},${ut.reasoning ?? 0}`;
+        const groupCount = msgUsageGroups.get(mi)?.get(key) ?? 1;
+        const denom = Math.max(1, groupCount);
+        const inShare = (ut.input ?? 0) / denom;
+        const outShare = (ut.output ?? 0) / denom;
+        if (inShare === 0 && outShare === 0) return null;
+        return { in: inShare, out: outShare };
+      }
+      // Fallback to per-message delta split equally among tools in the message
+      const delta = msgDeltas[mi];
+      if (!delta || (delta.in === 0 && delta.out === 0)) return null;
+      const denom = Math.max(1, msgToolCounts.get(mi) ?? 1);
+      return { in: delta.in / denom, out: delta.out / denom };
     };
+
+    // Accumulate per-file shares from each visible file access (one per tool call)
+    const fileShares = new Map<string, { in: number; out: number; fallbackOccurrences: number }>();
     for (const acc of visibleAccess) {
-      add(acc.filePath, acc.messageIndex);
-    }
-    for (const diff of mergedDiffs) {
-      for (const hunk of diff.hunks) {
-        const mi = hunk.messageIndex;
-        if (mi != null && mi >= 0) add(diff.path, mi);
+      const share = getShareForAccess(acc.messageIndex, acc.tool.id);
+      if (share) {
+        const cur = fileShares.get(acc.filePath) ?? { in: 0, out: 0, fallbackOccurrences: 0 };
+        cur.in += share.in;
+        cur.out += share.out;
+        fileShares.set(acc.filePath, cur);
+      } else {
+        const cur = fileShares.get(acc.filePath) ?? { in: 0, out: 0, fallbackOccurrences: 0 };
+        cur.fallbackOccurrences += 1;
+        fileShares.set(acc.filePath, cur);
       }
     }
-    // primary: sum per-message tokens per file (accumulates when touched >1)
-    let hasPerMessageTokens = false;
-    for (const [filePath, set] of fileToIndices) {
+
+    // Synthetic diff files that have no FileAccess (e.g. edits not recognized as
+    // fileAccess due to alias) still need attribution. Attribute each distinct
+    // message that contributed a hunk as one synthetic occurrence split from that
+    // message's delta (counted as an extra tool in the message).
+    for (const diff of mergedDiffs) {
+      if (fileShares.has(diff.path)) continue;
+      const distinctMI = new Set<number>();
+      for (const h of diff.hunks) {
+        if (h.messageIndex != null && h.messageIndex >= 0) distinctMI.add(h.messageIndex);
+      }
+      if (distinctMI.size === 0) continue;
       let inSum = 0;
       let outSum = 0;
-      for (const mi of set) {
+      let hasData = false;
+      let fallbackCount = 0;
+      for (const mi of distinctMI) {
+        if (mi < 0 || mi >= messages.length) continue;
         const msg = messages[mi];
-        if (!msg) continue;
-        inSum += msg.tokensInput ?? 0;
-        outSum += msg.tokensOutput ?? 0;
+        // Check if this message's tools already have usage that would cover the synthetic edit
+        // If so, treat synthetic as part of same group size +1.
+        const delta = msgDeltas[mi];
+        if (delta.in !== 0 || delta.out !== 0) {
+          const denom = Math.max(1, (msgToolCounts.get(mi) ?? 0) + 1);
+          inSum += delta.in / denom;
+          outSum += delta.out / denom;
+          hasData = true;
+        } else {
+          // No delta data -> will fall back to session distribution
+          fallbackCount += 1;
+        }
+        // Also consider per-tool usage if the message's toolCalls include an edit for this file
+        // but was not captured as FileAccess (e.g. view alias). Try to find a matching tool
+        // by file path inside input.
+        void msg;
       }
-      if (inSum !== 0 || outSum !== 0) hasPerMessageTokens = true;
-      if (inSum !== 0 || outSum !== 0) totals.set(filePath, { in: inSum, out: outSum });
-    }
-    // fallback: per-message tokens are all zero (common for some adapters) → distribute session totals
-    if (!hasPerMessageTokens && fileToIndices.size > 0) {
-      const distinct = new Set<number>();
-      for (const set of fileToIndices.values()) for (const mi of set) distinct.add(mi);
-      const totalDistinct = distinct.size;
-      if (totalDistinct > 0 && (session.tokensInput > 0 || session.tokensOutput > 0)) {
-        let visiblePct = 1;
-        if (selectedSpan && events.length > 0) {
-          visiblePct = (selectedSpan.end - selectedSpan.start) / events.length;
-        } else if (cursor < maxIndex && maxIndex > 0) {
-          visiblePct = (cursor + 1) / (maxIndex + 1);
-        } else if (events.length === 0) {
-          visiblePct = 1;
-        }
-        // when showing all (atLive) visiblePct stays 1
-        const totalInVisible = Math.round(session.tokensInput * visiblePct);
-        const totalOutVisible = Math.round(session.tokensOutput * visiblePct);
-        for (const [filePath, set] of fileToIndices) {
-          const share = set.size / totalDistinct;
-          const inShare = Math.round(totalInVisible * share);
-          const outShare = Math.round(totalOutVisible * share);
-          if (inShare !== 0 || outShare !== 0) totals.set(filePath, { in: inShare, out: outShare });
-        }
-        // if still empty due to rounding (very small), ensure at least one file gets a minimal display
-        if (totals.size === 0 && totalInVisible === 0 && totalOutVisible === 0) {
-          // keep empty — nothing to show
-        }
+      if (hasData) {
+        totals.set(diff.path, { in: Math.round(inSum), out: Math.round(outSum) });
+      } else if (fallbackCount > 0) {
+        fileShares.set(diff.path, { in: 0, out: 0, fallbackOccurrences: fallbackCount });
       }
     }
+
+    // Populate totals from fileShares where we have real data
+    for (const [path, share] of fileShares) {
+      if (share.in !== 0 || share.out !== 0) {
+        totals.set(path, { in: Math.round(share.in), out: Math.round(share.out) });
+      }
+    }
+
+    const hasRealTokens = totals.size > 0;
+    if (!hasRealTokens) {
+      // Fallback: no per-message/per-tool token data at all (e.g. Cursor or OpenCode
+      // before step attribution). Distribute visible session totals proportionally to
+      // occurrence counts, scaled to the visible timeline window.
+      const fallbackEntries = Array.from(fileShares.entries()).filter(
+        ([, v]) => v.fallbackOccurrences > 0,
+      );
+      // Also include diff synthetic paths that already have a totals entry? No, those have data.
+      // If still empty but we have visible accesses, fall back to counting accesses.
+      const effectiveFallback =
+        fallbackEntries.length > 0
+          ? fallbackEntries
+          : (() => {
+              const counts = new Map<string, number>();
+              for (const acc of visibleAccess)
+                counts.set(acc.filePath, (counts.get(acc.filePath) ?? 0) + 1);
+              for (const diff of mergedDiffs) {
+                if (!counts.has(diff.path)) {
+                  const distinct = new Set<number>();
+                  for (const h of diff.hunks)
+                    if (h.messageIndex != null && h.messageIndex >= 0) distinct.add(h.messageIndex);
+                  if (distinct.size > 0) counts.set(diff.path, distinct.size);
+                }
+              }
+              return Array.from(counts.entries()).map(
+                ([p, c]) => [p, { in: 0, out: 0, fallbackOccurrences: c }] as const,
+              );
+            })();
+      if (effectiveFallback.length > 0 && (session.tokensInput > 0 || session.tokensOutput > 0)) {
+        const totalOccurrences = effectiveFallback.reduce(
+          (s, [, v]) => s + v.fallbackOccurrences,
+          0,
+        );
+        if (totalOccurrences > 0) {
+          let visiblePct = 1;
+          if (selectedSpan && events.length > 0) {
+            visiblePct = (selectedSpan.end - selectedSpan.start) / events.length;
+          } else if (cursor < maxIndex && maxIndex > 0) {
+            visiblePct = (cursor + 1) / (maxIndex + 1);
+          }
+          const totalInVisible = Math.round(session.tokensInput * visiblePct);
+          const totalOutVisible = Math.round(session.tokensOutput * visiblePct);
+          for (const [path, share] of effectiveFallback) {
+            if (totals.has(path)) continue;
+            const occ = share.fallbackOccurrences;
+            const inShare = Math.round(totalInVisible * (occ / totalOccurrences));
+            const outShare = Math.round(totalOutVisible * (occ / totalOccurrences));
+            if (inShare !== 0 || outShare !== 0) totals.set(path, { in: inShare, out: outShare });
+          }
+        }
+      }
+    }
+
     return totals;
   }, [
     visibleAccess,
