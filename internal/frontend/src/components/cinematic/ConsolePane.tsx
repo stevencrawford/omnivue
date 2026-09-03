@@ -7,6 +7,7 @@ import { CopyButton } from "../ui/CopyButton";
 import { formatCost } from "../../utils/sessionUtils";
 import { useHideCosts } from "../../hooks/useHideCosts";
 import { EmptyPanel } from "../ui/EmptyPanel";
+import { formatDuration } from "../session-summary/format";
 
 interface ConsolePaneProps {
   session: Session;
@@ -201,7 +202,29 @@ export function ConsolePane(props: ConsolePaneProps) {
         cost *= pct;
       }
     }
-    return { inTokens, outTokens, cached, cost };
+    let totalDuration = 0;
+    {
+      let durEventIdx = 0;
+      for (const m of messages) {
+        if (m.role === "user") {
+          durEventIdx++;
+          continue;
+        }
+        const tcs = m.toolCalls ?? [];
+        if (tcs.length > 0) {
+          for (const tc of tcs) {
+            const visibleTool = selectedSpan
+              ? durEventIdx >= selectedSpan.start && durEventIdx < selectedSpan.end
+              : durEventIdx <= cursor || cursor >= maxIndex;
+            if (visibleTool) totalDuration += tc.duration ?? 0;
+            durEventIdx++;
+          }
+        } else {
+          durEventIdx++;
+        }
+      }
+    }
+    return { inTokens, outTokens, cached, cost, totalDuration };
   }, [
     messages,
     cursor,
@@ -276,9 +299,18 @@ export function ConsolePane(props: ConsolePaneProps) {
               </span>
             </>
           )}
-          {tokenStats.inTokens === 0 && tokenStats.outTokens === 0 && tokenStats.cached === 0 && (
-            <span>—</span>
+          {tokenStats.totalDuration > 0 && (
+            <>
+              <span className="opacity-40">•</span>
+              <span title="Total tool duration">
+                {formatDuration(tokenStats.totalDuration)} total
+              </span>
+            </>
           )}
+          {tokenStats.inTokens === 0 &&
+            tokenStats.outTokens === 0 &&
+            tokenStats.cached === 0 &&
+            tokenStats.totalDuration === 0 && <span>—</span>}
           <span className="opacity-40">•</span>
           <span>{bashCount} cmds</span>
         </span>
