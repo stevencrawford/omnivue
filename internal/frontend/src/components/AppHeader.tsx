@@ -114,13 +114,17 @@ export function AppHeader({
             size={14}
             className={cinematicEnabled ? "text-accent" : "text-ov-text-secondary"}
           />
-          <span className="text-xs font-medium whitespace-nowrap">Try new UX</span>
+          <span className="text-xs font-medium whitespace-nowrap">Studio</span>
           <button
             type="button"
             role="switch"
             aria-checked={cinematicEnabled}
-            aria-label="Toggle new UX"
-            title={cinematicEnabled ? "New UX enabled — click to disable" : "Try new UX"}
+            aria-label="Toggle Studio view"
+            title={
+              cinematicEnabled
+                ? "Studio view enabled — click to switch to tabs"
+                : "Try Studio view (Preview)"
+            }
             onClick={() => setCinematicEnabled(!cinematicEnabled)}
             className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${cinematicEnabled ? "bg-accent" : "bg-ov-bg-active"} cursor-pointer`}
           >
@@ -133,10 +137,10 @@ export function AppHeader({
           type="button"
           role="switch"
           aria-checked={cinematicEnabled}
-          aria-label="Toggle new UX"
+          aria-label="Toggle Studio view"
           onClick={() => setCinematicEnabled(!cinematicEnabled)}
           className="sm:hidden flex items-center gap-1.5 px-2 py-1.5 rounded-full border border-ov-border bg-ov-bg-secondary cursor-pointer"
-          title={cinematicEnabled ? "New UX enabled" : "Try new UX"}
+          title={cinematicEnabled ? "Studio view enabled" : "Try Studio view (Preview)"}
         >
           <Sparkles
             size={14}

@@ -22,8 +22,8 @@ export function SessionsSettingsTab() {
       <Toggle
         checked={cinematicEnabled}
         onChange={setCinematicEnabled}
-        label="Cinematic session view"
-        hint="Tree + console + drawer + timeline scrubber. Replaces tabs with a playable, time-travel view (experimental)."
+        label="Studio view"
+        hint="Immersive workspace that replaces tabs — file tree, console, and activity drawer stay synced to a scrubbable timeline. Play, step, or isolate any turn. (Preview)"
       />
 
       <div className="mt-6">
