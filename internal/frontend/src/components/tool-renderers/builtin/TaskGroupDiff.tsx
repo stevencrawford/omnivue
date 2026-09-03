@@ -33,6 +33,36 @@ function parseCompleteInput(input: string): TaskCompleteInput {
   }
 }
 
+function stripTaskWrapper(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      trimmed === "<task_result>" ||
+      trimmed === "</task_result>" ||
+      trimmed === "</task>" ||
+      trimmed === "<output>" ||
+      trimmed === "</output>"
+    )
+      continue;
+    if (trimmed.startsWith("<task ") && trimmed.endsWith(">")) continue;
+    if (trimmed.startsWith("<output>") && trimmed.endsWith("</output>")) {
+      const inner = trimmed.slice("<output>".length, -"</output>".length);
+      if (inner) out.push(inner);
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n").trim();
+}
+
+function displayAgent(agent: string, description: string): string | null {
+  if (!agent) return null;
+  if (description && description.toLowerCase().startsWith(agent.toLowerCase())) return null;
+  return agent;
+}
+
 export interface TaskGroupDiffProps extends ToolRendererProps {
   task: ToolCall;
   complete?: ToolCall;
@@ -54,7 +84,8 @@ export function TaskGroupDiff({
   const taskInput = parseTaskInput(task.input);
   const completeInput = complete ? parseCompleteInput(complete.input) : {};
   const description = taskInput.description || "";
-  const agent = taskInput.subagent_type || taskInput.agent_type || "";
+  const rawAgent = taskInput.subagent_type || taskInput.agent_type || "";
+  const agent = displayAgent(rawAgent, description);
 
   let summaryMeta: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
   try {
@@ -66,11 +97,11 @@ export function TaskGroupDiff({
   const completedCount = summaryMeta?.filter((s) => s.state?.status === "completed").length ?? 0;
   const totalCount = summaryMeta?.length ?? 0;
 
-  const taskOutput = (task.output || "").trim();
-  const completeSummary = (completeInput.summary || "").trim();
-  const completeOutput = (
-    complete?.output && complete.output !== "completed" ? complete.output.trim() : ""
-  ).trim();
+  const taskOutput = stripTaskWrapper((task.output || "").trim());
+  const completeSummary = stripTaskWrapper((completeInput.summary || "").trim());
+  const completeOutput = stripTaskWrapper(
+    (complete?.output && complete.output !== "completed" ? complete.output.trim() : "").trim(),
+  );
 
   let combined = "";
   if (taskOutput) combined = taskOutput;

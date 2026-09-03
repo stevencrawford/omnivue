@@ -10,6 +10,37 @@ interface TaskInput {
   agent_type?: string;
 }
 
+function stripTaskWrapper(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      trimmed === "<task_result>" ||
+      trimmed === "</task_result>" ||
+      trimmed === "</task>" ||
+      trimmed === "<output>" ||
+      trimmed === "</output>"
+    )
+      continue;
+    if (trimmed.startsWith("<task ") && trimmed.endsWith(">")) continue;
+    // also handle <output>content</output> on same line
+    if (trimmed.startsWith("<output>") && trimmed.endsWith("</output>")) {
+      const inner = trimmed.slice("<output>".length, -"</output>".length);
+      if (inner) out.push(inner);
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n").trim();
+}
+
+function displayAgent(agent: string, description: string): string | null {
+  if (!agent) return null;
+  if (description && description.toLowerCase().startsWith(agent.toLowerCase())) return null;
+  return agent;
+}
+
 export function TaskToolDiff({
   tool,
   variant,
@@ -35,7 +66,8 @@ export function TaskToolDiff({
   }
 
   const description = input.description || "";
-  const agent = input.subagent_type || input.agent_type || "";
+  const rawAgent = input.subagent_type || input.agent_type || "";
+  const agent = displayAgent(rawAgent, description);
 
   const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
   const totalCount = summary?.length ?? 0;
@@ -87,7 +119,10 @@ export function TaskToolDiff({
       </div>
       {tool.output && (
         <div className="px-3 py-2 border-t border-violet-500/20">
-          <MarkdownContent content={tool.output} className="markdown-body--wide" />
+          <MarkdownContent
+            content={stripTaskWrapper(tool.output)}
+            className="markdown-body--wide"
+          />
         </div>
       )}
       {childSessionId && <SubAgentTranscriptToggle sessionId={childSessionId} />}
