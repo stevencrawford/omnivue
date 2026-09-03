@@ -1,6 +1,9 @@
 import { Maximize2, Monitor } from "lucide-react";
+import { useState } from "react";
 import type { ToolCall } from "../../../hooks/types";
 import type { ToolRendererProps } from "../types";
+import { MarkdownContent } from "../../ui/MarkdownContent";
+import { Modal } from "../../ui/Modal";
 import { ToolActionsBar } from "../ToolActionsBar";
 import { useNavigation } from "../../../hooks/useNavigation";
 
@@ -120,32 +123,66 @@ export function TaskGroupDiff({
     ? (complete.duration ?? completeInput.duration_ms) || 0
     : task.duration || 0;
   const displayDuration = durationMs;
+  const [localModalOpen, setLocalModalOpen] = useState(false);
+  const handleViewOutput = () => {
+    if (combined && onOpenModal) {
+      onOpenModal(combined, description || "Sub-agent output");
+    } else if (combined) {
+      setLocalModalOpen(true);
+    }
+  };
 
   if (variant === "summary") {
     const preview = (combined.split("\n")[0] || description || "Sub-task").slice(0, 80);
     return (
-      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-        <Monitor size={12} className="text-violet-400 shrink-0" />
-        <span className="text-ov-text-secondary/70 shrink-0">task:</span>
-        {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
-        <span
-          className="text-ov-text truncate min-w-0"
-          title={description || preview}
-          onClick={(e) => {
-            if (combined && onOpenModal) {
-              e.stopPropagation();
-              onOpenModal(combined, description);
-            }
-          }}
-        >
-          {description || preview}
-        </span>
-        {displayDuration > 0 && (
-          <span className="text-[11px] text-ov-text-secondary/40 shrink-0">
-            {(displayDuration / 1000).toFixed(1)}s
+      <>
+        <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
+          <Monitor size={12} className="text-violet-400 shrink-0" />
+          <span className="text-ov-text-secondary/70 shrink-0">task:</span>
+          {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
+          <span
+            className={`text-ov-text truncate min-w-0 ${combined ? "cursor-pointer hover:underline hover:text-violet-400" : ""}`}
+            title={description || preview}
+            onClick={(e) => {
+              if (combined) {
+                e.stopPropagation();
+                handleViewOutput();
+              }
+            }}
+          >
+            {description || preview}
           </span>
+          {combined && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewOutput();
+              }}
+              className="ml-auto shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 rounded cursor-pointer transition-colors"
+              title="View output"
+            >
+              <Maximize2 size={12} />
+              View Output
+            </button>
+          )}
+          {displayDuration > 0 && (
+            <span className="text-[11px] text-ov-text-secondary/40 shrink-0">
+              {(displayDuration / 1000).toFixed(1)}s
+            </span>
+          )}
+        </div>
+        {localModalOpen && (
+          <Modal
+            isOpen={true}
+            onClose={() => setLocalModalOpen(false)}
+            title={description || "Sub-agent output"}
+            size="xl"
+          >
+            <MarkdownContent content={combined} className="markdown-body--wide" />
+          </Modal>
         )}
-      </div>
+      </>
     );
   }
 
@@ -184,19 +221,27 @@ export function TaskGroupDiff({
             {combined.length > 100 ? "…" : ""}
             <span className="text-ov-text-secondary/60"> ({combined.length} chars)</span>
           </span>
-          {onOpenModal && (
-            <button
-              type="button"
-              onClick={() => onOpenModal(combined, description || "Sub-agent output")}
-              className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 rounded cursor-pointer transition-colors"
-              title="View output"
-            >
-              <Maximize2 size={12} />
-              View Output
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleViewOutput}
+            className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 rounded cursor-pointer transition-colors"
+            title="View output"
+          >
+            <Maximize2 size={12} />
+            View Output
+          </button>
         </div>
       ) : null}
+      {localModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => setLocalModalOpen(false)}
+          title={description || "Sub-agent output"}
+          size="xl"
+        >
+          <MarkdownContent content={combined} className="markdown-body--wide" />
+        </Modal>
+      )}
     </div>
   );
 }
