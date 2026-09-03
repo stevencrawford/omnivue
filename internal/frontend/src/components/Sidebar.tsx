@@ -74,6 +74,41 @@ export function Sidebar({
   const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
   const { enabled: isCinematic } = useCinematicMode();
   const hasAutoClosedRef = useRef(false);
+  const hoverCloseRef = useRef<number | null>(null);
+
+  const cancelHoverClose = useCallback(() => {
+    if (hoverCloseRef.current !== null) {
+      clearTimeout(hoverCloseRef.current);
+      hoverCloseRef.current = null;
+    }
+  }, []);
+
+  const scheduleHoverClose = useCallback(() => {
+    if (!isCinematic || !sidebarOpen) return;
+    cancelHoverClose();
+    hoverCloseRef.current = window.setTimeout(() => {
+      onSidebarToggle();
+    }, 300);
+  }, [isCinematic, sidebarOpen, onSidebarToggle, cancelHoverClose]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverCloseRef.current !== null) clearTimeout(hoverCloseRef.current);
+    };
+  }, []);
+
+  const handleSectionHover = useCallback(
+    (section: Section) => {
+      if (!sidebarOpen) {
+        if (activeSection !== section) onSectionChange(section);
+        onSidebarToggle();
+      } else if (activeSection !== section) {
+        onSectionChange(section);
+      }
+      if (isCinematic) cancelHoverClose();
+    },
+    [sidebarOpen, activeSection, onSectionChange, onSidebarToggle, isCinematic, cancelHoverClose],
+  );
 
   useEffect(() => {
     if (!hasAutoClosedRef.current && isCinematic && activeSessionId === null && sidebarOpen) {
@@ -179,7 +214,12 @@ export function Sidebar({
   if (isCinematic) {
     return (
       <>
-        <aside className="flex shrink-0 relative" style={{ width: "48px" }}>
+        <aside
+          className="flex shrink-0 relative"
+          style={{ width: "48px" }}
+          onMouseEnter={cancelHoverClose}
+          onMouseLeave={scheduleHoverClose}
+        >
           <IconChannel
             activeSection={activeSection}
             onSectionChange={onSectionChange}
@@ -188,6 +228,7 @@ export function Sidebar({
             onSidebarToggle={onSidebarToggle}
             notificationUnreadCount={notificationUnreadCount}
             queueCount={queueCount}
+            onSectionHover={handleSectionHover}
           />
         </aside>
         {sidebarOpen && (
@@ -201,6 +242,8 @@ export function Sidebar({
               className="absolute left-12 top-0 bottom-0 z-30 flex flex-col bg-ov-bg-sidebar border-r border-ov-border shadow-xl overflow-hidden"
               style={{ width: `${panelWidth}px` }}
               onClick={(e) => e.stopPropagation()}
+              onMouseEnter={cancelHoverClose}
+              onMouseLeave={scheduleHoverClose}
             >
               <div className="flex-1 flex flex-col overflow-hidden min-h-0">{panels}</div>
               <div
@@ -227,6 +270,7 @@ export function Sidebar({
         onSidebarToggle={onSidebarToggle}
         notificationUnreadCount={notificationUnreadCount}
         queueCount={queueCount}
+        onSectionHover={handleSectionHover}
       />
       <div
         className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
