@@ -66,7 +66,7 @@ export function Sidebar({
     storageKey: SIDEBAR_WIDTH_KEY,
     axis: "horizontal",
     min: 220,
-    max: 600,
+    max: 750,
     defaultValue: 280,
   });
 

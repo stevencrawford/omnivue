@@ -115,14 +115,14 @@ export function CinematicSessionView({
     storageKey: STORAGE_KEYS.CINEMATIC_TREE_WIDTH,
     axis: "horizontal",
     min: 180,
-    max: 560,
+    max: 700,
     defaultValue: 280,
   });
   const { value: drawerWidth, startResize: startDrawerResize } = useResizable({
     storageKey: STORAGE_KEYS.CINEMATIC_DRAWER_WIDTH,
     axis: "horizontal",
     min: 260,
-    max: 720,
+    max: 900,
     defaultValue: 360,
     invert: true,
   });
@@ -130,7 +130,7 @@ export function CinematicSessionView({
     storageKey: STORAGE_KEYS.CINEMATIC_CONSOLE_HEIGHT,
     axis: "vertical",
     min: 140,
-    max: 520,
+    max: 650,
     defaultValue: 260,
   });
 

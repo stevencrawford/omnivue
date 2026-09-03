@@ -52,7 +52,7 @@ export function DiffView({
     storageKey: DIFF_TREE_WIDTH_KEY,
     axis: "horizontal",
     min: 200,
-    max: 600,
+    max: 750,
     defaultValue: 280,
   });
   const { showErrorToast } = useToast();
