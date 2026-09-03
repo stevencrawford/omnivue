@@ -1,5 +1,6 @@
 import type { FileEdit } from "../hooks/types";
 import { computeDiff, parseUnifiedDiff, type DiffHunk } from "./diff";
+import { extractPatchBodies, isPatchLike } from "./patchBody";
 
 // Merged hunks keep the stable message identity that produced them so jump
 // targets resolve by message id, not by a raw array index that drifts when
@@ -26,6 +27,38 @@ export interface FileTreeNode {
   depth: number;
 }
 
+export function expandPatchEdits(edits: FileEdit[]): FileEdit[] {
+  const expanded: FileEdit[] = [];
+  for (const edit of edits) {
+    const body = edit.newStr || edit.content || "";
+    if (!body || edit.oldStr) {
+      expanded.push(edit);
+      continue;
+    }
+    if (!isPatchLike(body)) {
+      expanded.push(edit);
+      continue;
+    }
+    const bodies = extractPatchBodies(body);
+    const keys = Object.keys(bodies);
+    if (keys.length <= 1 && keys[0] === "") {
+      expanded.push(edit);
+      continue;
+    }
+    // Split multi-file patch into per-file edits
+    let hadSplit = false;
+    for (const [p, b] of Object.entries(bodies)) {
+      const path = p || edit.filePath;
+      if (!path) continue;
+      if (!isPatchLike(b)) continue;
+      hadSplit = true;
+      expanded.push({ ...edit, filePath: path, newStr: b, content: b });
+    }
+    if (!hadSplit) expanded.push(edit);
+  }
+  return expanded;
+}
+
 export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileDiff {
   const allHunks: MergedHunk[] = [];
   let isNew = false;
@@ -35,33 +68,43 @@ export function mergeFileEdits(filePath: string, edits: FileEdit[]): MergedFileD
     const mid = edit.messageId;
     const body = edit.newStr || edit.content || "";
     if (body && !edit.oldStr) {
-      isNew = true;
-      if (body.startsWith("@@")) {
-        for (const hunk of parseUnifiedDiff(body)) {
-          allHunks.push({ ...hunk, messageIndex: mi, messageId: mid });
+      if (isPatchLike(body)) {
+        const bodies = extractPatchBodies(body);
+        let handled = false;
+        for (const [, b] of Object.entries(bodies)) {
+          if (!isPatchLike(b)) continue;
+          handled = true;
+          for (const hunk of parseUnifiedDiff(b)) {
+            allHunks.push({ ...hunk, messageIndex: mi, messageId: mid });
+          }
         }
-      } else {
-        const lines = body.split("\n");
-        const count = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
-        if (count === 0) continue;
-        const hunks: MergedHunk[] = [
-          {
-            deletionStart: 0,
-            deletionCount: 0,
-            additionStart: 1,
-            additionCount: count,
-            lines: lines.slice(0, count).map((text, i) => ({
-              type: "add",
-              text,
-              oldLine: 0,
-              newLine: i + 1,
-            })),
-            messageIndex: mi,
-            messageId: mid,
-          },
-        ];
-        allHunks.push(...hunks);
+        if (handled) {
+          if (allHunks.length > 0) isNew = false;
+          else isNew = true;
+          continue;
+        }
       }
+      isNew = true;
+      const lines = body.split("\n");
+      const count = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+      if (count === 0) continue;
+      const hunks: MergedHunk[] = [
+        {
+          deletionStart: 0,
+          deletionCount: 0,
+          additionStart: 1,
+          additionCount: count,
+          lines: lines.slice(0, count).map((text, i) => ({
+            type: "add",
+            text,
+            oldLine: 0,
+            newLine: i + 1,
+          })),
+          messageIndex: mi,
+          messageId: mid,
+        },
+      ];
+      allHunks.push(...hunks);
       continue;
     }
 
