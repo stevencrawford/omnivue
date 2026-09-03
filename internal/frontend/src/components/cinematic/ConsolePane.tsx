@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Terminal } from "lucide-react";
 import type { Message, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
@@ -56,10 +56,20 @@ function ConsoleStream({
   }, [messages, cursor, maxIndex, selectedSpan]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const threshold = 80;
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isAtBottomRef.current = distance <= threshold;
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (!isAtBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [tools]);
 
@@ -76,6 +86,7 @@ function ConsoleStream({
   return (
     <div
       ref={scrollRef}
+      onScroll={handleScroll}
       className="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs bg-ov-bg"
     >
       {tools.map((item) => {

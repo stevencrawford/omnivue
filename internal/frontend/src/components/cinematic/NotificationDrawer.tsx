@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   MessageSquare,
   Brain,
@@ -131,6 +131,14 @@ export function NotificationDrawer({
   onTabChange,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const threshold = 80;
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isAtBottomRef.current = distance <= threshold;
+  }, []);
   const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = onTabChange ?? setInternalTab;
@@ -308,6 +316,7 @@ export function NotificationDrawer({
     if (activeTab !== "activity") return;
     const el = scrollRef.current;
     if (!el) return;
+    if (!isAtBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [drawerItems, cursor, maxIndex, activeTab]);
 
@@ -365,7 +374,11 @@ export function NotificationDrawer({
       </div>
 
       <div className={`flex-1 min-h-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}>
-        <div ref={scrollRef} className="h-full overflow-y-auto p-2 space-y-2">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto p-2 space-y-2"
+        >
           {drawerItems.length === 0 ? (
             <EmptyPanel
               icon={<Activity size={20} />}
