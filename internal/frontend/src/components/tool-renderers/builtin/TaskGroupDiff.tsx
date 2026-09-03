@@ -211,6 +211,7 @@ export function TaskGroupDiff({
           childSessionId={childSessionId}
           navigateToSession={navigateToSession}
           showPin
+          showCopy={false}
           pinText={combined || description}
         />
       </div>

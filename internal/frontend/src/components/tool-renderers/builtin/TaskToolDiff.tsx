@@ -151,6 +151,7 @@ export function TaskToolDiff({
           childSessionId={childSessionId}
           navigateToSession={navigateToSession}
           showPin
+          showCopy={false}
           pinText={strippedOutput || description}
         />
       </div>
