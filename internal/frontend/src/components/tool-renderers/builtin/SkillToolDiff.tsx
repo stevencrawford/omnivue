@@ -1,6 +1,5 @@
 import { GraduationCap, Loader2 } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { ToolActionsBar } from "../ToolActionsBar";
 import { MarkdownContent } from "../../ui/MarkdownContent";
 
 interface SkillInput {
@@ -9,16 +8,7 @@ interface SkillInput {
   skill?: string;
 }
 
-export function SkillToolDiff({
-  tool,
-  variant,
-  onOpenModal,
-  onPin,
-  onBookmark,
-  isBookmarked,
-  childSessionId,
-  navigateToSession,
-}: ToolRendererProps) {
+export function SkillToolDiff({ tool, variant, onOpenModal }: ToolRendererProps) {
   let input: SkillInput = {};
   try {
     input = JSON.parse(tool.input);
@@ -83,28 +73,15 @@ export function SkillToolDiff({
         )}
       </div>
       {skillContentBlocks.length > 0 && (
-        <div className="bg-sky-500/[0.02]">
-          <div className="flex items-center justify-end gap-1 px-2 py-1 border-b border-sky-500/10">
-            <ToolActionsBar
-              tool={tool}
-              onPin={onPin}
-              onBookmark={onBookmark}
-              isBookmarked={isBookmarked}
-              childSessionId={childSessionId}
-              navigateToSession={navigateToSession}
-              showPin
+        <div className="px-3 pb-3 pt-2 space-y-3 bg-sky-500/[0.02]">
+          {skillContentBlocks.map((block, idx) => (
+            <MarkdownContent
+              key={idx}
+              content={block}
+              className="markdown-body--wide text-xs"
+              onOpenModal={onOpenModal ? () => onOpenModal(block, name || "Skill") : undefined}
             />
-          </div>
-          <div className="px-3 pb-3 pt-2 space-y-3">
-            {skillContentBlocks.map((block, idx) => (
-              <MarkdownContent
-                key={idx}
-                content={block}
-                className="markdown-body--wide text-xs"
-                onOpenModal={onOpenModal ? () => onOpenModal(block, name || "Skill") : undefined}
-              />
-            ))}
-          </div>
+          ))}
         </div>
       )}
       {!description && skillContentBlocks.length === 0 && tool.status !== "completed" && (
