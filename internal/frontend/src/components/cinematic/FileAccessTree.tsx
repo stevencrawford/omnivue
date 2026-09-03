@@ -4,13 +4,16 @@ import {
   Folder,
   FilePlus,
   FilePen,
+  FileText,
   BookOpen,
   Trash2,
+  Plus,
   UnfoldVertical,
   FoldVertical,
   Files,
 } from "lucide-react";
 import type { FileAccess } from "../../utils/fileAccess";
+import type { ScratchFile } from "../../hooks/types";
 import { detectLanguage } from "../../utils/detectLanguage";
 import { EmptyPanel } from "../ui/EmptyPanel";
 
@@ -100,6 +103,12 @@ interface FileAccessTreeProps {
   selectedPath: string;
   onSelect: (path: string) => void;
   tokenTotals?: Map<string, { in: number; out: number }>;
+  scratchFiles?: ScratchFile[];
+  selectedScratchId?: string | null;
+  onSelectScratch?: (id: string) => void;
+  onNewScratch?: () => void;
+  onRenameScratch?: (id: string, title: string) => void;
+  onDeleteScratch?: (id: string) => void;
 }
 
 function collectAllDirectoryPaths(nodes: TreeNode[], out: string[] = []): string[] {
@@ -280,6 +289,12 @@ export function FileAccessTree({
   selectedPath,
   onSelect,
   tokenTotals,
+  scratchFiles = [],
+  selectedScratchId = null,
+  onSelectScratch,
+  onNewScratch,
+  onRenameScratch,
+  onDeleteScratch,
 }: FileAccessTreeProps) {
   const tree = useMemo(() => buildTree(accesses), [accesses]);
 
@@ -309,6 +324,9 @@ export function FileAccessTree({
 
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [scratchExpanded, setScratchExpanded] = useState(true);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     setExpandedMap((prev) => {
@@ -354,6 +372,22 @@ export function FileAccessTree({
     }
     prevSelectedRef.current = selectedPath;
   }, [selectedPath, visibleFlattened]);
+
+  useEffect(() => {
+    if (renamingId && !scratchFiles.some((f) => f.id === renamingId)) {
+      setRenamingId(null);
+    }
+  }, [scratchFiles, renamingId]);
+
+  const commitRename = useCallback(() => {
+    if (!renamingId) return;
+    const trimmed = renameValue.trim();
+    const original = scratchFiles.find((f) => f.id === renamingId)?.title ?? "";
+    if (trimmed && trimmed !== original) {
+      onRenameScratch?.(renamingId, trimmed);
+    }
+    setRenamingId(null);
+  }, [renamingId, renameValue, scratchFiles, onRenameScratch]);
 
   const scrollFocusedIntoView = useCallback((path: string) => {
     requestAnimationFrame(() => {
@@ -437,15 +471,7 @@ export function FileAccessTree({
     [visibleFlattened, focusedPath, selectedPath, expandedMap, onSelect, scrollFocusedIntoView],
   );
 
-  if (accesses.length === 0) {
-    return (
-      <EmptyPanel
-        icon={<Files size={20} />}
-        title="No file reads or edits in visible range"
-        hint="Scrub the timeline to reveal earlier file activity."
-      />
-    );
-  }
+  const showEmptyMain = accesses.length === 0;
 
   return (
     <div className="flex flex-col h-full bg-ov-bg-sidebar">
@@ -455,10 +481,21 @@ export function FileAccessTree({
         </span>
         <span className="text-yellow-500">{treeSummary.edits} edits</span>
         <span className="text-cyan-400">{treeSummary.reads} reads</span>
+        {onNewScratch && (
+          <button
+            type="button"
+            onClick={onNewScratch}
+            className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            title="New scratch file"
+            aria-label="New scratch file"
+          >
+            <Plus size={14} />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => (isAllExpanded ? handleCollapseAll() : handleExpandAll())}
-          className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+          className={`${onNewScratch ? "" : "ml-auto"} size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors`}
           title={isAllExpanded ? "Collapse all" : "Expand all"}
           aria-label={isAllExpanded ? "Collapse all directories" : "Expand all directories"}
         >
@@ -478,18 +515,119 @@ export function FileAccessTree({
         }}
         className="flex-1 overflow-y-auto overflow-x-hidden outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
       >
-        <FileAccessTreeInner
-          nodes={tree}
-          selectedPath={selectedPath}
-          onSelect={(p) => {
-            onSelect(p);
-            setFocusedPath(p);
-          }}
-          expandedMap={expandedMap}
-          onToggleDir={toggleDir}
-          focusedPath={focusedPath}
-          tokenTotals={tokenTotals}
-        />
+        {showEmptyMain ? (
+          <div className="py-4">
+            <EmptyPanel
+              icon={<Files size={20} />}
+              title="No file reads or edits in visible range"
+              hint="Scrub the timeline to reveal earlier file activity."
+            />
+          </div>
+        ) : (
+          <FileAccessTreeInner
+            nodes={tree}
+            selectedPath={selectedPath}
+            onSelect={(p) => {
+              onSelect(p);
+              setFocusedPath(p);
+            }}
+            expandedMap={expandedMap}
+            onToggleDir={toggleDir}
+            focusedPath={focusedPath}
+            tokenTotals={tokenTotals}
+          />
+        )}
+        <div className="border-t border-ov-border mt-1">
+          <button
+            type="button"
+            onClick={() => setScratchExpanded((v) => !v)}
+            className="flex items-center gap-1 w-full px-1 py-1.5 text-left text-[11px] cursor-pointer transition-colors text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+            style={{ paddingLeft: 8 }}
+            aria-label={scratchExpanded ? "Collapse Scratch" : "Expand Scratch"}
+          >
+            <ChevronRight
+              size={12}
+              className={`shrink-0 transition-transform ${scratchExpanded ? "rotate-90" : ""}`}
+            />
+            <FileText size={14} className="shrink-0" />
+            <span className="font-medium truncate">Scratch</span>
+            <span className="ml-auto text-[11px] opacity-60 pr-2">{scratchFiles.length}</span>
+          </button>
+          {scratchExpanded && (
+            <div className="pb-1">
+              {scratchFiles.length === 0 ? (
+                <p className="px-3 py-1.5 text-[11px] text-ov-text-secondary/70 italic">
+                  No scratch files
+                </p>
+              ) : (
+                scratchFiles.map((file) => {
+                  const selected = selectedScratchId === file.id;
+                  const isRenaming = renamingId === file.id;
+                  return (
+                    <div
+                      key={file.id}
+                      data-tree-path={`scratch:${file.id}`}
+                      data-tree-kind="scratch"
+                      className={`group flex items-center gap-2 w-full py-0.5 pr-1 cursor-pointer transition-colors ${
+                        selected ? "bg-accent-muted" : "hover:bg-ov-bg-hover"
+                      }`}
+                      style={{ paddingLeft: 12 }}
+                      onClick={() => {
+                        if (!isRenaming) onSelectScratch?.(file.id);
+                      }}
+                      title={file.title}
+                    >
+                      <FileText size={12} className="shrink-0 text-accent" />
+                      {isRenaming ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              (e.target as HTMLInputElement).blur();
+                            } else if (e.key === "Escape") {
+                              setRenamingId(null);
+                            }
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 min-w-0 text-xs bg-ov-bg border border-accent-border rounded px-1 py-0 outline-none"
+                        />
+                      ) : (
+                        <span
+                          className="text-xs font-mono truncate min-w-0 flex-1 text-ov-text"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingId(file.id);
+                            setRenameValue(file.title);
+                          }}
+                        >
+                          {file.title}
+                        </span>
+                      )}
+                      {!isRenaming && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteScratch?.(file.id);
+                          }}
+                          className="ml-auto shrink-0 size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
+                          title="Delete scratch file"
+                          aria-label="Delete scratch file"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

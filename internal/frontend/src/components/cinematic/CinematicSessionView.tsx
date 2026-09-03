@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Session, Message, BookmarkKind, Plan, FileEdit } from "../../hooks/types";
-import { fetchMessages, fetchPlan, fetchEdits } from "../../hooks/apiClient";
+import type {
+  Session,
+  Message,
+  BookmarkKind,
+  Plan,
+  FileEdit,
+  ScratchFile,
+} from "../../hooks/types";
+import {
+  fetchMessages,
+  fetchPlan,
+  fetchEdits,
+  fetchScratchFiles,
+  createScratchFile,
+  renameScratchFile,
+  deleteScratchFile,
+} from "../../hooks/apiClient";
 import { isAbortError } from "../../utils/errors";
 import { useToast } from "../../hooks/useToast";
 import { SessionHeader } from "../SessionHeader";
@@ -11,6 +26,7 @@ import { FileDetail } from "./FileDetail";
 import { ConsolePane } from "./ConsolePane";
 import { NotificationDrawer, type ActivityTab } from "./NotificationDrawer";
 import { TerminalPanel } from "../TerminalPanel";
+import { ScratchEditor } from "../ScratchEditor";
 import { useTimeline } from "../../hooks/useTimeline";
 import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
 import { mergeFileEdits, relativizePath, type MergedFileDiff } from "../../utils/diffTree";
@@ -18,7 +34,15 @@ import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { LoadingState } from "../ui/LoadingState";
 import { useCopy } from "../../hooks/useCopy";
-import { Check, Copy, PanelRightOpen, Activity, MessageSquare, FileText } from "lucide-react";
+import {
+  Check,
+  Copy,
+  PanelRightOpen,
+  Activity,
+  MessageSquare,
+  FileText,
+  FilePlus,
+} from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
@@ -61,6 +85,10 @@ export function CinematicSessionView({
   const [planLoading, setPlanLoading] = useState(false);
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
+  const [selectedScratchId, setSelectedScratchId] = useState<string | null>(null);
+  const [scratchFiles, setScratchFiles] = useState<ScratchFile[]>([]);
+  const [createScratchOpen, setCreateScratchOpen] = useState(false);
+  const [deleteScratchId, setDeleteScratchId] = useState<string | null>(null);
   const [markdownModal, setMarkdownModal] = useState<{ content: string; title?: string } | null>(
     null,
   );
@@ -151,11 +179,26 @@ export function CinematicSessionView({
     }
   }, [session.id]);
 
+  const loadScratchFiles = useCallback(async () => {
+    try {
+      const data = await fetchScratchFiles(session.id);
+      setScratchFiles(data || []);
+    } catch {
+      setScratchFiles([]);
+    }
+  }, [session.id]);
+
   useEffect(() => {
     loadMessages();
     loadPlan();
     loadEdits();
-  }, [loadMessages, loadPlan, loadEdits]);
+    loadScratchFiles();
+  }, [loadMessages, loadPlan, loadEdits, loadScratchFiles]);
+
+  useEffect(() => {
+    setSelectedScratchId(null);
+    setSelectedPath("");
+  }, [session.id]);
 
   useEffect(() => {
     return () => {
@@ -171,6 +214,7 @@ export function CinematicSessionView({
       loadMessages(true);
       loadPlan();
       loadEdits();
+      loadScratchFiles();
     }, 300);
     return () => clearTimeout(handle);
   }, [
@@ -179,6 +223,7 @@ export function CinematicSessionView({
     loadMessages,
     loadPlan,
     loadEdits,
+    loadScratchFiles,
     messages.length,
     loading,
     ackSessionChange,
@@ -214,6 +259,7 @@ export function CinematicSessionView({
       loadMessages(true);
       loadPlan();
       loadEdits();
+      loadScratchFiles();
     }, 300);
     return () => clearTimeout(handle);
   }, [
@@ -226,6 +272,7 @@ export function CinematicSessionView({
     loadMessages,
     loadPlan,
     loadEdits,
+    loadScratchFiles,
   ]);
 
   // Polling fallback when a session is active: guarantees the cinematic
@@ -238,9 +285,10 @@ export function CinematicSessionView({
       loadMessages(true);
       loadPlan();
       loadEdits();
+      loadScratchFiles();
     }, 5000);
     return () => clearInterval(iv);
-  }, [isActive, loadMessages, loadPlan, loadEdits]);
+  }, [isActive, loadMessages, loadPlan, loadEdits, loadScratchFiles]);
 
   const {
     cursor,
@@ -743,6 +791,7 @@ export function CinematicSessionView({
   ]);
 
   const selectedAccess = useMemo(() => {
+    if (selectedScratchId) return null;
     if (!selectedPath) return null;
     const normSelected = selectedPath.replace(/^\/+/, "");
     const relSelected = relativizePath(normSelected, session.directory);
@@ -752,15 +801,65 @@ export function CinematicSessionView({
       ) ?? null;
     if (fromTree) return fromTree;
     return visibleAccess.find((a) => a.filePath.replace(/^\/+/, "") === normSelected) ?? null;
-  }, [visibleAccess, treeAccesses, selectedPath, session.directory]);
+  }, [visibleAccess, treeAccesses, selectedPath, session.directory, selectedScratchId]);
+
+  const handleSelectFile = useCallback((path: string) => {
+    setSelectedPath(path);
+    setSelectedScratchId(null);
+  }, []);
+
+  const handleSelectScratch = useCallback((id: string) => {
+    setSelectedScratchId(id);
+  }, []);
+
+  const handleCreateScratch = useCallback(async () => {
+    try {
+      const f = await createScratchFile(session.id, "Untitled", "# Untitled");
+      setScratchFiles((prev) => [f, ...prev]);
+      setSelectedScratchId(f.id);
+      setSelectedPath("");
+      setCreateScratchOpen(false);
+    } catch (err) {
+      showErrorToast(err, "Failed to create scratch file");
+    }
+  }, [session.id, showErrorToast]);
+
+  const handleRenameScratch = useCallback(
+    async (id: string, title: string) => {
+      try {
+        await renameScratchFile(session.id, id, title);
+        setScratchFiles((prev) => prev.map((f) => (f.id === id ? { ...f, title } : f)));
+      } catch (err) {
+        showErrorToast(err, "Failed to rename scratch file");
+      }
+    },
+    [session.id, showErrorToast],
+  );
+
+  const handleDeleteScratch = useCallback(
+    async (id: string) => {
+      try {
+        await deleteScratchFile(session.id, id);
+        setScratchFiles((prev) => prev.filter((f) => f.id !== id));
+        if (selectedScratchId === id) setSelectedScratchId(null);
+      } catch (err) {
+        showErrorToast(err, "Failed to delete scratch file");
+      } finally {
+        setDeleteScratchId(null);
+      }
+    },
+    [session.id, selectedScratchId, showErrorToast],
+  );
 
   useEffect(() => {
+    if (selectedScratchId) return;
     if (!selectedPath && treeAccesses.length > 0) {
       setSelectedPath(treeAccesses[0].filePath);
     }
-  }, [treeAccesses, selectedPath]);
+  }, [treeAccesses, selectedPath, selectedScratchId]);
 
   useEffect(() => {
+    if (selectedScratchId) return;
     if (!selectedPath) return;
     const normSelected = selectedPath.replace(/^\/+/, "");
     const relSelected = relativizePath(normSelected, session.directory);
@@ -771,7 +870,13 @@ export function CinematicSessionView({
       if (treeAccesses.length > 0) setSelectedPath(treeAccesses[0].filePath);
       else setSelectedPath("");
     }
-  }, [treeAccesses, selectedPath, session.directory]);
+  }, [treeAccesses, selectedPath, session.directory, selectedScratchId]);
+
+  useEffect(() => {
+    if (selectedScratchId && !scratchFiles.some((f) => f.id === selectedScratchId)) {
+      setSelectedScratchId(null);
+    }
+  }, [scratchFiles, selectedScratchId]);
 
   const handleOpenModal = useCallback((content: string, title?: string) => {
     setMarkdownModal({ content, title });
@@ -896,8 +1001,16 @@ export function CinematicSessionView({
                       <FileAccessTree
                         accesses={treeAccesses}
                         selectedPath={selectedPath}
-                        onSelect={setSelectedPath}
+                        onSelect={handleSelectFile}
                         tokenTotals={fileTokenTotals}
+                        scratchFiles={scratchFiles}
+                        selectedScratchId={selectedScratchId}
+                        onSelectScratch={handleSelectScratch}
+                        onNewScratch={
+                          !session.parentId ? () => setCreateScratchOpen(true) : undefined
+                        }
+                        onRenameScratch={handleRenameScratch}
+                        onDeleteScratch={(id) => setDeleteScratchId(id)}
                       />
                     </div>
                     <div
@@ -906,13 +1019,23 @@ export function CinematicSessionView({
                     >
                       <div className="absolute inset-y-0 -left-1 -right-1" />
                     </div>
-                    <FileDetail
-                      access={selectedAccess}
-                      fileName={selectedPath.split("/").pop() || selectedPath}
-                      mergedDiff={selectedMergedDiff}
-                      sessionDirectory={session.directory}
-                      onJump={handleJumpToMessage}
-                    />
+                    {selectedScratchId ? (
+                      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                        <ScratchEditor
+                          key={selectedScratchId}
+                          sessionId={session.id}
+                          fileId={selectedScratchId}
+                        />
+                      </div>
+                    ) : (
+                      <FileDetail
+                        access={selectedAccess}
+                        fileName={selectedPath.split("/").pop() || selectedPath}
+                        mergedDiff={selectedMergedDiff}
+                        sessionDirectory={session.directory}
+                        onJump={handleJumpToMessage}
+                      />
+                    )}
                   </div>
 
                   {!consoleCollapsed && (
@@ -1037,6 +1160,60 @@ export function CinematicSessionView({
         {markdownModal && (
           <ModalMarkdownWrapper content={markdownModal.content} title={markdownModal.title} />
         )}
+      </Modal>
+
+      <Modal
+        isOpen={createScratchOpen}
+        onClose={() => setCreateScratchOpen(false)}
+        title="Create new scratch file"
+        size="md"
+      >
+        <div className="p-3 space-y-1">
+          <button
+            type="button"
+            onClick={handleCreateScratch}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-ov-text hover:bg-ov-bg-hover transition-colors cursor-pointer text-left border border-transparent hover:border-accent-border"
+          >
+            <FilePlus size={20} className="shrink-0 text-accent" />
+            <div className="flex flex-col">
+              <span className="font-medium">Scratch file</span>
+              <span className="text-[11px] text-ov-text-secondary">
+                Markdown (.md) — Rich text editor
+              </span>
+            </div>
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={deleteScratchId !== null}
+        onClose={() => setDeleteScratchId(null)}
+        title="Delete scratch file"
+        size="md"
+      >
+        <div className="p-3 space-y-3">
+          <p className="text-sm text-ov-text-secondary">
+            Are you sure you want to delete this scratch file? This action cannot be undone.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDeleteScratchId(null)}
+              className="px-3 py-1.5 text-xs rounded-md text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (deleteScratchId) handleDeleteScratch(deleteScratchId);
+              }}
+              className="px-3 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-500 cursor-pointer transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
