@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
@@ -170,6 +171,15 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 		return &s, nil
 	}
 	a.mu.Unlock()
+	if a.ensureSynthetic(id) {
+		a.mu.Lock()
+		if syn, ok := a.syntheticSessions[id]; ok {
+			a.mu.Unlock()
+			s := syn.session
+			return &s, nil
+		}
+		a.mu.Unlock()
+	}
 
 	var tblCount int
 	if err := a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&tblCount); err != nil || tblCount == 0 {
@@ -242,6 +252,29 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	}
 
 	return &s, nil
+}
+
+func (a *Adapter) ensureSynthetic(syntheticID string) bool {
+	parentID, _, ok := strings.Cut(syntheticID, "-sub-")
+	if !ok {
+		return false
+	}
+	// If we already have it, nothing to do.
+	a.mu.Lock()
+	_, ok2 := a.syntheticSessions[syntheticID]
+	a.mu.Unlock()
+	if ok2 {
+		return true
+	}
+	// Best-effort: parse parent events to populate the synthetic map.
+	// messagesFromEvents has the side effect of creating synthetics.
+	if _, err := a.messagesFromEvents(parentID); err != nil {
+		return false
+	}
+	a.mu.Lock()
+	_, ok2 = a.syntheticSessions[syntheticID]
+	a.mu.Unlock()
+	return ok2
 }
 
 func (a *Adapter) appendSyntheticSessions(sessions []ingest.Session) []ingest.Session {

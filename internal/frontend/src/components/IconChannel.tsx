@@ -11,6 +11,9 @@ interface IconChannelProps {
   onSidebarToggle: () => void;
   notificationUnreadCount?: number;
   queueCount?: number;
+  onSectionHover?: (section: Section) => void;
+  onSectionHoverCancel?: () => void;
+  onSectionFocus?: (section: Section) => void;
 }
 
 export function SessionsIcon({ size = 24, ...props }: LucideProps) {
@@ -52,6 +55,9 @@ export function IconChannel({
   onSidebarToggle,
   notificationUnreadCount = 0,
   queueCount = 0,
+  onSectionHover,
+  onSectionHoverCancel,
+  onSectionFocus,
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
@@ -59,7 +65,11 @@ export function IconChannel({
         <button
           key={id}
           type="button"
+          onMouseEnter={() => onSectionHover?.(id)}
+          onMouseLeave={() => onSectionHoverCancel?.()}
+          onFocus={() => (onSectionFocus ?? onSectionHover)?.(id)}
           onClick={() => {
+            onSectionHoverCancel?.();
             if (id === activeSection) {
               onSidebarToggle();
             } else {

@@ -315,6 +315,14 @@ func (a *Adapter) handleSubAgentCompleted(sessionID string, subAgentStack *[]*su
 		a.mu.Lock()
 		a.syntheticSessions[synID] = syn
 		a.mu.Unlock()
+		// Invalidate the sessions cache so the new synthetic appears in the next
+		// ListSessions without waiting for the adaptive poll to notice a newer
+		// mtime. The parent's tool already carries the synthetic ID in its
+		// metadata, so View Session can resolve immediately after the parent
+		// is viewed.
+		a.sessionsMu.Lock()
+		a.cachedSessions = nil
+		a.sessionsMu.Unlock()
 	}
 
 	if sa.parentMsgIdx >= 0 && sa.parentToolIdx >= 0 && sa.parentMsgIdx < len(*messages) {

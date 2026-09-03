@@ -10,6 +10,7 @@ import { EmptyPanel } from "./ui/EmptyPanel";
 import { useToast } from "../hooks/useToast";
 import {
   mergeFileEdits,
+  expandPatchEdits,
   relativizePath,
   buildFileTree,
   DIFF_STATUS_COLORS,
@@ -52,7 +53,7 @@ export function DiffView({
     storageKey: DIFF_TREE_WIDTH_KEY,
     axis: "horizontal",
     min: 200,
-    max: 600,
+    max: 750,
     defaultValue: 280,
   });
   const { showErrorToast } = useToast();
@@ -75,8 +76,9 @@ export function DiffView({
   }, [load]);
 
   const mergedDiffs = useMemo(() => {
+    const expanded = expandPatchEdits(edits);
     const grouped = new Map<string, FileEdit[]>();
-    for (const edit of edits) {
+    for (const edit of expanded) {
       if (!edit.filePath) continue;
       const relPath = relativizePath(edit.filePath, sessionDirectory);
       const list = grouped.get(relPath) || [];

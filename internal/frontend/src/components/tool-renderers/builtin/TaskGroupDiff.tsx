@@ -1,14 +1,37 @@
 import { Maximize2, Monitor } from "lucide-react";
 import { useState } from "react";
+import type { ToolCall } from "../../../hooks/types";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
 import { Modal } from "../../ui/Modal";
 import { ToolActionsBar } from "../ToolActionsBar";
+import { useNavigation } from "../../../hooks/useNavigation";
 
 interface TaskInput {
   description?: string;
   subagent_type?: string;
   agent_type?: string;
+}
+
+interface TaskCompleteInput {
+  summary?: string;
+  duration_ms?: number;
+}
+
+function parseTaskInput(input: string): TaskInput {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return {};
+  }
+}
+
+function parseCompleteInput(input: string): TaskCompleteInput {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return {};
+  }
 }
 
 function stripTaskWrapper(text: string): string {
@@ -25,7 +48,6 @@ function stripTaskWrapper(text: string): string {
     )
       continue;
     if (trimmed.startsWith("<task ") && trimmed.endsWith(">")) continue;
-    // also handle <output>content</output> on same line
     if (trimmed.startsWith("<output>") && trimmed.endsWith("</output>")) {
       const inner = trimmed.slice("<output>".length, -"</output>".length);
       if (inner) out.push(inner);
@@ -42,48 +64,76 @@ function displayAgent(agent: string, description: string): string | null {
   return agent;
 }
 
-export function TaskToolDiff({
-  tool,
+export interface TaskGroupDiffProps extends ToolRendererProps {
+  task: ToolCall;
+  complete?: ToolCall;
+}
+
+export function TaskGroupDiff({
+  task,
+  complete,
   variant,
   onOpenModal,
   onPin,
   onBookmark,
   isBookmarked,
   childSessionId,
-  navigateToSession,
-}: ToolRendererProps) {
-  let input: TaskInput = {};
-  let summary: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
-  try {
-    input = JSON.parse(tool.input);
-  } catch {
-    /* ignore */
-  }
-  try {
-    const meta = JSON.parse(tool.metadata || "{}");
-    summary = meta.summary || null;
-  } catch {
-    /* ignore */
-  }
-
-  const description = input.description || "";
-  const rawAgent = input.subagent_type || input.agent_type || "";
+  navigateToSession: navigateToSessionProp,
+}: TaskGroupDiffProps) {
+  const { navigateToSession: navigateHook } = useNavigation();
+  const navigateToSession = navigateToSessionProp || navigateHook;
+  const taskInput = parseTaskInput(task.input);
+  const completeInput = complete ? parseCompleteInput(complete.input) : {};
+  const description = taskInput.description || "";
+  const rawAgent = taskInput.subagent_type || taskInput.agent_type || "";
   const agent = displayAgent(rawAgent, description);
-  const strippedOutput = stripTaskWrapper(tool.output || "");
 
-  const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
-  const totalCount = summary?.length ?? 0;
+  let summaryMeta: Array<{ tool: string; state: { status: string; title?: string } }> | null = null;
+  try {
+    const meta = JSON.parse(task.metadata || "{}");
+    summaryMeta = meta.summary || null;
+  } catch {
+    /* ignore */
+  }
+  const completedCount = summaryMeta?.filter((s) => s.state?.status === "completed").length ?? 0;
+  const totalCount = summaryMeta?.length ?? 0;
+
+  const taskOutput = stripTaskWrapper((task.output || "").trim());
+  const completeSummary = stripTaskWrapper((completeInput.summary || "").trim());
+  const completeOutput = stripTaskWrapper(
+    (complete?.output && complete.output !== "completed" ? complete.output.trim() : "").trim(),
+  );
+
+  let combined = "";
+  if (taskOutput) combined = taskOutput;
+  const summaryToAdd = completeSummary || completeOutput;
+  if (summaryToAdd) {
+    if (combined) {
+      if (!combined.includes(summaryToAdd) && !summaryToAdd.includes(combined.slice(-500))) {
+        combined = combined + "\n\n---\n\n" + summaryToAdd;
+      } else if (!combined.includes(summaryToAdd)) {
+        combined = combined + "\n\n" + summaryToAdd;
+      }
+    } else {
+      combined = summaryToAdd;
+    }
+  }
+
+  const durationMs = complete
+    ? (complete.duration ?? completeInput.duration_ms) || 0
+    : task.duration || 0;
+  const displayDuration = durationMs;
   const [localModalOpen, setLocalModalOpen] = useState(false);
-
   const handleViewOutput = () => {
-    if (onOpenModal && strippedOutput) {
-      onOpenModal(strippedOutput, description || "Sub-agent output");
-    } else if (strippedOutput) {
+    if (combined && onOpenModal) {
+      onOpenModal(combined, description || "Sub-agent output");
+    } else if (combined) {
       setLocalModalOpen(true);
     }
   };
 
   if (variant === "summary") {
+    const preview = (combined.split("\n")[0] || description || "Sub-task").slice(0, 80);
     return (
       <>
         <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
@@ -91,18 +141,18 @@ export function TaskToolDiff({
           <span className="text-ov-text-secondary/70 shrink-0">task:</span>
           {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
           <span
-            className={`text-ov-text truncate min-w-0 ${strippedOutput ? "cursor-pointer hover:underline hover:text-violet-400" : ""}`}
-            title={description || "Sub-task"}
+            className={`text-ov-text truncate min-w-0 ${combined ? "cursor-pointer hover:underline hover:text-violet-400" : ""}`}
+            title={description || preview}
             onClick={(e) => {
-              if (strippedOutput) {
+              if (combined) {
                 e.stopPropagation();
                 handleViewOutput();
               }
             }}
           >
-            {description || "Sub-task"}
+            {description || preview}
           </span>
-          {strippedOutput && (
+          {combined && (
             <button
               type="button"
               onClick={(e) => {
@@ -116,15 +166,20 @@ export function TaskToolDiff({
               View Output
             </button>
           )}
+          {displayDuration > 0 && (
+            <span className="text-[11px] text-ov-text-secondary/40 shrink-0">
+              {(displayDuration / 1000).toFixed(1)}s
+            </span>
+          )}
         </div>
-        {strippedOutput && localModalOpen && (
+        {localModalOpen && (
           <Modal
             isOpen={true}
             onClose={() => setLocalModalOpen(false)}
             title={description || "Sub-agent output"}
             size="xl"
           >
-            <MarkdownContent content={strippedOutput} className="markdown-body--wide" />
+            <MarkdownContent content={combined} className="markdown-body--wide" />
           </Modal>
         )}
       </>
@@ -143,8 +198,13 @@ export function TaskToolDiff({
             {completedCount}/{totalCount} steps
           </span>
         )}
+        {displayDuration > 0 && (
+          <span className="text-violet-400/50 shrink-0">
+            {(displayDuration / 1000).toFixed(1)}s
+          </span>
+        )}
         <ToolActionsBar
-          tool={tool}
+          tool={complete || task}
           onPin={onPin}
           onBookmark={onBookmark}
           isBookmarked={isBookmarked}
@@ -152,15 +212,15 @@ export function TaskToolDiff({
           navigateToSession={navigateToSession}
           showPin
           showCopy={false}
-          pinText={strippedOutput || description}
+          pinText={combined || description}
         />
       </div>
-      {strippedOutput && (
+      {combined ? (
         <div className="px-3 py-1.5 border-t border-violet-500/20 flex items-center justify-between gap-2">
           <span className="text-xs text-ov-text-secondary truncate flex-1 min-w-0">
-            Output: {strippedOutput.split("\n")[0].slice(0, 100)}
-            {strippedOutput.length > 100 ? "…" : ""}
-            <span className="text-ov-text-secondary/60"> ({strippedOutput.length} chars)</span>
+            Output: {combined.split("\n")[0].slice(0, 100)}
+            {combined.length > 100 ? "…" : ""}
+            <span className="text-ov-text-secondary/60"> ({combined.length} chars)</span>
           </span>
           <button
             type="button"
@@ -172,7 +232,7 @@ export function TaskToolDiff({
             View Output
           </button>
         </div>
-      )}
+      ) : null}
       {localModalOpen && (
         <Modal
           isOpen={true}
@@ -180,9 +240,18 @@ export function TaskToolDiff({
           title={description || "Sub-agent output"}
           size="xl"
         >
-          <MarkdownContent content={strippedOutput} className="markdown-body--wide" />
+          <MarkdownContent content={combined} className="markdown-body--wide" />
         </Modal>
       )}
     </div>
   );
+}
+
+// Wrapper compatible with ToolRendererProps for registry-less use via ToolCallList coalescing
+export function TaskGroupRenderer(
+  props: ToolRendererProps & { task?: ToolCall; complete?: ToolCall },
+) {
+  const t = (props as TaskGroupDiffProps).task || props.tool;
+  const c = (props as TaskGroupDiffProps).complete;
+  return <TaskGroupDiff {...props} task={t} complete={c} tool={c || t} />;
 }

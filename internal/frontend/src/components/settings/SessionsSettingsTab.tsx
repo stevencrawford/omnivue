@@ -3,10 +3,12 @@ import {
   STALE_DAYS_MIN,
   STALE_DAYS_MAX,
 } from "../../hooks/useSessionListSettings";
+import { useCinematicMode } from "../../hooks/useCinematicMode";
 import { Toggle } from "../ui/Toggle";
 
 export function SessionsSettingsTab() {
   const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();
+  const { enabled: cinematicEnabled, setEnabled: setCinematicEnabled } = useCinematicMode();
 
   return (
     <div>
@@ -18,35 +20,44 @@ export function SessionsSettingsTab() {
       </p>
 
       <Toggle
-        checked={hideStale}
-        onChange={setHideStale}
-        label="Hide completed sessions"
-        hint="Keep the list focused on active and recent work. Older completed sessions are tucked away and can be revealed from the sidebar."
+        checked={cinematicEnabled}
+        onChange={setCinematicEnabled}
+        label="Studio view"
+        hint="Immersive workspace that replaces tabs — file tree, console, and activity drawer stay synced to a scrubbable timeline. Play, step, or isolate any turn. (Preview)"
       />
 
-      <div className={`mt-4 ${hideStale ? "" : "opacity-50 pointer-events-none"}`}>
-        <label
-          htmlFor="stale-days"
-          className="block text-[11px] font-medium text-ov-text-secondary mb-1"
-        >
-          Hide sessions idle for more than N days
-        </label>
-        <input
-          id="stale-days"
-          type="number"
-          min={STALE_DAYS_MIN}
-          max={STALE_DAYS_MAX}
-          value={staleDays}
-          disabled={!hideStale}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (Number.isFinite(v)) setStaleDays(v);
-          }}
-          className="w-24 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text outline-none focus:border-accent disabled:opacity-50"
+      <div className="mt-6">
+        <Toggle
+          checked={hideStale}
+          onChange={setHideStale}
+          label="Hide completed sessions"
+          hint="Keep the list focused on active and recent work. Older completed sessions are tucked away and can be revealed from the sidebar."
         />
-        <p className="text-[11px] text-ov-text-secondary mt-1.5">
-          Hidden sessions remain searchable with ⌘K.
-        </p>
+
+        <div className={`mt-4 ${hideStale ? "" : "opacity-50 pointer-events-none"}`}>
+          <label
+            htmlFor="stale-days"
+            className="block text-[11px] font-medium text-ov-text-secondary mb-1"
+          >
+            Hide sessions idle for more than N days
+          </label>
+          <input
+            id="stale-days"
+            type="number"
+            min={STALE_DAYS_MIN}
+            max={STALE_DAYS_MAX}
+            value={staleDays}
+            disabled={!hideStale}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v)) setStaleDays(v);
+            }}
+            className="w-24 text-xs bg-ov-bg border border-ov-border rounded-md px-2 py-1.5 text-ov-text outline-none focus:border-accent disabled:opacity-50"
+          />
+          <p className="text-[11px] text-ov-text-secondary mt-1.5">
+            Hidden sessions remain searchable with ⌘K.
+          </p>
+        </div>
       </div>
     </div>
   );

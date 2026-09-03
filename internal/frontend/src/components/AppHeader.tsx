@@ -1,5 +1,6 @@
-import { Search, X } from "lucide-react";
+import { Search, X, Sparkles } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { useCinematicMode } from "../hooks/useCinematicMode";
 
 interface AppHeaderProps {
   showOverview: boolean;
@@ -21,6 +22,15 @@ export function AppHeader({
   onClearSearchHighlight,
 }: AppHeaderProps) {
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
+  let cinematicEnabled = false;
+  let setCinematicEnabled: (v: boolean) => void = () => {};
+  try {
+    const cinematic = useCinematicMode();
+    cinematicEnabled = cinematic.enabled;
+    setCinematicEnabled = cinematic.setEnabled;
+  } catch {
+    // Outside CinematicModeProvider (e.g. isolated header test) — fallback to disabled
+  }
 
   return (
     <header className="sess-glass h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 border-b border-ov-header-border">
@@ -99,6 +109,51 @@ export function AppHeader({
       </button>
 
       <div className="flex items-center justify-end gap-2">
+        <div className="hidden sm:flex items-center gap-2 pl-2 pr-1 py-1 rounded-full border border-ov-border bg-ov-bg-secondary">
+          <Sparkles
+            size={14}
+            className={cinematicEnabled ? "text-accent" : "text-ov-text-secondary"}
+          />
+          <span className="text-xs font-medium whitespace-nowrap">Studio</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cinematicEnabled}
+            aria-label="Toggle Studio view"
+            title={
+              cinematicEnabled
+                ? "Studio view enabled — click to switch to tabs"
+                : "Try Studio view (Preview)"
+            }
+            onClick={() => setCinematicEnabled(!cinematicEnabled)}
+            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${cinematicEnabled ? "bg-accent" : "bg-ov-bg-active"} cursor-pointer`}
+          >
+            <span
+              className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${cinematicEnabled ? "left-[18px]" : "left-0.5"}`}
+            />
+          </button>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={cinematicEnabled}
+          aria-label="Toggle Studio view"
+          onClick={() => setCinematicEnabled(!cinematicEnabled)}
+          className="sm:hidden flex items-center gap-1.5 px-2 py-1.5 rounded-full border border-ov-border bg-ov-bg-secondary cursor-pointer"
+          title={cinematicEnabled ? "Studio view enabled" : "Try Studio view (Preview)"}
+        >
+          <Sparkles
+            size={14}
+            className={cinematicEnabled ? "text-accent" : "text-ov-text-secondary"}
+          />
+          <span
+            className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${cinematicEnabled ? "bg-accent" : "bg-ov-bg-active"}`}
+          >
+            <span
+              className={`absolute top-0.5 size-3 rounded-full bg-white shadow transition-all ${cinematicEnabled ? "left-[14px]" : "left-0.5"}`}
+            />
+          </span>
+        </button>
         <span
           aria-hidden="true"
           title={connected ? "Connected to omnivue server" : "Server unreachable - reconnecting"}
