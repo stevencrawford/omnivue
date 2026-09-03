@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, Plus, Tag as TagIcon, X, Check, Terminal, PanelsTopLeft } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Tag as TagIcon,
+  X,
+  Check,
+  Terminal,
+  PanelsTopLeft,
+  ArrowLeft,
+} from "lucide-react";
 import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
@@ -16,6 +25,7 @@ import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
 import { useCinematicMode } from "../hooks/useCinematicMode";
+import { useNavigation } from "../hooks/useNavigation";
 
 export function SessionHeader({
   session,
@@ -31,6 +41,7 @@ export function SessionHeader({
   terminalActive?: boolean;
 }) {
   const { enabled: cinematicEnabled } = useCinematicMode();
+  const navigation = useNavigation();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [displayTitle, setDisplayTitle] = useState(session.title);
@@ -205,6 +216,17 @@ export function SessionHeader({
   return (
     <div className="px-4 py-3 border-b border-ov-border shrink-0">
       <div className="flex items-center gap-2 min-w-0">
+        {session.parentId && !editing && (
+          <button
+            type="button"
+            onClick={() => navigation.handleSessionSelect(session.parentId!)}
+            className="shrink-0 size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            title="Back to parent session"
+            aria-label="Back to parent session"
+          >
+            <ArrowLeft size={16} />
+          </button>
+        )}
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <input
