@@ -160,10 +160,10 @@ export function PinnedPromptBar({
   if (hideHeader) {
     return (
       <div
-        className={`flex flex-col overflow-hidden min-h-0 ${fillHeight ? "flex-1 h-full" : "shrink-0"} ${tailActive ? "sess-pinned-bar--tailing" : ""}`}
+        className={`flex flex-col overflow-hidden min-h-0 min-w-0 ${fillHeight ? "flex-1 h-full" : "shrink-0"} ${tailActive ? "sess-pinned-bar--tailing" : ""}`}
         style={fillHeight ? undefined : pinnedExpanded ? { height: pinnedHeight } : undefined}
       >
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0">
           <div className="p-2">
             {firstMessage && (
               <div className="mt-1">
@@ -317,7 +317,7 @@ export function PinnedPromptBar({
         </button>
 
         {pinnedExpanded && (
-          <div className="flex-1 overflow-y-auto min-h-0 border-t border-ov-border">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 border-t border-ov-border">
             <div className="px-4 pb-2 pt-3">
               {firstMessage && (
                 <div className="ml-6 mt-1">

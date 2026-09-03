@@ -166,7 +166,7 @@ export function MarkdownContent({
     },
     table({ children }: { children?: React.ReactNode }) {
       return (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-w-full">
           <table>{children}</table>
         </div>
       );
@@ -175,7 +175,7 @@ export function MarkdownContent({
 
   if (expandable) {
     return (
-      <div>
+      <div className="min-w-0 overflow-hidden">
         <div className="flex items-center gap-1 pb-1">
           <button
             type="button"
@@ -228,11 +228,15 @@ export function MarkdownContent({
             </button>
           )}
         </div>
-        <div className={`relative ${!expanded ? "max-h-[15em] overflow-hidden" : ""}`}>
+        <div
+          className={`relative min-w-0 overflow-hidden ${!expanded ? "max-h-[15em] overflow-hidden" : ""}`}
+        >
           {!expanded && (
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
           )}
-          <div className={`markdown-body markdown-body--small ${className}`.trim()}>
+          <div
+            className={`markdown-body markdown-body--small min-w-0 overflow-hidden wrap-break-word ${className}`.trim()}
+          >
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
               rehypePlugins={[
@@ -250,7 +254,7 @@ export function MarkdownContent({
   }
 
   return (
-    <div className="relative group">
+    <div className="relative group min-w-0 overflow-hidden">
       <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {!hideCopy && (
           <>
@@ -293,7 +297,9 @@ export function MarkdownContent({
           </button>
         )}
       </div>
-      <div className={`markdown-body markdown-body--small ${className}`.trim()}>
+      <div
+        className={`markdown-body markdown-body--small min-w-0 overflow-hidden wrap-break-word ${className}`.trim()}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
           rehypePlugins={[

@@ -125,7 +125,7 @@ export function EditToolDiff({
     if (hunksByFile.length === 1 && hunksByFile[0].path === filePath) {
       const hunks = hunksByFile[0].hunks;
       return (
-        <div className="relative group max-h-[80vh] overflow-y-auto">
+        <div className="relative group max-h-[80vh] overflow-y-auto overflow-x-hidden max-w-full min-w-0">
           {hunks.map((hunk, i) => (
             <HunkRenderer key={i} hunk={hunk} lang={lang} />
           ))}
@@ -133,16 +133,16 @@ export function EditToolDiff({
       );
     }
     return (
-      <div className="relative group max-h-[80vh] overflow-y-auto space-y-3">
+      <div className="relative group max-h-[80vh] overflow-y-auto overflow-x-hidden max-w-full min-w-0 space-y-3">
         {hunksByFile.map(({ path, hunks }) => {
           const fileLang = detectLanguage(path);
           const name = path.split("/").pop() || path;
           return (
-            <div key={path}>
-              <div className="px-2 py-1 text-[11px] font-mono text-ov-text-secondary bg-ov-bg-secondary border border-ov-border rounded-t">
+            <div key={path} className="min-w-0 overflow-hidden">
+              <div className="px-2 py-1 text-[11px] font-mono text-ov-text-secondary bg-ov-bg-secondary border border-ov-border rounded-t truncate">
                 {name}
               </div>
-              <div className="border border-t-0 border-ov-border rounded-b overflow-hidden">
+              <div className="border border-t-0 border-ov-border rounded-b overflow-hidden min-w-0">
                 {hunks.map((hunk, i) => (
                   <HunkRenderer key={i} hunk={hunk} lang={fileLang} />
                 ))}
@@ -165,7 +165,7 @@ export function EditToolDiff({
 
   if (hunks && hunks.length > 0) {
     return (
-      <div className="relative group max-h-[80vh] overflow-y-auto">
+      <div className="relative group max-h-[80vh] overflow-y-auto overflow-x-hidden max-w-full min-w-0">
         {hunks.map((hunk, i) => (
           <HunkRenderer key={i} hunk={hunk} lang={lang} />
         ))}
@@ -175,7 +175,7 @@ export function EditToolDiff({
 
   if (displayContent) {
     return (
-      <div className="relative group max-h-[80vh] overflow-y-auto">
+      <div className="relative group max-h-[80vh] overflow-y-auto overflow-x-hidden max-w-full min-w-0">
         <FileRenderer content={displayContent} lang={lang} />
       </div>
     );

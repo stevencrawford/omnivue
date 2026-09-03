@@ -44,8 +44,7 @@ func writeError(w http.ResponseWriter, err error) {
 
 // errorStatus maps a domain error to an HTTP status.
 func errorStatus(err error) int {
-	var ae *apiError
-	if errors.As(err, &ae) {
+	if ae, ok := errors.AsType[*apiError](err); ok {
 		return ae.status
 	}
 	return http.StatusInternalServerError
