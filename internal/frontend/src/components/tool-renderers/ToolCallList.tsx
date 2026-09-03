@@ -11,6 +11,28 @@ import { ToolRendererWrapper } from "./ToolRendererWrapper";
 import { ToolUsageInfo } from "./ToolUsageInfo";
 import { DefaultToolDiff } from "./builtin/DefaultToolDiff";
 import { STORAGE_KEYS } from "../../utils/storageKeys";
+import { TaskGroupDiff } from "./builtin/TaskGroupDiff";
+
+type GroupedEntry =
+  | { kind: "single"; tool: ToolCall }
+  | { kind: "task-group"; task: ToolCall; complete: ToolCall };
+
+function coalesceTasks(toolCalls: ToolCall[]): GroupedEntry[] {
+  const out: GroupedEntry[] = [];
+  for (let i = 0; i < toolCalls.length; i++) {
+    const cur = toolCalls[i];
+    const curKind = effectiveToolKind(cur);
+    const next = i + 1 < toolCalls.length ? toolCalls[i + 1] : null;
+    const nextKind = next ? effectiveToolKind(next) : "";
+    if (curKind === "task" && next && nextKind === "task_complete") {
+      out.push({ kind: "task-group", task: cur, complete: next });
+      i++;
+      continue;
+    }
+    out.push({ kind: "single", tool: cur });
+  }
+  return out;
+}
 
 export function ToolCallList({
   toolCalls,
@@ -43,40 +65,126 @@ export function ToolCallList({
     return ids;
   }, [bookmarkIdByRef, sessionId, toolCalls]);
 
+  const grouped = useMemo(() => coalesceTasks(toolCalls), [toolCalls]);
+
   if (variant === "summary") {
     return (
       <>
-        {toolCalls.map((tool) => (
-          <div key={tool.id} data-tool-call-id={tool.id}>
-            <ToolCallRow
-              tool={tool}
-              agent={agent}
-              variant="summary"
-              onOpenModal={onOpenModal}
-              onPin={onPin}
-              onBookmark={onBookmark}
-              isBookmarked={toolBookmarkIds.has(tool.id)}
-            />
-          </div>
-        ))}
+        {grouped.map((entry) => {
+          if (entry.kind === "task-group") {
+            const isBookmarked =
+              toolBookmarkIds.has(entry.task.id) ||
+              (entry.complete ? toolBookmarkIds.has(entry.complete.id) : false);
+            let childSessionId: string | null = null;
+            try {
+              const meta = JSON.parse(entry.task.metadata || "{}");
+              childSessionId = meta.sessionId || null;
+            } catch {
+              /* ignore */
+            }
+            let label = "";
+            try {
+              const p = JSON.parse(entry.task.input);
+              label = (p.description || "").slice(0, 80);
+            } catch {
+              label = entry.task.id.slice(0, 12);
+            }
+            return (
+              <div
+                key={`${entry.task.id}:${entry.complete.id}`}
+                data-tool-call-id={entry.task.id}
+                className="border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-2"
+              >
+                <TaskGroupDiff
+                  task={entry.task}
+                  complete={entry.complete}
+                  tool={entry.complete || entry.task}
+                  variant="summary"
+                  onOpenModal={onOpenModal}
+                  onPin={onPin}
+                  onBookmark={onBookmark ? () => onBookmark(entry.task.id, label) : undefined}
+                  isBookmarked={isBookmarked}
+                  childSessionId={childSessionId}
+                  navigateToSession={undefined}
+                />
+              </div>
+            );
+          }
+          const tool = entry.tool;
+          return (
+            <div key={tool.id} data-tool-call-id={tool.id}>
+              <ToolCallRow
+                tool={tool}
+                agent={agent}
+                variant="summary"
+                onOpenModal={onOpenModal}
+                onPin={onPin}
+                onBookmark={onBookmark}
+                isBookmarked={toolBookmarkIds.has(tool.id)}
+              />
+            </div>
+          );
+        })}
       </>
     );
   }
 
   return (
     <div className="space-y-1">
-      {toolCalls.map((tool) => (
-        <div key={tool.id} data-tool-call-id={tool.id}>
-          <ToolCallRow
-            tool={tool}
-            agent={agent}
-            variant="detail"
-            onOpenModal={onOpenModal}
-            onBookmark={onBookmark}
-            isBookmarked={toolBookmarkIds.has(tool.id)}
-          />
-        </div>
-      ))}
+      {grouped.map((entry) => {
+        if (entry.kind === "task-group") {
+          const isBookmarked =
+            toolBookmarkIds.has(entry.task.id) ||
+            (entry.complete ? toolBookmarkIds.has(entry.complete.id) : false);
+          let childSessionId: string | null = null;
+          try {
+            const meta = JSON.parse(entry.task.metadata || "{}");
+            childSessionId = meta.sessionId || null;
+          } catch {
+            /* ignore */
+          }
+          let label2 = "";
+          try {
+            const p2 = JSON.parse(entry.task.input);
+            label2 = (p2.description || "").slice(0, 80);
+          } catch {
+            label2 = entry.task.id.slice(0, 12);
+          }
+          return (
+            <div
+              key={`${entry.task.id}:${entry.complete.id}`}
+              data-tool-call-id={entry.task.id}
+              className="border border-violet-500/30 rounded-lg overflow-hidden bg-violet-500/[0.03] mb-3"
+            >
+              <TaskGroupDiff
+                task={entry.task}
+                complete={entry.complete}
+                tool={entry.complete || entry.task}
+                variant="detail"
+                onOpenModal={onOpenModal}
+                onPin={onPin}
+                onBookmark={onBookmark ? () => onBookmark(entry.task.id, label2) : undefined}
+                isBookmarked={isBookmarked}
+                childSessionId={childSessionId}
+                navigateToSession={undefined}
+              />
+            </div>
+          );
+        }
+        const tool = entry.tool;
+        return (
+          <div key={tool.id} data-tool-call-id={tool.id}>
+            <ToolCallRow
+              tool={tool}
+              agent={agent}
+              variant="detail"
+              onOpenModal={onOpenModal}
+              onBookmark={onBookmark}
+              isBookmarked={toolBookmarkIds.has(tool.id)}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

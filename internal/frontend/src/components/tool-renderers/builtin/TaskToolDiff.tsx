@@ -1,5 +1,6 @@
 import { Monitor } from "lucide-react";
 import type { ToolRendererProps } from "../types";
+import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
 
 interface TaskInput {
@@ -80,12 +81,13 @@ export function TaskToolDiff({
           childSessionId={childSessionId}
           navigateToSession={navigateToSession}
           showPin
+          pinText={tool.output || description}
         />
       </div>
       {tool.output && (
-        <pre className="px-3 py-2 text-[11px] font-mono leading-relaxed text-ov-text-secondary whitespace-pre-wrap break-all border-t border-violet-500/20">
-          {tool.output}
-        </pre>
+        <div className="px-3 py-2 border-t border-violet-500/20">
+          <MarkdownContent content={tool.output} className="markdown-body--wide" />
+        </div>
       )}
     </div>
   );

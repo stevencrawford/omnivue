@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { ChevronRight, Check, Copy, Maximize2, Pin } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -8,6 +8,8 @@ import { useCopy } from "../../hooks/useCopy";
 import { useSearchHighlight } from "../../hooks/useSearchHighlightContext";
 import { BookmarkButton } from "../tool-renderers/BookmarkButton";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
+import { parseUnifiedDiff } from "../../utils/diff";
+import { HunkRenderer } from "../DiffRenderer";
 
 interface MarkdownContentProps {
   content: string;
@@ -87,6 +89,90 @@ export function MarkdownContent({
 
   const shortContent = content.split("\n").length <= 10;
 
+  const markdownComponents = {
+    pre({ children }: { children?: React.ReactNode }) {
+      // Unwrap diff fences that already render as HunkRenderer tables — they
+      // must not be wrapped in <pre> or the markdown-body pre styling pollutes
+      // the diff view. Heuristic: the code component for language-diff returns
+      // a div.not-prose with diff-file-view inside.
+      const isDiff =
+        React.Children.toArray(children as React.ReactNode).some((c) => {
+          if (!React.isValidElement(c)) return false;
+          const props = c.props as { className?: string; children?: React.ReactNode };
+          if (props.className && String(props.className).includes("not-prose")) return true;
+          if (props.children) {
+            const inner = React.Children.toArray(props.children as React.ReactNode);
+            return inner.some(
+              (ic) =>
+                React.isValidElement(ic) &&
+                String((ic.props as { className?: string }).className || "").includes(
+                  "diff-file-view",
+                ),
+            );
+          }
+          return false;
+        }) ||
+        // Fallback: direct HunkRenderer output wrapped in div.not-prose
+        React.Children.toArray(children as React.ReactNode).some((c) => {
+          if (!React.isValidElement(c)) return false;
+          return String((c.props as { className?: string }).className || "").includes(
+            "diff-file-view",
+          );
+        });
+      if (isDiff) return <>{children}</>;
+      return <pre>{children}</pre>;
+    },
+    code({
+      className: codeClass,
+      children,
+      ...props
+    }: {
+      className?: string;
+      children?: React.ReactNode;
+    }) {
+      const isInline = !codeClass;
+      if (isInline) {
+        return <code {...props}>{children}</code>;
+      }
+      if (codeClass && codeClass.includes("language-diff")) {
+        const raw = String(children ?? "");
+        try {
+          const hunks = parseUnifiedDiff(raw);
+          if (hunks.length > 0) {
+            return (
+              <div className="not-prose my-2">
+                {hunks.map((hunk, i) => (
+                  <HunkRenderer key={i} hunk={hunk} />
+                ))}
+              </div>
+            );
+          }
+        } catch {
+          /* fallback to highlighted code */
+        }
+      }
+      return (
+        <code className={codeClass} {...props}>
+          {children}
+        </code>
+      );
+    },
+    a({ href, children, ...props }: { href?: string; children?: React.ReactNode }) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+          {children}
+        </a>
+      );
+    },
+    table({ children }: { children?: React.ReactNode }) {
+      return (
+        <div className="overflow-x-auto">
+          <table>{children}</table>
+        </div>
+      );
+    },
+  } as const;
+
   if (expandable) {
     return (
       <div>
@@ -153,36 +239,7 @@ export function MarkdownContent({
                 rehypeHighlight,
                 ...(searchHighlightQuery ? [rehypeSearchHighlight(searchHighlightQuery)] : []),
               ]}
-              components={{
-                pre({ children }) {
-                  return <pre>{children}</pre>;
-                },
-                code({ className: codeClass, children, ...props }) {
-                  const isInline = !codeClass;
-                  if (isInline) {
-                    return <code {...props}>{children}</code>;
-                  }
-                  return (
-                    <code className={codeClass} {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                a({ href, children, ...props }) {
-                  return (
-                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                      {children}
-                    </a>
-                  );
-                },
-                table({ children }) {
-                  return (
-                    <div className="overflow-x-auto">
-                      <table>{children}</table>
-                    </div>
-                  );
-                },
-              }}
+              components={markdownComponents}
             >
               {content}
             </ReactMarkdown>
@@ -243,36 +300,7 @@ export function MarkdownContent({
             rehypeHighlight,
             ...(searchHighlightQuery ? [rehypeSearchHighlight(searchHighlightQuery)] : []),
           ]}
-          components={{
-            pre({ children }) {
-              return <pre>{children}</pre>;
-            },
-            code({ className: codeClass, children, ...props }) {
-              const isInline = !codeClass;
-              if (isInline) {
-                return <code {...props}>{children}</code>;
-              }
-              return (
-                <code className={codeClass} {...props}>
-                  {children}
-                </code>
-              );
-            },
-            a({ href, children, ...props }) {
-              return (
-                <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                  {children}
-                </a>
-              );
-            },
-            table({ children }) {
-              return (
-                <div className="overflow-x-auto">
-                  <table>{children}</table>
-                </div>
-              );
-            },
-          }}
+          components={markdownComponents}
         >
           {content}
         </ReactMarkdown>

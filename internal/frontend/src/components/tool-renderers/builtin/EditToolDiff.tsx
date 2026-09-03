@@ -4,9 +4,8 @@ import type { ToolRendererProps } from "../types";
 import type { ToolCall } from "../../../hooks/types";
 import { detectLanguage } from "../../../utils/detectLanguage";
 import { computeDiff, parseUnifiedDiff, type DiffHunk } from "../../../utils/diff";
+import { extractPatchBodies, isPatchLike } from "../../../utils/patchBody";
 import { HunkRenderer, FileRenderer } from "../../DiffRenderer";
-
-const UNIFIED_DIFF_RE = /^@@\s+-\d+,\d+\s+\+\d+,\d+\s+@@/m;
 
 interface EditInput {
   path?: string;
@@ -93,20 +92,75 @@ export function EditToolDiff({
 
   const displayContent = newStr || content;
 
-  const isUnifiedDiff = useMemo(() => {
+  const patchInfo = useMemo(() => {
     const c = displayContent;
-    return c.length > 10 && UNIFIED_DIFF_RE.test(c);
-  }, [displayContent]);
+    if (!c || c.length <= 10) return null;
+    if (!isPatchLike(c)) return null;
+    const bodies = extractPatchBodies(c);
+    const entries: Array<{ path: string; body: string }> = Object.entries(bodies).map(([p, b]) => ({
+      path: p || filePath,
+      body: b,
+    }));
+    const valid = entries.filter((e) => e.body && isPatchLike(e.body));
+    if (valid.length === 0) return null;
+    return valid;
+  }, [displayContent, filePath]);
+
+  const hunksByFile = useMemo(() => {
+    if (!patchInfo) return null;
+    const out: Array<{ path: string; hunks: DiffHunk[] }> = [];
+    for (const { path, body } of patchInfo) {
+      try {
+        const h = parseUnifiedDiff(body);
+        if (h.length > 0) out.push({ path, hunks: h });
+      } catch {
+        /* ignore */
+      }
+    }
+    return out.length ? out : null;
+  }, [patchInfo]);
+
+  // Multi-file or single-file patch diff (swallow markers, bare @@ supported)
+  if (hunksByFile && hunksByFile.length > 0) {
+    if (hunksByFile.length === 1 && hunksByFile[0].path === filePath) {
+      const hunks = hunksByFile[0].hunks;
+      return (
+        <div className="relative group max-h-[80vh] overflow-y-auto">
+          {hunks.map((hunk, i) => (
+            <HunkRenderer key={i} hunk={hunk} lang={lang} />
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="relative group max-h-[80vh] overflow-y-auto space-y-3">
+        {hunksByFile.map(({ path, hunks }) => {
+          const fileLang = detectLanguage(path);
+          const name = path.split("/").pop() || path;
+          return (
+            <div key={path}>
+              <div className="px-2 py-1 text-[11px] font-mono text-ov-text-secondary bg-ov-bg-secondary border border-ov-border rounded-t">
+                {name}
+              </div>
+              <div className="border border-t-0 border-ov-border rounded-b overflow-hidden">
+                {hunks.map((hunk, i) => (
+                  <HunkRenderer key={i} hunk={hunk} lang={fileLang} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   let hunks: DiffHunk[] | null = null;
-  if (!isAddition && oldStr && newStr && !skipDiff) {
+  if (!isAddition && oldStr && newStr && !skipDiff && !patchInfo) {
     try {
       hunks = computeDiff(oldStr, newStr);
     } catch {
       /* ignore */
     }
-  } else if (isUnifiedDiff) {
-    hunks = parseUnifiedDiff(displayContent);
   }
 
   if (hunks && hunks.length > 0) {
