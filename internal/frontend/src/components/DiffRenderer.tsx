@@ -55,7 +55,7 @@ export function FileRenderer({
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
   return (
-    <div className="diff-file-view">
+    <div className="diff-file-view max-w-full overflow-x-auto min-w-0">
       <table className="diff-table">
         <tbody>
           {lines.map((line, i) => {
@@ -79,7 +79,7 @@ export function HunkRenderer({ hunk, lang }: { hunk: DiffHunk; lang?: string }) 
   const rows = renderHunk(hunk);
 
   return (
-    <div className="diff-file-view">
+    <div className="diff-file-view max-w-full overflow-x-auto min-w-0">
       <table className="diff-table">
         <tbody>
           {rows.map((row, i) => {

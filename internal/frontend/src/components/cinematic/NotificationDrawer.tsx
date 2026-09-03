@@ -59,11 +59,11 @@ function ThinkingBlock({
   if (!reasoning) return null;
   const timeLabel = durationMs !== undefined ? formatDuration(durationMs) : undefined;
   return (
-    <div className="border border-violet-500/20 rounded overflow-hidden bg-violet-500/[0.04]">
+    <div className="border border-violet-500/20 rounded overflow-hidden bg-violet-500/[0.04] min-w-0">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-violet-300 hover:text-violet-200 cursor-pointer hover:bg-violet-500/10 transition-colors"
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-violet-300 hover:text-violet-200 cursor-pointer hover:bg-violet-500/10 transition-colors min-w-0"
       >
         <ChevronRight
           size={12}
@@ -72,12 +72,14 @@ function ThinkingBlock({
         <Brain size={12} className="shrink-0" />
         <span className="font-medium">Thinking</span>
         {timeLabel && (
-          <span className="ml-auto text-[10px] text-violet-300/60 tabular-nums">{timeLabel}</span>
+          <span className="ml-auto text-[10px] text-violet-300/60 tabular-nums shrink-0">
+            {timeLabel}
+          </span>
         )}
       </button>
       {expanded && (
-        <div className="px-3 py-2 border-t border-violet-500/15 bg-violet-500/[0.03] max-h-64 overflow-y-auto">
-          <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
+        <div className="px-3 py-2 border-t border-violet-500/15 bg-violet-500/[0.03] max-h-64 overflow-y-auto overflow-x-hidden">
+          <div className="text-xs text-ov-text-secondary whitespace-pre-wrap wrap-break-word leading-relaxed min-w-0">
             {reasoning}
           </div>
         </div>
@@ -195,14 +197,14 @@ export function NotificationDrawer({
           items.push({
             key: `${msg.id}-user`,
             node: (
-              <div className="px-3 py-2 border border-blue-500/20 rounded bg-blue-500/[0.04]">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <UserIcon size={12} className="text-blue-400" />
+              <div className="px-3 py-2 border border-blue-500/20 rounded bg-blue-500/[0.04] min-w-0 overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                  <UserIcon size={12} className="text-blue-400 shrink-0" />
                   <span className="text-[11px] font-semibold text-blue-400">User</span>
                 </div>
                 <MarkdownContent
                   content={msg.content}
-                  className="markdown-body--wide text-xs"
+                  className="markdown-body--wide text-xs min-w-0 wrap-break-word"
                   onOpenModal={
                     msg.content.length > 100 && onOpenModal
                       ? () => onOpenModal(msg.content, "User message")
@@ -234,19 +236,19 @@ export function NotificationDrawer({
         items.push({
           key: `${msg.id}-content`,
           node: (
-            <div className="px-3 py-2 border border-ov-border rounded bg-ov-bg-secondary/40">
-              <div className="flex items-center gap-1.5 mb-1">
-                <MessageSquare size={12} className="text-ov-text-secondary" />
+            <div className="px-3 py-2 border border-ov-border rounded bg-ov-bg-secondary/40 min-w-0 overflow-hidden">
+              <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                <MessageSquare size={12} className="text-ov-text-secondary shrink-0" />
                 <span className="text-[11px] font-semibold text-ov-text-secondary">Assistant</span>
                 {msg.model && (
-                  <span className="text-[10px] font-mono bg-ov-bg-hover px-1 py-0.5 rounded text-ov-text-secondary">
+                  <span className="text-[10px] font-mono bg-ov-bg-hover px-1 py-0.5 rounded text-ov-text-secondary truncate min-w-0">
                     {msg.model}
                   </span>
                 )}
               </div>
               <MarkdownContent
                 content={msg.content}
-                className="markdown-body--wide text-xs"
+                className="markdown-body--wide text-xs min-w-0 wrap-break-word"
                 onOpenModal={
                   isLong && onOpenModal
                     ? () => onOpenModal(msg.content, "Assistant message")
@@ -323,9 +325,9 @@ export function NotificationDrawer({
   const planContent = plan?.markdown ?? "";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-ov-bg">
+    <div className="flex flex-col h-full overflow-hidden bg-ov-bg min-w-0">
       <div
-        className={`flex items-center gap-0 px-3 h-10 border-b border-ov-border bg-surface-elevated shrink-0 ${onToggleCollapse ? "cursor-pointer" : ""}`}
+        className={`flex items-center gap-0 px-3 h-10 border-b border-ov-border bg-surface-elevated shrink-0 min-w-0 ${onToggleCollapse ? "cursor-pointer" : ""}`}
         onClick={() => onToggleCollapse?.()}
         role={onToggleCollapse ? "button" : undefined}
         title={onToggleCollapse ? "Click to collapse" : undefined}
@@ -373,11 +375,13 @@ export function NotificationDrawer({
         )}
       </div>
 
-      <div className={`flex-1 min-h-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}>
+      <div
+        className={`flex-1 min-h-0 min-w-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}
+      >
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="h-full overflow-y-auto p-2 space-y-2"
+          className="h-full overflow-y-auto overflow-x-hidden p-2 space-y-2 min-w-0"
         >
           {drawerItems.length === 0 ? (
             <EmptyPanel
@@ -386,12 +390,18 @@ export function NotificationDrawer({
               hint="Scrub the timeline to reveal messages and tool calls."
             />
           ) : (
-            drawerItems.map((it) => <div key={it.key}>{it.node}</div>)
+            drawerItems.map((it) => (
+              <div key={it.key} className="min-w-0 overflow-hidden">
+                {it.node}
+              </div>
+            ))
           )}
         </div>
       </div>
 
-      <div className={`flex-1 min-h-0 overflow-hidden ${activeTab !== "prompt" ? "hidden" : ""}`}>
+      <div
+        className={`flex-1 min-h-0 min-w-0 overflow-hidden overflow-x-hidden ${activeTab !== "prompt" ? "hidden" : ""}`}
+      >
         <PinnedPromptBar
           session={session}
           firstMessage={firstMessage ?? null}
@@ -405,12 +415,17 @@ export function NotificationDrawer({
         />
       </div>
 
-      <div className={`flex-1 min-h-0 overflow-y-auto p-4 ${activeTab !== "plan" ? "hidden" : ""}`}>
+      <div
+        className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 ${activeTab !== "plan" ? "hidden" : ""}`}
+      >
         {planLoading ? (
           <LoadingState label="Loading plan…" className="h-32" />
         ) : planContent ? (
-          <div className="relative group">
-            <MarkdownContent content={planContent} className="markdown-body--wide text-xs" />
+          <div className="relative group min-w-0 overflow-hidden">
+            <MarkdownContent
+              content={planContent}
+              className="markdown-body--wide text-xs min-w-0 wrap-break-word"
+            />
             {onOpenModal && (
               <button
                 type="button"
