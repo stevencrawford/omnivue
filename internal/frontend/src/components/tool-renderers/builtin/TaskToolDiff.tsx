@@ -2,6 +2,7 @@ import { Monitor } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
+import { SubAgentTranscriptToggle } from "./SubAgentTranscript";
 
 interface TaskInput {
   description?: string;
@@ -89,6 +90,7 @@ export function TaskToolDiff({
           <MarkdownContent content={tool.output} className="markdown-body--wide" />
         </div>
       )}
+      {childSessionId && <SubAgentTranscriptToggle sessionId={childSessionId} />}
     </div>
   );
 }

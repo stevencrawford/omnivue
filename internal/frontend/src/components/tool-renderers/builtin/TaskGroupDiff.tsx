@@ -4,6 +4,7 @@ import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
 import { useNavigation } from "../../../hooks/useNavigation";
+import { SubAgentTranscriptToggle } from "./SubAgentTranscript";
 
 interface TaskInput {
   description?: string;
@@ -152,6 +153,7 @@ export function TaskGroupDiff({
           <MarkdownContent content={combined} className="markdown-body--wide" />
         </div>
       ) : null}
+      {childSessionId && <SubAgentTranscriptToggle sessionId={childSessionId} />}
     </div>
   );
 }
