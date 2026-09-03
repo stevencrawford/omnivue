@@ -20,6 +20,8 @@ export function SkillToolDiff({ tool, variant, onOpenModal }: ToolRendererProps)
   const description = input.description || "";
   const modalContent = [description, tool.output].filter(Boolean).join("\n\n");
 
+  const showDescription = !!description && !isRedundantDescription(name, description);
+
   const isFailed = tool.status === "failed";
 
   const skillContentBlocks = extractSkillContentBlocks(tool.output || "");
@@ -66,7 +68,7 @@ export function SkillToolDiff({ tool, variant, onOpenModal }: ToolRendererProps)
         {!isFailed && name && tool.status !== "completed" && (
           <Loader2 size={12} className="animate-spin text-sky-400/70 shrink-0" />
         )}
-        {description && (
+        {showDescription && (
           <span className="text-[11px] leading-snug text-ov-text-secondary/70 truncate ml-1">
             — {description}
           </span>
@@ -74,14 +76,17 @@ export function SkillToolDiff({ tool, variant, onOpenModal }: ToolRendererProps)
       </div>
       {skillContentBlocks.length > 0 && (
         <div className="px-3 pb-3 pt-2 space-y-3 bg-sky-500/[0.02]">
-          {skillContentBlocks.map((block, idx) => (
-            <MarkdownContent
-              key={idx}
-              content={block}
-              className="markdown-body--wide text-xs"
-              onOpenModal={onOpenModal ? () => onOpenModal(block, name || "Skill") : undefined}
-            />
-          ))}
+          {skillContentBlocks.map((block, idx) => {
+            const cleaned = stripRedundantHeading(block, name);
+            return (
+              <MarkdownContent
+                key={idx}
+                content={cleaned}
+                className="markdown-body--wide text-xs"
+                onOpenModal={onOpenModal ? () => onOpenModal(cleaned, name || "Skill") : undefined}
+              />
+            );
+          })}
         </div>
       )}
       {!description && skillContentBlocks.length === 0 && tool.status !== "completed" && (
@@ -92,6 +97,46 @@ export function SkillToolDiff({ tool, variant, onOpenModal }: ToolRendererProps)
       )}
     </div>
   );
+}
+
+function isRedundantDescription(name: string, description: string): boolean {
+  const n = name.trim().toLowerCase();
+  const d = description.trim().toLowerCase();
+  if (!n || !d) return false;
+  if (d === n) return true;
+  const withoutPrefix = d.replace(/^skill[:\s-]+/, "").trim();
+  if (withoutPrefix === n) return true;
+  // also handle "git-commit" vs "git commit" spacing variation
+  if (withoutPrefix.replace(/[-_\s]+/g, " ") === n.replace(/[-_\s]+/g, " ")) return true;
+  return false;
+}
+
+function stripRedundantHeading(block: string, name: string): string {
+  if (!name) return block;
+  const lines = block.split("\n");
+  let idx = 0;
+  while (idx < lines.length && lines[idx].trim() === "") idx++;
+  if (idx >= lines.length) return block;
+  const first = lines[idx].trim();
+  const match = first.match(/^#{1,6}\s+(.*)$/);
+  if (!match) return block;
+  const heading = match[1].trim();
+  const n = name.trim().toLowerCase();
+  const h = heading.trim().toLowerCase();
+  const hWithoutPrefix = h.replace(/^skill[:\s-]+/, "").trim();
+  const normalize = (s: string) => s.replace(/[-_\s]+/g, " ").trim();
+  if (
+    h === n ||
+    hWithoutPrefix === n ||
+    normalize(h) === normalize(n) ||
+    normalize(hWithoutPrefix) === normalize(n)
+  ) {
+    lines.splice(idx, 1);
+    // also remove following empty line if present
+    while (idx < lines.length && lines[idx].trim() === "") lines.splice(idx, 1);
+    return lines.join("\n");
+  }
+  return block;
 }
 
 function extractSkillContentBlocks(output: string): string[] {
