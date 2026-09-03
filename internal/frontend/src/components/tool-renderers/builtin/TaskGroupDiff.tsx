@@ -1,10 +1,8 @@
-import { Monitor } from "lucide-react";
+import { Maximize2, Monitor } from "lucide-react";
 import type { ToolCall } from "../../../hooks/types";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
 import { useNavigation } from "../../../hooks/useNavigation";
-import { SubAgentTranscriptToggle } from "./SubAgentTranscript";
 
 interface TaskInput {
   description?: string;
@@ -180,11 +178,25 @@ export function TaskGroupDiff({
         />
       </div>
       {combined ? (
-        <div className="px-3 py-2 border-t border-violet-500/20">
-          <MarkdownContent content={combined} className="markdown-body--wide" />
+        <div className="px-3 py-1.5 border-t border-violet-500/20 flex items-center justify-between gap-2">
+          <span className="text-xs text-ov-text-secondary truncate flex-1 min-w-0">
+            Output: {combined.split("\n")[0].slice(0, 100)}
+            {combined.length > 100 ? "…" : ""}
+            <span className="text-ov-text-secondary/60"> ({combined.length} chars)</span>
+          </span>
+          {onOpenModal && (
+            <button
+              type="button"
+              onClick={() => onOpenModal(combined, description || "Sub-agent output")}
+              className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 rounded cursor-pointer transition-colors"
+              title="View output"
+            >
+              <Maximize2 size={12} />
+              View Output
+            </button>
+          )}
         </div>
       ) : null}
-      {childSessionId && <SubAgentTranscriptToggle sessionId={childSessionId} />}
     </div>
   );
 }

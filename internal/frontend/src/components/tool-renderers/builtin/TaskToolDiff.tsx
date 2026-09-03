@@ -1,8 +1,6 @@
-import { Monitor } from "lucide-react";
+import { Maximize2, Monitor } from "lucide-react";
 import type { ToolRendererProps } from "../types";
-import { MarkdownContent } from "../../ui/MarkdownContent";
 import { ToolActionsBar } from "../ToolActionsBar";
-import { SubAgentTranscriptToggle } from "./SubAgentTranscript";
 
 interface TaskInput {
   description?: string;
@@ -68,6 +66,7 @@ export function TaskToolDiff({
   const description = input.description || "";
   const rawAgent = input.subagent_type || input.agent_type || "";
   const agent = displayAgent(rawAgent, description);
+  const strippedOutput = stripTaskWrapper(tool.output || "");
 
   const completedCount = summary?.filter((s) => s.state?.status === "completed").length ?? 0;
   const totalCount = summary?.length ?? 0;
@@ -79,12 +78,12 @@ export function TaskToolDiff({
         <span className="text-ov-text-secondary/70 shrink-0">task:</span>
         {agent && <span className="text-violet-400/70 shrink-0">{agent}</span>}
         <span
-          className={`text-ov-text truncate min-w-0 ${tool.output && onOpenModal ? "cursor-pointer hover:underline hover:text-violet-400" : ""}`}
+          className={`text-ov-text truncate min-w-0 ${strippedOutput && onOpenModal ? "cursor-pointer hover:underline hover:text-violet-400" : ""}`}
           title={description || "Sub-task"}
           onClick={(e) => {
-            if (tool.output && onOpenModal) {
+            if (strippedOutput && onOpenModal) {
               e.stopPropagation();
-              onOpenModal(tool.output, description);
+              onOpenModal(strippedOutput, description);
             }
           }}
         >
@@ -114,18 +113,29 @@ export function TaskToolDiff({
           childSessionId={childSessionId}
           navigateToSession={navigateToSession}
           showPin
-          pinText={tool.output || description}
+          pinText={strippedOutput || description}
         />
       </div>
-      {tool.output && (
-        <div className="px-3 py-2 border-t border-violet-500/20">
-          <MarkdownContent
-            content={stripTaskWrapper(tool.output)}
-            className="markdown-body--wide"
-          />
+      {strippedOutput && (
+        <div className="px-3 py-1.5 border-t border-violet-500/20 flex items-center justify-between gap-2">
+          <span className="text-xs text-ov-text-secondary truncate flex-1 min-w-0">
+            Output: {strippedOutput.split("\n")[0].slice(0, 100)}
+            {strippedOutput.length > 100 ? "…" : ""}
+            <span className="text-ov-text-secondary/60"> ({strippedOutput.length} chars)</span>
+          </span>
+          {onOpenModal && (
+            <button
+              type="button"
+              onClick={() => onOpenModal(strippedOutput, description || "Sub-agent output")}
+              className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 rounded cursor-pointer transition-colors"
+              title="View output"
+            >
+              <Maximize2 size={12} />
+              View Output
+            </button>
+          )}
         </div>
       )}
-      {childSessionId && <SubAgentTranscriptToggle sessionId={childSessionId} />}
     </div>
   );
 }
