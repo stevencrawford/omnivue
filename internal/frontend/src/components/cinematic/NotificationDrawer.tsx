@@ -25,7 +25,7 @@ interface NotificationDrawerProps {
   messages: Message[];
   cursor: number;
   maxIndex: number;
-  selectedSpan?: { start: number; end: number } | null;
+  selectedSpan?: { start: number; end: number; trailing?: boolean } | null;
   onOpenModal?: (content: string, title?: string) => void;
   plan?: Plan | null;
   planLoading?: boolean;

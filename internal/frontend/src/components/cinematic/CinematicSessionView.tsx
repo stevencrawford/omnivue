@@ -104,7 +104,11 @@ export function CinematicSessionView({
     if (v === "activity" || v === "prompt" || v === "plan") return v;
     return "activity";
   });
-  const [selectedSpan, setSelectedSpan] = useState<{ start: number; end: number } | null>(null);
+  const [selectedSpan, setSelectedSpan] = useState<{
+    start: number;
+    end: number;
+    trailing: boolean;
+  } | null>(null);
   const { showErrorToast } = useToast();
 
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
@@ -307,6 +311,7 @@ export function CinematicSessionView({
   } = useTimeline({
     messages,
     isActive,
+    paused: !!selectedSpan && !selectedSpan.trailing,
   });
 
   // selectedSpan isolates the view to a turn between two user prompts.
@@ -333,11 +338,17 @@ export function CinematicSessionView({
     [stepRaw],
   );
 
-  const handleSpanSelect = useCallback((start: number, end: number) => {
-    setSelectedSpan((prev) =>
-      prev && prev.start === start && prev.end === end ? null : { start, end },
-    );
-  }, []);
+  const handleSpanSelect = useCallback(
+    (start: number, end: number) => {
+      const isTrailing = end === events.length;
+      setSelectedSpan((prev) =>
+        prev && prev.start === start && prev.end === end
+          ? null
+          : { start, end, trailing: isTrailing },
+      );
+    },
+    [events.length],
+  );
 
   const handleClearSpan = useCallback(() => setSelectedSpan(null), []);
 
@@ -351,10 +362,18 @@ export function CinematicSessionView({
     const hasStart = events.some(
       (e) => e.index === selectedSpan.start && e.kind === "user-request",
     );
-    const isTrailing = selectedSpan.end === events.length;
-    const hasEnd =
-      isTrailing || events.some((e) => e.index === selectedSpan.end && e.kind === "user-request");
-    if (!hasStart || !hasEnd) setSelectedSpan(null);
+    if (!hasStart) {
+      setSelectedSpan(null);
+      return;
+    }
+    if (selectedSpan.trailing) {
+      if (selectedSpan.end !== events.length) {
+        setSelectedSpan({ start: selectedSpan.start, end: events.length, trailing: true });
+      }
+      return;
+    }
+    const hasEnd = events.some((e) => e.index === selectedSpan.end && e.kind === "user-request");
+    if (!hasEnd) setSelectedSpan(null);
   }, [events, maxIndex, selectedSpan]);
 
   useEffect(() => {

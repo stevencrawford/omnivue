@@ -20,7 +20,7 @@ function buildEvents(messages: Message[]): TimelineEvent[] {
         index: idx++,
         messageIndex: mi,
         messageId: msg.id,
-        label: msg.content.slice(0, 80) || "user",
+        label: msg.content.slice(0, 160) || "user",
         color: "#58a6ff",
         kind: "user-request",
       });
@@ -54,7 +54,7 @@ function buildEvents(messages: Message[]): TimelineEvent[] {
           index: idx++,
           messageIndex: mi,
           messageId: msg.id,
-          label: msg.content.slice(0, 80),
+          label: msg.content.slice(0, 160),
           color: "#8b949e",
           kind: "assistant-text",
         });
@@ -76,9 +76,10 @@ function buildEvents(messages: Message[]): TimelineEvent[] {
 export interface UseTimelineOptions {
   messages: Message[];
   isActive: boolean;
+  paused?: boolean;
 }
 
-export function useTimeline({ messages, isActive }: UseTimelineOptions) {
+export function useTimeline({ messages, isActive, paused = false }: UseTimelineOptions) {
   const events = useMemo(() => buildEvents(messages), [messages]);
   const maxIndex = events.length > 0 ? events.length - 1 : 0;
   const [cursor, setCursor] = useState<number>(() => maxIndex);
@@ -89,13 +90,15 @@ export function useTimeline({ messages, isActive }: UseTimelineOptions) {
 
   useLayoutEffect(() => {
     const newMax = events.length > 0 ? events.length - 1 : 0;
-    if (wasAtLiveRef.current || !isScrubbingRef.current) {
+    if (paused) {
+      setCursor((c) => Math.min(c, newMax));
+    } else if (wasAtLiveRef.current && !isScrubbingRef.current) {
       setCursor(newMax);
     } else {
       setCursor((c) => Math.min(c, newMax));
     }
     if (events.length === 0) wasAtLiveRef.current = true;
-  }, [events.length]);
+  }, [events.length, paused]);
 
   useLayoutEffect(() => {
     wasAtLiveRef.current = cursor >= maxIndex;
@@ -119,9 +122,9 @@ export function useTimeline({ messages, isActive }: UseTimelineOptions) {
   }, [playing, maxIndex, speed, events.length, isActive]);
 
   useLayoutEffect(() => {
-    if (!isActive || !wasAtLiveRef.current || isScrubbingRef.current || playing) return;
+    if (paused || !isActive || !wasAtLiveRef.current || isScrubbingRef.current || playing) return;
     if (cursor !== maxIndex) setCursor(maxIndex);
-  }, [maxIndex, isActive, cursor, playing]);
+  }, [maxIndex, isActive, cursor, playing, paused]);
 
   const setCursorScrub = useCallback(
     (next: number) => {

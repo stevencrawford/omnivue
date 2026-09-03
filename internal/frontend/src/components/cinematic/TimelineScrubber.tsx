@@ -17,7 +17,7 @@ interface TimelineScrubberProps {
   atLive: boolean;
   behind: number;
   isActive: boolean;
-  selectedSpan?: { start: number; end: number } | null;
+  selectedSpan?: { start: number; end: number; trailing?: boolean } | null;
   onSpanSelect?: (start: number, end: number) => void;
   onClearSpan?: () => void;
 }
@@ -435,16 +435,18 @@ export function TimelineScrubber({
           const isSelectedBoundary =
             selectedSpan !== null &&
             (ev.index === selectedSpan.start || ev.index === selectedSpan.end);
+          const preview = ev.label.length > 120 ? `${ev.label.slice(0, 120)}…` : ev.label;
           return (
             <div
               key={`user-${ev.index}`}
-              className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 shadow -ml-1.5 pointer-events-none z-20 transition-all duration-200 ease-out ${
+              className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 shadow -ml-1.5 z-20 transition-all duration-200 ease-out pointer-events-auto cursor-help ${
                 isSelectedBoundary
                   ? "bg-accent border-accent ring-2 ring-accent/30"
                   : "bg-[#58a6ff] border-ov-bg"
               }`}
               style={{ left: `${left}%` }}
-              title={`user: ${ev.label.slice(0, 80)}`}
+              title={preview}
+              aria-label={preview}
             />
           );
         })}
