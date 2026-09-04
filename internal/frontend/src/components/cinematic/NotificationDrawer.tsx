@@ -14,11 +14,24 @@ import { effectiveToolKind } from "../../utils/toolDisplay";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { toolRendererRegistry } from "../tool-renderers/registry";
+import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
 import { PinnedPromptBar } from "../PinnedPromptBar";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
 
 export type ActivityTab = "activity" | "prompt" | "plan";
+
+// File + console kinds have dedicated cinematic panels (tree/fileviewer,
+// console). Everything else falls back to activity so no tool call is
+// invisible — search (grep/glob/codesearch/read_lints), web, memory, etc.
+const NON_ACTIVITY_KINDS = new Set(["read", "edit", "write", "delete", "bash", "sql"]);
+
+const fallbackActivityRenderer = {
+  kind: "unknown",
+  names: [] as string[],
+  Component: DefaultToolDiff,
+  display: { type: "expandable" as const },
+};
 
 interface NotificationDrawerProps {
   session: Session;
@@ -262,23 +275,9 @@ export function NotificationDrawer({
       let hasVisibleTool = false;
       for (const tool of msg.toolCalls ?? []) {
         const kind = effectiveToolKind(tool);
-        if (
-          ![
-            "question",
-            "task_complete",
-            "exit_plan_mode",
-            "task",
-            "skill",
-            "compaction",
-            "permission_request",
-            "store_memory",
-            "todowrite",
-          ].includes(kind)
-        )
-          continue;
+        if (NON_ACTIVITY_KINDS.has(kind)) continue;
         hasVisibleTool = true;
-        const renderer = toolRendererRegistry.getRenderer(kind);
-        if (!renderer) continue;
+        const renderer = toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer;
         flushReasoning();
         items.push({
           key: tool.id,
