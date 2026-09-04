@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.2.5](https://github.com/stevencrawford/omnivue/compare/v0.2.4...v0.2.5) - 2026-09-04
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group in /internal/frontend with 10 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/156
+- chore(deps): bump the dependencies group in /internal/frontend with 19 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/160
+- chore(deps): bump modernc.org/sqlite from 1.56.0 to 1.57.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/159
+### Other Changes
+- feat(ui): cinematic playable session view by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/161
+- fix: Remove Activity pane horizontal scrollbar by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/163
+- fix(cinematic): Route orphan tools to activity fallback by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/166
+
 ## [v0.2.4](https://github.com/stevencrawford/omnivue/compare/v0.2.3...v0.2.4) - 2026-08-17
 
 ### Other Changes
