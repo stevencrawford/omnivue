@@ -217,6 +217,15 @@ export function App() {
     handleCancelPin,
   } = usePinMessage();
 
+  // Opening search from the header mirrors the ⌘K shortcut: the search is
+  // scoped to the open session (unscoped on overview) so the scope badge with
+  // its dismiss control is always offered.
+  const handleOpenSearch = useCallback(() => {
+    if (searchHighlightQuery) setSearchInput(searchHighlightQuery);
+    setSearchSessionScope(activeSessionId);
+    setSearchOpen(true);
+  }, [searchHighlightQuery, activeSessionId, setSearchSessionScope]);
+
   // ---- Keyboard shortcuts ----
   const keyboardConfig: AppKeyboardConfig = {
     sessions,
@@ -250,10 +259,7 @@ export function App() {
                 connected={connected}
                 version={status?.version}
                 onGoHome={goHome}
-                onOpenSearch={() => {
-                  if (searchHighlightQuery) setSearchInput(searchHighlightQuery);
-                  setSearchOpen(true);
-                }}
+                onOpenSearch={handleOpenSearch}
                 onClearSearchHighlight={clearSearchHighlight}
               />
 
