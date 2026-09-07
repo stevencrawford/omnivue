@@ -30,7 +30,7 @@ import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
-import type { AppNotification, NotificationSettings } from "./hooks/types";
+import type { AppNotification, NotificationSettings, Position } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
@@ -82,6 +82,10 @@ export function App() {
     showOverview,
     activeSection,
     activeTab,
+    focusPosition,
+    focusMessageIndex,
+    focusMessageId,
+    focusMessageKey,
     searchHighlightQuery,
     highlightPromptId,
     filterTag,
@@ -95,6 +99,7 @@ export function App() {
     setTab,
     setSection,
     setShowOverview,
+    clearFocus,
     clearSearchHighlight,
     navigateSession,
     selectSearchHit,
@@ -212,6 +217,15 @@ export function App() {
     handleCancelPin,
   } = usePinMessage();
 
+  // Opening search from the header mirrors the ⌘K shortcut: the search is
+  // scoped to the open session (unscoped on overview) so the scope badge with
+  // its dismiss control is always offered.
+  const handleOpenSearch = useCallback(() => {
+    if (searchHighlightQuery) setSearchInput(searchHighlightQuery);
+    setSearchSessionScope(activeSessionId);
+    setSearchOpen(true);
+  }, [searchHighlightQuery, activeSessionId, setSearchSessionScope]);
+
   // ---- Keyboard shortcuts ----
   const keyboardConfig: AppKeyboardConfig = {
     sessions,
@@ -245,10 +259,7 @@ export function App() {
                 connected={connected}
                 version={status?.version}
                 onGoHome={goHome}
-                onOpenSearch={() => {
-                  if (searchHighlightQuery) setSearchInput(searchHighlightQuery);
-                  setSearchOpen(true);
-                }}
+                onOpenSearch={handleOpenSearch}
                 onClearSearchHighlight={clearSearchHighlight}
               />
 
@@ -340,6 +351,11 @@ export function App() {
                               fetchQueueCount={fetchQueueCount}
                               highlightPromptId={highlightPromptId}
                               handleHighlightDone={handleHighlightDone}
+                              focusPosition={focusPosition}
+                              focusMessageIndex={focusMessageIndex}
+                              focusMessageId={focusMessageId}
+                              focusMessageKey={focusMessageKey}
+                              clearFocus={clearFocus}
                             />
                           </SearchHighlightContext.Provider>
                         </ErrorBoundary>
@@ -425,6 +441,11 @@ function CinematicBranch(props: {
   fetchQueueCount: () => void;
   highlightPromptId: string | null;
   handleHighlightDone: () => void;
+  focusPosition: Position | undefined;
+  focusMessageIndex: number | undefined;
+  focusMessageId: string | undefined;
+  focusMessageKey: number;
+  clearFocus: () => void;
 }) {
   const { enabled } = useCinematicMode();
   if (enabled) {
@@ -441,6 +462,12 @@ function CinematicBranch(props: {
         onQueueChanged={props.fetchQueueCount}
         highlightPromptId={props.highlightPromptId}
         onHighlightDone={props.handleHighlightDone}
+        activeTab={props.activeTab}
+        focusPosition={props.focusPosition}
+        focusMessageIndex={props.focusMessageIndex}
+        focusMessageId={props.focusMessageId}
+        focusMessageKey={props.focusMessageKey}
+        onClearFocus={props.clearFocus}
       />
     );
   }

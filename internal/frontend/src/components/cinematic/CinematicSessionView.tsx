@@ -5,8 +5,11 @@ import type {
   BookmarkKind,
   Plan,
   FileEdit,
+  Position,
   ScratchFile,
 } from "../../hooks/types";
+import type { Tab } from "../SessionViewer";
+import { useCinematicSearchJump } from "../../hooks/useCinematicSearchJump";
 import {
   fetchMessages,
   fetchPlan,
@@ -65,6 +68,14 @@ interface CinematicSessionViewProps {
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
   onJumpTerminal?: () => void;
+  /** Hit tab from the navigation store (search hits set session/plan/scratch:*). */
+  activeTab?: Tab;
+  /** Jump target from the navigation store (search hits, diff nav, bookmarks). */
+  focusPosition?: Position;
+  focusMessageIndex?: number;
+  focusMessageId?: string;
+  focusMessageKey?: number;
+  onClearFocus?: () => void;
 }
 
 export function CinematicSessionView({
@@ -74,10 +85,20 @@ export function CinematicSessionView({
   onNameChanged,
   onBookmark: _onBookmark,
   bookmarkIdByRef: _bookmarkIdByRef,
+  // Kept for API parity with SessionViewer. Jump *dispatch* inside cinematic is
+  // unnecessary: every navigation jump (search hit, diff nav, bookmark,
+  // notification) lands here as focus state via the focus* props below.
+  onNavigateToMessage: _onNavigateToMessage,
   onQueueChanged,
   highlightPromptId,
   onHighlightDone,
   onJumpTerminal,
+  activeTab,
+  focusPosition,
+  focusMessageIndex,
+  focusMessageId,
+  focusMessageKey = 0,
+  onClearFocus,
 }: CinematicSessionViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,6 +131,28 @@ export function CinematicSessionView({
     trailing: boolean;
   } | null>(null);
   const { showErrorToast } = useToast();
+
+  // Search/message jump target. The timeline cursor is never moved by a jump:
+  // the drawer spotlight-includes the target message and scrolls to it.
+  const { spotlightId } = useCinematicSearchJump({
+    messages,
+    loading,
+    focusPosition,
+    focusMessageIndex,
+    focusMessageId,
+    focusMessageKey,
+    onClearFocus,
+  });
+
+  const expandDrawer = useCallback(() => {
+    setDrawerCollapsed(false);
+    setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "false");
+  }, []);
+
+  // Search-hit routing is declared below, next to handleActivityTabChange.
+  const handleJumpLanded = useCallback(() => {
+    onClearFocus?.();
+  }, [onClearFocus]);
 
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
     storageKey: STORAGE_KEYS.CINEMATIC_TREE_WIDTH,
@@ -938,6 +981,28 @@ export function CinematicSessionView({
     [drawerCollapsed, handleActivityTabChange],
   );
 
+  // Search-hit routing: plan hits open the plan tab, scratch hits select the
+  // scratch file, message hits scroll the activity drawer via the spotlight
+  // (focus is cleared by the drawer landing effect). The timeline cursor is
+  // never moved by a search jump.
+  useEffect(() => {
+    if (focusMessageKey === 0) return;
+    if (activeTab === "plan") {
+      handleActivityTabChange("plan");
+      expandDrawer();
+      onClearFocus?.();
+      return;
+    }
+    if (activeTab?.startsWith("scratch:")) {
+      setSelectedScratchId(activeTab.slice(8));
+      setSelectedPath("");
+      onClearFocus?.();
+      return;
+    }
+    handleActivityTabChange("activity");
+    expandDrawer();
+  }, [focusMessageKey, activeTab, handleActivityTabChange, expandDrawer, onClearFocus]);
+
   const firstMessage = messages[0];
 
   useEffect(() => {
@@ -1160,6 +1225,9 @@ export function CinematicSessionView({
                         onQueueChanged={onQueueChanged}
                         highlightPromptId={highlightPromptId}
                         onHighlightDone={onHighlightDone}
+                        spotlightId={spotlightId}
+                        jumpKey={focusMessageKey}
+                        onJumpLanded={handleJumpLanded}
                       />
                     </div>
                   </>
