@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CircleHelp, CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
+import { CopyButton } from "../../ui/CopyButton";
 import { ToolActionsBar } from "../ToolActionsBar";
 
 interface QuestionItem {
@@ -91,11 +92,13 @@ export function QuestionToolDiff({
                 isBookmarked={isBookmarked}
                 childSessionId={childSessionId}
                 navigateToSession={navigateToSession}
+                showCopy={false}
               />
             </div>
           </div>
-          <div className="mt-2 text-[12px]">
+          <div className="mt-2 text-[12px] group relative">
             <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">{text}</p>
+            <CopyButton text={text} className="absolute top-0 right-0" />
           </div>
           {tool.output && (
             <div className="mt-2 pt-2 border-t border-pink-500/20">
@@ -152,6 +155,7 @@ export function QuestionToolDiff({
               isBookmarked={isBookmarked}
               childSessionId={childSessionId}
               navigateToSession={navigateToSession}
+              showCopy={false}
             />
           </div>
         </div>
@@ -214,13 +218,14 @@ export function QuestionToolDiff({
             </div>
           )}
           {activeFreeformText && (
-            <div className="mt-2 pt-2 border-t border-pink-500/20">
+            <div className="mt-2 pt-2 border-t border-pink-500/20 group relative">
               <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
                 Response
               </div>
               <div className="text-[11px] text-ov-text pl-2 border-l-2 border-pink-400/40 whitespace-pre-wrap leading-relaxed">
                 {activeFreeformText}
               </div>
+              <CopyButton text={activeFreeformText} className="absolute top-2 right-0" />
             </div>
           )}
           {!showTabs && !activeQ.question && !activeQ.options?.length && tool.output && (
