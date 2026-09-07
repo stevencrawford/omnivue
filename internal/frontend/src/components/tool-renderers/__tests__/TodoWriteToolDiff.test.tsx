@@ -30,19 +30,23 @@ describe("TodoWriteToolDiff", () => {
     expect(container.textContent).toContain("1 in progress");
   });
 
-  it("detail renders every todo with 12px status icons", () => {
+  it("detail renders a titled card with every todo and 12px status icons", () => {
     const { container } = render(
       <TodoWriteToolDiff tool={todoTool(sampleTodos)} variant="detail" />,
     );
+    expect(screen.getByText("Todos")).toBeDefined();
+    expect(container.textContent).toContain("1/3 done");
     for (const todo of sampleTodos) {
       expect(screen.getByText(todo.content)).toBeDefined();
     }
     const icons = container.querySelectorAll("svg");
-    expect(icons).toHaveLength(sampleTodos.length);
+    expect(icons).toHaveLength(sampleTodos.length + 1);
     for (const icon of icons) {
       expect(icon.getAttribute("width")).toBe("12");
       expect(icon.getAttribute("height")).toBe("12");
     }
+    // No header copy button (copy lives in content on hover elsewhere).
+    expect(container.querySelector('[title="Copy output"]')).toBeNull();
   });
 
   it("detail strikes through completed todos and badges pending high-priority ones", () => {

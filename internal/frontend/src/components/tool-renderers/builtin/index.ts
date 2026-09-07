@@ -202,7 +202,7 @@ export const definitions: ToolRendererDefinition[] = [
     names: ["todowrite"],
     Component: TodoWriteToolDiff,
     summary: () => "todowrite",
-    display: { type: "expandable", defaultOpen: true },
+    display: { type: "always-open" },
     markerColor: toolKindInfo("todowrite").color,
     markerLabel: toolKindInfo("todowrite").label,
     markerDisplayType: "todowrite",
