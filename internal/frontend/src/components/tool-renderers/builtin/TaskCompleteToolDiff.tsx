@@ -1,6 +1,7 @@
 import { CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
+import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
   return (
@@ -19,9 +20,11 @@ function looksLikeMarkdown(text: string): boolean {
 export function TaskCompleteToolDiff({
   tool,
   variant,
-  onCopy: _onCopy,
-  onBookmark: _onBookmark,
-  isBookmarked: _isBookmarked,
+  onPin,
+  onBookmark,
+  isBookmarked,
+  childSessionId,
+  navigateToSession,
 }: ToolRendererProps) {
   let summary = "";
   let durationMs = 0;
@@ -60,26 +63,48 @@ export function TaskCompleteToolDiff({
   const isMarkdown = summary ? looksLikeMarkdown(summary) : false;
 
   return (
-    <div className="px-3 py-2 space-y-2">
-      {displayDuration > 0 && (
-        <span className="text-[11px] text-ov-text-secondary/50">
-          {(displayDuration / 1000).toFixed(1)}s
-        </span>
-      )}
-      {summary && (
-        <div className="text-[12px]">
-          {isMarkdown ? (
-            <MarkdownContent content={summary} className="markdown-body--wide" />
-          ) : (
-            <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">{summary}</p>
-          )}
+    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-3">
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2">
+          <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
+          <span className="font-mono font-semibold text-[11px] text-emerald-400">
+            Task Complete
+          </span>
+          <div className="ml-auto flex items-center">
+            {displayDuration > 0 && (
+              <span className="text-[11px] text-ov-text-secondary/50 mr-2">
+                {(displayDuration / 1000).toFixed(1)}s
+              </span>
+            )}
+            <ToolActionsBar
+              tool={tool}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isBookmarked={isBookmarked}
+              childSessionId={childSessionId}
+              navigateToSession={navigateToSession}
+              showPin
+              pinText={summary || outputLabel || undefined}
+            />
+          </div>
         </div>
-      )}
-      {outputLabel && !summary && (
-        <div className="text-[12px]">
-          <MarkdownContent content={outputLabel} className="markdown-body--wide" />
-        </div>
-      )}
+        {summary && (
+          <div className="mt-2 text-[12px]">
+            {isMarkdown ? (
+              <MarkdownContent content={summary} className="markdown-body--wide" />
+            ) : (
+              <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
+                {summary}
+              </p>
+            )}
+          </div>
+        )}
+        {outputLabel && !summary && (
+          <div className="mt-2 text-[12px]">
+            <MarkdownContent content={outputLabel} className="markdown-body--wide" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

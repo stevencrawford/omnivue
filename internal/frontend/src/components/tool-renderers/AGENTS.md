@@ -72,11 +72,11 @@ type ToolCardDisplay =
 
 The two display types produce distinct visual patterns. These names are used throughout discussions to refer to the rendering style:
 
-| Pattern                 | Display config                              | Visual                                                                                        | Examples                                                                      |
-| ----------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **Collapsible card**    | `{ type: "expandable" }`                    | System border, chevron toggle, compact summary line. Content expands inline below the header. | read, bash, grep, glob, webfetch                                              |
-| **Initially-open card** | `{ type: "expandable", defaultOpen: true }` | Same as collapsible but starts expanded. Content visible on load.                             | write, edit, todowrite, store_memory, question, task_complete, exit_plan_mode |
-| **Bordered card**       | `{ type: "always-open" }`                   | Self-contained card with custom border/chrome. No chevron. Content always visible.            | task, skill, compaction                                                       |
+| Pattern                 | Display config                              | Visual                                                                                        | Examples                                               |
+| ----------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Collapsible card**    | `{ type: "expandable" }`                    | System border, chevron toggle, compact summary line. Content expands inline below the header. | read, bash, grep, glob, webfetch                       |
+| **Initially-open card** | `{ type: "expandable", defaultOpen: true }` | Same as collapsible but starts expanded. Content visible on load.                             | write, edit, todowrite, store_memory, question         |
+| **Bordered card**       | `{ type: "always-open" }`                   | Self-contained card with custom border/chrome. No chevron. Content always visible.            | task, skill, compaction, task_complete, exit_plan_mode |
 
 - **Collapsible / Initially-open cards** rely on `ToolRendererWrapper` for the border, chevron, copy button, and bookmark button. The renderer component only provides the summary text (in the header) and the detail content (in the expandable area). Do not render your own card chrome.
 - **Bordered cards** provide their own border via `cardClassName` and render full content in both summary and detail variants. They are typically used for special visual treatments (sub-agent summaries, skill loaders, separators).
@@ -163,12 +163,12 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 
 | Kind                         | Component                                       | `display` type | `defaultOpen` | `truncateOutput` | `markerPriority` |
 | ---------------------------- | ----------------------------------------------- | -------------- | ------------- | ---------------- | ---------------- |
-| `task_complete`              | `TaskCompleteToolDiff`                          | `expandable`   | `true`        | 0 (none)         | 0                |
+| `task_complete`              | `TaskCompleteToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 0                |
 | `skill`                      | `SkillToolDiff`                                 | `always-open`  | N/A           | 0 (none)         | 15               |
 | `store_memory`               | `StoreMemoryToolDiff`                           | `expandable`   | `true`        | 0 (none)         | 15               |
 | `task`                       | `TaskToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 10               |
 | `edit`, `write`              | `EditToolDiff`                                  | `expandable`   | `true`        | 20               | 20               |
-| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | `expandable`   | `true`        | 0 (none)         | 30               |
+| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 30               |
 | `question`                   | `QuestionToolDiff`                              | `expandable`   | `true`        | 50 (default)     | 40               |
 | `read`                       | `ReadToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 50               |
 | `bash`                       | `BashToolDiff`                                  | `expandable`   | `false`       | 50               | 60               |
@@ -178,7 +178,7 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | `delete`                     | `DeleteToolDiff`                                | `expandable`   | `false`       | 50 (default)     | 100              |
 | `compaction`                 | `CompactionToolDiff`                            | `always-open`  | N/A           | 0 (none)         | 110              |
 
-> **Note:** `skill` and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
+> **Note:** `skill`, `task_complete`, `exit_plan_mode`, and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
 
 ### Compaction pattern
 
@@ -188,21 +188,21 @@ The `compaction` kind is a special visual separator used when multiple tool call
 
 Use GitHub-style CSS classes from Tailwind (gh-border, gh-bg-secondary, etc.). Each kind can use a distinct border/icon color:
 
-| Kind(s)          | Border/Accent         |
-| ---------------- | --------------------- |
-| `bash`           | amber                 |
-| `edit`/`write`   | accent (green/blue)   |
-| `read`           | cyan                  |
-| `grep`/`glob`    | violet                |
-| `delete`         | red                   |
-| `todowrite`      | amber                 |
-| `store_memory`   | violet                |
-| `skill`          | sky                   |
-| `task`           | violet                |
-| `question`       | pink                  |
-| `exit_plan_mode` | amber (system card)   |
-| `task_complete`  | emerald (system card) |
-| `compaction`     | gray                  |
+| Kind(s)          | Border/Accent                 |
+| ---------------- | ----------------------------- |
+| `bash`           | amber                         |
+| `edit`/`write`   | accent (green/blue)           |
+| `read`           | cyan                          |
+| `grep`/`glob`    | violet                        |
+| `delete`         | red                           |
+| `todowrite`      | amber                         |
+| `store_memory`   | violet                        |
+| `skill`          | sky                           |
+| `task`           | violet                        |
+| `question`       | pink                          |
+| `exit_plan_mode` | amber (self-contained card)   |
+| `task_complete`  | emerald (self-contained card) |
+| `compaction`     | gray                          |
 
 ## CopyButton Usage
 

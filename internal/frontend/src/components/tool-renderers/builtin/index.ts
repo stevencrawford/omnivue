@@ -275,19 +275,21 @@ export const definitions: ToolRendererDefinition[] = [
       const s = extractJSONField(tool.input, "summary") || "";
       return `✓ ${s.slice(0, 80)}`;
     },
-    display: { type: "expandable", defaultOpen: true },
+    display: { type: "always-open" },
     markerColor: toolKindInfo("task_complete").color,
     markerLabel: toolKindInfo("task_complete").label,
     markerDisplayType: "task-complete",
     markerPriority: toolKindInfo("task_complete").priority,
     truncateOutput: 0,
+    cardClassName:
+      "border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-2",
   },
   {
     kind: "question",
     names: ["question"],
     Component: QuestionToolDiff,
     summary: (tool) => firstQuestion(tool),
-    display: { type: "expandable", defaultOpen: true },
+    display: { type: "always-open" },
     markerColor: toolKindInfo("question").color,
     markerLabel: toolKindInfo("question").label,
     markerDisplayType: "question",
@@ -301,7 +303,7 @@ export const definitions: ToolRendererDefinition[] = [
       const s = extractJSONField(tool.input, "summary") || "";
       return `Plan: ${s.slice(0, 80)}`;
     },
-    display: { type: "expandable", defaultOpen: true },
+    display: { type: "always-open" },
     markerColor: toolKindInfo("exit_plan_mode").color,
     markerLabel: toolKindInfo("exit_plan_mode").label,
     markerDisplayType: "plan",

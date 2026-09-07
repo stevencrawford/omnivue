@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
+import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
   return (
@@ -19,9 +20,11 @@ function looksLikeMarkdown(text: string): boolean {
 export function ExitPlanModeToolDiff({
   tool,
   variant,
-  onCopy: _onCopy,
-  onBookmark: _onBookmark,
-  isBookmarked: _isBookmarked,
+  onPin,
+  onBookmark,
+  isBookmarked,
+  childSessionId,
+  navigateToSession,
 }: ToolRendererProps) {
   let summary = "";
 
@@ -49,26 +52,47 @@ export function ExitPlanModeToolDiff({
   const isMarkdown = summary ? looksLikeMarkdown(summary) : false;
 
   return (
-    <div className="px-3 py-2 space-y-2">
-      {summary && (
-        <div className="text-[12px]">
-          {isMarkdown ? (
-            <MarkdownContent content={summary} className="markdown-body--wide" hideCopy />
-          ) : (
-            <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">{summary}</p>
-          )}
-        </div>
-      )}
-      {feedback && (
-        <div className="pt-2 border-t border-ov-border">
-          <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
-            Response
+    <div className="border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/[0.04] mb-3">
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2 mb-2">
+          <FileText size={12} className="text-amber-400 shrink-0" />
+          <span className="font-mono font-semibold text-[11px] text-amber-400">Proposed Plan</span>
+          <div className="ml-auto">
+            <ToolActionsBar
+              tool={tool}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isBookmarked={isBookmarked}
+              childSessionId={childSessionId}
+              navigateToSession={navigateToSession}
+              showPin
+              copyText={summary || undefined}
+              pinText={summary || undefined}
+            />
           </div>
-          <div className="text-[11px] text-ov-text-secondary pl-2 border-l-2 border-amber-400/40 whitespace-pre-wrap leading-relaxed">
-            {feedback}
-          </div>
         </div>
-      )}
+        {summary && (
+          <div className="text-[12px]">
+            {isMarkdown ? (
+              <MarkdownContent content={summary} className="markdown-body--wide" hideCopy />
+            ) : (
+              <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
+                {summary}
+              </p>
+            )}
+          </div>
+        )}
+        {feedback && (
+          <div className="mt-2 pt-2 border-t border-amber-500/20">
+            <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
+              Response
+            </div>
+            <div className="text-[11px] text-ov-text pl-2 border-l-2 border-amber-400/40 whitespace-pre-wrap leading-relaxed">
+              {feedback}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
