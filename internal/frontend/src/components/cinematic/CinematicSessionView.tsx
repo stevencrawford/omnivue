@@ -49,6 +49,7 @@ import {
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
+import { isSpanContained, mergeSpanRange } from "../../utils/spanRange";
 
 interface CinematicSessionViewProps {
   session: Session;
@@ -130,6 +131,10 @@ export function CinematicSessionView({
     end: number;
     trailing: boolean;
   } | null>(null);
+  // Anchor turn for Shift+Click range extension. Stays fixed at the plain-clicked
+  // turn so repeated Shift+Clicks recompute from the same origin; a Shift+Click
+  // inside the current range is a no-op (never shrinks).
+  const anchorSpanRef = useRef<{ start: number; end: number } | null>(null);
   const { showErrorToast } = useToast();
 
   // Search/message jump target. The timeline cursor is never moved by a jump:
@@ -365,11 +370,13 @@ export function CinematicSessionView({
     paused: !!selectedSpan && !selectedSpan.trailing,
   });
 
-  // selectedSpan isolates the view to a turn between two user prompts.
-  // Any scrub/play/live navigation should clear the isolation so the
-  // prefix-time filter (cursor) resumes.
+  // selectedSpan isolates the view to one turn — or a contiguous range of
+  // turns via Shift+Click — between user prompts. Any scrub/play/live
+  // navigation should clear the isolation so the prefix-time filter (cursor)
+  // resumes.
   const setCursor = useCallback(
     (next: number) => {
+      anchorSpanRef.current = null;
       setSelectedSpan(null);
       setCursorRaw(next);
     },
@@ -377,12 +384,14 @@ export function CinematicSessionView({
   );
 
   const goLive = useCallback(() => {
+    anchorSpanRef.current = null;
     setSelectedSpan(null);
     goLiveRaw();
   }, [goLiveRaw]);
 
   const step = useCallback(
     (delta: number) => {
+      anchorSpanRef.current = null;
       setSelectedSpan(null);
       stepRaw(delta);
     },
@@ -390,23 +399,50 @@ export function CinematicSessionView({
   );
 
   const handleSpanSelect = useCallback(
-    (start: number, end: number) => {
-      const isTrailing = end === events.length;
-      setSelectedSpan((prev) =>
-        prev && prev.start === start && prev.end === end
-          ? null
-          : { start, end, trailing: isTrailing },
-      );
+    (start: number, end: number, extend: boolean) => {
+      const clicked = { start, end };
+      if (!extend) {
+        // Plain click: clicking any turn inside the current selection clears
+        // everything; otherwise isolate the clicked turn and re-anchor there.
+        setSelectedSpan((prevSelected) => {
+          if (prevSelected && isSpanContained(prevSelected, clicked)) {
+            anchorSpanRef.current = null;
+            return null;
+          }
+          anchorSpanRef.current = clicked;
+          return { start, end, trailing: end === events.length };
+        });
+        return;
+      }
+      // Shift+Click: extend a contiguous range from the anchor. No anchor yet
+      // behaves like a plain click; clicking inside the range does nothing.
+      const anchor = anchorSpanRef.current;
+      if (!anchor) {
+        anchorSpanRef.current = clicked;
+        setSelectedSpan({ start, end, trailing: end === events.length });
+        return;
+      }
+      setSelectedSpan((prevSelected) => {
+        if (prevSelected && isSpanContained(prevSelected, clicked)) return prevSelected;
+        const merged = mergeSpanRange(anchor, clicked);
+        if (prevSelected && prevSelected.start === merged.start && prevSelected.end === merged.end)
+          return prevSelected;
+        return { ...merged, trailing: merged.end === events.length };
+      });
     },
     [events.length],
   );
 
-  const handleClearSpan = useCallback(() => setSelectedSpan(null), []);
+  const handleClearSpan = useCallback(() => {
+    anchorSpanRef.current = null;
+    setSelectedSpan(null);
+  }, []);
 
   // keep span valid when the event list changes (e.g. live growth or session switch)
   useEffect(() => {
     if (!selectedSpan) return;
     if (events.length === 0 || selectedSpan.start > maxIndex || selectedSpan.end > events.length) {
+      anchorSpanRef.current = null;
       setSelectedSpan(null);
       return;
     }
@@ -414,6 +450,7 @@ export function CinematicSessionView({
       (e) => e.index === selectedSpan.start && e.kind === "user-request",
     );
     if (!hasStart) {
+      anchorSpanRef.current = null;
       setSelectedSpan(null);
       return;
     }
@@ -424,10 +461,14 @@ export function CinematicSessionView({
       return;
     }
     const hasEnd = events.some((e) => e.index === selectedSpan.end && e.kind === "user-request");
-    if (!hasEnd) setSelectedSpan(null);
+    if (!hasEnd) {
+      anchorSpanRef.current = null;
+      setSelectedSpan(null);
+    }
   }, [events, maxIndex, selectedSpan]);
 
   useEffect(() => {
+    anchorSpanRef.current = null;
     setSelectedSpan(null);
   }, [session.id]);
 
@@ -462,6 +503,7 @@ export function CinematicSessionView({
 
   const handleJumpToMessage = useCallback(
     (messageIndex: number, messageId?: string) => {
+      anchorSpanRef.current = null;
       setSelectedSpan(null);
       let idx = -1;
       if (messageId) {
@@ -1029,10 +1071,14 @@ export function CinematicSessionView({
       } else if (e.key === " ") {
         if (target.tagName === "BUTTON") return;
         e.preventDefault();
-        if (selectedSpan) setSelectedSpan(null);
+        if (selectedSpan) {
+          anchorSpanRef.current = null;
+          setSelectedSpan(null);
+        }
         setPlaying((p) => !p);
       } else if (e.key === "Escape" && selectedSpan) {
         e.preventDefault();
+        anchorSpanRef.current = null;
         setSelectedSpan(null);
       }
     };
@@ -1066,7 +1112,10 @@ export function CinematicSessionView({
             onCursorChange={setCursor}
             onEndScrub={endScrub}
             onTogglePlay={() => {
-              if (selectedSpan) setSelectedSpan(null);
+              if (selectedSpan) {
+                anchorSpanRef.current = null;
+                setSelectedSpan(null);
+              }
               setPlaying((p) => !p);
             }}
             onStep={step}
