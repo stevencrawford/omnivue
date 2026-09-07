@@ -53,11 +53,11 @@ export function TodoWriteToolDiff({
         <div key={todo.id} className="flex items-start gap-2 py-0.5">
           <span className="mt-0.5 shrink-0">
             {todo.status === "completed" ? (
-              <CircleCheckBig size={14} className="text-emerald-400" />
+              <CircleCheckBig size={12} className="text-emerald-400" />
             ) : todo.status === "in_progress" ? (
-              <CircleDot size={14} className="text-amber-400" />
+              <CircleDot size={12} className="text-amber-400" />
             ) : (
-              <Circle size={14} className="text-ov-text-secondary/50" />
+              <Circle size={12} className="text-ov-text-secondary/50" />
             )}
           </span>
           <span
