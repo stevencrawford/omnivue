@@ -331,7 +331,16 @@ export function NotificationDrawer({
           messageId: msg.id,
           messageIndex: indexById.get(msg.id),
           toolCallId: tool.id,
-          node: <ToolRendererWrapper renderer={renderer} tool={tool} variant="detail" />,
+          // Raw mode mirrors the legacy view: a collapsed summary card that
+          // expands to the input/output detail. Custom renderers show their
+          // full detail inline.
+          node: (
+            <ToolRendererWrapper
+              renderer={renderer}
+              tool={tool}
+              variant={disableCustomRenderers ? "summary" : "detail"}
+            />
+          ),
         });
       }
       if (!(msg.content?.trim() || hasVisibleTool) && !msg.reasoning) {

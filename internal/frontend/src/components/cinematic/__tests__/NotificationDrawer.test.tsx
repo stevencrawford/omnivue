@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotificationDrawer } from "../NotificationDrawer";
 import { STORAGE_KEYS } from "../../../utils/storageKeys";
@@ -69,23 +69,32 @@ describe("NotificationDrawer raw fallback", () => {
     expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
   });
 
-  it("renders the raw input/output view when custom renderers are disabled", () => {
+  it("renders a collapsed raw summary card when custom renderers are disabled", () => {
     localStorage.setItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS, "true");
-    renderDrawer();
+    const { container } = renderDrawer();
+    // Summary header visible, detail hidden — like the legacy view.
+    expect(screen.getByText("grep:")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
+    expect(screen.queryByTitle("TODO")).toBeNull();
+    // Expanding reveals the raw input/output detail.
+    fireEvent.click(screen.getByText("grep:").closest("button")!);
     expect(screen.getByText("Input")).toBeDefined();
     expect(screen.getByText("Output")).toBeDefined();
-    expect(screen.queryByTitle("TODO")).toBeNull();
+    expect(container.textContent).toContain("src/a.ts:1: // TODO fix");
   });
 
   it("switches to the raw view live when the preference is toggled", () => {
-    renderDrawer();
+    const { container } = renderDrawer();
     expect(screen.getByTitle("TODO")).toBeDefined();
     expect(screen.queryByText("Input")).toBeNull();
     act(() => {
       setDisableCustomRenderers(true);
     });
-    expect(screen.getByText("Input")).toBeDefined();
+    expect(screen.getByText("grep:")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
     expect(screen.queryByTitle("TODO")).toBeNull();
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
     act(() => {
       setDisableCustomRenderers(false);
     });
