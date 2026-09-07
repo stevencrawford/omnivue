@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GrepToolDiff } from "../builtin/GrepToolDiff";
 import type { ToolCall } from "../../../hooks/types";
@@ -19,19 +19,25 @@ function grepTool(overrides: Partial<ToolCall> = {}): ToolCall {
 }
 
 describe("GrepToolDiff", () => {
-  it("detail shows the input pattern, scope, and labeled results", () => {
+  it("detail is a collapsed card showing the input pattern but not the output", () => {
     const { container } = render(<GrepToolDiff tool={grepTool()} variant="detail" />);
     expect(screen.getByTitle("TODO")).toBeDefined();
-    expect(screen.getByText("Results")).toBeDefined();
-    expect(container.textContent).toContain("src/a.ts:1: // TODO fix");
     expect(container.textContent).toContain("src · *.ts");
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
   });
 
-  it("detail shows the input header even when there are no results", () => {
+  it("detail expands to show the output on click", () => {
+    const { container } = render(<GrepToolDiff tool={grepTool()} variant="detail" />);
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByRole("button", { expanded: true })).toBeDefined();
+    expect(container.textContent).toContain("src/a.ts:1: // TODO fix");
+  });
+
+  it("detail shows the input header with no matches when there are no results", () => {
     const { container } = render(<GrepToolDiff tool={grepTool({ output: "" })} variant="detail" />);
     expect(screen.getByTitle("TODO")).toBeDefined();
-    expect(screen.queryByText("Results")).toBeNull();
-    expect(container.textContent).not.toContain("src/a.ts");
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(container.textContent).toContain("No matches");
   });
 
   it("detail renders nothing when both input and output are empty", () => {

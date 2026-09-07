@@ -62,9 +62,10 @@ describe("NotificationDrawer raw fallback", () => {
   });
 
   it("renders the custom grep renderer by default", () => {
-    renderDrawer();
-    expect(screen.getByText("Results")).toBeDefined();
+    const { container } = renderDrawer();
+    expect(screen.getByTitle("TODO")).toBeDefined();
     expect(screen.queryByText("Input")).toBeNull();
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
   });
 
   it("renders the raw input/output view when custom renderers are disabled", () => {
@@ -72,6 +73,6 @@ describe("NotificationDrawer raw fallback", () => {
     renderDrawer();
     expect(screen.getByText("Input")).toBeDefined();
     expect(screen.getByText("Output")).toBeDefined();
-    expect(screen.queryByText("Results")).toBeNull();
+    expect(screen.queryByTitle("TODO")).toBeNull();
   });
 });
