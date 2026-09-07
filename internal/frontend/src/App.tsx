@@ -30,7 +30,7 @@ import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
 import { useNotifications, useActiveView } from "./hooks/useNotifications";
 import { resolveChannels, fireBrowserNotification } from "./lib/browserNotify";
-import type { AppNotification, NotificationSettings } from "./hooks/types";
+import type { AppNotification, NotificationSettings, Position } from "./hooks/types";
 import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
@@ -82,6 +82,10 @@ export function App() {
     showOverview,
     activeSection,
     activeTab,
+    focusPosition,
+    focusMessageIndex,
+    focusMessageId,
+    focusMessageKey,
     searchHighlightQuery,
     highlightPromptId,
     filterTag,
@@ -95,6 +99,7 @@ export function App() {
     setTab,
     setSection,
     setShowOverview,
+    clearFocus,
     clearSearchHighlight,
     navigateSession,
     selectSearchHit,
@@ -340,6 +345,11 @@ export function App() {
                               fetchQueueCount={fetchQueueCount}
                               highlightPromptId={highlightPromptId}
                               handleHighlightDone={handleHighlightDone}
+                              focusPosition={focusPosition}
+                              focusMessageIndex={focusMessageIndex}
+                              focusMessageId={focusMessageId}
+                              focusMessageKey={focusMessageKey}
+                              clearFocus={clearFocus}
                             />
                           </SearchHighlightContext.Provider>
                         </ErrorBoundary>
@@ -425,6 +435,11 @@ function CinematicBranch(props: {
   fetchQueueCount: () => void;
   highlightPromptId: string | null;
   handleHighlightDone: () => void;
+  focusPosition: Position | undefined;
+  focusMessageIndex: number | undefined;
+  focusMessageId: string | undefined;
+  focusMessageKey: number;
+  clearFocus: () => void;
 }) {
   const { enabled } = useCinematicMode();
   if (enabled) {
@@ -441,6 +456,12 @@ function CinematicBranch(props: {
         onQueueChanged={props.fetchQueueCount}
         highlightPromptId={props.highlightPromptId}
         onHighlightDone={props.handleHighlightDone}
+        activeTab={props.activeTab}
+        focusPosition={props.focusPosition}
+        focusMessageIndex={props.focusMessageIndex}
+        focusMessageId={props.focusMessageId}
+        focusMessageKey={props.focusMessageKey}
+        onClearFocus={props.clearFocus}
       />
     );
   }

@@ -49,6 +49,12 @@ interface NotificationDrawerProps {
   onHighlightDone?: () => void;
   activeTab?: ActivityTab;
   onTabChange?: (tab: ActivityTab) => void;
+  /** Message id force-included past the cursor/span filter for a search jump. */
+  spotlightId?: string | null;
+  /** Focus key of the active jump; landing runs once per key. */
+  jumpKey?: number;
+  /** Fired after the jump scrolled and pulsed so the owner can clear focus. */
+  onJumpLanded?: () => void;
 }
 
 function formatDuration(ms: number): string {
@@ -101,6 +107,11 @@ function ThinkingBlock({
   );
 }
 
+function cssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
 function ActivityTabButton({
   active,
   onClick,
@@ -144,6 +155,9 @@ export function NotificationDrawer({
   onHighlightDone,
   activeTab: controlledTab,
   onTabChange,
+  spotlightId,
+  jumpKey,
+  onJumpLanded,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
@@ -166,17 +180,36 @@ export function NotificationDrawer({
       const msgEvents = isUser ? 1 : msg.toolCalls?.length ? msg.toolCalls.length : 1;
       const msgStart = eventIdx;
       const msgEnd = eventIdx + msgEvents - 1;
-      const visible = selectedSpan
-        ? msgEnd >= selectedSpan.start && msgStart < selectedSpan.end
-        : msgEnd <= cursor || cursor >= maxIndex;
+      // A search jump never moves the timeline cursor, so its target is
+      // spotlight-included here even when it sits outside the visible window.
+      const visible =
+        msg.id === spotlightId ||
+        (selectedSpan
+          ? msgEnd >= selectedSpan.start && msgStart < selectedSpan.end
+          : msgEnd <= cursor || cursor >= maxIndex);
       if (visible) out.push(msg);
       eventIdx += msgEvents;
     }
     return out;
-  }, [messages, cursor, maxIndex, selectedSpan]);
+  }, [messages, cursor, maxIndex, selectedSpan, spotlightId]);
+
+  // Raw messages[] index per message id, for stable jump anchors.
+  const indexById = useMemo(() => {
+    const map = new Map<string, number>();
+    messages.forEach((m, i) => {
+      if (!map.has(m.id)) map.set(m.id, i);
+    });
+    return map;
+  }, [messages]);
 
   const drawerItems = useMemo(() => {
-    const items: Array<{ key: string; node: ReactNode }> = [];
+    const items: Array<{
+      key: string;
+      node: ReactNode;
+      messageId?: string;
+      messageIndex?: number;
+      toolCallId?: string;
+    }> = [];
     const reasoningMap = new Map<string, { reasoning: string; durationMs?: number }>();
     let pendingReasoning: string | null = null;
     let pendingKey: string | null = null;
@@ -195,6 +228,8 @@ export function NotificationDrawer({
         reasoningMap.set(`${key}-reasoning`, { reasoning, durationMs });
         items.push({
           key: `${key}-reasoning`,
+          messageId: key,
+          messageIndex: indexById.get(key),
           node: <ThinkingBlock reasoning={reasoning} durationMs={durationMs} />,
         });
       }
@@ -209,6 +244,8 @@ export function NotificationDrawer({
         if (msg.content?.trim()) {
           items.push({
             key: `${msg.id}-user`,
+            messageId: msg.id,
+            messageIndex: indexById.get(msg.id),
             node: (
               <div className="px-3 py-2 border border-blue-500/20 rounded bg-blue-500/[0.04] min-w-0 overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-1 min-w-0">
@@ -248,6 +285,8 @@ export function NotificationDrawer({
         const isLong = msg.content.length > 100;
         items.push({
           key: `${msg.id}-content`,
+          messageId: msg.id,
+          messageIndex: indexById.get(msg.id),
           node: (
             <div className="px-3 py-2 border border-ov-border rounded bg-ov-bg-secondary/40 min-w-0 overflow-hidden">
               <div className="flex items-center gap-1.5 mb-1 min-w-0">
@@ -281,6 +320,9 @@ export function NotificationDrawer({
         flushReasoning();
         items.push({
           key: tool.id,
+          messageId: msg.id,
+          messageIndex: indexById.get(msg.id),
+          toolCallId: tool.id,
           node: <ToolRendererWrapper renderer={renderer} tool={tool} variant="detail" />,
         });
       }
@@ -297,6 +339,8 @@ export function NotificationDrawer({
           if (entry) {
             items[i] = {
               key,
+              messageId: items[i].messageId,
+              messageIndex: items[i].messageIndex,
               node: (
                 <ThinkingBlock
                   reasoning={entry.reasoning}
@@ -311,15 +355,56 @@ export function NotificationDrawer({
       }
     }
     return items;
-  }, [visibleMessages, session.status, onOpenModal]);
+  }, [visibleMessages, session.status, onOpenModal, indexById]);
 
   useEffect(() => {
     if (activeTab !== "activity") return;
+    // A jump landing owns the scroll; the follow-bottom must not yank it away.
+    if (spotlightId) return;
     const el = scrollRef.current;
     if (!el) return;
     if (!isAtBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [drawerItems, cursor, maxIndex, activeTab]);
+  }, [drawerItems, cursor, maxIndex, activeTab, spotlightId]);
+
+  const landedKeyRef = useRef(0);
+  const landTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const onJumpLandedRef = useRef(onJumpLanded);
+  onJumpLandedRef.current = onJumpLanded;
+
+  // Search/message jump landing: scroll the drawer to the spotlighted message
+  // and pulse it, mirroring the classic conversation jump. Re-runs when the
+  // items change so a jump issued while messages load still lands. Never
+  // touches the timeline cursor. The pulse timer lives in a ref so live
+  // message growth mid-pulse cannot cancel the focus release.
+  useEffect(() => {
+    if (!spotlightId || !jumpKey || activeTab !== "activity") return;
+    if (landedKeyRef.current === jumpKey) return;
+    const container = scrollRef.current;
+    if (!container) return;
+    const el = container.querySelector<HTMLElement>(
+      `[data-message-id="${cssEscape(spotlightId)}"]`,
+    );
+    if (!el) return;
+    landedKeyRef.current = jumpKey;
+    try {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    } catch {
+      /* older engines may not support smooth options */
+    }
+    el.classList.add("sess-message-highlight");
+    if (landTimerRef.current) clearTimeout(landTimerRef.current);
+    landTimerRef.current = setTimeout(() => {
+      el.classList.remove("sess-message-highlight");
+      onJumpLandedRef.current?.();
+    }, 2000);
+  }, [spotlightId, jumpKey, drawerItems, activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (landTimerRef.current) clearTimeout(landTimerRef.current);
+    };
+  }, []);
 
   const planContent = plan?.markdown ?? "";
 
@@ -390,7 +475,13 @@ export function NotificationDrawer({
             />
           ) : (
             drawerItems.map((it) => (
-              <div key={it.key} className="min-w-0 overflow-hidden">
+              <div
+                key={it.key}
+                className="min-w-0 overflow-hidden"
+                data-message-id={it.messageId}
+                data-message-index={it.messageIndex}
+                data-tool-call-id={it.toolCallId}
+              >
                 {it.node}
               </div>
             ))
