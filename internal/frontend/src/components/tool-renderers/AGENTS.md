@@ -72,11 +72,11 @@ type ToolCardDisplay =
 
 The two display types produce distinct visual patterns. These names are used throughout discussions to refer to the rendering style:
 
-| Pattern                 | Display config                              | Visual                                                                                        | Examples                                               |
-| ----------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **Collapsible card**    | `{ type: "expandable" }`                    | System border, chevron toggle, compact summary line. Content expands inline below the header. | read, bash, grep, glob, webfetch                       |
-| **Initially-open card** | `{ type: "expandable", defaultOpen: true }` | Same as collapsible but starts expanded. Content visible on load.                             | write, edit, todowrite, store_memory, question         |
-| **Bordered card**       | `{ type: "always-open" }`                   | Self-contained card with custom border/chrome. No chevron. Content always visible.            | task, skill, compaction, task_complete, exit_plan_mode |
+| Pattern                 | Display config                              | Visual                                                                                        | Examples                                                          |
+| ----------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Collapsible card**    | `{ type: "expandable" }`                    | System border, chevron toggle, compact summary line. Content expands inline below the header. | read, bash, grep, glob, webfetch                                  |
+| **Initially-open card** | `{ type: "expandable", defaultOpen: true }` | Same as collapsible but starts expanded. Content visible on load.                             | write, edit, store_memory, question                               |
+| **Bordered card**       | `{ type: "always-open" }`                   | Self-contained card with custom border/chrome. No chevron. Content always visible.            | task, skill, compaction, task_complete, exit_plan_mode, todowrite |
 
 - **Collapsible / Initially-open cards** rely on `ToolRendererWrapper` for the border, chevron, copy button, and bookmark button. The renderer component only provides the summary text (in the header) and the detail content (in the expandable area). Do not render your own card chrome.
 - **Bordered cards** provide their own border via `cardClassName` and render full content in both summary and detail variants. They are typically used for special visual treatments (sub-agent summaries, skill loaders, separators).
@@ -174,11 +174,11 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 | `bash`                       | `BashToolDiff`                                  | `expandable`   | `false`       | 50               | 60               |
 | `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | `expandable`   | `false`       | 50               | 70               |
 | `webfetch`, `websearch`      | `DefaultToolDiff`                               | `expandable`   | `false`       | 50 (default)     | 80               |
-| `todowrite`                  | `TodoWriteToolDiff`                             | `expandable`   | `true`        | 50 (default)     | 90               |
+| `todowrite`                  | `TodoWriteToolDiff`                             | `always-open`  | N/A           | 50 (default)     | 90               |
 | `delete`                     | `DeleteToolDiff`                                | `expandable`   | `false`       | 50 (default)     | 100              |
 | `compaction`                 | `CompactionToolDiff`                            | `always-open`  | N/A           | 0 (none)         | 110              |
 
-> **Note:** `skill`, `task_complete`, `exit_plan_mode`, and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
+> **Note:** `skill`, `task_complete`, `exit_plan_mode`, `todowrite`, and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
 
 ### Compaction pattern
 

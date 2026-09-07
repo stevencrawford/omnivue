@@ -45,9 +45,9 @@ export function TaskCompleteToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
-        <span className="text-emerald-400 font-semibold shrink-0">Task Complete</span>
+        <span className="text-ov-text-secondary/70 shrink-0">task_complete:</span>
         {(summary || outputLabel) && (
-          <span className="text-ov-text-secondary truncate min-w-0">
+          <span className="text-ov-text truncate min-w-0">
             {(summary ? summary.split("\n")[0] : outputLabel).slice(0, 80)}
           </span>
         )}
@@ -64,10 +64,12 @@ export function TaskCompleteToolDiff({
 
   return (
     <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-3">
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <CircleCheckBig size={20} className="text-emerald-400 shrink-0" />
-          <span className="font-semibold text-[13px] text-emerald-400">Task Complete</span>
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2">
+          <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
+          <span className="font-mono font-semibold text-[11px] text-emerald-400">
+            Task Complete
+          </span>
           <div className="ml-auto flex items-center">
             {displayDuration > 0 && (
               <span className="text-[11px] text-ov-text-secondary/50 mr-2">
@@ -87,7 +89,7 @@ export function TaskCompleteToolDiff({
           </div>
         </div>
         {summary && (
-          <div className="mt-2 text-[13px]">
+          <div className="mt-2 text-[12px]">
             {isMarkdown ? (
               <MarkdownContent content={summary} className="markdown-body--wide" />
             ) : (
@@ -98,7 +100,7 @@ export function TaskCompleteToolDiff({
           </div>
         )}
         {outputLabel && !summary && (
-          <div className="mt-2 text-[13px]">
+          <div className="mt-2 text-[12px]">
             <MarkdownContent content={outputLabel} className="markdown-body--wide" />
           </div>
         )}

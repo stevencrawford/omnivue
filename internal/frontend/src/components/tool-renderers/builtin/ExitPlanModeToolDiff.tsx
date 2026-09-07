@@ -41,8 +41,8 @@ export function ExitPlanModeToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <FileText size={12} className="text-amber-400 shrink-0" />
-        <span className="text-amber-400 font-semibold shrink-0">Proposed Plan</span>
-        <span className="text-ov-text-secondary truncate min-w-0">
+        <span className="text-ov-text-secondary/70 shrink-0">plan:</span>
+        <span className="text-ov-text truncate min-w-0">
           {summary ? summary.split("\n")[0].slice(0, 80) : "Proposed Plan"}
         </span>
       </div>
@@ -53,10 +53,10 @@ export function ExitPlanModeToolDiff({
 
   return (
     <div className="border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/[0.04] mb-3">
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2.5 mb-2">
-          <FileText size={20} className="text-amber-400 shrink-0" />
-          <span className="font-semibold text-[13px] text-amber-400">Proposed Plan</span>
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2 mb-2">
+          <FileText size={12} className="text-amber-400 shrink-0" />
+          <span className="font-mono font-semibold text-[11px] text-amber-400">Proposed Plan</span>
           <div className="ml-auto">
             <ToolActionsBar
               tool={tool}
@@ -72,7 +72,7 @@ export function ExitPlanModeToolDiff({
           </div>
         </div>
         {summary && (
-          <div className="text-[13px]">
+          <div className="text-[12px]">
             {isMarkdown ? (
               <MarkdownContent content={summary} className="markdown-body--wide" hideCopy />
             ) : (
@@ -83,7 +83,7 @@ export function ExitPlanModeToolDiff({
           </div>
         )}
         {feedback && (
-          <div className="mt-3 pt-3 border-t border-amber-500/20">
+          <div className="mt-2 pt-2 border-t border-amber-500/20">
             <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
               Response
             </div>

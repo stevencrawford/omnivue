@@ -1,5 +1,6 @@
 import { ListTodo, CircleCheckBig, CircleDot, Circle } from "lucide-react";
 import type { ToolRendererProps } from "../types";
+import { ToolActionsBar } from "../ToolActionsBar";
 
 interface TodoItem {
   content: string;
@@ -15,9 +16,11 @@ interface TodowriteInput {
 export function TodoWriteToolDiff({
   tool,
   variant,
-  onCopy: _onCopy,
-  onBookmark: _onBookmark,
-  isBookmarked: _isBookmarked,
+  onPin,
+  onBookmark,
+  isBookmarked,
+  childSessionId,
+  navigateToSession,
 }: ToolRendererProps) {
   let todos: TodoItem[] = [];
   try {
@@ -31,6 +34,10 @@ export function TodoWriteToolDiff({
 
   const completed = todos.filter((t) => t.status === "completed").length;
   const inProgress = todos.filter((t) => t.status === "in_progress").length;
+
+  const pinText = todos
+    .map((t) => `- [${t.status === "completed" ? "x" : " "}] ${t.content}`)
+    .join("\n");
 
   if (variant === "summary") {
     return (
@@ -48,34 +55,56 @@ export function TodoWriteToolDiff({
   }
 
   return (
-    <div className="px-3 py-2 space-y-0.5">
-      {todos.map((todo) => (
-        <div key={todo.id} className="flex items-start gap-2 py-0.5">
-          <span className="mt-0.5 shrink-0">
-            {todo.status === "completed" ? (
-              <CircleCheckBig size={14} className="text-emerald-400" />
-            ) : todo.status === "in_progress" ? (
-              <CircleDot size={14} className="text-amber-400" />
-            ) : (
-              <Circle size={14} className="text-ov-text-secondary/50" />
-            )}
+    <div className="border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/[0.03] mb-3">
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2 mb-1">
+          <ListTodo size={12} className="text-amber-400 shrink-0" />
+          <span className="font-mono font-semibold text-[11px] text-amber-400">Todos</span>
+          <span className="text-[11px] font-mono text-ov-text-secondary/60">
+            {completed}/{todos.length} done
           </span>
-          <span
-            className={`text-[11px] leading-relaxed ${
-              todo.status === "completed"
-                ? "text-ov-text-secondary/60 line-through"
-                : "text-ov-text"
-            }`}
-          >
-            {todo.content}
-          </span>
-          {todo.priority === "high" && todo.status !== "completed" && (
-            <span className="shrink-0 text-[10px] font-medium text-red-400 bg-red-500/10 px-1 rounded">
-              high
-            </span>
-          )}
+          <div className="ml-auto">
+            <ToolActionsBar
+              tool={tool}
+              onPin={onPin}
+              onBookmark={onBookmark}
+              isBookmarked={isBookmarked}
+              childSessionId={childSessionId}
+              navigateToSession={navigateToSession}
+              showPin
+              showCopy={false}
+              pinText={pinText}
+            />
+          </div>
         </div>
-      ))}
+        {todos.map((todo) => (
+          <div key={todo.id} className="flex items-start gap-2 py-0.5">
+            <span className="mt-0.5 shrink-0">
+              {todo.status === "completed" ? (
+                <CircleCheckBig size={12} className="text-emerald-400" />
+              ) : todo.status === "in_progress" ? (
+                <CircleDot size={12} className="text-amber-400" />
+              ) : (
+                <Circle size={12} className="text-ov-text-secondary/50" />
+              )}
+            </span>
+            <span
+              className={`text-[11px] leading-relaxed ${
+                todo.status === "completed"
+                  ? "text-ov-text-secondary/60 line-through"
+                  : "text-ov-text"
+              }`}
+            >
+              {todo.content}
+            </span>
+            {todo.priority === "high" && todo.status !== "completed" && (
+              <span className="shrink-0 text-[10px] font-medium text-red-400 bg-red-500/10 px-1 rounded">
+                high
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
