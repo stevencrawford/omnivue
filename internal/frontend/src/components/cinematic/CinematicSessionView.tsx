@@ -205,17 +205,25 @@ export function CinematicSessionView({
     [session.id, showErrorToast],
   );
 
-  const loadPlan = useCallback(async () => {
-    setPlanLoading(true);
-    try {
-      const data = await fetchPlan(session.id);
-      setPlan(data);
-    } catch {
-      setPlan(null);
-    } finally {
-      setPlanLoading(false);
-    }
-  }, [session.id]);
+  const loadPlan = useCallback(
+    async (background = false) => {
+      if (!background) setPlanLoading(true);
+      try {
+        const data = await fetchPlan(session.id);
+        // Avoid re-rendering the Plan tab when the polled content is
+        // identical — a new object identity alone would flash the view.
+        setPlan((prev) => {
+          if (prev?.markdown === data?.markdown && prev?.source === data?.source) return prev;
+          return data;
+        });
+      } catch {
+        if (!background) setPlan(null);
+      } finally {
+        if (!background) setPlanLoading(false);
+      }
+    },
+    [session.id],
+  );
 
   const loadEdits = useCallback(async () => {
     try {
@@ -259,7 +267,7 @@ export function CinematicSessionView({
     const handle = setTimeout(() => {
       ackSessionChange?.(session.id);
       loadMessages(true);
-      loadPlan();
+      loadPlan(true);
       loadEdits();
       loadScratchFiles();
     }, 300);
@@ -304,7 +312,7 @@ export function CinematicSessionView({
     if (liveChangedIds.has(session.id)) return; // already scheduled via SSE
     const handle = setTimeout(() => {
       loadMessages(true);
-      loadPlan();
+      loadPlan(true);
       loadEdits();
       loadScratchFiles();
     }, 300);
@@ -330,7 +338,7 @@ export function CinematicSessionView({
     if (!isActive) return;
     const iv = setInterval(() => {
       loadMessages(true);
-      loadPlan();
+      loadPlan(true);
       loadEdits();
       loadScratchFiles();
     }, 5000);
