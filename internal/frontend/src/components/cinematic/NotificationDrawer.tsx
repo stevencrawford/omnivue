@@ -15,6 +15,7 @@ import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { toolRendererRegistry } from "../tool-renderers/registry";
 import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
+import { useDisableCustomRenderers } from "../../hooks/useDisableCustomRenderers";
 import { PinnedPromptBar } from "../PinnedPromptBar";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
@@ -171,6 +172,9 @@ export function NotificationDrawer({
   const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = onTabChange ?? setInternalTab;
+  // Developer setting: bypass custom renderers and show every tool call
+  // with the raw input/output view (same fallback as ToolCallList).
+  const disableCustomRenderers = useDisableCustomRenderers();
 
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
@@ -314,16 +318,29 @@ export function NotificationDrawer({
       let hasVisibleTool = false;
       for (const tool of msg.toolCalls ?? []) {
         const kind = effectiveToolKind(tool);
-        if (NON_ACTIVITY_KINDS.has(kind)) continue;
+        // File/console kinds live in dedicated panels — except in raw mode,
+        // where every tool call is shown for debugging.
+        if (!disableCustomRenderers && NON_ACTIVITY_KINDS.has(kind)) continue;
         hasVisibleTool = true;
-        const renderer = toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer;
+        const renderer = disableCustomRenderers
+          ? fallbackActivityRenderer
+          : (toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer);
         flushReasoning();
         items.push({
           key: tool.id,
           messageId: msg.id,
           messageIndex: indexById.get(msg.id),
           toolCallId: tool.id,
-          node: <ToolRendererWrapper renderer={renderer} tool={tool} variant="detail" />,
+          // Raw mode mirrors the legacy view: a collapsed summary card that
+          // expands to the input/output detail. Custom renderers show their
+          // full detail inline.
+          node: (
+            <ToolRendererWrapper
+              renderer={renderer}
+              tool={tool}
+              variant={disableCustomRenderers ? "summary" : "detail"}
+            />
+          ),
         });
       }
       if (!(msg.content?.trim() || hasVisibleTool) && !msg.reasoning) {
@@ -355,7 +372,7 @@ export function NotificationDrawer({
       }
     }
     return items;
-  }, [visibleMessages, session.status, onOpenModal, indexById]);
+  }, [visibleMessages, session.status, onOpenModal, indexById, disableCustomRenderers]);
 
   useEffect(() => {
     if (activeTab !== "activity") return;

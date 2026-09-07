@@ -1,0 +1,104 @@
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { NotificationDrawer } from "../NotificationDrawer";
+import { STORAGE_KEYS } from "../../../utils/storageKeys";
+import { setDisableCustomRenderers } from "../../../hooks/useDisableCustomRenderers";
+import type { Message, Session, ToolCall } from "../../../hooks/types";
+
+vi.mock("../../../hooks/useNavigation", () => ({
+  useNavigation: () => ({ navigateToSession: () => {} }),
+}));
+
+const grepTool: ToolCall = {
+  id: "grep-1",
+  name: "grep",
+  input: JSON.stringify({ pattern: "TODO" }),
+  output: "src/a.ts:1: // TODO fix",
+  status: "success",
+};
+
+const messages: Message[] = [
+  {
+    id: "msg-1",
+    role: "assistant",
+    content: "",
+    timestamp: "2026-01-01T00:00:00Z",
+    toolCalls: [grepTool],
+  },
+];
+
+const session: Session = {
+  id: "s1",
+  sourceId: "src-1",
+  title: "test",
+  repository: "repo",
+  branch: "main",
+  agent: "opencode",
+  model: "m",
+  cost: 0,
+  directory: "/tmp",
+  status: "idle",
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+  tokensInput: 0,
+  tokensOutput: 0,
+  tokensReasoning: 0,
+  tokensCacheRead: 0,
+  tokensCacheWrite: 0,
+  messageCount: 1,
+  diffFiles: 0,
+  diffAdditions: 0,
+  diffDeletions: 0,
+};
+
+function renderDrawer() {
+  return render(
+    <NotificationDrawer session={session} messages={messages} cursor={0} maxIndex={0} />,
+  );
+}
+
+describe("NotificationDrawer raw fallback", () => {
+  afterEach(() => {
+    localStorage.removeItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS);
+  });
+
+  it("renders the custom grep renderer by default", () => {
+    const { container } = renderDrawer();
+    expect(screen.getByTitle("TODO")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
+  });
+
+  it("renders a collapsed raw summary card when custom renderers are disabled", () => {
+    localStorage.setItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS, "true");
+    const { container } = renderDrawer();
+    // Summary header visible, detail hidden — like the legacy view.
+    expect(screen.getByText("grep:")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
+    expect(screen.queryByTitle("TODO")).toBeNull();
+    // Expanding reveals the raw input/output detail.
+    fireEvent.click(screen.getByText("grep:").closest("button")!);
+    expect(screen.getByText("Input")).toBeDefined();
+    expect(screen.getByText("Output")).toBeDefined();
+    expect(container.textContent).toContain("src/a.ts:1: // TODO fix");
+  });
+
+  it("switches to the raw view live when the preference is toggled", () => {
+    const { container } = renderDrawer();
+    expect(screen.getByTitle("TODO")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+    act(() => {
+      setDisableCustomRenderers(true);
+    });
+    expect(screen.getByText("grep:")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(screen.queryByTitle("TODO")).toBeNull();
+    expect(container.textContent).not.toContain("src/a.ts:1: // TODO fix");
+    act(() => {
+      setDisableCustomRenderers(false);
+    });
+    expect(screen.getByTitle("TODO")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+  });
+});
