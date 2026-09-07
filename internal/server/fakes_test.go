@@ -460,7 +460,8 @@ func (t *trackingSearchStore) maxConcurrent() int {
 // blockingSearchStore blocks its first IndexSessionAt write until release is
 // closed, letting a test observe the pipeline's ordering: the session list is
 // populated and the "update" event is broadcast before the search-index pass
-// finishes.
+// finishes. entered is buffered so the signal is retained even if the refresh
+// goroutine reaches the index pass before the test starts waiting.
 type blockingSearchStore struct {
 	fakeSearchStore
 	entered chan struct{}
@@ -469,7 +470,7 @@ type blockingSearchStore struct {
 
 func newBlockingSearchStore() *blockingSearchStore {
 	return &blockingSearchStore{
-		entered: make(chan struct{}),
+		entered: make(chan struct{}, 10),
 		release: make(chan struct{}),
 	}
 }

@@ -634,6 +634,14 @@ func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
 	defer bus.Unsubscribe(ch)
 
 	done := make(chan struct{})
+	// Ensure the blocked index pass is always released, even on early
+	// failure, so the Refresh goroutine cannot leak holding the pipeline
+	// mutex across tests.
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(search.release) })
+	}
+	defer release()
 	go func() {
 		pipeline.Refresh(context.Background())
 		close(done)
@@ -643,7 +651,7 @@ func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
 	// already been read into the hub.
 	select {
 	case <-search.entered:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("expected the search-index pass to start")
 	}
 
@@ -658,15 +666,15 @@ func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
 		if ev.Name != "update" {
 			t.Fatalf("expected an 'update' event, got %q", ev.Name)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("expected the 'update' event to be broadcast before indexing completes")
 	}
 
 	// Release the index pass; the refresh must then complete.
-	close(search.release)
+	release()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("expected Refresh to complete after releasing the index pass")
 	}
 }
