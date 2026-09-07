@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { CircleHelp, CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
-import { ToolActionsBar } from "../ToolActionsBar";
 
 interface QuestionItem {
   question: string;
@@ -13,11 +12,9 @@ interface QuestionItem {
 export function QuestionToolDiff({
   tool,
   variant,
-  onPin,
-  onBookmark,
-  isBookmarked,
-  childSessionId,
-  navigateToSession,
+  onCopy: _onCopy,
+  onBookmark: _onBookmark,
+  isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
   let questions: QuestionItem[] = [];
   try {
@@ -71,37 +68,22 @@ export function QuestionToolDiff({
       return (
         <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
           <CircleHelp size={12} className="text-pink-400 shrink-0" />
+          <span className="text-ov-text-secondary/70 shrink-0">question:</span>
           <span className="text-ov-text truncate min-w-0">{text}</span>
         </div>
       );
     }
 
     return (
-      <div className="border border-pink-500/30 rounded-lg overflow-hidden bg-pink-500/[0.03] mb-3">
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <CircleHelp size={20} className="text-pink-400 shrink-0" />
-            <span className="font-semibold text-[13px] text-pink-400">Question</span>
-            <div className="ml-auto">
-              <ToolActionsBar
-                tool={tool}
-                onPin={onPin}
-                onBookmark={onBookmark}
-                isBookmarked={isBookmarked}
-                childSessionId={childSessionId}
-                navigateToSession={navigateToSession}
-              />
-            </div>
+      <div className="px-3 py-2 space-y-2">
+        <p className="text-[12px] text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
+          {text}
+        </p>
+        {tool.output && (
+          <div className="pt-2 border-t border-ov-border">
+            <span className="text-[11px] text-emerald-400">→ {tool.output}</span>
           </div>
-          <div className="mt-2 text-[13px]">
-            <p className="text-ov-text-secondary leading-relaxed">{text}</p>
-          </div>
-          {tool.output && (
-            <div className="mt-2 pt-2 border-t border-pink-500/20">
-              <span className="text-[11px] text-emerald-400">→ {tool.output}</span>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     );
   }
@@ -114,6 +96,7 @@ export function QuestionToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleHelp size={12} className="text-pink-400 shrink-0" />
+        <span className="text-ov-text-secondary/70 shrink-0">question:</span>
         <span className="text-ov-text truncate min-w-0">{label}</span>
       </div>
     );
@@ -135,98 +118,79 @@ export function QuestionToolDiff({
   const activeFreeformText = activeAnswer && !activeSelectedLabel ? activeAnswer : null;
 
   return (
-    <div className="border border-pink-500/30 rounded-lg overflow-hidden bg-pink-500/[0.03] mb-3">
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <CircleHelp size={20} className="text-pink-400 shrink-0" />
-          <span className="font-semibold text-[13px] text-pink-400">
-            {showTabs ? "Questions" : "Question"}
-          </span>
-          <div className="ml-auto">
-            <ToolActionsBar
-              tool={tool}
-              onPin={onPin}
-              onBookmark={onBookmark}
-              isBookmarked={isBookmarked}
-              childSessionId={childSessionId}
-              navigateToSession={navigateToSession}
-            />
-          </div>
+    <div className="px-3 py-2 space-y-2">
+      {showTabs && (
+        <div className="flex items-center gap-1 -mx-1 overflow-x-auto scrollbar-none">
+          {questions.map((q, qi) => {
+            const isActive = qi === activeIdx;
+            const label = q.header || q.question || `#${qi + 1}`;
+            return (
+              <button
+                key={qi}
+                type="button"
+                onClick={() => setActiveTab(qi)}
+                className={`shrink-0 px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-pink-500/15 text-pink-400 border border-pink-500/40"
+                    : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent"
+                }`}
+              >
+                {label}
+                {answers[qi] && <span className="ml-1.5 text-emerald-400">&#x2713;</span>}
+              </button>
+            );
+          })}
         </div>
+      )}
 
-        {showTabs && (
-          <div className="flex items-center gap-1 -mx-1 mt-3 mb-2 overflow-x-auto scrollbar-none">
-            {questions.map((q, qi) => {
-              const isActive = qi === activeIdx;
-              const label = q.header || q.question || `#${qi + 1}`;
+      <div className="text-[12px]">
+        {activeQ.question && (
+          <div className={`${showTabs ? "" : "mb-2"}`}>
+            <MarkdownContent content={activeQ.question} className="markdown-body--wide" />
+          </div>
+        )}
+        {activeQ.options && activeQ.options.length > 0 && (
+          <div className="space-y-1">
+            {activeQ.options.map((opt, oi) => {
+              const chosen = activeSelectedLabel === opt.label;
               return (
-                <button
-                  key={qi}
-                  type="button"
-                  onClick={() => setActiveTab(qi)}
-                  className={`shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                    isActive
-                      ? "bg-pink-500/15 text-pink-400 border border-pink-500/40"
-                      : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent"
+                <div
+                  key={oi}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] border ${
+                    chosen
+                      ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-400"
+                      : "border-ov-border bg-ov-bg-secondary/30 text-ov-text-secondary"
                   }`}
                 >
-                  {label}
-                  {answers[qi] && <span className="ml-1.5 text-emerald-400">&#x2713;</span>}
-                </button>
+                  {chosen ? (
+                    <CircleCheckBig size={14} className="shrink-0 text-emerald-400" />
+                  ) : (
+                    <span className="w-3.5 shrink-0" />
+                  )}
+                  <span className="font-medium">{opt.label}</span>
+                  {opt.description && (
+                    <span className="text-ov-text-secondary/70 ml-1">— {opt.description}</span>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
-
-        <div className="mt-1 text-[13px]">
-          {activeQ.question && (
-            <div className={`${showTabs ? "" : "mb-3"}`}>
-              <MarkdownContent content={activeQ.question} className="markdown-body--wide" />
+        {activeFreeformText && (
+          <div className="mt-2 pt-2 border-t border-ov-border">
+            <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
+              Response
             </div>
-          )}
-          {activeQ.options && activeQ.options.length > 0 && (
-            <div className="space-y-1.5">
-              {activeQ.options.map((opt, oi) => {
-                const chosen = activeSelectedLabel === opt.label;
-                return (
-                  <div
-                    key={oi}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-[13px] border ${
-                      chosen
-                        ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-400"
-                        : "border-ov-border bg-ov-bg-secondary/30 text-ov-text-secondary"
-                    }`}
-                  >
-                    {chosen ? (
-                      <CircleCheckBig size={16} className="shrink-0 text-emerald-400" />
-                    ) : (
-                      <span className="w-4 shrink-0" />
-                    )}
-                    <span className="font-medium">{opt.label}</span>
-                    {opt.description && (
-                      <span className="text-ov-text-secondary/70 ml-1">— {opt.description}</span>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="text-[11px] text-ov-text-secondary pl-2 border-l-2 border-pink-400/40 whitespace-pre-wrap leading-relaxed">
+              {activeFreeformText}
             </div>
-          )}
-          {activeFreeformText && (
-            <div className="mt-3 pt-3 border-t border-pink-500/20">
-              <div className="text-[11px] font-semibold text-ov-text-secondary/60 uppercase tracking-wider mb-1">
-                Response
-              </div>
-              <div className="text-[13px] text-ov-text pl-2 border-l-2 border-pink-400/40 whitespace-pre-wrap leading-relaxed">
-                {activeFreeformText}
-              </div>
-            </div>
-          )}
-          {!showTabs && !activeQ.question && !activeQ.options?.length && tool.output && (
-            <div className="mt-2 pt-2 border-t border-pink-500/20">
-              <span className="text-[11px] text-emerald-400">→ {tool.output}</span>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+        {!showTabs && !activeQ.question && !activeQ.options?.length && tool.output && (
+          <div className="mt-2 pt-2 border-t border-ov-border">
+            <span className="text-[11px] text-emerald-400">→ {tool.output}</span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import { CircleCheckBig } from "lucide-react";
 import type { ToolRendererProps } from "../types";
 import { MarkdownContent } from "../../ui/MarkdownContent";
-import { ToolActionsBar } from "../ToolActionsBar";
 
 function looksLikeMarkdown(text: string): boolean {
   return (
@@ -20,11 +19,9 @@ function looksLikeMarkdown(text: string): boolean {
 export function TaskCompleteToolDiff({
   tool,
   variant,
-  onPin,
-  onBookmark,
-  isBookmarked,
-  childSessionId,
-  navigateToSession,
+  onCopy: _onCopy,
+  onBookmark: _onBookmark,
+  isBookmarked: _isBookmarked,
 }: ToolRendererProps) {
   let summary = "";
   let durationMs = 0;
@@ -45,9 +42,9 @@ export function TaskCompleteToolDiff({
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
         <CircleCheckBig size={12} className="text-emerald-400 shrink-0" />
-        <span className="text-emerald-400 font-semibold shrink-0">Task Complete</span>
+        <span className="text-ov-text-secondary/70 shrink-0">task_complete:</span>
         {(summary || outputLabel) && (
-          <span className="text-ov-text-secondary truncate min-w-0">
+          <span className="text-ov-text truncate min-w-0">
             {(summary ? summary.split("\n")[0] : outputLabel).slice(0, 80)}
           </span>
         )}
@@ -63,46 +60,26 @@ export function TaskCompleteToolDiff({
   const isMarkdown = summary ? looksLikeMarkdown(summary) : false;
 
   return (
-    <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-emerald-500/[0.04] mb-3">
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <CircleCheckBig size={20} className="text-emerald-400 shrink-0" />
-          <span className="font-semibold text-[13px] text-emerald-400">Task Complete</span>
-          <div className="ml-auto flex items-center">
-            {displayDuration > 0 && (
-              <span className="text-[11px] text-ov-text-secondary/50 mr-2">
-                {(displayDuration / 1000).toFixed(1)}s
-              </span>
-            )}
-            <ToolActionsBar
-              tool={tool}
-              onPin={onPin}
-              onBookmark={onBookmark}
-              isBookmarked={isBookmarked}
-              childSessionId={childSessionId}
-              navigateToSession={navigateToSession}
-              showPin
-              pinText={summary || outputLabel || undefined}
-            />
-          </div>
+    <div className="px-3 py-2 space-y-2">
+      {displayDuration > 0 && (
+        <span className="text-[11px] text-ov-text-secondary/50">
+          {(displayDuration / 1000).toFixed(1)}s
+        </span>
+      )}
+      {summary && (
+        <div className="text-[12px]">
+          {isMarkdown ? (
+            <MarkdownContent content={summary} className="markdown-body--wide" />
+          ) : (
+            <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">{summary}</p>
+          )}
         </div>
-        {summary && (
-          <div className="mt-2 text-[13px]">
-            {isMarkdown ? (
-              <MarkdownContent content={summary} className="markdown-body--wide" />
-            ) : (
-              <p className="text-ov-text-secondary leading-relaxed whitespace-pre-wrap">
-                {summary}
-              </p>
-            )}
-          </div>
-        )}
-        {outputLabel && !summary && (
-          <div className="mt-2 text-[13px]">
-            <MarkdownContent content={outputLabel} className="markdown-body--wide" />
-          </div>
-        )}
-      </div>
+      )}
+      {outputLabel && !summary && (
+        <div className="text-[12px]">
+          <MarkdownContent content={outputLabel} className="markdown-body--wide" />
+        </div>
+      )}
     </div>
   );
 }
