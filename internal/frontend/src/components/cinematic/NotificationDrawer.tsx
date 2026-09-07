@@ -15,6 +15,7 @@ import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { toolRendererRegistry } from "../tool-renderers/registry";
 import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
+import { getStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
 import { PinnedPromptBar } from "../PinnedPromptBar";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
@@ -203,6 +204,9 @@ export function NotificationDrawer({
   }, [messages]);
 
   const drawerItems = useMemo(() => {
+    // Developer setting: bypass custom renderers and show every tool call
+    // with the raw input/output view (same fallback as ToolCallList).
+    const disableCustomRenderers = getStorageItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS) === "true";
     const items: Array<{
       key: string;
       node: ReactNode;
@@ -316,7 +320,9 @@ export function NotificationDrawer({
         const kind = effectiveToolKind(tool);
         if (NON_ACTIVITY_KINDS.has(kind)) continue;
         hasVisibleTool = true;
-        const renderer = toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer;
+        const renderer = disableCustomRenderers
+          ? fallbackActivityRenderer
+          : (toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer);
         flushReasoning();
         items.push({
           key: tool.id,
