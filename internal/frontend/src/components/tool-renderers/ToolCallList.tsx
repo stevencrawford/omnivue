@@ -10,7 +10,7 @@ import { toolRendererRegistry } from "./registry";
 import { ToolRendererWrapper } from "./ToolRendererWrapper";
 import { ToolUsageInfo } from "./ToolUsageInfo";
 import { DefaultToolDiff } from "./builtin/DefaultToolDiff";
-import { STORAGE_KEYS } from "../../utils/storageKeys";
+import { useDisableCustomRenderers } from "../../hooks/useDisableCustomRenderers";
 import { TaskGroupDiff } from "./builtin/TaskGroupDiff";
 
 type GroupedEntry =
@@ -227,13 +227,7 @@ export function ToolCallRow({
   const kind = effectiveToolKind(tool);
   const summary = getToolSummary(tool, agent);
 
-  const disableCustomRenderers = (() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS) === "true";
-    } catch {
-      return false;
-    }
-  })();
+  const disableCustomRenderers = useDisableCustomRenderers();
 
   const fallbackRenderer = useMemo<ToolRendererDefinition>(
     () => ({

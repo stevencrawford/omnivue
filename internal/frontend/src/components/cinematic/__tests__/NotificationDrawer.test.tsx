@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotificationDrawer } from "../NotificationDrawer";
 import { STORAGE_KEYS } from "../../../utils/storageKeys";
+import { setDisableCustomRenderers } from "../../../hooks/useDisableCustomRenderers";
 import type { Message, Session, ToolCall } from "../../../hooks/types";
 
 vi.mock("../../../hooks/useNavigation", () => ({
@@ -74,5 +75,21 @@ describe("NotificationDrawer raw fallback", () => {
     expect(screen.getByText("Input")).toBeDefined();
     expect(screen.getByText("Output")).toBeDefined();
     expect(screen.queryByTitle("TODO")).toBeNull();
+  });
+
+  it("switches to the raw view live when the preference is toggled", () => {
+    renderDrawer();
+    expect(screen.getByTitle("TODO")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
+    act(() => {
+      setDisableCustomRenderers(true);
+    });
+    expect(screen.getByText("Input")).toBeDefined();
+    expect(screen.queryByTitle("TODO")).toBeNull();
+    act(() => {
+      setDisableCustomRenderers(false);
+    });
+    expect(screen.getByTitle("TODO")).toBeDefined();
+    expect(screen.queryByText("Input")).toBeNull();
   });
 });

@@ -15,7 +15,7 @@ import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { toolRendererRegistry } from "../tool-renderers/registry";
 import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
-import { getStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
+import { useDisableCustomRenderers } from "../../hooks/useDisableCustomRenderers";
 import { PinnedPromptBar } from "../PinnedPromptBar";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
@@ -172,6 +172,9 @@ export function NotificationDrawer({
   const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = onTabChange ?? setInternalTab;
+  // Developer setting: bypass custom renderers and show every tool call
+  // with the raw input/output view (same fallback as ToolCallList).
+  const disableCustomRenderers = useDisableCustomRenderers();
 
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
@@ -204,9 +207,6 @@ export function NotificationDrawer({
   }, [messages]);
 
   const drawerItems = useMemo(() => {
-    // Developer setting: bypass custom renderers and show every tool call
-    // with the raw input/output view (same fallback as ToolCallList).
-    const disableCustomRenderers = getStorageItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS) === "true";
     const items: Array<{
       key: string;
       node: ReactNode;
@@ -318,7 +318,9 @@ export function NotificationDrawer({
       let hasVisibleTool = false;
       for (const tool of msg.toolCalls ?? []) {
         const kind = effectiveToolKind(tool);
-        if (NON_ACTIVITY_KINDS.has(kind)) continue;
+        // File/console kinds live in dedicated panels — except in raw mode,
+        // where every tool call is shown for debugging.
+        if (!disableCustomRenderers && NON_ACTIVITY_KINDS.has(kind)) continue;
         hasVisibleTool = true;
         const renderer = disableCustomRenderers
           ? fallbackActivityRenderer
@@ -361,7 +363,7 @@ export function NotificationDrawer({
       }
     }
     return items;
-  }, [visibleMessages, session.status, onOpenModal, indexById]);
+  }, [visibleMessages, session.status, onOpenModal, indexById, disableCustomRenderers]);
 
   useEffect(() => {
     if (activeTab !== "activity") return;
