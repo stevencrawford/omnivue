@@ -18,7 +18,7 @@ interface TimelineScrubberProps {
   behind: number;
   isActive: boolean;
   selectedSpan?: { start: number; end: number; trailing?: boolean } | null;
-  onSpanSelect?: (start: number, end: number) => void;
+  onSpanSelect?: (start: number, end: number, extend: boolean) => void;
   onClearSpan?: () => void;
 }
 
@@ -197,7 +197,7 @@ export function TimelineScrubber({
   const handleSpanClick = useCallback(
     (start: number, end: number, e: React.MouseEvent) => {
       e.stopPropagation();
-      onSpanSelect?.(start, end);
+      onSpanSelect?.(start, end, e.shiftKey);
     },
     [onSpanSelect],
   );
@@ -212,10 +212,12 @@ export function TimelineScrubber({
 
   const selectedSpanLabel = selectedSpan
     ? (() => {
-        const idx = spans.findIndex(
-          (s) => s.start === selectedSpan.start && s.end === selectedSpan.end,
-        );
-        if (idx >= 0) return `Turn ${idx + 1}/${spans.length}`;
+        const first = spans.findIndex((s) => s.start === selectedSpan.start);
+        const lastByEnd = spans.findIndex((s) => s.end === selectedSpan.end);
+        if (first >= 0 && lastByEnd >= 0) {
+          if (first === lastByEnd) return `Turn ${first + 1}/${spans.length}`;
+          return `Turns ${first + 1}–${lastByEnd + 1}/${spans.length}`;
+        }
         return `${selectedSpan.start + 1}–${selectedSpan.end}/${events.length}`;
       })()
     : null;
@@ -332,10 +334,12 @@ export function TimelineScrubber({
               const width =
                 maxIndex > 0 ? (isTrailing ? 100 - left : ((s.end - s.start) / maxIndex) * 100) : 0;
               const isSelected =
-                selectedSpan !== null &&
-                selectedSpan.start === s.start &&
-                selectedSpan.end === s.end;
+                selectedSpan !== null && s.start >= selectedSpan.start && s.end <= selectedSpan.end;
               const eventsInSpan = events.filter((ev) => ev.index > s.start && ev.index < s.end);
+              const inRange = isSelected;
+              const rangeHint = inRange
+                ? `Selected — click to show all`
+                : `Click to isolate — Shift+Click to select a range of turns`;
               return (
                 <button
                   key={`span-${s.idx}`}
@@ -352,8 +356,8 @@ export function TimelineScrubber({
                     isSelected
                       ? `Selected turn ${s.idx + 1} — click to show all`
                       : isTrailing
-                        ? `Turn ${s.idx + 1}: ${eventsInSpan.length} steps from last prompt to end — click to isolate`
-                        : `Turn ${s.idx + 1}: ${eventsInSpan.length} steps between prompts — click to isolate`
+                        ? `Turn ${s.idx + 1}: ${eventsInSpan.length} steps from last prompt to end — ${rangeHint}`
+                        : `Turn ${s.idx + 1}: ${eventsInSpan.length} steps between prompts — ${rangeHint}`
                   }
                   aria-label={
                     isTrailing
@@ -433,8 +437,7 @@ export function TimelineScrubber({
         {userEvents.map((ev) => {
           const left = maxIndex > 0 ? (ev.index / maxIndex) * 100 : 0;
           const isSelectedBoundary =
-            selectedSpan !== null &&
-            (ev.index === selectedSpan.start || ev.index === selectedSpan.end);
+            selectedSpan !== null && ev.index >= selectedSpan.start && ev.index <= selectedSpan.end;
           const preview = ev.label.length > 120 ? `${ev.label.slice(0, 120)}…` : ev.label;
           return (
             <div
