@@ -25,19 +25,24 @@ Omnivue is a 100% local multi-agent session manager for your AI coding sessions.
 - **Conversation viewer** — Full message history with tool calls, reasoning, and step events
 - **File diffs** — Unified diff view of every file change made during a session
 - **Plan tracking** — Implementation plans and checkpoints with status indicators
+- **Todos** — Agent task ticker with live status tracking and dependency links
+- **Prompt queue** — Queue prompts globally or per session, dispatch or delete from the sidebar
+- **Cinematic view** — Full-screen session presentation with timeline scrubber, console, and file access tree
+- **Session summary** — Per-session token/cost timelines and effectiveness analytics
 - **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle) with notification events
 - **Full-text search** — FTS5 index across all session content and tags, scoped or global
-- **Notifications** — In-app toasts and OS notifications for new messages, questions, task completions, and status changes; configurable kinds, scope, quiet hours, and channels
+- **Notifications** — In-app toasts and OS notifications for new messages, questions, task completions, and status changes; configurable kinds, scope, and channels
 - **Bookmarks** — Toggle bookmarks on any message or tool call; navigate from a sidebar panel
 - **User tags** — Virtual organization with unique names, custom colors, and searchable grouping
 - **Scratch notes** — Per-session markdown notes with rich text or code editor
 - **Session renaming** — Override display names from the sidebar
+- **Screenshot capture** — Export markdown screenshots of the conversation
 - **Overview screen** — Analytics dashboard with session activity charts, model/agent breakdown, and time-range filtering
-- **Settings UI** — Add/remove session sources from the browser
-- **Resume sessions** — One-click copy of the CLI command to resume
-- **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘F` search
+- **Settings UI** — Agent, sessions, notifications, appearance, privacy, developer, and about tabs
+- **Resume sessions** — One-click copy of the CLI command to resume, or open an embedded terminal
+- **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` tabs, `⌘K` search, `?` shortcuts reference
 - **Deep linking** — Shareable URLs `#/session/{id}`
-- **Multi-theme** — Ayu, Nord, Catppuccino, Tokyo Night, and GitHub themes with light/dark modes
+- **Multi-theme** — Ayu, Nord, Catppuccin, Tokyo Night, GitHub, One Monokai, Atom One, Dracula, and Night Owl themes with light/dark modes and high-contrast support
 - **Read-only access** — Never writes to agent databases (enforced at driver level)
 - **Single binary** — Go + embedded React SPA, zero runtime dependencies
 
@@ -73,14 +78,17 @@ make build
 
 | Key | Action |
 |-----|--------|
-| `j` / `ArrowDown` | Select next session |
-| `k` / `ArrowUp` | Select previous session |
-| `⌘1` / `Ctrl+1` | Conversation tab |
+| `j` / `↓` | Select next session |
+| `k` / `↑` | Select previous session |
+| `⌘1` / `Ctrl+1` | Session tab |
 | `⌘2` / `Ctrl+2` | Diff tab |
-| `⌘F` / `Ctrl+F` or `⌘K` / `Ctrl+K` | Open search (scoped to active session) |
+| `⌘K` / `Ctrl+K` | Open search palette (scoped to active session) |
+| `↑` / `↓` | Navigate search results |
+| `↵` | Open search result |
+| `⌘↵` / `Ctrl+↵` | Open results drawer |
 | `⌘B` / `Ctrl+B` | Toggle sidebar |
-| `⌘D` / `Ctrl+D` | Toggle terminal panel |
-| `Escape` | Close search / results |
+| `?` | Open shortcuts reference |
+| `Escape` | Close search / drawer / modal, clear highlight |
 
 ## Documentation
 
