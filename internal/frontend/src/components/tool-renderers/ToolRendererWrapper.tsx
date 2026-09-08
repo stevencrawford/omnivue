@@ -129,9 +129,9 @@ export function ToolRendererWrapper({
     }
 
     const showContent = open;
-    const shouldTruncate = showContent && !showFullOutput && maxLines > 0;
-    const truncated = shouldTruncate && tool.output ? truncateLines(tool.output, maxLines) : null;
-    const displayTool = truncated ? { ...tool, output: truncated.display } : tool;
+    const truncation = maxLines > 0 && tool.output ? truncateLines(tool.output, maxLines) : null;
+    const displayTool =
+      truncation && showContent && !showFullOutput ? { ...tool, output: truncation.display } : tool;
 
     const detailRendererProps: ToolRendererProps = {
       tool: displayTool,
@@ -193,7 +193,7 @@ export function ToolRendererWrapper({
         {showContent && (
           <div className="border-t border-ov-border">
             <renderer.Component {...detailRendererProps} />
-            {truncated && (
+            {truncation && (
               <div className="text-center border-t border-ov-border">
                 <button
                   type="button"
@@ -210,14 +210,14 @@ export function ToolRendererWrapper({
     );
   }
 
-  const shouldTruncate = !showFullOutput && maxLines > 0;
-  const truncated = shouldTruncate && tool.output ? truncateLines(tool.output, maxLines) : null;
-  const displayTool = truncated ? { ...tool, output: truncated.display } : tool;
+  const truncation = maxLines > 0 && tool.output ? truncateLines(tool.output, maxLines) : null;
+  const displayTool =
+    truncation && !showFullOutput ? { ...tool, output: truncation.display } : tool;
 
   return (
     <>
       <renderer.Component {...rendererProps} tool={displayTool} variant="detail" />
-      {truncated && (
+      {truncation && (
         <div className="text-center border-t border-ov-border">
           <button
             type="button"
