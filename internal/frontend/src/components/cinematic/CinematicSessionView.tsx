@@ -84,8 +84,8 @@ export function CinematicSessionView({
   liveChangedIds,
   ackSessionChange,
   onNameChanged,
-  onBookmark: _onBookmark,
-  bookmarkIdByRef: _bookmarkIdByRef,
+  onBookmark,
+  bookmarkIdByRef,
   // Kept for API parity with SessionViewer. Jump *dispatch* inside cinematic is
   // unnecessary: every navigation jump (search hit, diff nav, bookmark,
   // notification) lands here as focus state via the focus* props below.
@@ -1285,6 +1285,8 @@ export function CinematicSessionView({
                         spotlightId={spotlightId}
                         jumpKey={focusMessageKey}
                         onJumpLanded={handleJumpLanded}
+                        onBookmark={onBookmark}
+                        bookmarkIdByRef={bookmarkIdByRef}
                       />
                     </div>
                   </>
