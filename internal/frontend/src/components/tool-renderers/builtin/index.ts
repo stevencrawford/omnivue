@@ -65,6 +65,25 @@ function firstQuestion(tool: ToolCall): string {
       /* ignore */
     }
   }
+  // Copilot structured input requests carry the ask in message with one
+  // question tab per requestedSchema property.
+  try {
+    const parsed = JSON.parse(tool.input);
+    const message = typeof parsed?.message === "string" ? parsed.message : "";
+    const properties = parsed?.requestedSchema?.properties;
+    if (message && properties && typeof properties === "object") {
+      const keys = Object.keys(properties).sort();
+      if (keys.length > 0) {
+        const first = properties[keys[0]];
+        const title = first?.title || keys[0];
+        const extra = keys.length > 1 ? ` (+${keys.length - 1} more)` : "";
+        return `? ${title}${extra}`;
+      }
+    }
+    if (message) return `? ${message.slice(0, 80)}`;
+  } catch {
+    /* ignore */
+  }
   return "question";
 }
 
