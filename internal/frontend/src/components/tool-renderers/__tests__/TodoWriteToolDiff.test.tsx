@@ -40,7 +40,9 @@ describe("TodoWriteToolDiff", () => {
       expect(screen.getByText(todo.content)).toBeDefined();
     }
     const icons = container.querySelectorAll("svg");
-    expect(icons).toHaveLength(sampleTodos.length + 1);
+    // Header ListTodo + one status icon per todo + screenshot button
+    // (screenshot renders whenever pinText exists, even without onPin).
+    expect(icons).toHaveLength(sampleTodos.length + 2);
     for (const icon of icons) {
       expect(icon.getAttribute("width")).toBe("12");
       expect(icon.getAttribute("height")).toBe("12");
