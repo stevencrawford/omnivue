@@ -161,22 +161,23 @@ Renderers receive an optional `onCopy` prop for content-specific copy (e.g., cop
 
 ## Builtin Renderer Reference
 
-| Kind                         | Component                                       | `display` type | `defaultOpen` | `truncateOutput` | `markerPriority` |
-| ---------------------------- | ----------------------------------------------- | -------------- | ------------- | ---------------- | ---------------- |
-| `task_complete`              | `TaskCompleteToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 0                |
-| `skill`                      | `SkillToolDiff`                                 | `always-open`  | N/A           | 0 (none)         | 15               |
-| `store_memory`               | `StoreMemoryToolDiff`                           | `expandable`   | `true`        | 0 (none)         | 15               |
-| `task`                       | `TaskToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 10               |
-| `edit`, `write`              | `EditToolDiff`                                  | `expandable`   | `true`        | 20               | 20               |
-| `exit_plan_mode`             | `ExitPlanModeToolDiff`                          | `always-open`  | N/A           | 0 (none)         | 30               |
-| `question`                   | `QuestionToolDiff`                              | `expandable`   | `true`        | 50 (default)     | 40               |
-| `read`                       | `ReadToolDiff`                                  | `expandable`   | `false`       | 50 (default)     | 50               |
-| `bash`                       | `BashToolDiff`                                  | `expandable`   | `false`       | 50               | 60               |
-| `grep`, `glob`, `codesearch` | `GrepToolDiff`/`GlobToolDiff`/`DefaultToolDiff` | `expandable`   | `false`       | 50               | 70               |
-| `webfetch`, `websearch`      | `DefaultToolDiff`                               | `expandable`   | `false`       | 50 (default)     | 80               |
-| `todowrite`                  | `TodoWriteToolDiff`                             | `always-open`  | N/A           | 50 (default)     | 90               |
-| `delete`                     | `DeleteToolDiff`                                | `expandable`   | `false`       | 50 (default)     | 100              |
-| `compaction`                 | `CompactionToolDiff`                            | `always-open`  | N/A           | 0 (none)         | 110              |
+| Kind                    | Component                                                                                      | `display` type | `defaultOpen` | `truncateOutput` | `markerPriority` |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | -------------- | ------------- | ---------------- | ---------------- |
+| `task_complete`         | `TaskCompleteToolDiff`                                                                         | `always-open`  | N/A           | 0 (none)         | 0                |
+| `skill`                 | `SkillToolDiff`                                                                                | `always-open`  | N/A           | 0 (none)         | 15               |
+| `store_memory`          | `StoreMemoryToolDiff`                                                                          | `expandable`   | `true`        | 0 (none)         | 15               |
+| `task`                  | `TaskToolDiff`                                                                                 | `expandable`   | `false`       | 50 (default)     | 10               |
+| `edit`, `write`         | `EditToolDiff`                                                                                 | `expandable`   | `true`        | 20               | 20               |
+| `exit_plan_mode`        | `ExitPlanModeToolDiff`                                                                         | `always-open`  | N/A           | 0 (none)         | 30               |
+| `question`              | `QuestionToolDiff`                                                                             | `expandable`   | `true`        | 50 (default)     | 40               |
+| `read`                  | `ReadToolDiff`                                                                                 | `expandable`   | `false`       | 50 (default)     | 50               |
+| `bash`                  | `BashToolDiff`                                                                                 | `expandable`   | `false`       | 50               | 60               |
+| `grep`                  | `GrepToolDiff` (self-contained collapsible card, own progressive disclosure — cf. `websearch`) | `expandable`   | `false`       | 0 (none)         | 70               |
+| `glob`, `codesearch`    | `GlobToolDiff`/`DefaultToolDiff`                                                               | `expandable`   | `false`       | 50               | 70               |
+| `webfetch`, `websearch` | `DefaultToolDiff`                                                                              | `expandable`   | `false`       | 50 (default)     | 80               |
+| `todowrite`             | `TodoWriteToolDiff`                                                                            | `always-open`  | N/A           | 50 (default)     | 90               |
+| `delete`                | `DeleteToolDiff`                                                                               | `expandable`   | `false`       | 50 (default)     | 100              |
+| `compaction`            | `CompactionToolDiff`                                                                           | `always-open`  | N/A           | 0 (none)         | 110              |
 
 > **Note:** `skill`, `task_complete`, `exit_plan_mode`, `todowrite`, and `compaction` use `display: { type: "always-open" }` — they are self-contained cards that provide their own border/background and always render full content regardless of variant.
 
