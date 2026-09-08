@@ -2,7 +2,9 @@ package copilot
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
@@ -100,17 +102,35 @@ func normalizeSQLToTodoWrite(tc *ingest.ToolCall, ts *todoState) bool {
 	return true
 }
 
-// normalizeAskUserInput transforms Copilot's ask_user input format
-// {question, choices, allow_freeform} to the standard QuestionToolDiff format
-// {questions: [{question, header, options: [{label}]}]}.
+// normalizeAskUserInput transforms Copilot's ask_user input formats to the
+// standard QuestionToolDiff format
+// {questions: [{question, header, options: [{label, description}]}]}.
+// Supported shapes:
+//
+//   - {question, choices, allow_freeform} — single-choice question
+//   - {message, requestedSchema} — structured input request where each entry
+//     in requestedSchema.properties becomes one question tab; the shared
+//     message is prepended to the first tab as context
 func normalizeAskUserInput(input string) string {
+	if out, ok := normalizeChoiceInput(input); ok {
+		return out
+	}
+	if out, ok := normalizeRequestedSchemaInput(input); ok {
+		return out
+	}
+	return input
+}
+
+// normalizeChoiceInput handles the {question, choices} shape. It reports
+// false when the input does not match so the caller can try other shapes.
+func normalizeChoiceInput(input string) (string, bool) {
 	var raw struct {
 		Question      string   `json:"question"`
 		Choices       []string `json:"choices"`
 		AllowFreeform bool     `json:"allow_freeform"`
 	}
 	if err := json.Unmarshal([]byte(input), &raw); err != nil || raw.Question == "" {
-		return input
+		return "", false
 	}
 	options := make([]map[string]string, len(raw.Choices))
 	for i, c := range raw.Choices {
@@ -128,15 +148,162 @@ func normalizeAskUserInput(input string) string {
 	out, err := json.Marshal(transformed)
 	if err != nil {
 		slog.Warn("failed to marshal ask_user input", "error", err)
-		return "{}"
+		return "{}", true
 	}
-	return string(out)
+	return string(out), true
+}
+
+// schemaOption is one selectable value inside a requestedSchema property.
+type schemaOption struct {
+	Value       any    `json:"const"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+// schemaProperty mirrors one entry of requestedSchema.properties.
+type schemaProperty struct {
+	Type        string         `json:"type"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Enum        []any          `json:"enum"`
+	OneOf       []schemaOption `json:"oneOf"`
+	AnyOf       []schemaOption `json:"anyOf"`
+}
+
+// normalizeRequestedSchemaInput handles the {message, requestedSchema} shape
+// where requestedSchema.properties maps field names to JSON Schema fragments.
+// Each property becomes one question tab; the shared message is prepended to
+// the first tab as context. It reports false when the input does not match.
+func normalizeRequestedSchemaInput(input string) (string, bool) {
+	var raw struct {
+		Message         string `json:"message"`
+		RequestedSchema struct {
+			Properties map[string]schemaProperty `json:"properties"`
+		} `json:"requestedSchema"`
+	}
+	if err := json.Unmarshal([]byte(input), &raw); err != nil {
+		return "", false
+	}
+	if raw.Message == "" || len(raw.RequestedSchema.Properties) == 0 {
+		return "", false
+	}
+	keys := make([]string, 0, len(raw.RequestedSchema.Properties))
+	for key := range raw.RequestedSchema.Properties {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	questions := make([]map[string]any, 0, len(keys))
+	for i, key := range keys {
+		prop := raw.RequestedSchema.Properties[key]
+		header := prop.Title
+		if header == "" {
+			header = key
+		}
+		prompt := prop.Description
+		if prompt == "" {
+			prompt = prop.Title
+		}
+		if prompt == "" {
+			prompt = key
+		}
+		text := prompt
+		if i == 0 {
+			text = raw.Message + "\n\n---\n\n**" + prompt + "**"
+		}
+		questions = append(questions, map[string]any{
+			"question": text,
+			"header":   header,
+			"options":  schemaOptions(prop),
+		})
+	}
+	out, err := json.Marshal(map[string]any{"questions": questions})
+	if err != nil {
+		slog.Warn("failed to marshal requestedSchema input", "error", err)
+		return "{}", true
+	}
+	return string(out), true
+}
+
+// schemaOptions derives question options from a schema property. oneOf/anyOf
+// entries keep the human title as label and the const value as description so
+// answers arriving as raw values still match. Booleans render as Yes/No.
+func schemaOptions(prop schemaProperty) []map[string]string {
+	choices := prop.OneOf
+	if len(choices) == 0 {
+		choices = prop.AnyOf
+	}
+	if len(choices) > 0 {
+		options := make([]map[string]string, 0, len(choices))
+		for _, c := range choices {
+			value := stringifySchemaValue(c.Value)
+			label := c.Title
+			if label == "" {
+				label = value
+			}
+			option := map[string]string{"label": label}
+			desc := c.Description
+			if value != "" && value != label {
+				if desc != "" {
+					desc = value + " — " + desc
+				} else {
+					desc = value
+				}
+			}
+			if desc != "" {
+				option["description"] = desc
+			}
+			options = append(options, option)
+		}
+		return options
+	}
+	if len(prop.Enum) > 0 {
+		options := make([]map[string]string, 0, len(prop.Enum))
+		for _, v := range prop.Enum {
+			if s := stringifySchemaValue(v); s != "" {
+				options = append(options, map[string]string{"label": s})
+			}
+		}
+		return options
+	}
+	if prop.Type == "boolean" {
+		return []map[string]string{{"label": "Yes"}, {"label": "No"}}
+	}
+	return []map[string]string{}
+}
+
+// stringifySchemaValue renders a JSON Schema const/enum/default value for
+// display and answer matching.
+func stringifySchemaValue(v any) string {
+	switch value := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return value
+	case bool:
+		if value {
+			return "true"
+		}
+		return "false"
+	case float64:
+		return fmt.Sprintf("%v", value)
+	default:
+		out, err := json.Marshal(value)
+		if err != nil {
+			slog.Warn("failed to marshal schema value", "error", err)
+			return ""
+		}
+		return string(out)
+	}
 }
 
 // isPermissionAskUser checks whether an ask_user tool call is asking for
 // permission to run a command (rather than a general question). Permission
-// requests have choices containing "Allow" or "Deny".
+// requests have choices containing "Allow" or "Deny". Structured
+// {message, requestedSchema} inputs are never permission requests.
 func isPermissionAskUser(input string) bool {
+	if strings.Contains(input, `"requestedSchema"`) {
+		return false
+	}
 	var raw struct {
 		Question string   `json:"question"`
 		Choices  []string `json:"choices"`

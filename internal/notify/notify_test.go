@@ -238,6 +238,22 @@ func TestPreviewForQuestion_PrefersToolInput(t *testing.T) {
 	}
 }
 
+func TestPreviewForQuestion_RequestedSchemaMessage(t *testing.T) {
+	// Copilot structured input requests carry the ask in a top-level message
+	// alongside the requestedSchema form definition.
+	input := `{"message":"I recommend (A). Which do you want?","requestedSchema":{"properties":{"scope":{"type":"string","title":"Context enrichment scope"},"visitor_id_ok":{"type":"boolean"}}}}`
+	if got := previewForQuestion("", input); got != "I recommend (A). Which do you want?" {
+		t.Errorf("expected message text from requestedSchema input, got %q", got)
+	}
+}
+
+func TestIsPermissionInput_RequestedSchemaNeverPermission(t *testing.T) {
+	input := `{"message":"Which do you want?","requestedSchema":{"properties":{"scope":{"type":"string"}}}}`
+	if isPermissionInput(input) {
+		t.Error("expected requestedSchema input to never classify as permission")
+	}
+}
+
 func TestPreviewForQuestion_MultipleQuestionsUsesFirst(t *testing.T) {
 	input := `{"questions":[{"header":"Scope","question":"Which files should I change?","options":[{"label":"All"}]},{"question":"Any constraints?","options":[{"label":"No"}]}]}`
 	if got := previewForQuestion("", input); got != "Which files should I change?" {
