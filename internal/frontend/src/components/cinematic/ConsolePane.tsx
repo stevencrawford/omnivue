@@ -102,7 +102,9 @@ function ConsoleStream({
                 {command}
               </span>
               <span className="text-[11px] font-mono text-ov-text-secondary hidden sm:inline tabular-nums">
-                {item.tool.duration ? `${item.tool.duration}ms` : ""}
+                {item.tool.duration != null && item.tool.duration > 0
+                  ? `${item.tool.duration}ms`
+                  : ""}
               </span>
               <span
                 className={`text-[10px] font-mono ${isCompleted ? "text-emerald-400/70" : "text-amber-400/70"}`}
@@ -216,7 +218,7 @@ export function ConsolePane(props: ConsolePaneProps) {
             const visibleTool = selectedSpan
               ? durEventIdx >= selectedSpan.start && durEventIdx < selectedSpan.end
               : durEventIdx <= cursor || cursor >= maxIndex;
-            if (visibleTool) totalDuration += tc.duration ?? 0;
+            if (visibleTool && (tc.duration ?? 0) > 0) totalDuration += tc.duration ?? 0;
             durEventIdx++;
           }
         } else {

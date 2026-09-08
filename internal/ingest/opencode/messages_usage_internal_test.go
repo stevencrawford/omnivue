@@ -99,3 +99,77 @@ func TestMessages_StepAttributedUsage(t *testing.T) {
 		t.Errorf("cost = %v, want 0.004", tc.Usage.Cost)
 	}
 }
+
+// TestMessages_RunningToolHasNoDuration is a regression test: a tool part whose
+// time.end is unset (0, still running) must not produce a negative duration
+// (end - start = -start, e.g. -1788893168081ms in the console pane).
+func TestMessages_RunningToolHasNoDuration(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "opencode.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE message (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		data TEXT NOT NULL,
+		time_created INTEGER NOT NULL
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE part (
+		id INTEGER PRIMARY KEY,
+		message_id TEXT NOT NULL,
+		data TEXT NOT NULL,
+		time_created INTEGER NOT NULL,
+		time_updated INTEGER NOT NULL
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO message VALUES ('m1','sess-1',? ,1000)`,
+		`{"role":"assistant"}`); err != nil {
+		t.Fatal(err)
+	}
+	parts := []struct {
+		id, ts int
+		data   string
+	}{
+		{1, 1, `{"type":"tool","callID":"tc-running","tool":"bash","state":{"status":"running","input":{"command":"sleep 10"},"time":{"start":1788893168081,"end":0}}}`},
+		{2, 2, `{"type":"tool","callID":"tc-backwards","tool":"bash","state":{"status":"completed","input":{"command":"ls"},"output":"out","time":{"start":2001,"end":1}}}`},
+	}
+	for _, p := range parts {
+		if _, err := db.Exec(`INSERT INTO part VALUES (?, 'm1', ?, ?, ?)`, p.id, p.data, p.ts, p.ts); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+
+	messages, err := a.Messages(context.Background(), "sess-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if len(messages[0].ToolCalls) != 2 {
+		t.Fatalf("expected 2 tool calls, got %d", len(messages[0].ToolCalls))
+	}
+	for _, tc := range messages[0].ToolCalls {
+		if tc.Duration != 0 {
+			t.Errorf("tool %s: duration = %dms, want 0 (unset, not negative)", tc.ID, tc.Duration)
+		}
+	}
+}

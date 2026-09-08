@@ -192,7 +192,9 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					tc.Metadata = ingestkit.MarshalJSON(p.State.Metadata)
 				}
 				if p.State.Time != nil {
-					tc.Duration = p.State.Time.End - p.State.Time.Start
+					if d := p.State.Time.End - p.State.Time.Start; d > 0 {
+						tc.Duration = d
+					}
 				}
 				msg.ToolCalls = append(msg.ToolCalls, tc)
 			case "compaction":
