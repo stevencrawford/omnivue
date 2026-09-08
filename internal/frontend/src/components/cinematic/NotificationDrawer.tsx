@@ -9,13 +9,15 @@ import {
   Activity,
   PanelRightClose,
 } from "lucide-react";
-import type { Message, Plan, Session } from "../../hooks/types";
-import { effectiveToolKind } from "../../utils/toolDisplay";
+import type { BookmarkKind, Message, Plan, Session } from "../../hooks/types";
+import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
+import { BookmarkButton } from "../tool-renderers/BookmarkButton";
 import { toolRendererRegistry } from "../tool-renderers/registry";
 import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
 import { useDisableCustomRenderers } from "../../hooks/useDisableCustomRenderers";
+import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../../hooks/useBookmarks";
 import { PinnedPromptBar } from "../PinnedPromptBar";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
@@ -26,6 +28,10 @@ export type ActivityTab = "activity" | "prompt" | "plan";
 // console). Everything else falls back to activity so no tool call is
 // invisible — search (grep/glob/codesearch/read_lints), web, memory, etc.
 const NON_ACTIVITY_KINDS = new Set(["read", "edit", "write", "delete", "bash", "sql"]);
+
+// v1 bookmark scope: keep it simple — only these tool kinds plus assistant
+// message content and the plan tab are bookmarkable in cinematic.
+const BOOKMARKABLE_KINDS = new Set(["task_complete", "exit_plan_mode", "question"]);
 
 const fallbackActivityRenderer = {
   kind: "unknown",
@@ -56,6 +62,14 @@ interface NotificationDrawerProps {
   jumpKey?: number;
   /** Fired after the jump scrolled and pulsed so the owner can clear focus. */
   onJumpLanded?: () => void;
+  onBookmark?: (
+    sessionId: string,
+    messageId: string | undefined,
+    toolCallId: string | undefined,
+    label: string,
+    kind?: BookmarkKind,
+  ) => void;
+  bookmarkIdByRef?: Record<string, string>;
 }
 
 function formatDuration(ms: number): string {
@@ -159,6 +173,8 @@ export function NotificationDrawer({
   spotlightId,
   jumpKey,
   onJumpLanded,
+  onBookmark,
+  bookmarkIdByRef,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
@@ -287,6 +303,9 @@ export function NotificationDrawer({
       if (msg.content?.trim()) {
         flushReasoning();
         const isLong = msg.content.length > 100;
+        const msgRefKey = bookmarkRefKey(session.id, msg.id, undefined);
+        const msgBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[msgRefKey] : false;
+        const msgLabel = msg.content.slice(0, 80);
         items.push({
           key: `${msg.id}-content`,
           messageId: msg.id,
@@ -299,6 +318,15 @@ export function NotificationDrawer({
                 {msg.model && (
                   <span className="text-[10px] font-mono bg-ov-bg-hover px-1 py-0.5 rounded text-ov-text-secondary truncate min-w-0">
                     {msg.model}
+                  </span>
+                )}
+                {onBookmark && (
+                  <span className="ml-auto shrink-0">
+                    <BookmarkButton
+                      isBookmarked={msgBookmarked}
+                      onClick={() => onBookmark(session.id, msg.id, undefined, msgLabel)}
+                      size="sm"
+                    />
                   </span>
                 )}
               </div>
@@ -326,6 +354,10 @@ export function NotificationDrawer({
           ? fallbackActivityRenderer
           : (toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer);
         flushReasoning();
+        const bookmarkable = BOOKMARKABLE_KINDS.has(kind);
+        const toolRefKey = bookmarkRefKey(session.id, msg.id, tool.id);
+        const toolBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[toolRefKey] : false;
+        const toolLabel = getToolSummary(tool, msg.agent || undefined);
         items.push({
           key: tool.id,
           messageId: msg.id,
@@ -339,6 +371,12 @@ export function NotificationDrawer({
               renderer={renderer}
               tool={tool}
               variant={disableCustomRenderers ? "summary" : "detail"}
+              onBookmark={
+                bookmarkable && onBookmark
+                  ? () => onBookmark(session.id, msg.id, tool.id, toolLabel)
+                  : undefined
+              }
+              isBookmarked={toolBookmarked}
             />
           ),
         });
@@ -372,7 +410,16 @@ export function NotificationDrawer({
       }
     }
     return items;
-  }, [visibleMessages, session.status, onOpenModal, indexById, disableCustomRenderers]);
+  }, [
+    visibleMessages,
+    session.id,
+    session.status,
+    onOpenModal,
+    onBookmark,
+    bookmarkIdByRef,
+    indexById,
+    disableCustomRenderers,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "activity") return;
@@ -424,6 +471,8 @@ export function NotificationDrawer({
   }, []);
 
   const planContent = plan?.markdown ?? "";
+  const planRefKey = bookmarkRefKey(session.id, PLAN_BOOKMARK_MESSAGE_ID, undefined);
+  const planBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[planRefKey] : false;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-ov-bg min-w-0">
@@ -528,22 +577,39 @@ export function NotificationDrawer({
         {planLoading ? (
           <LoadingState label="Loading plan…" className="h-32" />
         ) : planContent ? (
-          <div className="relative group min-w-0 overflow-hidden">
-            <MarkdownContent
-              content={planContent}
-              className="markdown-body--wide text-xs min-w-0 wrap-break-word"
-            />
-            {onOpenModal && (
-              <button
-                type="button"
-                onClick={() => onOpenModal(planContent, "Plan")}
-                className="absolute top-0 right-0 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover border border-transparent hover:border-ov-border bg-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Expand plan"
-                aria-label="Expand plan"
-              >
-                <Maximize2 size={12} />
-              </button>
-            )}
+          <div className="min-w-0 overflow-hidden">
+            <div className="flex items-center gap-1.5 mb-2 min-w-0">
+              <FileText size={12} className="text-ov-text-secondary shrink-0" />
+              <span className="text-[11px] font-semibold text-ov-text-secondary">Plan</span>
+              <span className="ml-auto flex items-center gap-0.5 shrink-0">
+                {onBookmark && (
+                  <BookmarkButton
+                    isBookmarked={planBookmarked}
+                    onClick={() =>
+                      onBookmark(session.id, PLAN_BOOKMARK_MESSAGE_ID, undefined, "Plan", "plan")
+                    }
+                    size="sm"
+                  />
+                )}
+                {onOpenModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenModal(planContent, "Plan")}
+                    className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                    title="Expand plan"
+                    aria-label="Expand plan"
+                  >
+                    <Maximize2 size={12} />
+                  </button>
+                )}
+              </span>
+            </div>
+            <div className="relative group min-w-0 overflow-hidden">
+              <MarkdownContent
+                content={planContent}
+                className="markdown-body--wide text-xs min-w-0 wrap-break-word"
+              />
+            </div>
           </div>
         ) : (
           <EmptyPanel icon={<FileText size={20} />} title="No plan for this session yet" />
