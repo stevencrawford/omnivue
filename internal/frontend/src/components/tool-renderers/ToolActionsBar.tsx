@@ -38,26 +38,24 @@ export function ToolActionsBar({
 
   return (
     <div className="flex items-center gap-0.5 shrink-0">
+      {markdownContent && (
+        <MarkdownScreenshotButton
+          content={markdownContent}
+          className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
+        />
+      )}
       {showPin && (pinText || tool.output) && onPin && (
-        <>
-          {markdownContent && (
-            <MarkdownScreenshotButton
-              content={markdownContent}
-              className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-            />
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPin(pinText ?? tool.output!);
-            }}
-            className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
-            title="Pin as scratch note"
-          >
-            <Pin size={12} />
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPin(pinText ?? tool.output!);
+          }}
+          className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors shrink-0"
+          title="Pin as scratch note"
+        >
+          <Pin size={12} />
+        </button>
       )}
       {childSessionId && navigateToSession && (
         <button

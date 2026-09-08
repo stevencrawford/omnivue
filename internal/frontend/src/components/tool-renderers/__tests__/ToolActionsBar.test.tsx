@@ -32,9 +32,9 @@ describe("ToolActionsBar", () => {
     expect(screen.getByTitle("Pin as scratch note")).toBeDefined();
   });
 
-  it("hides pin and screenshot when onPin is not provided", () => {
-    render(<ToolActionsBar tool={tool} showPin />);
-    expect(screen.queryByTitle("Screenshot")).toBeNull();
+  it("hides pin but keeps screenshot when onPin is not provided", () => {
+    render(<ToolActionsBar tool={tool} showPin pinText="# hello" />);
+    expect(screen.getByTitle("Screenshot")).toBeDefined();
     expect(screen.queryByTitle("Pin as scratch note")).toBeNull();
   });
 });

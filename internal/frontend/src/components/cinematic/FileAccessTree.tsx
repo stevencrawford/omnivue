@@ -481,21 +481,10 @@ export function FileAccessTree({
         </span>
         <span className="text-yellow-500">{treeSummary.edits} edits</span>
         <span className="text-cyan-400">{treeSummary.reads} reads</span>
-        {onNewScratch && (
-          <button
-            type="button"
-            onClick={onNewScratch}
-            className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            title="New scratch file"
-            aria-label="New scratch file"
-          >
-            <Plus size={14} />
-          </button>
-        )}
         <button
           type="button"
           onClick={() => (isAllExpanded ? handleCollapseAll() : handleExpandAll())}
-          className={`${onNewScratch ? "" : "ml-auto"} size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors`}
+          className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
           title={isAllExpanded ? "Collapse all" : "Expand all"}
           aria-label={isAllExpanded ? "Collapse all directories" : "Expand all directories"}
         >
@@ -538,21 +527,35 @@ export function FileAccessTree({
           />
         )}
         <div className="border-t border-ov-border mt-1">
-          <button
-            type="button"
-            onClick={() => setScratchExpanded((v) => !v)}
-            className="flex items-center gap-1 w-full px-1 py-1.5 text-left text-[11px] cursor-pointer transition-colors text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-            style={{ paddingLeft: 8 }}
-            aria-label={scratchExpanded ? "Collapse Scratch" : "Expand Scratch"}
-          >
-            <ChevronRight
-              size={12}
-              className={`shrink-0 transition-transform ${scratchExpanded ? "rotate-90" : ""}`}
-            />
-            <FileText size={14} className="shrink-0" />
-            <span className="font-medium truncate">Scratch</span>
-            <span className="ml-auto text-[11px] opacity-60 pr-2">{scratchFiles.length}</span>
-          </button>
+          <div className="flex items-center w-full pr-1">
+            <button
+              type="button"
+              onClick={() => setScratchExpanded((v) => !v)}
+              className="flex items-center gap-1 flex-1 min-w-0 px-1 py-1.5 text-left text-[11px] cursor-pointer transition-colors text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+              style={{ paddingLeft: 8 }}
+              aria-label={scratchExpanded ? "Collapse Scratch" : "Expand Scratch"}
+              aria-expanded={scratchExpanded}
+            >
+              <ChevronRight
+                size={12}
+                className={`shrink-0 transition-transform ${scratchExpanded ? "rotate-90" : ""}`}
+              />
+              <FileText size={14} className="shrink-0" />
+              <span className="font-medium truncate">Scratch</span>
+              <span className="ml-auto text-[11px] opacity-60">{scratchFiles.length}</span>
+            </button>
+            {onNewScratch && (
+              <button
+                type="button"
+                onClick={onNewScratch}
+                className="shrink-0 size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                title="New scratch file"
+                aria-label="New scratch file"
+              >
+                <Plus size={14} />
+              </button>
+            )}
+          </div>
           {scratchExpanded && (
             <div className="pb-1">
               {scratchFiles.length === 0 ? (
