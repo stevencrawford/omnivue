@@ -151,7 +151,10 @@ export const definitions: ToolRendererDefinition[] = [
     markerLabel: toolKindInfo("grep").label,
     markerDisplayType: "search",
     markerPriority: toolKindInfo("grep").priority,
-    truncateOutput: 50,
+    // Self-contained collapsible card with its own progressive disclosure
+    // (like websearch/compaction) — opt out of system line-truncation so the
+    // activity drawer never renders a second, disconnected "Show all" below it.
+    truncateOutput: 0,
   },
   {
     kind: "glob",
