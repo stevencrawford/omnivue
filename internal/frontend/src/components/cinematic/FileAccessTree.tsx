@@ -15,6 +15,7 @@ import {
 import type { FileAccess } from "../../utils/fileAccess";
 import type { ScratchFile } from "../../hooks/types";
 import { detectLanguage } from "../../utils/detectLanguage";
+import { getStorageJSON, setStorageJSON, STORAGE_KEYS } from "../../utils/storageKeys";
 import { EmptyPanel } from "../ui/EmptyPanel";
 
 interface TreeNode {
@@ -96,6 +97,34 @@ function formatCompact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
   return `${n}`;
+}
+
+export interface TreeKindVisibility {
+  showReads: boolean;
+  showEdits: boolean;
+  showDeletes: boolean;
+}
+
+export const DEFAULT_TREE_VISIBILITY: TreeKindVisibility = {
+  showReads: true,
+  showEdits: true,
+  showDeletes: true,
+};
+
+export function isAccessVisible(access: FileAccess, visibility: TreeKindVisibility): boolean {
+  if (access.kind === "read") return visibility.showReads;
+  if (access.kind === "delete") return visibility.showDeletes;
+  return visibility.showEdits;
+}
+
+function loadTreeVisibility(): TreeKindVisibility {
+  const stored = getStorageJSON<Partial<TreeKindVisibility>>(STORAGE_KEYS.CINEMATIC_TREE_FILTERS);
+  if (!stored) return DEFAULT_TREE_VISIBILITY;
+  return {
+    showReads: stored.showReads ?? true,
+    showEdits: stored.showEdits ?? true,
+    showDeletes: stored.showDeletes ?? true,
+  };
 }
 
 interface FileAccessTreeProps {
@@ -296,11 +325,39 @@ export function FileAccessTree({
   onRenameScratch,
   onDeleteScratch,
 }: FileAccessTreeProps) {
-  const tree = useMemo(() => buildTree(accesses), [accesses]);
+  const [visibility, setVisibility] = useState<TreeKindVisibility>(loadTreeVisibility);
+
+  const updateVisibility = useCallback((next: TreeKindVisibility) => {
+    setVisibility(next);
+    setStorageJSON(STORAGE_KEYS.CINEMATIC_TREE_FILTERS, next);
+  }, []);
+
+  const toggleReads = useCallback(() => {
+    updateVisibility({ ...visibility, showReads: !visibility.showReads });
+  }, [visibility, updateVisibility]);
+
+  const toggleEdits = useCallback(() => {
+    updateVisibility({ ...visibility, showEdits: !visibility.showEdits });
+  }, [visibility, updateVisibility]);
+
+  const toggleDeletes = useCallback(() => {
+    updateVisibility({ ...visibility, showDeletes: !visibility.showDeletes });
+  }, [visibility, updateVisibility]);
+
+  const showAllKinds = useCallback(() => {
+    updateVisibility(DEFAULT_TREE_VISIBILITY);
+  }, [updateVisibility]);
+
+  const filteredAccesses = useMemo(
+    () => accesses.filter((a) => isAccessVisible(a, visibility)),
+    [accesses, visibility],
+  );
+
+  const tree = useMemo(() => buildTree(filteredAccesses), [filteredAccesses]);
 
   const treeSummary = useMemo(() => {
     const fileMap = new Map<string, FileAccess[]>();
-    for (const a of accesses) {
+    for (const a of filteredAccesses) {
       const list = fileMap.get(a.filePath) ?? [];
       list.push(a);
       fileMap.set(a.filePath, list);
@@ -312,7 +369,7 @@ export function FileAccessTree({
       if (list.some((a) => a.kind !== "read")) edits++;
     }
     return { reads, edits, total: fileMap.size };
-  }, [accesses]);
+  }, [filteredAccesses]);
 
   const allDirPaths = useMemo(() => collectAllDirectoryPaths(tree), [tree]);
 
@@ -372,6 +429,21 @@ export function FileAccessTree({
     }
     prevSelectedRef.current = selectedPath;
   }, [selectedPath, visibleFlattened]);
+
+  useEffect(() => {
+    if (!selectedPath) return;
+    if (selectedScratchId) return;
+    if (filteredAccesses.length === 0) return;
+    const stillVisible = visibleFlattened.some(
+      (v) => !v.node.isDirectory && v.node.fullPath === selectedPath,
+    );
+    if (stillVisible) return;
+    const firstFile = visibleFlattened.find((v) => !v.node.isDirectory);
+    if (firstFile) {
+      onSelect(firstFile.node.fullPath);
+      setFocusedPath(firstFile.node.fullPath);
+    }
+  }, [filteredAccesses.length, selectedPath, selectedScratchId, visibleFlattened, onSelect]);
 
   useEffect(() => {
     if (renamingId && !scratchFiles.some((f) => f.id === renamingId)) {
@@ -472,6 +544,7 @@ export function FileAccessTree({
   );
 
   const showEmptyMain = accesses.length === 0;
+  const showAllFiltered = !showEmptyMain && filteredAccesses.length === 0;
 
   return (
     <div className="flex flex-col h-full bg-ov-bg-sidebar">
@@ -481,15 +554,53 @@ export function FileAccessTree({
         </span>
         <span className="text-yellow-500">{treeSummary.edits} edits</span>
         <span className="text-cyan-400">{treeSummary.reads} reads</span>
-        <button
-          type="button"
-          onClick={() => (isAllExpanded ? handleCollapseAll() : handleExpandAll())}
-          className="ml-auto size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-          title={isAllExpanded ? "Collapse all" : "Expand all"}
-          aria-label={isAllExpanded ? "Collapse all directories" : "Expand all directories"}
-        >
-          {isAllExpanded ? <FoldVertical size={14} /> : <UnfoldVertical size={14} />}
-        </button>
+        <div className="ml-auto flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={toggleReads}
+            className={`size-6 flex items-center justify-center rounded cursor-pointer transition-colors hover:bg-ov-bg-hover ${
+              visibility.showReads ? "text-cyan-400" : "text-ov-text-secondary/40 opacity-40"
+            }`}
+            title={visibility.showReads ? "Hide reads" : "Show reads"}
+            aria-label={visibility.showReads ? "Hide reads" : "Show reads"}
+            aria-pressed={visibility.showReads}
+          >
+            <BookOpen size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={toggleEdits}
+            className={`size-6 flex items-center justify-center rounded cursor-pointer transition-colors hover:bg-ov-bg-hover ${
+              visibility.showEdits ? "text-yellow-400" : "text-ov-text-secondary/40 opacity-40"
+            }`}
+            title={visibility.showEdits ? "Hide edits and writes" : "Show edits and writes"}
+            aria-label={visibility.showEdits ? "Hide edits and writes" : "Show edits and writes"}
+            aria-pressed={visibility.showEdits}
+          >
+            <FilePen size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={toggleDeletes}
+            className={`size-6 flex items-center justify-center rounded cursor-pointer transition-colors hover:bg-ov-bg-hover ${
+              visibility.showDeletes ? "text-red-400" : "text-ov-text-secondary/40 opacity-40"
+            }`}
+            title={visibility.showDeletes ? "Hide deletes" : "Show deletes"}
+            aria-label={visibility.showDeletes ? "Hide deletes" : "Show deletes"}
+            aria-pressed={visibility.showDeletes}
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => (isAllExpanded ? handleCollapseAll() : handleExpandAll())}
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            title={isAllExpanded ? "Collapse all" : "Expand all"}
+            aria-label={isAllExpanded ? "Collapse all directories" : "Expand all directories"}
+          >
+            {isAllExpanded ? <FoldVertical size={14} /> : <UnfoldVertical size={14} />}
+          </button>
+        </div>
       </div>
       <div
         ref={containerRef}
@@ -511,6 +622,21 @@ export function FileAccessTree({
               title="No file reads or edits in visible range"
               hint="Scrub the timeline to reveal earlier file activity."
             />
+          </div>
+        ) : showAllFiltered ? (
+          <div className="py-4 px-3 flex flex-col items-center gap-2">
+            <EmptyPanel
+              icon={<Files size={20} />}
+              title="Files hidden by filters"
+              hint="All file kinds are currently hidden."
+            />
+            <button
+              type="button"
+              onClick={showAllKinds}
+              className="text-[11px] px-2.5 py-1 rounded-md border border-accent-border bg-accent-muted text-accent hover:bg-accent/20 cursor-pointer transition-colors"
+            >
+              Show all
+            </button>
           </div>
         ) : (
           <FileAccessTreeInner
