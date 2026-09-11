@@ -22,14 +22,14 @@ export function AppHeader({
   onClearSearchHighlight,
 }: AppHeaderProps) {
   const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
-  let cinematicEnabled = false;
+  let cinematicEnabled = true;
   let setCinematicEnabled: (v: boolean) => void = () => {};
   try {
     const cinematic = useCinematicMode();
     cinematicEnabled = cinematic.enabled;
     setCinematicEnabled = cinematic.setEnabled;
   } catch {
-    // Outside CinematicModeProvider (e.g. isolated header test) — fallback to disabled
+    // Outside CinematicModeProvider (e.g. isolated header test) — fallback to default (enabled)
   }
 
   return (
@@ -123,7 +123,7 @@ export function AppHeader({
             title={
               cinematicEnabled
                 ? "Studio view enabled — click to switch to tabs"
-                : "Try Studio view (Preview)"
+                : "Studio view disabled — click to switch to Studio"
             }
             onClick={() => setCinematicEnabled(!cinematicEnabled)}
             className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${cinematicEnabled ? "bg-accent" : "bg-ov-bg-active"} cursor-pointer`}
@@ -140,7 +140,7 @@ export function AppHeader({
           aria-label="Toggle Studio view"
           onClick={() => setCinematicEnabled(!cinematicEnabled)}
           className="sm:hidden flex items-center gap-1.5 px-2 py-1.5 rounded-full border border-ov-border bg-ov-bg-secondary cursor-pointer"
-          title={cinematicEnabled ? "Studio view enabled" : "Try Studio view (Preview)"}
+          title={cinematicEnabled ? "Studio view enabled" : "Switch to Studio view"}
         >
           <Sparkles
             size={14}
