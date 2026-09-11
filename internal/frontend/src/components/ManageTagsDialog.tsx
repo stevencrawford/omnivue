@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Plus, Loader, Slash } from "lucide-react";
-import { Modal } from "./Modal";
+import { Modal } from "./ui/Modal";
 import type { Tag } from "../hooks/types";
 import { tagColor, hasTagColor, TAG_COLORS, TAG_NO_COLOR } from "../utils/tagColors";
 import {
@@ -195,7 +195,9 @@ export function ManageTagsDialog({ isOpen, sessionId, onClose, onChanged }: Mana
                   style={{ backgroundColor: c }}
                   title={c}
                 >
-                  {newColor === c && <Check size={10} className="text-white" strokeWidth={3} />}
+                  {newColor === c && (
+                    <Check size={10} className="tag-check text-white" strokeWidth={3} />
+                  )}
                 </button>
               ))}
             </div>

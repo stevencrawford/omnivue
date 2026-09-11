@@ -72,7 +72,7 @@ export function QueuePanel({
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-1.5 py-1 shrink-0">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-ov-text-secondary">
-          Queue
+          Queued Prompts
         </span>
         {queuedCount > 0 && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">

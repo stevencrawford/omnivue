@@ -1,7 +1,7 @@
 import { useTheme, THEME_OPTIONS } from "../../hooks/useTheme";
 import type { ThemeName, ThemeMode, ThemeContrast } from "../../hooks/useTheme";
 import { setConfig } from "../../hooks/apiClient";
-import { Toggle } from "../Toggle";
+import { Toggle } from "../ui/Toggle";
 
 const THEME_PREVIEWS: Record<ThemeName, { light: string[]; dark: string[] }> = {
   default: {

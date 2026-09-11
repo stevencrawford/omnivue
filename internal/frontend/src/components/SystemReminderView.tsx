@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Info } from "lucide-react";
-import { MarkdownContent } from "./MarkdownContent";
+import { MarkdownContent } from "./ui/MarkdownContent";
 
 export function SystemReminderView({ content, fileName }: { content: string; fileName: string }) {
   const [expanded, setExpanded] = useState(false);

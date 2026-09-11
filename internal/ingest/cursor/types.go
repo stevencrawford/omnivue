@@ -94,6 +94,22 @@ type codeBlockData struct {
 	Path string `json:"path"`
 }
 
+// composerSummary is the lean projection of a composerData row used by
+// ListSessions. It is populated via SQLite json_extract so the multi-hundred-MB
+// conversation/capabilities blobs are never read or parsed into Go, only the
+// handful of small fields needed to build list metadata.
+type composerSummary struct {
+	ComposerID                    string
+	Name                          string
+	CreatedAt                     json.Number
+	LastUpdatedAt                 json.Number
+	Status                        string
+	MessageCount                  int
+	UsageData                     json.RawMessage
+	AllAttachedFileCodeChunksUris []string
+	SummaryTitle                  string
+}
+
 type transcriptSession struct {
 	ID        string
 	CreatedAt time.Time

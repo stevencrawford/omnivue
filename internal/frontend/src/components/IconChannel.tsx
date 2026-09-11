@@ -1,5 +1,5 @@
 import React from "react";
-import { Tags, Bookmark, Bell, Settings, ListTodo, type LucideProps } from "lucide-react";
+import { Tags, Bookmark, Bell, Settings, Layers, type LucideProps } from "lucide-react";
 
 export type Section = "sessions" | "queue" | "tags" | "bookmarks" | "notifications";
 
@@ -11,6 +11,9 @@ interface IconChannelProps {
   onSidebarToggle: () => void;
   notificationUnreadCount?: number;
   queueCount?: number;
+  onSectionHover?: (section: Section) => void;
+  onSectionHoverCancel?: () => void;
+  onSectionFocus?: (section: Section) => void;
 }
 
 export function SessionsIcon({ size = 24, ...props }: LucideProps) {
@@ -38,7 +41,7 @@ const sections: {
   Icon: React.ComponentType<LucideProps>;
 }[] = [
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
-  { id: "queue", label: "Queue", Icon: ListTodo },
+  { id: "queue", label: "Queued Prompts", Icon: Layers },
   { id: "tags", label: "Tags", Icon: Tags },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
   { id: "notifications", label: "Notifications", Icon: Bell },
@@ -52,6 +55,9 @@ export function IconChannel({
   onSidebarToggle,
   notificationUnreadCount = 0,
   queueCount = 0,
+  onSectionHover,
+  onSectionHoverCancel,
+  onSectionFocus,
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
@@ -59,7 +65,11 @@ export function IconChannel({
         <button
           key={id}
           type="button"
+          onMouseEnter={() => onSectionHover?.(id)}
+          onMouseLeave={() => onSectionHoverCancel?.()}
+          onFocus={() => (onSectionFocus ?? onSectionHover)?.(id)}
           onClick={() => {
+            onSectionHoverCancel?.();
             if (id === activeSection) {
               onSidebarToggle();
             } else {
@@ -68,6 +78,7 @@ export function IconChannel({
             }
           }}
           title={label}
+          aria-label={label}
           className={`relative flex items-center justify-center w-full h-10 transition-colors ${
             activeSection === id
               ? "text-accent cursor-pointer"

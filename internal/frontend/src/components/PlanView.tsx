@@ -1,24 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListTodo } from "lucide-react";
-import type { Plan } from "../hooks/types";
+import type { Plan, BookmarkKind } from "../hooks/types";
 import { fetchPlan } from "../hooks/apiClient";
-import { MarkdownContent } from "./MarkdownContent";
-import { LoadingState } from "./LoadingState";
-import { EmptyPanel } from "./EmptyPanel";
+import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../hooks/useBookmarks";
+import { scrollElementToCenter } from "../hooks/useConversationScroll";
+import { MarkdownContent } from "./ui/MarkdownContent";
+import { LoadingState } from "./ui/LoadingState";
+import { EmptyPanel } from "./ui/EmptyPanel";
 import { useToast } from "../hooks/useToast";
 
 interface PlanViewProps {
   sessionId: string;
   refreshKey: number;
   searchHighlightQuery?: string | null;
+  onBookmark?: (
+    sessionId: string,
+    messageId: string | undefined,
+    toolCallId: string | undefined,
+    label: string,
+    kind?: BookmarkKind,
+  ) => void;
+  bookmarkIdByRef?: Record<string, string>;
 }
 
-export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanViewProps) {
+export function PlanView({
+  sessionId,
+  refreshKey,
+  searchHighlightQuery,
+  onBookmark,
+  bookmarkIdByRef,
+}: PlanViewProps) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const highlightTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { showErrorToast } = useToast();
+
+  const planRefKey = bookmarkRefKey(sessionId, PLAN_BOOKMARK_MESSAGE_ID, undefined);
+  const isBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[planRefKey] : false;
+  const handleBookmarkPlan = useCallback(() => {
+    if (!onBookmark) return;
+    onBookmark(sessionId, PLAN_BOOKMARK_MESSAGE_ID, undefined, "Plan", "plan");
+  }, [onBookmark, sessionId]);
 
   useEffect(() => {
     return () => {
@@ -58,11 +81,7 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
       if ((node.textContent || "").toLowerCase().includes(q)) {
         const el = node.parentElement;
         if (el) {
-          try {
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-          } catch {
-            /* noop */
-          }
+          scrollElementToCenter(container, el);
           el.classList.add("sess-message-highlight");
           const timer = setTimeout(() => el.classList.remove("sess-message-highlight"), 2000);
           highlightTimers.current.push(timer);
@@ -82,7 +101,12 @@ export function PlanView({ sessionId, refreshKey, searchHighlightQuery }: PlanVi
 
   return (
     <div ref={scrollRef} className="px-6 py-5">
-      <MarkdownContent content={plan.markdown} className="markdown-body--wide" />
+      <MarkdownContent
+        content={plan.markdown}
+        className="markdown-body--wide"
+        onBookmark={handleBookmarkPlan}
+        isBookmarked={isBookmarked}
+      />
     </div>
   );
 }

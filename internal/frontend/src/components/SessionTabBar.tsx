@@ -14,7 +14,7 @@ import {
 import type { Session } from "../hooks/types";
 import { deleteScratchFile } from "../hooks/apiClient";
 import { useToast } from "../hooks/useToast";
-import { Modal } from "./Modal";
+import { Modal } from "./ui/Modal";
 import { ResumeButton } from "./ResumeButton";
 import type { Tab } from "./SessionViewer";
 

@@ -39,6 +39,17 @@ export const StepEventSchema = z.object({
   tokens: StepTokensSchema.optional(),
 });
 
+export const ToolUsageSchema = z.object({
+  tokens: StepTokensSchema.optional(),
+  cost: coerceNumber.optional(),
+  source: z.string(),
+});
+
+export const PositionSchema = z.object({
+  messageID: z.string(),
+  toolCallID: optionalString,
+});
+
 export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -47,6 +58,9 @@ export const ToolCallSchema = z.object({
   status: z.string(),
   duration: coerceNumber.optional(),
   metadata: z.string().optional(),
+  messageId: optionalString,
+  position: PositionSchema.optional(),
+  usage: ToolUsageSchema.optional(),
 });
 
 export const MessageSchema = z.object({
@@ -54,6 +68,7 @@ export const MessageSchema = z.object({
   role: z.string(),
   content: z.string(),
   reasoning: optionalString,
+  reasoningAt: optionalString,
   toolCalls: z.array(ToolCallSchema).optional(),
   stepEvents: z.array(StepEventSchema).optional(),
   timestamp: z.string(),
@@ -63,6 +78,7 @@ export const MessageSchema = z.object({
   tokensOutput: coerceNumber.optional(),
   metadata: z.record(z.string(), z.string()).optional(),
   error: z.string().optional(),
+  position: PositionSchema.optional(),
 });
 
 export const SessionSchema = z.object({
@@ -190,6 +206,7 @@ export const StatusInfoSchema = z.object({
   pid: coerceNumber,
   sources: coerceNumber,
   sessions: coerceNumber,
+  indexed: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -234,9 +251,10 @@ export const TagSessionsSchema = z.array(z.string());
 export const BookmarkSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
-  messageIndex: coerceNumber,
+  messageId: optionalString,
   toolCallId: optionalString,
   label: z.string(),
+  kind: z.enum(["message", "plan"]),
   createdAt: z.string(),
 });
 
@@ -307,10 +325,6 @@ export const NotificationSettingsSchema = z.object({
   inAppToast: z.boolean(),
   sidebarBadge: z.boolean(),
   browserNotify: z.boolean(),
-  quietHoursEnabled: z.boolean(),
-  quietHoursStart: z.string(),
-  quietHoursEnd: z.string(),
-  autoDismissSec: coerceNumber,
   excludeActiveView: z.boolean(),
   enabledAt: coerceNumber.optional(),
 });

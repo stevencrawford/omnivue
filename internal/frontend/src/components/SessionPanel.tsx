@@ -12,7 +12,7 @@ import {
 import { useSessionListSettings } from "../hooks/useSessionListSettings";
 import { ContextMenu } from "./ContextMenu";
 import { ManageTagsDialog } from "./ManageTagsDialog";
-import { FilterChip } from "./FilterChip";
+import { FilterChip } from "./ui/FilterChip";
 import { SessionTree, type DisplayMode } from "./sessions/SessionTree";
 import { IconBtn } from "./sessions/IconBtn";
 import { GroupMenu } from "./sessions/GroupMenu";

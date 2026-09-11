@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, Plus, Tag as TagIcon, X, Check } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Tag as TagIcon,
+  X,
+  Check,
+  Terminal,
+  PanelsTopLeft,
+  ArrowLeft,
+} from "lucide-react";
 import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
@@ -14,16 +23,25 @@ import { agentLabel } from "../utils/sessionUtils";
 import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
+import { ResumeButton } from "./ResumeButton";
+import { useCinematicMode } from "../hooks/useCinematicMode";
+import { useNavigation } from "../hooks/useNavigation";
 
 export function SessionHeader({
   session,
   hasPrivacy,
   onNameChanged,
+  onJumpTerminal,
+  terminalActive,
 }: {
   session: Session;
   hasPrivacy?: boolean;
   onNameChanged?: () => void;
+  onJumpTerminal?: () => void;
+  terminalActive?: boolean;
 }) {
+  const { enabled: cinematicEnabled } = useCinematicMode();
+  const navigation = useNavigation();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [displayTitle, setDisplayTitle] = useState(session.title);
@@ -198,6 +216,17 @@ export function SessionHeader({
   return (
     <div className="px-4 py-3 border-b border-ov-border shrink-0">
       <div className="flex items-center gap-2 min-w-0">
+        {session.parentId && !editing && (
+          <button
+            type="button"
+            onClick={() => navigation.handleSessionSelect(session.parentId!)}
+            className="shrink-0 size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            title="Back to parent session"
+            aria-label="Back to parent session"
+          >
+            <ArrowLeft size={16} />
+          </button>
+        )}
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <input
@@ -403,11 +432,28 @@ export function SessionHeader({
         </div>
 
         <span
-          className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[40%]"
+          className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[32%]"
           title={session.directory}
         >
           {session.repository || session.directory}
         </span>
+
+        {cinematicEnabled && (
+          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
+            <ResumeButton sessionId={session.id} />
+            {onJumpTerminal && !session.parentId && (
+              <button
+                type="button"
+                onClick={onJumpTerminal}
+                className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+                title={terminalActive ? "Back to session view" : "Jump to terminal"}
+                aria-label={terminalActive ? "Back to session view" : "Jump to terminal"}
+              >
+                {terminalActive ? <PanelsTopLeft size={14} /> : <Terminal size={14} />}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <CreateTagModal

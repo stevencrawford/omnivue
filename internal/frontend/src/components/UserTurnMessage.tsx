@@ -3,10 +3,10 @@ import { ChevronRight, Info } from "lucide-react";
 import type { ToolCall } from "../hooks/types";
 import { effectiveToolKind } from "../utils/toolDisplay";
 import { detectLanguage } from "../utils/detectLanguage";
-import { MarkdownContent } from "./MarkdownContent";
-import { ToolCallList } from "./ToolRenderers/ToolCallList";
+import { MarkdownContent } from "./ui/MarkdownContent";
+import { ToolCallList } from "./tool-renderers/ToolCallList";
 import { FileRenderer } from "./DiffRenderer";
-import { CopyButton } from "./CopyButton";
+import { CopyButton } from "./ui/CopyButton";
 
 function extractInlineBlocks(content: string) {
   const blocks: Array<{
@@ -133,7 +133,7 @@ export function UserTurnView({
   content,
   toolCalls,
   sessionId,
-  messageIndex,
+  messageId,
   onOpenModal,
   onPin,
   onBookmark,
@@ -143,12 +143,12 @@ export function UserTurnView({
   content: string;
   toolCalls?: ToolCall[];
   sessionId?: string;
-  messageIndex?: number;
+  messageId?: string;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
   ) => void;
@@ -171,19 +171,18 @@ export function UserTurnView({
 
   const msgOnBookmark = useMemo(
     () =>
-      onBookmark && sessionId && messageIndex !== undefined
-        ? () => onBookmark(sessionId, messageIndex, undefined, content.slice(0, 80))
+      onBookmark && sessionId
+        ? () => onBookmark(sessionId, messageId, undefined, content.slice(0, 80))
         : undefined,
-    [onBookmark, sessionId, messageIndex, content],
+    [onBookmark, sessionId, messageId, content],
   );
 
   const toolOnBookmark = useMemo(
     () =>
-      onBookmark && sessionId && messageIndex !== undefined
-        ? (toolCallId: string, label: string) =>
-            onBookmark(sessionId, messageIndex, toolCallId, label)
+      onBookmark && sessionId
+        ? (toolCallId: string, label: string) => onBookmark(sessionId, messageId, toolCallId, label)
         : undefined,
-    [onBookmark, sessionId, messageIndex],
+    [onBookmark, sessionId, messageId],
   );
 
   function renderReadTools() {
@@ -199,7 +198,6 @@ export function UserTurnView({
           onBookmark={toolOnBookmark}
           bookmarkIdByRef={bookmarkIdByRef}
           sessionId={sessionId}
-          messageIndex={messageIndex}
         />
       </div>
     );

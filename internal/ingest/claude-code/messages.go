@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
@@ -31,6 +32,7 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 
 	var messages []ingest.Message
 	toolCallsByID := make(map[string]*ingest.ToolCall)
+	toolCallStart := make(map[string]time.Time)
 	var currentModel string
 
 	// Resolve tool-results directory once
@@ -113,8 +115,34 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 						}
 					}
 					toolCallsByID[toolCalls[i].ID] = &toolCalls[i]
+					toolCallStart[toolCalls[i].ID] = ingestkit.ParseTime(env.Timestamp)
 				}
 				msg.ToolCalls = toolCalls
+
+				// Attribute the message's token/cost usage down to the tool calls it
+				// carries. Claude Code records usage per assistant message, not per tool.
+				if env.Message.Usage != nil && len(msg.ToolCalls) > 0 {
+					var cacheRead, cacheWrite int
+					if env.Message.Usage.CacheReadInputTokens != nil {
+						cacheRead = *env.Message.Usage.CacheReadInputTokens
+					}
+					if env.Message.Usage.CacheCreationInputTokens != nil {
+						cacheWrite = *env.Message.Usage.CacheCreationInputTokens
+					}
+					usage := ingest.ToolUsage{
+						Tokens: ingest.StepTokens{
+							Input:      env.Message.Usage.InputTokens,
+							Output:     env.Message.Usage.OutputTokens,
+							CacheRead:  cacheRead,
+							CacheWrite: cacheWrite,
+						},
+						Cost:   calculateCost(simplifyModelName(msg.Model), env.Message.Usage.InputTokens, env.Message.Usage.OutputTokens, cacheWrite, cacheRead),
+						Source: ingest.UsageMessage,
+					}
+					for i := range msg.ToolCalls {
+						msg.ToolCalls[i].Usage = &usage
+					}
+				}
 
 			case "user":
 				msg.Content = extractUserContent(env.Message.Content)
@@ -147,6 +175,13 @@ func (a *Adapter) parseMessages(fpath, sessionID string) ([]ingest.Message, erro
 				}
 				if env.AgentID != "" {
 					setToolMetadataSessionID(tc, parentSID, env.AgentID)
+				}
+				// Duration spans from the assistant message that issued the tool call
+				// to the tool_result that closed it.
+				if start, ok := toolCallStart[tcID]; ok {
+					if d := ingestkit.ParseTime(env.Timestamp).Sub(start); d > 0 {
+						tc.Duration = d.Milliseconds()
+					}
 				}
 			}
 		}

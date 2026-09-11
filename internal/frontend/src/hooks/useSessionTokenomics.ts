@@ -5,6 +5,8 @@ import { TOKEN_COLOR_SEGMENTS, toolKindInfo } from "../utils/toolKindTaxonomy";
 
 export interface TokenTimelinePoint {
   stepIndex: number;
+  messageIndex?: number;
+  messageId?: string;
   timestamp: string;
   tokensInput: number;
   tokensOutput: number;
@@ -59,7 +61,7 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
     let cumCost = 0;
     let stepCounter = 0;
 
-    for (const msg of messages) {
+    for (const [mi, msg] of messages.entries()) {
       if (!msg.stepEvents) continue;
       for (const ev of msg.stepEvents) {
         if (ev.step !== "finish" || !ev.tokens) continue;
@@ -71,6 +73,8 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         cumCost += ev.cost ?? 0;
         timeline.push({
           stepIndex: stepCounter,
+          messageIndex: mi,
+          messageId: msg.id,
           timestamp: msg.timestamp,
           tokensInput: t.input,
           tokensOutput: t.output,
@@ -90,7 +94,7 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
 
     // Fallback: build timeline from message-level tokens when no step events exist
     if (timeline.length === 0) {
-      for (const msg of messages) {
+      for (const [mi, msg] of messages.entries()) {
         if (msg.role !== "assistant") continue;
         const input = msg.tokensInput ?? 0;
         const output = msg.tokensOutput ?? 0;
@@ -99,6 +103,8 @@ export function useSessionTokenomics(messages: Message[], session: Session): Ses
         cumOutput += output;
         timeline.push({
           stepIndex: stepCounter,
+          messageIndex: mi,
+          messageId: msg.id,
           timestamp: msg.timestamp,
           tokensInput: input,
           tokensOutput: output,

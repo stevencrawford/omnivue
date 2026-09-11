@@ -77,6 +77,26 @@ const (
 	StepEventFinish StepEventType = "finish"
 )
 
+// UsageSource indicates how a tool call's usage data was obtained. Agents record
+// token/cost usage at the model-turn, step, or message level, never per tool call,
+// so adapters attribute that usage down to the tool calls they cover.
+type UsageSource string
+
+const (
+	// UsageMessage marks usage attributed from the enclosing message's usage totals.
+	UsageMessage UsageSource = "message"
+	// UsageStep marks usage attributed from the containing step's totals.
+	UsageStep UsageSource = "step"
+)
+
+// ToolUsage captures optional per-tool-call resource usage. The zero value (absent
+// Usage pointer on ToolCall) means the adapter records no usage for the tool call.
+type ToolUsage struct {
+	Tokens StepTokens `json:"tokens,omitzero"`
+	Cost   float64    `json:"cost,omitempty"`
+	Source UsageSource `json:"source"`
+}
+
 // PlanItemStatus represents the completion state of a plan item.
 type PlanItemStatus string
 
@@ -122,6 +142,13 @@ type Session struct {
 	Status     SessionStatus `json:"status"`
 	CreatedAt  time.Time     `json:"createdAt"`
 	UpdatedAt  time.Time     `json:"updatedAt"`
+
+	// InProgress marks a session whose current step has not finished (e.g.
+	// OpenCode's step-start without step-finish). Adapters that can detect an
+	// in-flight turn set it so the liveness heuristic keeps the session active
+	// even while no data is written — OpenCode writes nothing during a long
+	// think, so a pure timestamp window would flip it stale.
+	InProgress bool `json:"inProgress,omitempty"`
 
 	// Token usage
 	TokensInput      int `json:"tokensInput"`
@@ -169,6 +196,16 @@ type StepTokens struct {
 	CacheWrite int `json:"cacheWrite"`
 }
 
+// Position is the canonical, stable identity of a message or of a specific tool
+// call within a message. It is the single source of truth referenced by
+// bookmarks, notifications, scroll memory, and jump targets. Message-level
+// positions leave ToolCallID empty; tool-call positions set both fields. Raw
+// array indices are never used as identity and are not part of this type.
+type Position struct {
+	MessageID  string `json:"messageID"`
+	ToolCallID string `json:"toolCallID,omitempty"`
+}
+
 // Message represents a conversation message within a session.
 type Message struct {
 	ID        string      `json:"id"`
@@ -179,8 +216,17 @@ type Message struct {
 	Model     string      `json:"model,omitempty"`
 	Agent     string      `json:"agent,omitempty"`
 
+	// Position is the canonical stable identity of this message.
+	Position Position `json:"position"`
+
 	// Reasoning/model thinking content (shown as collapsible in the UI)
 	Reasoning string `json:"reasoning,omitempty"`
+
+	// ReasoningAt is when the reasoning was last written. The model writes
+	// thinking as it goes, so this is the true completion time of the thought
+	// block; Timestamp is the message's creation time and can be far earlier.
+	// Falls back to Timestamp in the UI when absent.
+	ReasoningAt *time.Time `json:"reasoningAt,omitempty"`
 
 	// Error holds an API-level error message (rate limit, context length, etc.)
 	Error string `json:"error,omitempty"`
@@ -205,6 +251,16 @@ type ToolCall struct {
 	Status   ToolCallStatus `json:"status"`
 	Duration int64          `json:"duration,omitempty"` // milliseconds
 	Metadata string         `json:"metadata,omitempty"` // tool-specific metadata (JSON)
+
+	// MessageID back-references the message that contains this tool call.
+	MessageID string `json:"messageId,omitempty"`
+
+	// Position is the canonical stable identity of this tool call.
+	Position Position `json:"position"`
+
+	// Usage captures optional per-tool-call token/cost data when the adapter can
+	// attribute it. Absent means the agent records no usage for this tool call.
+	Usage *ToolUsage `json:"usage,omitempty"`
 }
 
 // PlanItem represents a task/todo within a session plan.

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
-import { ErrorBoundary } from "../ErrorBoundary";
+import { ErrorBoundary } from "../ui/ErrorBoundary";
 
 function HappyComponent() {
   return <div>All good</div>;

@@ -30,7 +30,7 @@ func NewHandler(dep Dep) http.Handler {
 	mux := http.NewServeMux()
 
 	// API routes
-	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub))
+	mux.HandleFunc("GET /_/api/status", handleStatus(dep.Meta, dep.Sources, dep.Hub, dep.Pipeline))
 	mux.HandleFunc("GET /_/api/sources", handleSources(dep.Sources))
 	mux.HandleFunc("POST /_/api/sources", handleAddSource(dep.Sources, dep.Pipeline))
 	mux.HandleFunc("DELETE /_/api/sources/{id}", handleRemoveSource(dep.Pipeline, dep.Sources))
@@ -92,7 +92,7 @@ func NewHandler(dep Dep) http.Handler {
 	return mux
 }
 
-func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog SessionCatalog) http.HandlerFunc {
+func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog SessionCatalog, pipeline *Pipeline) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var schemaVersion int
 		if meta != nil {
@@ -108,12 +108,17 @@ func handleStatus(meta store.SchemaVersioner, sources store.SourceStore, catalog
 				sourceCount = len(all)
 			}
 		}
+		indexed := false
+		if pipeline != nil {
+			indexed = pipeline.Indexed()
+		}
 		writeOK(w, map[string]any{
 			"version":       version.Version,
 			"pid":           os.Getpid(),
 			"sources":       sourceCount,
 			"sessions":      len(catalog.Sessions()),
 			"schemaVersion": schemaVersion,
+			"indexed":       indexed,
 		})
 	}
 }
@@ -810,10 +815,11 @@ func handleListBookmarks(bookmarks store.BookmarkStore) http.HandlerFunc {
 }
 
 type createBookmarkRequest struct {
-	SessionID    string `json:"sessionId"`
-	MessageIndex int    `json:"messageIndex"`
-	ToolCallID   string `json:"toolCallId"`
-	Label        string `json:"label"`
+	SessionID  string `json:"sessionId"`
+	MessageID  string `json:"messageId"`
+	ToolCallID string `json:"toolCallId"`
+	Label      string `json:"label"`
+	Kind       string `json:"kind"`
 }
 
 func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
@@ -830,8 +836,15 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			writeError(w, badRequest("sessionId is required"))
 			return
 		}
-		// Toggle: if a bookmark exists at this reference, remove it.
-		if existing, err := bookmarks.BookmarkByRef(req.SessionID, req.MessageIndex, req.ToolCallID); err == nil && existing != nil {
+		if req.Kind == "" {
+			req.Kind = "message"
+		}
+		if req.Kind != "message" && req.Kind != "plan" {
+			writeError(w, badRequest("kind must be 'message' or 'plan'"))
+			return
+		}
+		// Toggle: if a bookmark exists at this Position, remove it.
+		if existing, err := bookmarks.BookmarkByPosition(req.SessionID, req.MessageID, req.ToolCallID); err == nil && existing != nil {
 			if err := bookmarks.DeleteBookmark(existing.ID); err != nil {
 				writeError(w, err)
 				return
@@ -840,12 +853,13 @@ func handleCreateBookmark(bookmarks store.BookmarkStore) http.HandlerFunc {
 			return
 		}
 		b := store.Bookmark{
-			ID:           fmt.Sprintf("bm_%d", time.Now().UnixNano()),
-			SessionID:    req.SessionID,
-			MessageIndex: req.MessageIndex,
-			ToolCallID:   req.ToolCallID,
-			Label:        req.Label,
-			CreatedAt:    time.Now(),
+			ID:         fmt.Sprintf("bm_%d", time.Now().UnixNano()),
+			SessionID:  req.SessionID,
+			MessageID:  req.MessageID,
+			ToolCallID: req.ToolCallID,
+			Label:      req.Label,
+			Kind:       req.Kind,
+			CreatedAt:  time.Now(),
 		}
 		if err := bookmarks.CreateBookmark(b); err != nil {
 			writeError(w, err)

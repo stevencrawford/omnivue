@@ -580,6 +580,42 @@ body {
   opacity: 1;
 }
 
+/* Subtle pulsing dot beside sessions the backend considers active */
+.sess-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--color-accent);
+  animation: sess-live-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sess-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Header connection indicator (piggybacks on the SSE EventSource) */
+.sess-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.sess-conn-dot--on {
+  background-color: var(--color-accent-secondary);
+}
+
+.sess-conn-dot--off {
+  background-color: #ef4444;
+  animation: sess-live-pulse 1.6s ease-in-out infinite;
+}
+
 .sess-empty-state {
   display: flex;
   flex-direction: column;
@@ -661,6 +697,24 @@ body {
   margin-bottom: 0.375rem;
 }
 
+/* Off-screen conversation blocks are skipped during layout/render so large
+   sessions mount quickly; each message box still reserves its estimated size
+   until scrolled into view. */
+.sess-agent-stream,
+.sess-user-turn {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
+
+/* During a scroll restore the container temporarily lifts content-visibility
+   so every block lays out at its true size; anchor offsets and scrollHeight
+   computed from estimated sizes would otherwise land the restore on the wrong
+   message. The class is removed on the next frame once the pixel is set. */
+.scroll-restoring .sess-agent-stream,
+.scroll-restoring .sess-user-turn {
+  content-visibility: visible;
+}
+
 .sess-system-notice {
   width: 100%;
   margin: 0.75rem 0;
@@ -693,7 +747,25 @@ body {
     var(--color-accent-secondary) 70%,
     transparent
   );
+  background-size: 200% 100%;
   opacity: 0.5;
+}
+
+/* Tail mode indicator: the colourful line above the prompt bar sweeps the
+   gradient horizontally while a live session is being tailed. The gradient's
+   transparent ends make the loop seamless. */
+.sess-pinned-bar--tailing::before {
+  opacity: 1;
+  animation: sess-pinned-bar-sweep 1.6s linear infinite;
+}
+
+@keyframes sess-pinned-bar-sweep {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .sess-agent-badge {
@@ -996,6 +1068,8 @@ body {
   font-size: 0.75rem;
   line-height: 1.55;
   overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .diff-table {
@@ -1174,6 +1248,9 @@ body {
   color: var(--color-ov-text-secondary);
   font-size: 0.825rem;
   line-height: 1.7;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .markdown-body p {
@@ -1789,24 +1866,30 @@ body {
   padding: 0 2px;
 }
 
-/* ─── Scrollbar (webkit) ────────────────────────────────────────── */
+/* ─── Scrollbar (webkit; excluded from Firefox) ───────────────────
+   Recent Firefox honors non-zero ::-webkit-scrollbar width/height and
+   responds by disabling its native overlay (auto-hide) scrollbars,
+   forcing always-visible classic ones. Gate these rules to non-Firefox
+   browsers so Firefox keeps its native macOS overlay behavior. */
 
-[data-mode="dark"] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+@supports not (-moz-appearance: none) {
+  [data-mode="dark"] ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-[data-mode="dark"] ::-webkit-scrollbar-track {
-  background: transparent;
-}
+  [data-mode="dark"] ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-[data-mode="dark"] ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-}
+  [data-mode="dark"] ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+  }
 
-[data-mode="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  [data-mode="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
 }
 
 /* ─── TipTap editor ─────────────────────────────────────────────── */
@@ -2763,4 +2846,96 @@ body {
 }
 [data-contrast="high"][data-mode="dark"] .sess-tag-add:hover {
   color: #8ab4ff;
+}
+
+/* ─── High contrast — modals & dialogs ─────────────────────────────
+   Hardens translucent backdrops and remaps utility colors that the
+   variable-driven palette above cannot reach (danger reds, filled
+   accent buttons, inline-styled tag previews).                        */
+
+/* Backdrops: flatten blur, raise opacity so the modal clearly separates */
+[data-contrast="high"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-contrast="high"][data-mode="dark"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+[data-contrast="high"] .search-overlay-backdrop {
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-contrast="high"][data-mode="dark"] .search-overlay-backdrop {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* Danger buttons (e.g. delete-scratch confirm) — white on #b30000 ≈ 6.2:1 */
+[data-contrast="high"] .bg-red-600 {
+  background-color: #b30000;
+}
+[data-contrast="high"] [class~="hover:bg-red-500"]:hover {
+  background-color: #8f0000;
+}
+
+/* Filled accent buttons: in dark high contrast the accent is a light
+   blue (#8ab4ff), so white text drops below 3:1. Swap to near-black. */
+[data-contrast="high"][data-mode="dark"] .bg-accent.text-white {
+  color: #000000;
+}
+
+/* Danger styling inside settings (agent sources, factory reset) */
+[data-contrast="high"] [class~="text-red-400/80"],
+[data-contrast="high"] [class~="text-red-400/90"] {
+  color: #b30000;
+}
+[data-contrast="high"] [class~="bg-red-500/10"] {
+  background-color: color-mix(in srgb, #b30000 12%, transparent);
+}
+[data-contrast="high"] [class~="bg-red-500/[0.08]"] {
+  background-color: color-mix(in srgb, #b30000 10%, transparent);
+}
+[data-contrast="high"] [class~="hover:bg-red-500/20"]:hover {
+  background-color: color-mix(in srgb, #b30000 24%, transparent);
+}
+[data-contrast="high"] [class~="border-red-500/30"] {
+  border-color: rgba(179, 0, 0, 0.6);
+}
+
+[data-contrast="high"][data-mode="dark"] [class~="text-red-400/80"],
+[data-contrast="high"][data-mode="dark"] [class~="text-red-400/90"] {
+  color: #ff6b6b;
+}
+[data-contrast="high"][data-mode="dark"] [class~="bg-red-500/10"] {
+  background-color: color-mix(in srgb, #ff6b6b 14%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] [class~="bg-red-500/[0.08]"] {
+  background-color: color-mix(in srgb, #ff6b6b 12%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] [class~="hover:bg-red-500/20"]:hover {
+  background-color: color-mix(in srgb, #ff6b6b 26%, transparent);
+}
+[data-contrast="high"][data-mode="dark"] [class~="border-red-500/30"] {
+  border-color: rgba(255, 107, 107, 0.65);
+}
+
+/* Tag preview chip in create/edit modals — inline tag-color styles
+   would otherwise keep mid-tones (amber, green) illegible on white */
+[data-contrast="high"] .tag-preview {
+  color: #000000 !important;
+  border-color: rgba(0, 0, 0, 0.7) !important;
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+[data-contrast="high"][data-mode="dark"] .tag-preview {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.75) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Selected-swatch check: difference blend inverts the white glyph
+   against light swatches so it stays visible on any tag color */
+[data-contrast="high"] .tag-check {
+  mix-blend-mode: difference;
 }

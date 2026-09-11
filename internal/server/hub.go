@@ -158,7 +158,19 @@ func enrichSession(sess *ingest.Session, names store.SessionNameStore) {
 // applyLiveness flips a session's status between active and completed based on
 // the liveWindow heuristic, returning whether the session is currently live.
 // Shared by enrichSession and refreshSessions so the two paths cannot drift.
+// A session the adapter reports as in-progress (open step, e.g. a model mid
+// think that writes nothing) stays active regardless of the timestamp window,
+// but only while the open step is recent — a crashed step from days ago must
+// not pin the session (or, via propagation, its parent) active forever. During
+// a frozen think UpdatedAt is the open step's start, so the recency bound
+// doubles as the window.
 func applyLiveness(sess *ingest.Session) bool {
+	if sess.InProgress && !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < openStepWindow {
+		if sess.Status != ingest.SessionStatusActive {
+			sess.Status = ingest.SessionStatusActive
+		}
+		return true
+	}
 	if !sess.UpdatedAt.IsZero() && time.Since(sess.UpdatedAt) < liveWindow {
 		if sess.Status != ingest.SessionStatusActive {
 			sess.Status = ingest.SessionStatusActive
@@ -177,7 +189,11 @@ func (h *SessionHub) Messages(ctx context.Context, sessionID string) ([]ingest.M
 	if err != nil {
 		return nil, err
 	}
-	return adapter.Messages(ctx, sessionID)
+	msgs, err := adapter.Messages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return ingest.WithPositions(msgs), nil
 }
 
 // Plan returns the plan for a session.
@@ -287,11 +303,13 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 
 	var allSessions []ingest.Session
 	for sourceID, adapter := range adapters {
+		start := time.Now()
 		sessions, err := adapter.ListSessions(ctx)
 		if err != nil {
 			slog.Warn("failed to list sessions", "source", sourceID, "error", err)
 			continue
 		}
+		slog.Debug("listed source sessions", "source", sourceID, "count", len(sessions), "ms", time.Since(start).Milliseconds())
 		for i := range sessions {
 			sessions[i].SourceID = sourceID
 			// Liveness heuristic: a session is "active" if its last update is

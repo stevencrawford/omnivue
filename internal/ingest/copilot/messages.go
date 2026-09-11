@@ -16,6 +16,14 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		return syn.messages, nil
 	}
 	a.mu.Unlock()
+	if a.ensureSynthetic(sessionID) {
+		a.mu.Lock()
+		if syn, ok := a.syntheticSessions[sessionID]; ok {
+			a.mu.Unlock()
+			return syn.messages, nil
+		}
+		a.mu.Unlock()
+	}
 
 	messages, err := a.messagesFromEvents(sessionID)
 	if err == nil && len(messages) > 0 {

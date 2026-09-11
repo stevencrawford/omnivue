@@ -6,6 +6,7 @@ import { formatCost, formatTokenBreakdown } from "../utils/sessionUtils";
 import { UserPromptBubble } from "./UserPromptBubble";
 import { useHideCosts } from "../hooks/useHideCosts";
 import { useResizable } from "../hooks/useResizable";
+import { scrollElementToCenter } from "../hooks/useConversationScroll";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
 export function PinnedPromptBar({
@@ -15,6 +16,10 @@ export function PinnedPromptBar({
   onQueueChanged,
   highlightPromptId,
   onHighlightDone,
+  tailActive,
+  defaultExpanded,
+  hideHeader,
+  fillHeight,
 }: {
   session: Session;
   firstMessage?: Message | null;
@@ -22,8 +27,12 @@ export function PinnedPromptBar({
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
+  tailActive?: boolean;
+  defaultExpanded?: boolean;
+  hideHeader?: boolean;
+  fillHeight?: boolean;
 }) {
-  const [pinnedExpanded, setPinnedExpanded] = useState(false);
+  const [pinnedExpanded, setPinnedExpanded] = useState(!!defaultExpanded || !!hideHeader);
   const [prompts, setPrompts] = useState<QueuedPrompt[]>([]);
   const [promptsLoaded, setPromptsLoaded] = useState(false);
   const [inputText, setInputText] = useState("");
@@ -77,8 +86,8 @@ export function PinnedPromptBar({
     if (highlightPromptId && prompts.some((p) => p.id === highlightPromptId)) {
       const container = document.querySelector(".sess-pinned-bar");
       const el = container?.querySelector(`[data-queued-prompt-id="${highlightPromptId}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el && container) {
+        scrollElementToCenter(container as HTMLElement, el as HTMLElement);
         highlightDoneRef.current = false;
         const onEnd = () => {
           if (highlightDoneRef.current) return;
@@ -148,19 +157,127 @@ export function PinnedPromptBar({
 
   const queuedCount = prompts.length;
 
+  if (hideHeader) {
+    return (
+      <div
+        className={`flex flex-col overflow-hidden min-h-0 min-w-0 ${fillHeight ? "flex-1 h-full" : "shrink-0"} ${tailActive ? "sess-pinned-bar--tailing" : ""}`}
+        style={fillHeight ? undefined : pinnedExpanded ? { height: pinnedHeight } : undefined}
+      >
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0">
+          <div className="p-2">
+            {firstMessage && (
+              <div className="mt-1">
+                <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
+              </div>
+            )}
+          </div>
+          {prompts.length > 0 && (
+            <div className="space-y-1">
+              {prompts.map((prompt) => (
+                <div
+                  key={prompt.id}
+                  data-queued-prompt-id={prompt.id}
+                  className={`group flex items-start gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                    highlightPromptId === prompt.id
+                      ? "queued-prompt-flash"
+                      : queuedId === prompt.id
+                        ? "border-accent bg-accent/10"
+                        : "border-transparent hover:bg-ov-bg-hover hover:border-ov-border"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      {queuedId === prompt.id ? (
+                        <span className="text-[10px] text-accent font-medium flex items-center gap-0.5">
+                          <Check size={10} />
+                          Queued!
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-ov-text-secondary">
+                          {timeAgo(prompt.createdAt)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-ov-text leading-relaxed whitespace-pre-wrap break-words">
+                      {prompt.promptText}
+                    </div>
+                  </div>
+                  <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(prompt)}
+                      className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-accent hover:bg-accent/10 cursor-pointer transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      {copiedId === prompt.id ? <Check size={12} /> : <Copy size={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(prompt.id)}
+                      className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {queuedCount > 0 && (
+            <div className="pb-1">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">
+                {queuedCount} queued
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="shrink-0 border-t border-ov-border px-2 py-2 bg-ov-bg-sidebar mt-auto">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a prompt to queue for this session..."
+              rows={Math.min(10, Math.max(3, inputText.split("\n").length))}
+              className="flex-1 resize-none bg-ov-bg-secondary border border-ov-border rounded-[0.625rem] px-3 py-[0.4375rem] text-[0.75rem] text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent-border focus:shadow-[0_0_0_3px_var(--color-glow)] transition-[border-color,box-shadow,background] duration-150"
+            />
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!inputText.trim() || submitting}
+              className="shrink-0 size-8 flex items-center justify-center rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Queue prompt"
+            >
+              {submitting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </button>
+          </div>
+          <div className="flex items-center justify-between mt-1 px-1">
+            <span className="text-[10px] text-ov-text-secondary">
+              Enter to queue · Shift+Enter for newline
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div
-        className={`shrink-0 h-1.5 cursor-row-resize flex items-center justify-center hover:bg-accent/30 transition-colors ${
-          isPinnedResizing ? "bg-accent/40" : ""
-        }`}
+        className={`shrink-0 h-1.5 cursor-row-resize flex items-center justify-center hover:bg-accent/30 transition-colors ${isPinnedResizing ? "bg-accent/40" : ""}`}
         onMouseDown={handlePinnedResizeStart}
       >
         <div className="w-6 h-0.5 rounded-full bg-ov-border" />
       </div>
 
       <div
-        className="sess-pinned-bar shrink-0 flex flex-col overflow-hidden"
+        className={`sess-pinned-bar shrink-0 flex flex-col overflow-hidden ${tailActive ? "sess-pinned-bar--tailing" : ""}`}
         style={pinnedExpanded ? { height: pinnedHeight } : undefined}
       >
         <button
@@ -200,7 +317,7 @@ export function PinnedPromptBar({
         </button>
 
         {pinnedExpanded && (
-          <div className="flex-1 overflow-y-auto min-h-0 border-t border-ov-border">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 border-t border-ov-border">
             <div className="px-4 pb-2 pt-3">
               {firstMessage && (
                 <div className="ml-6 mt-1">
@@ -275,7 +392,7 @@ export function PinnedPromptBar({
                 onKeyDown={handleKeyDown}
                 placeholder="Type a prompt to queue for this session..."
                 rows={Math.min(10, Math.max(3, inputText.split("\n").length))}
-                className="flex-1 resize-none bg-ov-bg-hover border border-ov-border rounded-lg px-3 py-2 text-sm text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent transition-colors"
+                className="flex-1 resize-none bg-ov-bg-secondary border border-ov-border rounded-[0.625rem] px-3 py-[0.4375rem] text-[0.75rem] text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent-border focus:shadow-[0_0_0_3px_var(--color-glow)] transition-[border-color,box-shadow,background] duration-150"
               />
               <button
                 type="button"

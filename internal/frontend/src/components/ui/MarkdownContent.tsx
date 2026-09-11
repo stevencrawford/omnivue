@@ -1,0 +1,316 @@
+import React, { useState } from "react";
+import { ChevronRight, Check, Copy, Maximize2, Pin } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import rehypeHighlight from "rehype-highlight";
+import { useCopy } from "../../hooks/useCopy";
+import { useSearchHighlight } from "../../hooks/useSearchHighlightContext";
+import { BookmarkButton } from "../tool-renderers/BookmarkButton";
+import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
+import { parseUnifiedDiff } from "../../utils/diff";
+import { HunkRenderer } from "../DiffRenderer";
+
+interface MarkdownContentProps {
+  content: string;
+  className?: string;
+  onOpenModal?: (content: string) => void;
+  onPin?: (content: string) => void;
+  onBookmark?: () => void;
+  isBookmarked?: boolean;
+  modalTitle?: string;
+  expandable?: boolean;
+  defaultExpanded?: boolean;
+  searchHighlightQuery?: string;
+  hideCopy?: boolean;
+}
+
+/** Rehype plugin: wraps matching text in <mark> tags for search highlighting */
+function rehypeSearchHighlight(query: string) {
+  const q = query.toLowerCase();
+  return () => (tree: any) => {
+    transform(tree);
+    function transform(node: any): any {
+      if (!node || typeof node !== "object") return node;
+      if (node.type === "text") {
+        const lower = (node.value || "").toLowerCase();
+        if (!lower.includes(q)) return node;
+        const parts: any[] = [];
+        let last = 0;
+        let idx = lower.indexOf(q);
+        while (idx !== -1) {
+          if (idx > last) parts.push({ type: "text", value: node.value.slice(last, idx) });
+          parts.push({
+            type: "element",
+            tagName: "mark",
+            properties: { className: "search-highlight" },
+            children: [{ type: "text", value: node.value.slice(idx, idx + q.length) }],
+          });
+          last = idx + q.length;
+          idx = lower.indexOf(q, last);
+        }
+        if (last < node.value.length) parts.push({ type: "text", value: node.value.slice(last) });
+        return parts;
+      }
+      if (node.children && node.children.length > 0) {
+        const newChildren: any[] = [];
+        for (const child of node.children) {
+          const result = transform(child);
+          if (Array.isArray(result)) newChildren.push(...result);
+          else newChildren.push(result);
+        }
+        node.children = newChildren;
+      }
+      return node;
+    }
+  };
+}
+
+export function MarkdownContent({
+  content,
+  className = "",
+  onOpenModal,
+  onPin,
+  onBookmark,
+  isBookmarked,
+  modalTitle,
+  expandable = false,
+  defaultExpanded = false,
+  searchHighlightQuery: searchHighlightQueryProp,
+  hideCopy = false,
+}: MarkdownContentProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const { copied, copy } = useCopy(2000);
+  const ctxSearchHighlight = useSearchHighlight();
+  const searchHighlightQuery =
+    searchHighlightQueryProp !== undefined
+      ? searchHighlightQueryProp
+      : ctxSearchHighlight || undefined;
+
+  const shortContent = content.split("\n").length <= 10;
+
+  const markdownComponents = {
+    pre({ children }: { children?: React.ReactNode }) {
+      // Unwrap diff fences that already render as HunkRenderer tables — they
+      // must not be wrapped in <pre> or the markdown-body pre styling pollutes
+      // the diff view. Heuristic: the code component for language-diff returns
+      // a div.not-prose with diff-file-view inside.
+      const isDiff =
+        React.Children.toArray(children as React.ReactNode).some((c) => {
+          if (!React.isValidElement(c)) return false;
+          const props = c.props as { className?: string; children?: React.ReactNode };
+          if (props.className && String(props.className).includes("not-prose")) return true;
+          if (props.children) {
+            const inner = React.Children.toArray(props.children as React.ReactNode);
+            return inner.some(
+              (ic) =>
+                React.isValidElement(ic) &&
+                String((ic.props as { className?: string }).className || "").includes(
+                  "diff-file-view",
+                ),
+            );
+          }
+          return false;
+        }) ||
+        // Fallback: direct HunkRenderer output wrapped in div.not-prose
+        React.Children.toArray(children as React.ReactNode).some((c) => {
+          if (!React.isValidElement(c)) return false;
+          return String((c.props as { className?: string }).className || "").includes(
+            "diff-file-view",
+          );
+        });
+      if (isDiff) return <>{children}</>;
+      return <pre>{children}</pre>;
+    },
+    code({
+      className: codeClass,
+      children,
+      ...props
+    }: {
+      className?: string;
+      children?: React.ReactNode;
+    }) {
+      const isInline = !codeClass;
+      if (isInline) {
+        return <code {...props}>{children}</code>;
+      }
+      if (codeClass && codeClass.includes("language-diff")) {
+        const raw = String(children ?? "");
+        try {
+          const hunks = parseUnifiedDiff(raw);
+          if (hunks.length > 0) {
+            return (
+              <div className="not-prose my-2">
+                {hunks.map((hunk, i) => (
+                  <HunkRenderer key={i} hunk={hunk} />
+                ))}
+              </div>
+            );
+          }
+        } catch {
+          /* fallback to highlighted code */
+        }
+      }
+      return (
+        <code className={codeClass} {...props}>
+          {children}
+        </code>
+      );
+    },
+    a({ href, children, ...props }: { href?: string; children?: React.ReactNode }) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+          {children}
+        </a>
+      );
+    },
+    table({ children }: { children?: React.ReactNode }) {
+      return (
+        <div className="overflow-x-auto max-w-full">
+          <table>{children}</table>
+        </div>
+      );
+    },
+  } as const;
+
+  if (expandable) {
+    return (
+      <div className="min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1 pb-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+            title={expanded ? "Collapse" : "Expand"}
+          >
+            <ChevronRight
+              size={12}
+              className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+            />
+          </button>
+          {!hideCopy && (
+            <>
+              <button
+                type="button"
+                onClick={() => copy(content)}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+                title="Copy"
+              >
+                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              </button>
+              <MarkdownScreenshotButton
+                content={content}
+                className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              />
+            </>
+          )}
+          {onPin && (
+            <button
+              type="button"
+              onClick={() => onPin(content)}
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              title="Pin as scratch note"
+            >
+              <Pin size={12} />
+            </button>
+          )}
+          {onBookmark && (
+            <BookmarkButton isBookmarked={!!isBookmarked} onClick={onBookmark} size="sm" />
+          )}
+          {onOpenModal && !shortContent && (
+            <button
+              type="button"
+              onClick={() => onOpenModal(content)}
+              className="flex items-center justify-center size-5 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              title="Open in modal"
+            >
+              <Maximize2 size={12} />
+            </button>
+          )}
+        </div>
+        <div
+          className={`relative min-w-0 overflow-hidden ${!expanded ? "max-h-[15em] overflow-hidden" : ""}`}
+        >
+          {!expanded && (
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--color-ov-bg-secondary)] to-transparent z-10 pointer-events-none" />
+          )}
+          <div
+            className={`markdown-body markdown-body--small min-w-0 overflow-hidden wrap-break-word ${className}`.trim()}
+          >
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks]}
+              rehypePlugins={[
+                rehypeHighlight,
+                ...(searchHighlightQuery ? [rehypeSearchHighlight(searchHighlightQuery)] : []),
+              ]}
+              components={markdownComponents}
+            >
+              {content}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group min-w-0 overflow-hidden">
+      <div className="absolute top-0 right-0 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!hideCopy && (
+          <>
+            <button
+              type="button"
+              onClick={() => copy(content)}
+              className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+              title="Copy"
+            >
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            </button>
+            <MarkdownScreenshotButton content={content} />
+          </>
+        )}
+        {onPin && (
+          <button
+            type="button"
+            onClick={() => onPin(content)}
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+            title="Pin as scratch note"
+          >
+            <Pin size={12} />
+          </button>
+        )}
+        {onBookmark && (
+          <BookmarkButton
+            isBookmarked={!!isBookmarked}
+            onClick={onBookmark}
+            className="border border-ov-border bg-surface-elevated"
+          />
+        )}
+        {onOpenModal && !shortContent && (
+          <button
+            type="button"
+            onClick={() => onOpenModal(content)}
+            className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer border border-ov-border bg-surface-elevated"
+            title={modalTitle ? `View ${modalTitle}` : "Open in modal"}
+          >
+            <Maximize2 size={12} />
+          </button>
+        )}
+      </div>
+      <div
+        className={`markdown-body markdown-body--small min-w-0 overflow-hidden wrap-break-word ${className}`.trim()}
+      >
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+          rehypePlugins={[
+            rehypeHighlight,
+            ...(searchHighlightQuery ? [rehypeSearchHighlight(searchHighlightQuery)] : []),
+          ]}
+          components={markdownComponents}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    </div>
+  );
+}

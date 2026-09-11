@@ -1,18 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Bookmark } from "./types";
+import type { Bookmark, BookmarkKind } from "./types";
 import { fetchBookmarks, createBookmark, deleteBookmark } from "./apiClient";
 import { runCatching } from "../utils/errors";
 
+/**
+ * Sentinel messageId used for plan bookmarks. Plans are not anchored to a
+ * message, so the ref key is `${sessionId}::`. Message bookmarks always use a
+ * real messageId, so this never collides with them.
+ */
+export const PLAN_BOOKMARK_MESSAGE_ID = "__plan__";
+
+export function bookmarkRefKey(
+  sessionId: string,
+  messageId: string | undefined,
+  toolCallId: string | undefined,
+): string {
+  return `${sessionId}:${messageId || ""}:${toolCallId || ""}`;
+}
+
 export interface BookmarksState {
   bookmarks: Bookmark[];
-  /** Map of `${sessionId}:${messageIndex}:${toolCallId}` → bookmark id */
+  /** Map of `${sessionId}:${messageId}:${toolCallId}` → bookmark id */
   bookmarkIdByRef: Record<string, string>;
   loadBookmarks: () => Promise<void>;
   handleBookmark: (
     sessionId: string,
-    messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
+    kind?: BookmarkKind,
   ) => Promise<void>;
   handleBookmarkDelete: (id: string) => Promise<void>;
 }
@@ -23,7 +39,7 @@ export function useBookmarks(): BookmarksState {
   const bookmarkIdByRef = useMemo(() => {
     const map: Record<string, string> = {};
     for (const bm of bookmarks) {
-      const key = `${bm.sessionId}:${bm.messageIndex}:${bm.toolCallId || ""}`;
+      const key = bookmarkRefKey(bm.sessionId, bm.messageId, bm.toolCallId);
       map[key] = bm.id;
     }
     return map;
@@ -42,12 +58,13 @@ export function useBookmarks(): BookmarksState {
   const handleBookmark = useCallback(
     async (
       sessionId: string,
-      messageIndex: number,
+      messageId: string | undefined,
       toolCallId: string | undefined,
       label: string,
+      kind: BookmarkKind = "message",
     ) => {
       await runCatching(
-        () => createBookmark({ sessionId, messageIndex, toolCallId, label }),
+        () => createBookmark({ sessionId, messageId, toolCallId, label, kind }),
         (err) =>
           console.error("Failed to create bookmark:", err instanceof Error ? err.message : err),
       );

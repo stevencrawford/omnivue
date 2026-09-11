@@ -126,6 +126,26 @@ describe("mergeFileEdits", () => {
     expect(merged.deletions).toBe(1);
   });
 
+  it("carries the stable message id onto every merged hunk", () => {
+    const hunks = mergeFileEdits("src/a.ts", [
+      edit({ oldStr: "a\n", newStr: "b\n", messageIndex: 2, messageId: "msg-42" }),
+    ]).hunks;
+    expect(hunks).toHaveLength(1);
+    expect(hunks[0].messageId).toBe("msg-42");
+  });
+
+  it("propagates the message id through unified-diff and write content paths", () => {
+    const unified = mergeFileEdits("src/u.ts", [
+      edit({ newStr: "@@ -1,2 +1,2 @@\n-a\n+b\n", messageIndex: 1, messageId: "msg-1" }),
+    ]).hunks;
+    expect(unified[0].messageId).toBe("msg-1");
+
+    const written = mergeFileEdits("src/w.ts", [
+      edit({ newStr: "x\ny\n", messageIndex: 0, messageId: "msg-0" }),
+    ]).hunks;
+    expect(written[0].messageId).toBe("msg-0");
+  });
+
   it("marks a write edit as added with an all-add hunk", () => {
     const merged = mergeFileEdits("src/new.ts", [edit({ newStr: "x\ny\n", messageIndex: 0 })]);
     expect(merged.status).toBe("added");

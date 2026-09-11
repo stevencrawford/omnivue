@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { fetchSessions, ApiError } from "../apiClient";
+import { fetchSessions, fetchStatus, ApiError } from "../apiClient";
 
 const fetchMock = vi.fn();
 
@@ -70,5 +70,41 @@ describe("fetchSessions", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(200);
     expect((err as ApiError).endpoint).toBe("/_/api/sessions");
+  });
+});
+
+describe("fetchStatus", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  const mockStatus = {
+    version: "0.2.3",
+    pid: 123,
+    sources: 2,
+    sessions: 10,
+    schemaVersion: 9,
+  };
+
+  it("returns status on success", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(mockStatus));
+    const result = await fetchStatus();
+    expect(result.version).toBe("0.2.3");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("retries a failed initial fetch and eventually succeeds", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error("network error"))
+      .mockRejectedValueOnce(new Error("network error"))
+      .mockResolvedValueOnce(jsonResponse(mockStatus));
+    const result = await fetchStatus();
+    expect(result.version).toBe("0.2.3");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

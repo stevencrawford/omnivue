@@ -1,5 +1,96 @@
 # Changelog
 
+## [v0.2.4](https://github.com/stevencrawford/omnivue/compare/v0.2.3...v0.2.4) - 2026-08-17
+
+### Other Changes
+- refactor: Rename Filesystem resume command option to Absolute by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/143
+- fix(summary): stop loading spinner flash on live SSE updates by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/145
+- feat: Show indexing placeholder while initial ingest runs by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/146
+- feat(ui): Show running version in app header by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/147
+- fix(nav): Resolve summary step jumps by stable message id by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/149
+- refactor(frontend): Introduce presentational vs container boundary by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/150
+- fix: Faster first-startup session detection + prompt header version by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/151
+- feat(ui): Match app header and favicon to status bar icon by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/152
+- fix(ui): Add permanent divider between sidebar and content by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/153
+- fix(ui): High contrast compliance for modals and overlays by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/154
+- feat(ui): Make long thinking streams visible as they grow by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/148
+- fix(diff): Jump to message by stable message id by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/155
+
+## [v0.2.3](https://github.com/stevencrawford/omnivue/compare/v0.2.2...v0.2.3) - 2026-08-14
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group in /internal/frontend with 6 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/142
+### Other Changes
+- fix(nav): Keep icon-channel section when opening tag/bookmark sessions by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/133
+- fix(opencode): Detect in-place part updates during live thinking by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/134
+- fix: Bookmark jump targeting + robust session scroll restore by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/135
+- fix(scratch): Open scratch tabs on deep-linked sessions by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/137
+- feat(notifications): Remove quiet hours and auto-dismiss settings by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/138
+- Fix scroll jump on restore and anchor bookmarks by stable message id by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/140
+- feat: Position-keyed navigation & bookmarks by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/141
+
+## [v0.2.3](https://github.com/stevencrawford/omnivue/compare/v0.2.2...v0.2.3) - unreleased
+
+### Other Changes
+- refactor: Position-keyed navigation & bookmarks — the backend now emits a
+  canonical `position` (`messageID` + optional `toolCallID`) on every message,
+  tool call, and notification payload, and bookmarks jump/restore by identity
+  instead of rendered index. Scroll position is remembered per session
+  (including a "live bottom" mode that lands at the tail once). Schema migration
+  `0009_bookmark_position` rebuilds `bookmarks` around positions (drops the
+  legacy `message_index` column and unresolvable rows); `schemaVersion`
+  reported by `GET /_/api/status` is now 9.
+
+## [v0.2.2](https://github.com/stevencrawford/omnivue/compare/v0.2.1...v0.2.2) - 2026-08-11
+
+### Other Changes
+- feat(search): deep link that opens full search for a query by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/127
+- fix(session): Deep links to large sessions no longer spin by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/129
+- feat: Add version and upgrade subcommands by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/51
+- fix(ui): Restore Firefox overlay scrollbars in dark mode by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/132
+- feat(about): Cross-sell Omnivue Status App by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/130
+- fix(session): Keep live transcript refresh armed after ack by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/131
+
+## [v0.2.1](https://github.com/stevencrawford/omnivue/compare/v0.2.0...v0.2.1) - 2026-08-07
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group with 2 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/121
+- chore(deps): bump the dependencies group in /internal/frontend with 19 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/122
+- chore(deps): bump modernc.org/sqlite from 1.55.0 to 1.56.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/120
+### Other Changes
+- refactor: Wave 1 — collapse adapter seam + resume-command module (ATH-19, ATH-20) by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/106
+- feat(frontend): replace session sort with group-by option by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/110
+- refactor: Wave 2 — tool-kind vocabulary + structured diff pipeline by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/108
+- chore: advertise Homebrew install in README by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/111
+- feat(frontend): single-click create tag from session tag menu by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/112
+- feat(frontend): high contrast mode + unify settings toggles by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/113
+- feat: Bookmark plans from the Plan tab by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/115
+- feat(frontend): make browser back/forward undo navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/116
+- feat: Session liveness indicators by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/118
+- refactor(frontend): Collapse navigation into one intent module by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/119
+- feat(ingest): attribute usage down to tool calls by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/124
+- refactor(tool): Remove inline duration from tool row by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/125
+- feat(session): timeline step navigation + Copilot re-based totals fix by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/123
+- fix(nav): Keep open session when switching sidebar section by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/126
+
+## [Unreleased]
+
+### Added
+- Bookmark plans from the Plan tab (bookmark type "plan", alongside existing
+  message/tool-call bookmarks). Plan bookmarks open the Plan tab on click and
+  are distinguished in the LHS Bookmarks panel with a todo icon; the panel
+  gains a type filter (All / Messages / Plans). LHS queue section renamed to
+  "Queued Prompts" with a Layers icon. Schema migration `0007_bookmark_kind`
+  adds `bookmarks.kind` (backfilled to `message` for existing rows); the
+  `schemaVersion` reported by `GET /_/api/status` is now 7.
+- Bookmarks now store the stable `messageId` of the anchored message so a
+  bookmark jump can resolve by id instead of by rendered index, which can
+  drift when live reloads re-group assistant tool-call messages. Schema
+  migration `0008_bookmark_message_id` adds `bookmarks.message_id` (existing
+  rows keep an empty value and their behavior is unchanged); the
+  `schemaVersion` reported by `GET /_/api/status` is now 8. Existing user data
+  is preserved.
+
 ## [v0.2.0](https://github.com/stevencrawford/omnivue/compare/v0.1.2...v0.2.0) - 2026-08-05
 
 ### Dependency Updates ⬆️

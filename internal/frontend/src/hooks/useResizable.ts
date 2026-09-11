@@ -9,13 +9,22 @@ export interface UseResizableOptions {
   min: number;
   max: number;
   defaultValue: number;
+  /** When true, drag direction is inverted (for right-side panels). */
+  invert?: boolean;
 }
 
 /**
  * Draggable resize of a panel dimension, persisted to localStorage and cleaned
  * up on unmount. Replaces the copy-pasted 3x drag-resize implementation.
  */
-export function useResizable({ storageKey, axis, min, max, defaultValue }: UseResizableOptions) {
+export function useResizable({
+  storageKey,
+  axis,
+  min,
+  max,
+  defaultValue,
+  invert,
+}: UseResizableOptions) {
   const [value, setValue] = useState(() => {
     const stored = getStorageItem(storageKey);
     const n = stored ? Number(stored) : Number.NaN;
@@ -32,7 +41,9 @@ export function useResizable({ storageKey, axis, min, max, defaultValue }: UseRe
     const onMove = (ev: MouseEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
-      const delta = axis === "horizontal" ? ev.clientX - drag.start : drag.start - ev.clientY;
+      let delta: number;
+      if (axis === "horizontal") delta = invert ? drag.start - ev.clientX : ev.clientX - drag.start;
+      else delta = invert ? ev.clientY - drag.start : drag.start - ev.clientY;
       setValue(clamp(drag.value + delta));
     };
 
@@ -41,7 +52,9 @@ export function useResizable({ storageKey, axis, min, max, defaultValue }: UseRe
       if (!drag) return;
       dragRef.current = null;
       setIsResizing(false);
-      const delta = axis === "horizontal" ? ev.clientX - drag.start : drag.start - ev.clientY;
+      let delta: number;
+      if (axis === "horizontal") delta = invert ? drag.start - ev.clientX : ev.clientX - drag.start;
+      else delta = invert ? ev.clientY - drag.start : drag.start - ev.clientY;
       const next = clamp(drag.value + delta);
       setValue(next);
       setStorageItem(storageKey, String(next));

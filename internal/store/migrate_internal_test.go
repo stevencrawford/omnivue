@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 6 {
-		t.Fatalf("expected legacy db stamped to version 6, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected legacy db stamped to version 9, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 6 {
-		t.Fatalf("expected version 6 on fresh install, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected version 9 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -185,8 +185,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 6 {
-		t.Fatalf("expected version 6 after migration, got %d", v)
+	if v != 9 {
+		t.Fatalf("expected version 9 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -219,5 +219,121 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	}
 	if _, err := s.db.Query(`SELECT 1 FROM folder_sessions LIMIT 1`); err == nil {
 		t.Fatal("expected folder_sessions table to be dropped")
+	}
+}
+
+// TestMigrate_BookmarkKind seeds a version-6 database with a bookmarks table
+// (pre-0007 schema, no kind column) containing a row, then runs the migrations
+// through 0009 and verifies the schema version advances to 9. The legacy
+// bookmark is dropped because its rendered message_index cannot be resolved to
+// a stable Position identity.
+func TestMigrate_BookmarkKind(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	stateDir := filepath.Join(tmpDir, "omnivue")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(stateDir, "omnivue.db")
+
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE bookmarks (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			message_index INTEGER NOT NULL,
+			tool_call_id TEXT,
+			label TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		);
+		INSERT INTO bookmarks (id, session_id, message_index, tool_call_id, label, created_at)
+		VALUES ('bm-1', 's-1', 3, '', 'Fix sidebar', '2024-01-01T00:00:00Z');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	v, err := s.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 9 {
+		t.Fatalf("expected version 9 after migration, got %d", v)
+	}
+
+	bookmarks, err := s.ListBookmarks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bookmarks) != 0 {
+		t.Fatalf("expected legacy bookmarks to be dropped, got %d", len(bookmarks))
+	}
+}
+
+// TestMigrate_BookmarkMessageID seeds a version-6 database with a bookmarks
+// table (pre-0007/0008 schema: no kind or message_id columns) containing a
+// row, then runs the migrations through 0009 and verifies the schema version
+// advances to 9. The legacy bookmark is dropped because its rendered
+// message_index cannot be resolved to a stable Position identity.
+func TestMigrate_BookmarkMessageID(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	stateDir := filepath.Join(tmpDir, "omnivue")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(stateDir, "omnivue.db")
+
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE bookmarks (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			message_index INTEGER NOT NULL,
+			tool_call_id TEXT,
+			label TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		);
+		INSERT INTO bookmarks (id, session_id, message_index, tool_call_id, label, created_at)
+		VALUES ('bm-1', 's-1', 3, 'tc-9', 'Fix sidebar', '2024-01-01T00:00:00Z');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	v, err := s.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 9 {
+		t.Fatalf("expected version 9 after migration, got %d", v)
+	}
+
+	bookmarks, err := s.ListBookmarks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bookmarks) != 0 {
+		t.Fatalf("expected legacy bookmarks to be dropped, got %d", len(bookmarks))
 	}
 }

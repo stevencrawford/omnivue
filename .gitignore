@@ -6,3 +6,6 @@ coverage.out
 omnivue
 .opencode/plans
 .idea/
+.agents/
+CONTEXT*.md
+docs/adr/**

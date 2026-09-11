@@ -5,7 +5,7 @@ import { fetchSearch } from "../hooks/apiClient";
 import { relativeTime } from "../utils/sessionUtils";
 import { renderSnippet } from "../utils/searchUtils";
 import { useToast } from "../hooks/useToast";
-import { Spinner } from "./Spinner";
+import { Spinner } from "./ui/Spinner";
 import { groupSearchSections, type SearchSection } from "../utils/searchSections";
 
 interface SearchPanelProps {

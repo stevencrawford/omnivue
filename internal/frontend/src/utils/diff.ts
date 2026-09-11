@@ -168,38 +168,64 @@ export function renderHunk(hunk: DiffHunk): RenderRow[] {
   return rows;
 }
 
-const HUNK_HEADER_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+const HUNK_HEADER_RE = /^@@(?:\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@)?\s*$/;
 
 /**
  * parseUnifiedDiff turns unified-diff text into structured hunks. It is the
  * leaf used at the data boundary when an adapter's tool output is already a
  * unified diff; no component re-parses diff text.
+ *
+ * Supports both strict headers (`@@ -1,2 +1,2 @@`) and the lenient bare form
+ * (`@@`) used by the shared apply_patch dialect. Bare headers inherit the next
+ * logical line number from the running counter.
  */
 export function parseUnifiedDiff(text: string): DiffHunk[] {
   const hunks: DiffHunk[] = [];
   let current: DiffHunk | null = null;
   let oldLine = 0;
   let newLine = 0;
+  let currentHasNumbers = false;
 
   for (const raw of text.split("\n")) {
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
 
     if (line.startsWith("---") || line.startsWith("+++")) continue;
+    if (line.trimStart().startsWith("*** ")) continue;
 
     const header = line.match(HUNK_HEADER_RE);
     if (header) {
-      if (current) hunks.push(current);
-      const deletionStart = Number(header[1]);
-      const additionStart = Number(header[3]);
-      oldLine = deletionStart - 1;
-      newLine = additionStart - 1;
+      if (current) {
+        if (!currentHasNumbers) {
+          let oc = 0;
+          let nc = 0;
+          for (const l of current.lines) [oc, nc] = advanceLine(l, oc, nc);
+          current.deletionCount = oc;
+          current.additionCount = nc;
+        }
+        hunks.push(current);
+      }
+      const hasNumbers = header[1] !== undefined && header[3] !== undefined;
+      let deletionStart: number;
+      let additionStart: number;
+      if (hasNumbers) {
+        deletionStart = Number(header[1]);
+        additionStart = Number(header[3]);
+        oldLine = deletionStart - 1;
+        newLine = additionStart - 1;
+      } else {
+        deletionStart = oldLine + 1 || 1;
+        additionStart = newLine + 1 || 1;
+        oldLine = deletionStart - 1;
+        newLine = additionStart - 1;
+      }
       current = {
         deletionStart,
-        deletionCount: header[2] ? Number(header[2]) : 1,
+        deletionCount: hasNumbers ? (header[2] ? Number(header[2]) : 1) : 0,
         additionStart,
-        additionCount: header[4] ? Number(header[4]) : 1,
+        additionCount: hasNumbers ? (header[4] ? Number(header[4]) : 1) : 0,
         lines: [],
       };
+      currentHasNumbers = hasNumbers;
       continue;
     }
 
@@ -224,6 +250,15 @@ export function parseUnifiedDiff(text: string): DiffHunk[] {
     });
   }
 
-  if (current) hunks.push(current);
+  if (current) {
+    if (!currentHasNumbers) {
+      let oc = 0;
+      let nc = 0;
+      for (const l of current.lines) [oc, nc] = advanceLine(l, oc, nc);
+      current.deletionCount = oc;
+      current.additionCount = nc;
+    }
+    hunks.push(current);
+  }
   return hunks;
 }

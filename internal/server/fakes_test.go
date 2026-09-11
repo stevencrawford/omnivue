@@ -367,7 +367,15 @@ func (f *fakeBookmarkStore) ListBookmarks() ([]store.Bookmark, error) {
 	return out, nil
 }
 
-func (f *fakeBookmarkStore) BookmarkByRef(_ string, _ int, _ string) (*store.Bookmark, error) {
+func (f *fakeBookmarkStore) BookmarkByPosition(sessionID, messageID, toolCallID string) (*store.Bookmark, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, b := range f.bookmarks {
+		if b.SessionID == sessionID && b.MessageID == messageID && b.ToolCallID == toolCallID {
+			copy := b
+			return &copy, nil
+		}
+	}
 	return nil, nil
 }
 
@@ -447,6 +455,33 @@ func (t *trackingSearchStore) maxConcurrent() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.maxActive
+}
+
+// blockingSearchStore blocks its first IndexSessionAt write until release is
+// closed, letting a test observe the pipeline's ordering: the session list is
+// populated and the "update" event is broadcast before the search-index pass
+// finishes. entered is buffered so the signal is retained even if the refresh
+// goroutine reaches the index pass before the test starts waiting.
+type blockingSearchStore struct {
+	fakeSearchStore
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newBlockingSearchStore() *blockingSearchStore {
+	return &blockingSearchStore{
+		entered: make(chan struct{}, 10),
+		release: make(chan struct{}),
+	}
+}
+
+func (b *blockingSearchStore) IndexSessionAt(_, _, _, _, _, _, _, _ string, _ int) error {
+	select {
+	case b.entered <- struct{}{}:
+	default:
+	}
+	<-b.release
+	return nil
 }
 
 type fakeNameStore struct {

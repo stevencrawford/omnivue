@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Stream, Effect, Schedule } from "effect";
+import { Stream, Effect } from "effect";
 import { runFork } from "../lib/effect";
 
 interface SSECallbacks {
@@ -9,6 +9,7 @@ interface SSECallbacks {
   onNotificationsRead?: (ids: string[] | null) => void;
   onPromptQueueChanged?: () => void;
   onStarted?: () => void;
+  onConnectionChange?: (connected: boolean) => void;
 }
 
 type SSEEvent =
@@ -18,6 +19,7 @@ type SSEEvent =
   | { type: "notifications-read"; ids: string[] | null }
   | { type: "prompt-queue-changed" }
   | { type: "started"; pid: number }
+  | { type: "connection"; connected: boolean }
   | { type: "reset" };
 
 function makeSSEStream() {
@@ -77,19 +79,19 @@ function makeSSEStream() {
       }
     });
 
+    es.onopen = () => {
+      emit.single({ type: "connection", connected: true });
+    };
+
     es.onerror = () => {
-      emit.fail("connection_error");
+      // Let the browser's native EventSource reconnect instead of failing the
+      // stream: the old emit.fail fed a retry schedule that ended permanently
+      // after 60s, leaving the app with no SSE after a sustained blip.
+      emit.single({ type: "connection", connected: false });
     };
 
     return Effect.sync(() => es.close());
-  }).pipe(
-    Stream.retry(
-      Schedule.exponential("1 seconds").pipe(
-        Schedule.whileInput((_e: string) => true),
-        Schedule.upTo("60 seconds"),
-      ),
-    ),
-  );
+  });
 }
 
 export function useSSE(callbacks: SSECallbacks) {
@@ -130,6 +132,9 @@ export function useSSE(callbacks: SSECallbacks) {
                 }
                 serverPid = event.pid;
                 cb.onStarted?.();
+                break;
+              case "connection":
+                cb.onConnectionChange?.(event.connected);
                 break;
               case "reset":
                 window.location.reload();

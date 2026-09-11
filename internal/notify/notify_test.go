@@ -238,6 +238,22 @@ func TestPreviewForQuestion_PrefersToolInput(t *testing.T) {
 	}
 }
 
+func TestPreviewForQuestion_RequestedSchemaMessage(t *testing.T) {
+	// Copilot structured input requests carry the ask in a top-level message
+	// alongside the requestedSchema form definition.
+	input := `{"message":"I recommend (A). Which do you want?","requestedSchema":{"properties":{"scope":{"type":"string","title":"Context enrichment scope"},"visitor_id_ok":{"type":"boolean"}}}}`
+	if got := previewForQuestion("", input); got != "I recommend (A). Which do you want?" {
+		t.Errorf("expected message text from requestedSchema input, got %q", got)
+	}
+}
+
+func TestIsPermissionInput_RequestedSchemaNeverPermission(t *testing.T) {
+	input := `{"message":"Which do you want?","requestedSchema":{"properties":{"scope":{"type":"string"}}}}`
+	if isPermissionInput(input) {
+		t.Error("expected requestedSchema input to never classify as permission")
+	}
+}
+
 func TestPreviewForQuestion_MultipleQuestionsUsesFirst(t *testing.T) {
 	input := `{"questions":[{"header":"Scope","question":"Which files should I change?","options":[{"label":"All"}]},{"question":"Any constraints?","options":[{"label":"No"}]}]}`
 	if got := previewForQuestion("", input); got != "Which files should I change?" {
@@ -267,36 +283,6 @@ func TestPreviewForPermission_PrefersQuestionText(t *testing.T) {
 	input := `{"questions":[{"question":"Allow running this script?","options":[{"label":"Allow once","description":"runs the script"}]}]}`
 	if got := previewForPermission("the assistant wants to run a script", input); got != "Allow running this script?" {
 		t.Errorf("expected question text from tool input, got %q", got)
-	}
-}
-
-func TestInQuietHours_Overnight(t *testing.T) {
-	settings := Settings{QuietHoursEnabled: true, QuietHoursStart: "22:00", QuietHoursEnd: "08:00"}
-	if !InQuietHours(time.Date(2026, 7, 4, 23, 30, 0, 0, time.Local), settings) {
-		t.Error("expected 23:30 to be in quiet hours")
-	}
-	if !InQuietHours(time.Date(2026, 7, 4, 2, 0, 0, 0, time.Local), settings) {
-		t.Error("expected 02:00 to be in quiet hours (overnight)")
-	}
-	if InQuietHours(time.Date(2026, 7, 4, 12, 0, 0, 0, time.Local), settings) {
-		t.Error("expected 12:00 to be outside quiet hours")
-	}
-}
-
-func TestInQuietHours_SameDay(t *testing.T) {
-	settings := Settings{QuietHoursEnabled: true, QuietHoursStart: "13:00", QuietHoursEnd: "14:00"}
-	if !InQuietHours(time.Date(2026, 7, 4, 13, 30, 0, 0, time.Local), settings) {
-		t.Error("expected 13:30 to be in quiet hours")
-	}
-	if InQuietHours(time.Date(2026, 7, 4, 14, 0, 0, 0, time.Local), settings) {
-		t.Error("expected 14:00 to be outside (end is exclusive)")
-	}
-}
-
-func TestInQuietHours_Disabled(t *testing.T) {
-	settings := Settings{QuietHoursEnabled: false}
-	if InQuietHours(time.Now(), settings) {
-		t.Error("expected false when quiet hours disabled")
 	}
 }
 

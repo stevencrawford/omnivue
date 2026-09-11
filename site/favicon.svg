@@ -1,9 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <rect width="32" height="32" rx="7" fill="#0D1117"/>
-  <path d="M9,26 Q13,20 16,14" fill="none" stroke="#FFFFFF" stroke-width="1.25" stroke-linecap="round" opacity="0.4"/>
-  <path d="M13,27 Q15,21 16,14" fill="none" stroke="#FFFFFF" stroke-width="1.25" stroke-linecap="round" opacity="0.7"/>
-  <path d="M19,27 Q17,21 16,14" fill="none" stroke="#FFFFFF" stroke-width="1.25" stroke-linecap="round" opacity="0.7"/>
-  <path d="M23,26 Q19,20 16,14" fill="none" stroke="#FFFFFF" stroke-width="1.25" stroke-linecap="round" opacity="0.4"/>
-  <path d="M11,16 Q13,6 16,6 Q19,6 21,16 L20,16 Q16,12 12,16 Z" fill="#0D1117" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <circle cx="16" cy="14" r="1.5" fill="#FFFFFF"/>
+  <svg x="3.5" y="2.5" width="25" height="27" viewBox="120 80 272 390" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <mask id="lens">
+        <rect x="0" y="0" width="512" height="512" fill="white"/>
+        <circle cx="262" cy="238" r="6" fill="black"/>
+      </mask>
+    </defs>
+    <g transform="translate(0, 15)" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M140,410 Q210,320 256,230" opacity="0.4"/>
+      <path d="M215,430 Q240,340 256,230" opacity="0.7"/>
+      <path d="M297,430 Q272,340 256,230" opacity="0.7"/>
+      <path d="M372,410 Q302,320 256,230" opacity="0.4"/>
+      <path d="M170,255 Q195,100 256,100 Q317,100 342,255 L322,255 Q256,190 190,255 Z"/>
+    </g>
+    <circle cx="256" cy="245" r="22" fill="#FFFFFF" mask="url(#lens)"/>
+  </svg>
 </svg>

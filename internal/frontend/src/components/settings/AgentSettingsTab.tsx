@@ -8,7 +8,7 @@ import {
   removeSource,
 } from "../../hooks/apiClient";
 import { makeId } from "../../utils/uuid";
-import { FilterChip } from "../FilterChip";
+import { FilterChip } from "../ui/FilterChip";
 
 const AGENT_TYPES = [
   { value: "opencode", label: "OpenCode", disabled: false, defaultPath: "~/.local/share/opencode" },

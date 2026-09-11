@@ -16,6 +16,7 @@ import type {
   NotificationSettingsSchema,
   NotificationSeveritySchema,
   PlanSchema,
+  PositionSchema,
   QueuedPromptSchema,
   SearchResultSchema,
   ScratchFileSchema,
@@ -35,6 +36,7 @@ export type Source = z.infer<typeof SourceSchema>;
 export type DiscoveredSource = z.infer<typeof DiscoveredSourceSchema>;
 export type StepEvent = z.infer<typeof StepEventSchema>;
 export type StepTokens = z.infer<typeof StepTokensSchema>;
+export type Position = z.infer<typeof PositionSchema>;
 export type Message = z.infer<typeof MessageSchema>;
 export type ToolCall = z.infer<typeof ToolCallSchema>;
 export type ScratchFile = z.infer<typeof ScratchFileSchema>;
@@ -45,6 +47,7 @@ export type FileEdit = z.infer<typeof FileEditSchema>;
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 export type Tag = z.infer<typeof TagSchema>;
 export type Bookmark = z.infer<typeof BookmarkSchema>;
+export type BookmarkKind = "message" | "plan";
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 export type NotificationSeverity = z.infer<typeof NotificationSeveritySchema>;
 export type NotificationScope = z.infer<typeof NotificationScopeSchema>;
@@ -55,9 +58,9 @@ export type QueuedPrompt = z.infer<typeof QueuedPromptSchema>;
 // Decoding target for AppNotification.payload (an opaque JSON string stored in
 // the wire format). Not runtime-validated, so it stays a hand-written shape.
 export interface NotificationPayload {
+  position?: Position;
   toolCallId?: string;
   messageId?: string;
-  messageIndex?: number;
   toolName?: string;
   count?: number;
   tabHint?: string;

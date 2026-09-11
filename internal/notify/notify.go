@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -54,10 +55,6 @@ type Settings struct {
 	InAppToast        bool   `json:"inAppToast"`
 	SidebarBadge      bool   `json:"sidebarBadge"`
 	BrowserNotify     bool   `json:"browserNotify"`
-	QuietHoursEnabled bool   `json:"quietHoursEnabled"`
-	QuietHoursStart   string `json:"quietHoursStart"` // "22:00"
-	QuietHoursEnd     string `json:"quietHoursEnd"`   // "08:00"
-	AutoDismissSec    int    `json:"autoDismissSec"`
 	ExcludeActiveView bool   `json:"excludeActiveView"`
 	EnabledAt         int64  `json:"enabledAt"` // unix ms when notifications were enabled
 }
@@ -73,10 +70,6 @@ func DefaultSettings() Settings {
 		InAppToast:        true,
 		SidebarBadge:      true,
 		BrowserNotify:     false,
-		QuietHoursEnabled: false,
-		QuietHoursStart:   "22:00",
-		QuietHoursEnd:     "08:00",
-		AutoDismissSec:    8,
 		ExcludeActiveView: true,
 	}
 }
@@ -120,6 +113,24 @@ type Candidate struct {
 	Payload  map[string]any
 }
 
+// toolPayload builds the jump payload for a tool-call notification. It carries
+// the canonical Position (messageID + toolCallID) so the frontend can land
+// unconditionally on the exact tool call, mirroring bookmark jumps. No raw
+// message index is emitted, since indexes are not stable identity.
+func toolPayload(m ingest.Message, tc ingest.ToolCall, extra map[string]any) map[string]any {
+	p := map[string]any{
+		"position": map[string]any{
+			"messageID":  m.ID,
+			"toolCallID": tc.ID,
+		},
+		"toolCallId": tc.ID,
+		"messageId":  m.ID,
+		"tabHint":    "session",
+	}
+	maps.Copy(p, extra)
+	return p
+}
+
 // Classify examines new messages (those at or beyond lastSeenCount) and the
 // session status transition, and returns the notification candidates that
 // should be emitted under the given settings.
@@ -146,7 +157,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 
 	// --- Message-level kinds ---
 	newMessageCount := 0
-	for i, m := range newMsgs {
+	for _, m := range newMsgs {
 		// First-run flood suppression: ignore messages older than the moment
 		// notifications were enabled. (Status transitions below are not
 		// suppressed, since they reflect current state.)
@@ -168,26 +179,16 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Permission needed",
 						Preview:  previewForPermission(m.Content, tc.Input),
 						Severity: SeverityAttention,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				} else if settings.has(KindQuestion) {
 					candidates = append(candidates, Candidate{
 						Kind:     KindQuestion,
 						DedupKey: toolDedupKey(tc.ID, m.ID, name),
-						Title:    "Asked a question",
+						Title:    "Question Asked",
 						Preview:  previewForQuestion(m.Content, tc.Input),
 						Severity: SeverityAttention,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				}
 				continue // a question/permission tool call is not also a "new tool call"
@@ -196,15 +197,10 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 				candidates = append(candidates, Candidate{
 					Kind:     KindExitPlanMode,
 					DedupKey: toolDedupKey(tc.ID, m.ID, name),
-					Title:    "Plan mode exited",
+					Title:    "Proposed Plan",
 					Preview:  previewForExitPlanMode(tc.Input, tc.Output),
 					Severity: SeverityAttention,
-					Payload: map[string]any{
-						"toolCallId":   tc.ID,
-						"messageId":    m.ID,
-						"messageIndex": lastSeenCount + i,
-						"tabHint":      "session",
-					},
+					Payload:  toolPayload(m, tc, nil),
 				})
 				continue
 			}
@@ -216,12 +212,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Permission needed",
 						Preview:  previewForPermission(m.Content, tc.Input),
 						Severity: SeverityAttention,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				}
 				continue
@@ -234,12 +225,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 						Title:    "Task complete",
 						Preview:  previewForTaskComplete(m.Content, tc.Output),
 						Severity: SeverityInfo,
-						Payload: map[string]any{
-							"toolCallId":   tc.ID,
-							"messageId":    m.ID,
-							"messageIndex": lastSeenCount + i,
-							"tabHint":      "session",
-						},
+						Payload:  toolPayload(m, tc, nil),
 					})
 				}
 				continue
@@ -251,13 +237,7 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 					Title:    fmt.Sprintf("Tool call: %s", tc.Name),
 					Preview:  previewText("", tc.Input),
 					Severity: SeverityInfo,
-					Payload: map[string]any{
-						"toolCallId":   tc.ID,
-						"messageId":    m.ID,
-						"messageIndex": lastSeenCount + i,
-						"toolName":     tc.Name,
-						"tabHint":      "session",
-					},
+					Payload:  toolPayload(m, tc, map[string]any{"toolName": tc.Name}),
 				})
 			}
 		}
@@ -272,10 +252,12 @@ func Classify(prevStatus, currStatus string, msgs []ingest.Message, lastSeenCoun
 			Preview:  previewText(last.Content, ""),
 			Severity: SeverityInfo,
 			Payload: map[string]any{
-				"messageId":    last.ID,
-				"messageIndex": len(msgs) - 1,
-				"count":        newMessageCount,
-				"tabHint":      "session",
+				"position": map[string]any{
+					"messageID": last.ID,
+				},
+				"messageId": last.ID,
+				"count":     newMessageCount,
+				"tabHint":   "session",
 			},
 		})
 	}
@@ -469,59 +451,4 @@ func previewForExitPlanMode(input, output string) string {
 		}
 	}
 	return "Plan mode exited"
-}
-
-// InQuietHours reports whether the given time falls within the configured quiet
-// hours window. Quiet hours may cross midnight (e.g. 22:00→08:00). Times are
-// interpreted in the server's local timezone, matching how the user specifies
-// them in the settings UI.
-func InQuietHours(now time.Time, settings Settings) bool {
-	if !settings.QuietHoursEnabled {
-		return false
-	}
-	start, ok1 := parseHHMM(settings.QuietHoursStart)
-	end, ok2 := parseHHMM(settings.QuietHoursEnd)
-	if !ok1 || !ok2 {
-		return false
-	}
-	cur := now.Hour()*60 + now.Minute()
-	if start == end {
-		return false
-	}
-	if start < end {
-		return cur >= start && cur < end
-	}
-	// Overnight window (crosses midnight).
-	return cur >= start || cur < end
-}
-
-func parseHHMM(s string) (minutes int, ok bool) {
-	parts := strings.Split(s, ":")
-	if len(parts) != 2 {
-		return 0, false
-	}
-	h, err1 := atoi(parts[0])
-	m, err2 := atoi(parts[1])
-	if err1 != nil || err2 != nil {
-		return 0, false
-	}
-	if h < 0 || h > 23 || m < 0 || m > 59 {
-		return 0, false
-	}
-	return h*60 + m, true
-}
-
-func atoi(s string) (int, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, fmt.Errorf("empty")
-	}
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, fmt.Errorf("non-digit")
-		}
-		n = n*10 + int(r-'0')
-	}
-	return n, nil
 }

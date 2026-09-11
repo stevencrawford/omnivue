@@ -59,9 +59,11 @@ func (m *mockAdapter) Messages(context.Context, string) ([]ingest.Message, error
 func (m *mockAdapter) Plan(context.Context, string) (*ingest.Plan, error)       { return nil, nil }
 func (m *mockAdapter) Diffs(context.Context, string) ([]ingest.DiffFile, error) { return nil, nil }
 func (m *mockAdapter) Edits(context.Context, string) ([]ingest.FileEdit, error) { return nil, nil }
-func (m *mockAdapter) ResumeCommand() resumecmd.Spec { return resumecmd.Spec{Binary: "echo", Flag: "resume"} }
-func (m *mockAdapter) LastModified(context.Context) (int64, error)              { return 0, nil }
-func (m *mockAdapter) Close() error                                             { return nil }
+func (m *mockAdapter) ResumeCommand() resumecmd.Spec {
+	return resumecmd.Spec{Binary: "echo", Flag: "resume"}
+}
+func (m *mockAdapter) LastModified(context.Context) (int64, error) { return 0, nil }
+func (m *mockAdapter) Close() error                                { return nil }
 
 // tickingAdapter wraps mockAdapter and lets a test inject a LastModified
 // implementation, so we can simulate a source that bumps on every call.
@@ -118,6 +120,9 @@ func TestHandleStatus(t *testing.T) {
 	}
 	if body["sessions"] != float64(1) {
 		t.Errorf("expected 1 session, got %v", body["sessions"])
+	}
+	if body["indexed"] != false {
+		t.Errorf("expected indexed false before any refresh, got %v", body["indexed"])
 	}
 }
 
@@ -329,7 +334,7 @@ func TestRefreshSessions_RevertsToCompletedOutsideWindow(t *testing.T) {
 
 func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	adapter := &mockAdapter{sessions: []ingest.Session{
-		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-time.Minute)},
+		{ID: "ses-1", Status: ingest.SessionStatusCompleted, UpdatedAt: time.Now().Add(-30 * time.Second)},
 	}}
 	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
 	if _, live, _ := hub.refreshSessions(context.Background()); live != 1 {
@@ -338,6 +343,40 @@ func TestRefreshSessions_StableSecondCallProducesNoChanges(t *testing.T) {
 	changed, live, _ := hub.refreshSessions(context.Background())
 	if live != 1 || len(changed) != 0 {
 		t.Errorf("second refresh: expected 1 live and 0 changed, got live=%d changed=%v", live, changed)
+	}
+}
+
+func TestRefreshSessions_OpenStepStaysLiveButNotWhenStale(t *testing.T) {
+	now := time.Now()
+	hub := &SessionHub{
+		adapters: map[string]ingest.Adapter{
+			"src-1": &mockAdapter{sessions: []ingest.Session{
+				// Frozen mid-think: open step, but the last write was minutes
+				// ago (outside liveWindow, inside openStepWindow) — must stay
+				// live so the thinking UI keeps streaming.
+				{ID: "ses-thinking", Status: ingest.SessionStatusCompleted, UpdatedAt: now.Add(-5 * time.Minute), InProgress: true},
+				// Crashed step from long ago — must revert to completed
+				// instead of pinning the session (and its parent) active.
+				{ID: "ses-crashed", Status: ingest.SessionStatusActive, UpdatedAt: now.Add(-10 * 24 * time.Hour), InProgress: true},
+			}},
+		},
+	}
+	changed, live, _ := hub.refreshSessions(context.Background())
+	if live != 1 {
+		t.Errorf("expected 1 live session, got %d", live)
+	}
+	statusByID := map[string]ingest.SessionStatus{}
+	for _, s := range hub.Sessions() {
+		statusByID[s.ID] = s.Status
+	}
+	if statusByID["ses-thinking"] != ingest.SessionStatusActive {
+		t.Errorf("ses-thinking: expected active, got %q", statusByID["ses-thinking"])
+	}
+	if statusByID["ses-crashed"] != ingest.SessionStatusCompleted {
+		t.Errorf("ses-crashed: expected completed, got %q", statusByID["ses-crashed"])
+	}
+	if len(changed) != 2 {
+		t.Errorf("expected 2 changed IDs on first refresh, got %d", len(changed))
 	}
 }
 
@@ -401,7 +440,7 @@ func (f *fakeAdapterProvider) Adapters() map[string]ingest.Adapter {
 func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 		},
 		lastModFn: func() (int64, error) { return 2, nil },
 	}
@@ -436,7 +475,7 @@ func TestPollerTick_ReadsSourcesThroughAdapterProvider(t *testing.T) {
 func TestPollerTick_DrivesRefreshAndBroadcast(t *testing.T) {
 	adapter := &tickingAdapter{
 		mockAdapter: mockAdapter{
-			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+			sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 		},
 		lastModFn: func() (int64, error) { return 2, nil },
 	}
@@ -563,6 +602,81 @@ func TestPipelineRefresh_DrivesIndexAndClassify(t *testing.T) {
 	if list[0].Kind != "question" {
 		t.Errorf("expected kind question, got %s", list[0].Kind)
 	}
+
+	// 4) The refresh pass marks the pipeline as indexed so the status endpoint
+	// can tell the frontend "indexing is done".
+	if !pipeline.Indexed() {
+		t.Error("expected pipeline.Indexed() to be true after a refresh pass")
+	}
+}
+
+// TestPipelineRefresh_BroadcastsBeforeIndexing pins the list-first ordering of
+// a refresh pass: the hub session list is populated and the "update" event is
+// broadcast as soon as sessions are read from the adapters, before the (heavier)
+// search-index pass completes. This is what lets /api/sessions answer promptly
+// on first boot while indexing still runs in the background — clients never wait
+// on the full index to see their session list.
+func TestPipelineRefresh_BroadcastsBeforeIndexing(t *testing.T) {
+	now := time.Now()
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{{ID: "ses-early", SourceID: "src-1", Title: "early", UpdatedAt: now}},
+		messages: []ingest.Message{{ID: "m1", Content: "early marker", Timestamp: now}},
+	}
+
+	bus := NewEventBus()
+	hub := &SessionHub{adapters: map[string]ingest.Adapter{"src-1": adapter}}
+	search := newBlockingSearchStore()
+	index := NewIndexer(hub, hub, search, nil)
+	notif := NewNotifier(hub, newFakeNotificationStore(), newFakeConfigStore(), &fakeTagStore{}, bus)
+	pipeline := newPipeline(hub, index, notif, bus)
+
+	ch := bus.Subscribe()
+	defer bus.Unsubscribe(ch)
+
+	done := make(chan struct{})
+	// Ensure the blocked index pass is always released, even on early
+	// failure, so the Refresh goroutine cannot leak holding the pipeline
+	// mutex across tests.
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(search.release) })
+	}
+	defer release()
+	go func() {
+		pipeline.Refresh(context.Background())
+		close(done)
+	}()
+
+	// The index pass has entered its first write, meaning the session list has
+	// already been read into the hub.
+	select {
+	case <-search.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected the search-index pass to start")
+	}
+
+	// The hub list is populated even though indexing is still blocked.
+	if got := len(hub.Sessions()); got != 1 {
+		t.Fatalf("expected hub to expose 1 session before indexing completes, got %d", got)
+	}
+
+	// The "update" broadcast reached subscribers before indexing finished.
+	select {
+	case ev := <-ch:
+		if ev.Name != "update" {
+			t.Fatalf("expected an 'update' event, got %q", ev.Name)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected the 'update' event to be broadcast before indexing completes")
+	}
+
+	// Release the index pass; the refresh must then complete.
+	release()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected Refresh to complete after releasing the index pass")
+	}
 }
 
 // TestPipelineRefreshLiveness_BroadcastsOnlyOnChange pins the Pipeline's
@@ -572,7 +686,7 @@ func TestPipelineRefresh_DrivesIndexAndClassify(t *testing.T) {
 // pipeline stateless and the test deterministic.
 func TestPipelineRefreshLiveness_BroadcastsOnlyOnChange(t *testing.T) {
 	adapter := &mockAdapter{
-		sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-time.Minute)}},
+		sessions: []ingest.Session{{ID: "ses-live", SourceID: "src-1", UpdatedAt: time.Now().Add(-30 * time.Second)}},
 	}
 
 	bus := NewEventBus()
@@ -841,7 +955,59 @@ func newTestDep(_ *testing.T, tags store.TagStore) Dep {
 	return dep
 }
 
-// TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
+// TestHandleCreateBookmark_Kind verifies plan bookmarks are created with their
+// kind, that a missing kind defaults to 'message', that an invalid kind is
+// rejected, and that creating the same ref again toggles it off.
+func TestHandleCreateBookmark_Kind(t *testing.T) {
+	dep := newTestDep(t, &fakeTagStore{})
+	fakes := newFakeBookmarkStore()
+	dep.Bookmarks = fakes
+
+	var bm store.Bookmark
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-1", "label": "Plan", "kind": "plan",
+		},
+		http.StatusCreated, &bm)
+	if bm.Kind != "plan" {
+		t.Errorf("expected kind plan, got %q", bm.Kind)
+	}
+	if bm.MessageID != "" {
+		t.Errorf("expected empty messageId for plan, got %q", bm.MessageID)
+	}
+
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-2", "messageId": "msg-1", "toolCallId": "tc-1", "label": "Output",
+		},
+		http.StatusCreated, &bm)
+	if bm.Kind != "message" {
+		t.Errorf("expected default kind message, got %q", bm.Kind)
+	}
+	if bm.MessageID != "msg-1" || bm.ToolCallID != "tc-1" {
+		t.Errorf("expected position msg-1/tc-1, got %q/%q", bm.MessageID, bm.ToolCallID)
+	}
+
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-1", "label": "Plan", "kind": "scratch",
+		},
+		http.StatusBadRequest, nil)
+
+	// Same position again toggles off (deletes the plan bookmark created above).
+	var toggled map[string]any
+	doJSON(t, NewHandler(dep), http.MethodPost, "/_/api/bookmarks",
+		map[string]any{
+			"sessionId": "s-1", "label": "Plan", "kind": "plan",
+		},
+		http.StatusOK, &toggled)
+	if toggled["deleted"] != true {
+		t.Errorf("expected toggle to delete, got %v", toggled)
+	}
+	if len(fakes.bookmarks) != 1 {
+		t.Errorf("expected 1 bookmark after toggle, got %d", len(fakes.bookmarks))
+	}
+} // TestStoreRoles_NilStoreStaysNil guards against boxing a typed-nil *store.Store
 // into the role interfaces: an interface wrapping a nil pointer is non-nil, so
 // every `!= nil` guard would pass and the call would panic on the nil receiver.
 func TestStoreRoles_NilStoreStaysNil(t *testing.T) {

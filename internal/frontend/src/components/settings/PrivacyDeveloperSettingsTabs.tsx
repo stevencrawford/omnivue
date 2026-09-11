@@ -1,7 +1,9 @@
-import { useState } from "react";
 import { setHideCosts, useHideCosts } from "../../hooks/useHideCosts";
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
-import { Toggle } from "../Toggle";
+import {
+  setDisableCustomRenderers,
+  useDisableCustomRenderers,
+} from "../../hooks/useDisableCustomRenderers";
+import { Toggle } from "../ui/Toggle";
 
 export function PrivacySettingsTab() {
   const hideCosts = useHideCosts();
@@ -25,9 +27,7 @@ export function PrivacySettingsTab() {
 }
 
 export function DeveloperSettingsTab() {
-  const [disabled, setDisabled] = useState(
-    () => getStorageItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS) === "true",
-  );
+  const disabled = useDisableCustomRenderers();
 
   return (
     <div>
@@ -40,8 +40,7 @@ export function DeveloperSettingsTab() {
       <Toggle
         checked={disabled}
         onChange={(checked) => {
-          setDisabled(checked);
-          setStorageItem(STORAGE_KEYS.DISABLE_CUSTOM_RENDERERS, checked ? "true" : "false");
+          setDisableCustomRenderers(checked);
         }}
         label="Disable custom tool call renderers"
         hint="Display all tool calls using the default input/output view for debugging."

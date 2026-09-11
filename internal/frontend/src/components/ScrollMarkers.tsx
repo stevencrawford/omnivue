@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../utils/toolDisplay";
-import { toolRendererRegistry } from "./ToolRenderers/registry";
+import { splitReasoning } from "../utils/reasoningChunks";
+import { toolRendererRegistry } from "./tool-renderers/registry";
 
 const LEGACY_MARKER_COLORS: Record<string, string> = {
   "user-request": "#58a6ff",
@@ -63,10 +64,12 @@ function computeMarkers(messages: Message[]): MarkerDef[] {
           label: marker.label,
         });
       } else if (msg.reasoning) {
+        const chunks = splitReasoning(msg.reasoning);
+        const firstChunk = chunks[0]?.slice(0, 120) || "";
         result.push({
           id: `msg-${idx}`,
           type: "thinking",
-          summary: msg.reasoning.slice(0, 120),
+          summary: chunks.length > 1 ? `${firstChunk} (${chunks.length} parts)` : firstChunk,
           color: LEGACY_MARKER_COLORS["thinking"],
           label: LEGACY_MARKER_LABELS["thinking"],
         });
@@ -111,12 +114,12 @@ function allMarkerLegendTypes() {
 
 export function ScrollMarkers({
   messages,
-  scrollRef,
   markerPositions,
+  onMarkerClick,
 }: {
   messages: Message[];
-  scrollRef: React.RefObject<HTMLDivElement | null>;
   markerPositions: Record<string, number>;
+  onMarkerClick: (markerId: string) => void;
 }) {
   const [markerFilterOpen, setMarkerFilterOpen] = useState(false);
   const [hiddenMarkerTypes, setHiddenMarkerTypes] = useState<Set<string>>(new Set());
@@ -214,15 +217,7 @@ export function ScrollMarkers({
                     top: `${Math.max(0, Math.min(100, pos))}%`,
                     backgroundColor: m.color,
                   }}
-                  onClick={() => {
-                    const el = scrollRef.current?.querySelector(`[data-marker-id="${m.id}"]`);
-                    if (el)
-                      try {
-                        el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      } catch {
-                        /* noop */
-                      }
-                  }}
+                  onClick={() => onMarkerClick(m.id)}
                 >
                   <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden bg-ov-bg-secondary border border-ov-border rounded-md px-2 py-1 text-xs whitespace-nowrap z-30 shadow-lg pointer-events-none">
                     <div className="font-medium text-[10px] uppercase tracking-wider opacity-60">

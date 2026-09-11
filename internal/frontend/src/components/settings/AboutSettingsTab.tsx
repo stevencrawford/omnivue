@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { ExternalLink, Loader2, TriangleAlert } from "lucide-react";
 import { resetApp } from "../../hooks/apiClient";
 
 export function AboutSettingsTab() {
@@ -48,6 +48,25 @@ export function AboutSettingsTab() {
             github.com/stevencrawford/omnivue
           </a>
         </p>
+      </div>
+
+      <div className="rounded-md border border-ov-border p-3 mb-4">
+        <h4 className="text-xs font-semibold uppercase tracking-widest text-ov-text-secondary mb-1">
+          Omnivue Status App (macOS)
+        </h4>
+        <p className="text-xs text-ov-text-secondary leading-relaxed mb-2">
+          A native macOS menu bar companion for Omnivue. Manage the server, jump into sessions, and
+          get native notifications without running Omnivue from the CLI. Requires macOS 13+.
+        </p>
+        <a
+          href="https://github.com/stevencrawford/omnivue-mac-app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+        >
+          github.com/stevencrawford/omnivue-mac-app
+          <ExternalLink className="size-3" />
+        </a>
       </div>
 
       <div className="border-t border-ov-border pt-4 mt-4">

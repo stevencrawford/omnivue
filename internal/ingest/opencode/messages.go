@@ -53,7 +53,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	}
 
 	partRows, err := a.db.QueryContext(ctx, `
-		SELECT message_id, data FROM part
+		SELECT message_id, data, time_created, time_updated FROM part
 		WHERE message_id IN (SELECT id FROM message WHERE session_id = ?)
 		ORDER BY message_id, time_created ASC, id ASC
 	`, sessionID)
@@ -62,21 +62,46 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 	}
 	defer partRows.Close()
 
-	partsByMsg := make(map[string][]partData, len(msgRows))
+	type partRow struct {
+		messageID   string
+		dataJSON    string
+		timeCreated int64
+		timeUpdated int64
+		partData
+	}
+	partsByMsg := make(map[string][]partRow, len(msgRows))
 	for partRows.Next() {
-		var messageID, dataJSON string
-		if err := partRows.Scan(&messageID, &dataJSON); err != nil {
+		var pr partRow
+		if err := partRows.Scan(&pr.messageID, &pr.dataJSON, &pr.timeCreated, &pr.timeUpdated); err != nil {
 			continue
 		}
 		var p partData
-		if err := json.Unmarshal([]byte(dataJSON), &p); err == nil {
-			partsByMsg[messageID] = append(partsByMsg[messageID], p)
+		if err := json.Unmarshal([]byte(pr.dataJSON), &p); err == nil {
+			pr.partData = p
+			partsByMsg[pr.messageID] = append(partsByMsg[pr.messageID], pr)
 		}
 	}
 
 	messages := make([]ingest.Message, 0, len(msgRows))
 	var pendingCompaction *ingest.ToolCall
 	var prevModel string
+
+	// Step-attributed token/cost tracking. OpenCode records token usage at the
+	// step level (step-finish parts), not per tool call. We assign each tool part
+	// to the step open when it was emitted, then back-fill that step's totals once
+	// its step-finish arrives. toolStep maps a tool callID to its step; stepUsage
+	// holds the totals for each closed step.
+	type stepUsageT struct {
+		tokens ingest.StepTokens
+		cost   float64
+		has    bool
+	}
+	type stepTracker struct {
+		curStep   int
+		toolStep  map[string]int
+		stepUsage map[int]stepUsageT
+	}
+	trk := stepTracker{toolStep: make(map[string]int, len(msgRows)*2), stepUsage: make(map[int]stepUsageT)}
 
 	for _, m := range msgRows {
 		msg := ingest.Message{
@@ -103,6 +128,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 			}
 		}
 
+		var reasoningUpdated int64
 		for _, p := range partsByMsg[m.id] {
 			switch p.Type {
 			case "text":
@@ -117,7 +143,11 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 				} else {
 					msg.Reasoning += "\n" + p.Text
 				}
+				if p.timeUpdated > reasoningUpdated {
+					reasoningUpdated = p.timeUpdated
+				}
 			case "step-start":
+				trk.curStep++
 				msg.StepEvents = append(msg.StepEvents, ingest.StepEvent{
 					Step:     ingest.StepEventStart,
 					Snapshot: p.Snapshot,
@@ -129,6 +159,7 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					Reason:   p.Reason,
 					Cost:     p.Cost,
 				}
+				su := stepUsageT{cost: p.Cost, has: p.Cost != 0}
 				if p.Tokens != nil {
 					se.Tokens = ingest.StepTokens{
 						Input:     p.Tokens.Input,
@@ -139,9 +170,17 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 						se.Tokens.CacheRead = p.Tokens.Cache.Read
 						se.Tokens.CacheWrite = p.Tokens.Cache.Write
 					}
+					su.tokens = se.Tokens
+					if se.Tokens.Input != 0 || se.Tokens.Output != 0 || se.Tokens.CacheRead != 0 || se.Tokens.CacheWrite != 0 {
+						su.has = true
+					}
+				}
+				if su.has {
+					trk.stepUsage[trk.curStep] = su
 				}
 				msg.StepEvents = append(msg.StepEvents, se)
 			case "tool":
+				trk.toolStep[p.CallID] = trk.curStep
 				tc := ingest.ToolCall{
 					ID:     p.CallID,
 					Name:   p.Tool,
@@ -153,11 +192,13 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 					tc.Metadata = ingestkit.MarshalJSON(p.State.Metadata)
 				}
 				if p.State.Time != nil {
-					tc.Duration = p.State.Time.End - p.State.Time.Start
+					if d := p.State.Time.End - p.State.Time.Start; d > 0 {
+						tc.Duration = d
+					}
 				}
 				msg.ToolCalls = append(msg.ToolCalls, tc)
 			case "compaction":
-				inputJSON := marshalCompactionInput(p)
+				inputJSON := marshalCompactionInput(p.partData)
 				pendingCompaction = &ingest.ToolCall{
 					ID:     p.CallID,
 					Name:   "compaction",
@@ -166,9 +207,15 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 				}
 				msg.Content = ""
 				msg.Reasoning = ""
+				reasoningUpdated = 0
 				msg.StepEvents = nil
 				msg.ToolCalls = nil
 			}
+		}
+
+		if reasoningUpdated > 0 {
+			t := time.UnixMilli(reasoningUpdated)
+			msg.ReasoningAt = &t
 		}
 
 		if curModel != "" && prevModel != "" && curModel != prevModel && msg.Role == ingest.MessageRoleAssistant {
@@ -206,6 +253,23 @@ func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Mess
 		}
 
 		messages = append(messages, msg)
+	}
+
+	// Back-fill per-tool-call usage from the closed step totals recorded above.
+	for mi := range messages {
+		for ci := range messages[mi].ToolCalls {
+			tc := &messages[mi].ToolCalls[ci]
+			step, ok := trk.toolStep[tc.ID]
+			if !ok {
+				continue
+			}
+			su, ok := trk.stepUsage[step]
+			if !ok {
+				continue
+			}
+			usage := ingest.ToolUsage{Tokens: su.tokens, Cost: su.cost, Source: ingest.UsageStep}
+			tc.Usage = &usage
+		}
 	}
 
 	return messages, nil

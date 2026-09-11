@@ -1,27 +1,77 @@
-import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import type { Message } from "../hooks/types";
 import { shouldShowStepContent } from "../utils/toolDisplay";
-import { MarkdownContent } from "./MarkdownContent";
-import { ToolCallList } from "./ToolRenderers/ToolCallList";
+import { splitReasoning } from "../utils/reasoningChunks";
+import { MarkdownContent } from "./ui/MarkdownContent";
+import { ToolCallList } from "./tool-renderers/ToolCallList";
 
-function ThinkingBlock({ reasoning }: { reasoning: string }) {
-  const [expanded, setExpanded] = useState(false);
+// An ever-growing reasoning block. While the session is active and this message
+// holds the most recent reasoning the header reads "Thinking" with a spinner;
+// once done it reads "Thought <seconds>" (how long that chunk spent thinking).
+// The newest chunk hangs beneath the folded parent as a muted quoted block.
+// Expanding the parent shows every chunk.
+function ThinkingBlock({
+  reasoning,
+  live,
+  reasoningAt,
+  timestamp,
+}: {
+  reasoning: string;
+  live?: boolean;
+  reasoningAt?: string;
+  timestamp?: string;
+}) {
+  const chunks = useMemo(() => splitReasoning(reasoning), [reasoning]);
+  const [open, setOpen] = useState(false);
+
   if (!reasoning) return null;
+  const parentChunks = live ? chunks.slice(0, -1) : chunks;
+  const liveChunk = live ? chunks[chunks.length - 1] : undefined;
+  const shown = live && open ? chunks : parentChunks;
+  const thoughtSecs =
+    reasoningAt && timestamp
+      ? Math.max(
+          1,
+          Math.round((new Date(reasoningAt).getTime() - new Date(timestamp).getTime()) / 1000),
+        )
+      : undefined;
+  const label = live ? "Thinking" : `Thought${thoughtSecs ? ` ${thoughtSecs}s` : ""}`;
+
   return (
     <div className="mb-2">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <ChevronRight size={14} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? "Hide thinking" : "Show thinking"}
-      </button>
-      {expanded && (
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent-secondary cursor-pointer"
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+          {label}
+        </button>
+        {live && (
+          <Loader2
+            size={11}
+            className="animate-spin text-accent"
+            aria-label="thinking in progress"
+          />
+        )}
+      </div>
+      {open && (
+        <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
+          {shown.map((chunk, idx) => (
+            <div key={idx} className={idx > 0 ? "mt-2" : ""}>
+              <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
+                {chunk}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!open && liveChunk && (
         <div className="mt-1.5 pl-2.5 border-l-2 border-accent-muted">
           <div className="text-xs text-ov-text-secondary whitespace-pre-wrap leading-relaxed">
-            {reasoning}
+            {liveChunk}
           </div>
         </div>
       )}
@@ -78,26 +128,26 @@ function AssistantStepContent({
 export function AssistantMessageView({
   message,
   sessionId,
-  messageIndex,
   onOpenModal,
   onPin,
   onBookmark,
   isMsgBookmarked,
   bookmarkIdByRef,
+  live,
 }: {
   message: Message;
   sessionId: string;
-  messageIndex: number;
   onOpenModal?: (content: string, title?: string) => void;
   onPin?: (content: string) => void;
   onBookmark?: (
     sessionId: string,
-    messageIndex: number,
+    messageId: string | undefined,
     toolCallId: string | undefined,
     label: string,
   ) => void;
   isMsgBookmarked?: boolean;
   bookmarkIdByRef?: Record<string, string>;
+  live?: boolean;
 }) {
   const agent = message.agent && message.agent !== "main" ? message.agent : undefined;
   const text = (message.content || "").trim();
@@ -114,7 +164,12 @@ export function AssistantMessageView({
           {agent}
         </span>
       )}
-      <ThinkingBlock reasoning={reasoning} />
+      <ThinkingBlock
+        reasoning={reasoning}
+        live={live}
+        reasoningAt={message.reasoningAt}
+        timestamp={message.timestamp}
+      />
       {showText && (
         <AssistantStepContent
           content={text}
@@ -122,7 +177,7 @@ export function AssistantMessageView({
           onPin={onPin}
           onBookmark={
             onBookmark
-              ? () => onBookmark(sessionId, messageIndex, undefined, text.slice(0, 80))
+              ? () => onBookmark(sessionId, message.id, undefined, text.slice(0, 80))
               : undefined
           }
           isBookmarked={isMsgBookmarked}
@@ -139,12 +194,11 @@ export function AssistantMessageView({
             onBookmark={
               onBookmark
                 ? (toolCallId: string, label: string) =>
-                    onBookmark(sessionId, messageIndex, toolCallId, label)
+                    onBookmark(sessionId, message.id, toolCallId, label)
                 : undefined
             }
             bookmarkIdByRef={bookmarkIdByRef}
             sessionId={sessionId}
-            messageIndex={messageIndex}
           />
         </div>
       )}

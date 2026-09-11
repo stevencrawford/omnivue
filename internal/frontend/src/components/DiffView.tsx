@@ -3,13 +3,14 @@ import { PanelLeftClose, PanelLeftOpen, MessageSquareText, ArrowRight, File } fr
 import type { FileEdit } from "../hooks/types";
 import { fetchEdits } from "../hooks/apiClient";
 import { HunkRenderer } from "./DiffRenderer";
-import { CopyButton } from "./CopyButton";
+import { CopyButton } from "./ui/CopyButton";
 import { detectLanguage } from "../utils/detectLanguage";
-import { LoadingState } from "./LoadingState";
-import { EmptyPanel } from "./EmptyPanel";
+import { LoadingState } from "./ui/LoadingState";
+import { EmptyPanel } from "./ui/EmptyPanel";
 import { useToast } from "../hooks/useToast";
 import {
   mergeFileEdits,
+  expandPatchEdits,
   relativizePath,
   buildFileTree,
   DIFF_STATUS_COLORS,
@@ -52,7 +53,7 @@ export function DiffView({
     storageKey: DIFF_TREE_WIDTH_KEY,
     axis: "horizontal",
     min: 200,
-    max: 600,
+    max: 750,
     defaultValue: 280,
   });
   const { showErrorToast } = useToast();
@@ -75,8 +76,9 @@ export function DiffView({
   }, [load]);
 
   const mergedDiffs = useMemo(() => {
+    const expanded = expandPatchEdits(edits);
     const grouped = new Map<string, FileEdit[]>();
-    for (const edit of edits) {
+    for (const edit of expanded) {
       if (!edit.filePath) continue;
       const relPath = relativizePath(edit.filePath, sessionDirectory);
       const list = grouped.get(relPath) || [];
@@ -240,10 +242,18 @@ export function DiffView({
               </div>
               {selectedDiff.hunks.map((hunk, i) => {
                 const msgIdx = hunk.messageIndex;
-                const prevMsgIdx = i > 0 ? selectedDiff.hunks[i - 1].messageIndex : -2;
-                const showIndicator = msgIdx >= 0 && msgIdx !== prevMsgIdx && onNavigateToMessage;
-                const edit = edits.find((e) => e.messageIndex === msgIdx);
-                const msgId = edit?.messageId;
+                const msgId = hunk.messageId;
+                const prev = i > 0 ? selectedDiff.hunks[i - 1] : undefined;
+                // The canonical message id is the stable anchor; the raw index
+                // is only a fallback for edits with no id. Keying the indicator
+                // on whichever anchor exists stops adjacent hunks from the same
+                // message from each drawing their own link.
+                const anchorKey = msgId ?? `idx:${msgIdx}`;
+                const prevAnchorKey = prev ? (prev.messageId ?? `idx:${prev.messageIndex}`) : "";
+                const showIndicator =
+                  onNavigateToMessage &&
+                  (msgId !== undefined || msgIdx >= 0) &&
+                  anchorKey !== prevAnchorKey;
                 return (
                   <div key={i}>
                     {showIndicator && (
@@ -251,10 +261,10 @@ export function DiffView({
                         type="button"
                         onClick={() => onNavigateToMessage(msgIdx, msgId)}
                         className="flex items-center gap-1 px-2 py-1 text-[10px] text-ov-text-secondary/60 hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors w-full"
-                        title={`Jump to message #${msgIdx + 1}`}
+                        title={msgIdx >= 0 ? `Jump to message #${msgIdx + 1}` : "Jump to message"}
                       >
                         <MessageSquareText size={10} />
-                        <span>Message #{msgIdx + 1}</span>
+                        <span>{msgIdx >= 0 ? `Message #${msgIdx + 1}` : "Message"}</span>
                         <ArrowRight size={10} />
                       </button>
                     )}

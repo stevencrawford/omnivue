@@ -42,20 +42,28 @@ func (p *shutdownParser) record(event eventEnvelope) *ingest.StepEvent {
 	var step *ingest.StepEvent
 	if p.haveLast {
 		prev := p.last
-		dInput := snap.TokensInput - prev.TokensInput
-		dOutput := snap.TokensOutput - prev.TokensOutput
-		dReasoning := snap.TokensReasoning - prev.TokensReasoning
-		dCache := snap.TokensCacheRead - prev.TokensCacheRead
+		// A shutdown snapshot's modelMetrics are not always session-cumulative:
+		// after a context compaction or resume, Copilot re-bases the usage
+		// counters, so a later snapshot can be SMALLER than the prior one.
+		// clampDelta emits the raw value for such a field instead of clamping
+		// the (negative) difference to zero, so real usage is never dropped and
+		// the timeline never appears to reset. Monotonic totals keep their
+		// delta behavior unchanged.
+		dInput := intervalDelta(snap.TokensInput, prev.TokensInput)
+		dOutput := intervalDelta(snap.TokensOutput, prev.TokensOutput)
+		dReasoning := intervalDelta(snap.TokensReasoning, prev.TokensReasoning)
+		dCache := intervalDelta(snap.TokensCacheRead, prev.TokensCacheRead)
+		dCost := intervalDeltaFloat(snap.Cost, prev.Cost)
 		if dInput > 0 || dOutput > 0 || dReasoning > 0 || dCache > 0 {
 			step = &ingest.StepEvent{
 				Step: ingest.StepEventFinish,
 				Tokens: ingest.StepTokens{
-					Input:     max(dInput, 0),
-					Output:    max(dOutput, 0),
-					Reasoning: max(dReasoning, 0),
-					CacheRead: max(dCache, 0),
+					Input:     dInput,
+					Output:    dOutput,
+					Reasoning: dReasoning,
+					CacheRead: dCache,
 				},
-				Cost: max(snap.Cost-prev.Cost, 0),
+				Cost: dCost,
 			}
 		}
 	}
@@ -92,6 +100,26 @@ func (p *shutdownParser) codeChanges() (present bool, additions, deletions, file
 		return false, 0, 0, 0
 	}
 	return true, p.add, p.del, p.files
+}
+
+// intervalDelta computes the token interval between two shutdown snapshots.
+// When the current snapshot is cumulative (>= previous) the interval is the
+// difference; when Copilot has re-based the counters (current < previous), the
+// interval is the current value itself, so a reset never looks like negative
+// usage.
+func intervalDelta(cur, prev int) int {
+	if cur >= prev {
+		return cur - prev
+	}
+	return cur
+}
+
+// intervalDeltaFloat is intervalDelta for float64 cost values.
+func intervalDeltaFloat(cur, prev float64) float64 {
+	if cur >= prev {
+		return cur - prev
+	}
+	return cur
 }
 
 // parseShutdownEvent extracts the cumulative model/code data from one

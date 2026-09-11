@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Slash } from "lucide-react";
-import { Modal } from "./Modal";
+import { Modal } from "./ui/Modal";
 import { TAG_COLORS, TAG_NO_COLOR, hasTagColor, tagColor } from "../utils/tagColors";
 
 interface CreateTagModalProps {
@@ -77,7 +77,9 @@ export function CreateTagModal({ isOpen, onClose, onCreate, initialName }: Creat
                 style={{ backgroundColor: c }}
                 title={c}
               >
-                {color === c && <Check size={12} className="text-white" strokeWidth={3} />}
+                {color === c && (
+                  <Check size={12} className="tag-check text-white" strokeWidth={3} />
+                )}
               </button>
             ))}
           </div>
@@ -87,7 +89,7 @@ export function CreateTagModal({ isOpen, onClose, onCreate, initialName }: Creat
           <span className="flex items-center gap-1.5 text-xs text-ov-text-secondary">
             Preview:
             <span
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-ov-border bg-surface"
+              className="tag-preview inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-ov-border bg-surface"
               style={
                 hasTagColor(color)
                   ? {

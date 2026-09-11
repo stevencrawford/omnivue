@@ -16,7 +16,8 @@ Returns server status with schema version.
   "pid": 12345,
   "sources": 3,
   "sessions": 42,
-  "schemaVersion": 5
+  "schemaVersion": 9,
+  "indexed": true
 }
 ```
 
@@ -77,6 +78,14 @@ Update a source's path, type, label, or enabled state.
 }
 ```
 
+```http
+GET /_/api/sources/discover
+```
+
+Run agent source auto-discovery (`ingest.AutoDiscover()`) against the
+known default paths without adding anything. Returns an array of
+`DiscoveredSource` objects.
+
 ## Config
 
 ```http
@@ -87,9 +96,22 @@ Returns all config key-value pairs.
 
 ```json
 {
-  "theme": "dark"
+  "theme-name": "github",
+  "theme-mode": "dark"
 }
 ```
+
+Known keys written by the frontend:
+
+| Key | Purpose |
+|-----|---------|
+| `theme-name` | Theme name (`AppearanceSettingsTab`) |
+| `theme-mode` | `light` / `dark` (`AppearanceSettingsTab`) |
+| `sessions.cinematicMode` | Cinematic view enabled |
+| `sessions.hideStale` | Hide stale completed sessions from the list |
+| `sessions.staleDays` | Stale threshold in days |
+| `recent_searches` | Recent search queries (managed via `/recent-searches`) |
+| `notifications.settings` | Notification settings blob (managed via `/notifications/settings`) |
 
 ```http
 PUT /_/api/config
@@ -99,7 +121,7 @@ Set a config key-value pair.
 
 ```json
 {
-  "key": "theme",
+  "key": "theme-mode",
   "value": "dark"
 }
 ```
@@ -158,11 +180,15 @@ Get raw edit/write tool call data with old/new content, useful for reconstructin
 GET /_/api/sessions/{id}/resume
 ```
 
-Get the CLI command to resume a session.
+Get the CLI command to resume a session, rendered from the adapter's
+`resumecmd.Spec`.
 
 ```json
 {
-  "command": "cd /path/to/project && opencode --resume abc123"
+  "directory": "/path/to/project",
+  "absolute": "cd /path/to/project && opencode -s abc123",
+  "relative": "opencode -s abc123",
+  "agentCommand": "/session abc123"
 }
 ```
 
@@ -182,7 +208,8 @@ Override the display name for a session.
 DELETE /_/api/sessions/{id}/name
 ```
 
-Clear the display name override, reverting to the original title. Returns `204`.
+Clear the display name override, reverting to the original title.
+Returns `200` with `{"status":"ok"}`.
 
 ## Scratch Files
 
@@ -231,7 +258,7 @@ Update a scratch file's title and content.
 PATCH /_/api/sessions/{id}/scratch/{fileId}
 ```
 
-Rename a scratch file (title only). Returns `204`.
+Rename a scratch file (title only). Returns `200` with `{"status":"ok"}`.
 
 ```json
 {
@@ -243,7 +270,7 @@ Rename a scratch file (title only). Returns `204`.
 DELETE /_/api/sessions/{id}/scratch/{fileId}
 ```
 
-Delete a scratch file. Returns `204`.
+Delete a scratch file. Returns `200` with `{"status":"ok"}`.
 
 ```http
 GET /_/api/scratch
@@ -381,9 +408,10 @@ List all bookmarks.
   {
     "id": "bm_abc123",
     "sessionId": "sess_123",
-    "messageIndex": 5,
-    "toolCallId": "tc_456",
+    "messageId": "msg_456",
+    "toolCallId": "tc_789",
     "label": "Interesting output",
+    "kind": "message",
     "createdAt": "2026-06-01T12:00:00Z"
   }
 ]
@@ -393,25 +421,29 @@ List all bookmarks.
 POST /_/api/bookmarks
 ```
 
-Create or toggle a bookmark. If a bookmark for the same `sessionId`+`messageIndex`+`toolCallId` already exists, it is deleted instead. Accepts `sessionId`, `messageIndex`, `toolCallId`, and optional `label`.
+Create or toggle a bookmark. If a bookmark for the same
+`sessionId`+`messageId`+`toolCallId` position already exists, it is deleted
+instead. Accepts `sessionId`, `messageId`, `toolCallId`, `kind` (either
+`message` or `plan`; defaults to `message`), and optional `label`. Plan
+bookmarks use an empty `messageId` and no `toolCallId`.
 
 ```json
 {
   "sessionId": "sess_123",
-  "messageIndex": 5,
-  "toolCallId": "tc_456",
-  "label": "Interesting output"
+  "messageId": "",
+  "label": "Plan",
+  "kind": "plan"
 }
 ```
 
 Response indicates the action taken:
 
 ```json
-{"action": "created", "bookmark": {...}}
+{"id": "bm_abc123", "sessionId": "sess_123", ...}
 ```
-or
+or (toggle, `200`):
 ```json
-{"action": "deleted", "id": "bm_abc123"}
+{"deleted": true, "id": "bm_abc123"}
 ```
 
 ```http
@@ -442,20 +474,20 @@ Parameters:
     "title": "Question from agent",
     "preview": "Should we use React or Vue?",
     "severity": "attention",
-    "payload": "{\"messageIndex\":3}",
+    "payload": "{\"messageId\":\"msg_1\",\"position\":{\"messageID\":\"msg_1\",\"toolCallID\":\"tc_2\"},\"tabHint\":\"session\"}",
     "createdAt": 1769876543000,
     "readAt": null
   }
 ]
 ```
 
-Notification kinds: `question`, `task_complete`, `new_messages`, `new_tool_call`, `status_active`, `status_completed`, `status_error`.
+Notification kinds: `question`, `permission_request`, `exit_plan_mode`, `task_complete`, `new_messages`, `new_tool_call`, `status_active`, `status_completed`, `status_error`.
 
 ```http
 DELETE /_/api/notifications
 ```
 
-Clear all notifications. Returns `204`.
+Clear all notifications. Returns `200` with `{"status":"ok"}`.
 
 ```http
 POST /_/api/notifications/read
@@ -479,7 +511,7 @@ Report the currently-viewed session ID to the server (used by the `excludeActive
 {"sessionId": "sess_123"}
 ```
 
-Returns `204`.
+Returns `200` with `{"status":"ok"}`.
 
 ### Notification Settings
 
@@ -487,21 +519,19 @@ Returns `204`.
 GET /_/api/notifications/settings
 ```
 
-Returns the current notification settings as JSON.
+Returns the current notification settings as JSON. `scope` is one of
+`"all"` | `"opened"` | `"pinned"`.
 
 ```json
 {
   "enabled": true,
-  "kinds": ["question", "task_complete", "new_messages", "new_tool_call", "status_active", "status_completed", "status_error"],
+  "kinds": ["question", "permission_request", "exit_plan_mode", "task_complete", "new_messages", "new_tool_call", "status_active", "status_completed", "status_error"],
   "scope": "all",
   "inAppToast": true,
   "sidebarBadge": true,
   "browserNotify": false,
-  "quietHoursEnabled": false,
-  "quietHoursStart": "22:00",
-  "quietHoursEnd": "08:00",
-  "autoDismissSec": 5,
-  "excludeActiveView": true
+  "excludeActiveView": true,
+  "enabledAt": 1769876543000
 }
 ```
 
@@ -510,6 +540,93 @@ PUT /_/api/notifications/settings
 ```
 
 Save notification settings. Accepts the same JSON shape as above.
+
+## Prompt Queue
+
+```http
+GET /_/api/prompts?status=<s>&session_id=<id>&limit=<n>
+```
+
+List queued prompts.
+
+Parameters:
+- `status` (optional) — Filter by status (`queued`, `dispatched`, `cancelled`)
+- `session_id` (optional) — Filter by session
+- `limit` (optional, default 100) — Max results
+
+```json
+[
+  {
+    "id": "qp_1234",
+    "sessionId": "sess_123",
+    "sourceId": "src_1",
+    "promptText": "Add a login endpoint",
+    "status": "queued",
+    "priority": 0,
+    "tags": "[]",
+    "createdAt": 1769876543000,
+    "dispatchedAt": null
+  }
+]
+```
+
+```http
+POST /_/api/prompts
+```
+
+Queue a new prompt. `promptText` is required. Returns the created prompt
+with `201` and emits a `prompt-queue-changed` SSE event.
+
+```json
+{
+  "sessionId": "sess_123",
+  "sourceId": "src_1",
+  "promptText": "Add a login endpoint",
+  "priority": 0,
+  "tags": ["backend"]
+}
+```
+
+```http
+PATCH /_/api/prompts/{id}
+```
+
+Edit a queued prompt's text, priority, or tags. Returns `200` with
+`{"status":"ok"}` and emits a `prompt-queue-changed` event.
+
+```json
+{
+  "promptText": "Add a login endpoint with rate limiting",
+  "priority": 1,
+  "tags": ["backend"]
+}
+```
+
+```http
+DELETE /_/api/prompts/{id}
+```
+
+Delete a queued prompt. Returns `200` with `{"status":"ok"}` and emits a
+`prompt-queue-changed` event.
+
+```http
+POST /_/api/prompts/{id}/dispatch
+```
+
+Mark a prompt as dispatched. Returns `200` with
+`{"status":"ok","promptText":"..."}` and emits a `prompt-queue-changed`
+event.
+
+```http
+POST /_/api/prompts/batch
+```
+
+Delete multiple prompts at once. Returns `200` with `{"status":"ok"}` and
+emits a `prompt-queue-changed` event.
+
+```json
+{"ids": ["qp_123", "qp_456"]}
+```
 
 ## Terminal (WebSocket)
 
@@ -583,6 +700,9 @@ data: {"id":"notif_abc","sessionId":"sess_1",...}
 event: notifications-read
 data: {"ids":["notif_abc","notif_def"]}
 
+event: prompt-queue-changed
+data: {}
+
 event: reset
 data: {}
 ```
@@ -593,4 +713,5 @@ Events:
 - `session-changed` — Specific sessions changed, with IDs
 - `notification` — A new notification was created
 - `notifications-read` — Notifications were marked as read
+- `prompt-queue-changed` — The prompt queue changed (refresh)
 - `reset` — All user data was reset
