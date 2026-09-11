@@ -23,7 +23,7 @@ export function SessionsSettingsTab() {
         checked={cinematicEnabled}
         onChange={setCinematicEnabled}
         label="Studio view"
-        hint="Immersive workspace that replaces tabs — file tree, console, and activity drawer stay synced to a scrubbable timeline. Play, step, or isolate any turn. (Preview)"
+        hint="Immersive workspace that replaces tabs — file tree, console, and activity drawer stay synced to a scrubbable timeline. Play, step, or isolate any turn."
       />
 
       <div className="mt-6">

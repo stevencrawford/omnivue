@@ -37,7 +37,7 @@ function writeLocal(v: boolean): void {
 }
 
 export function CinematicModeProvider({ children }: { children: ReactNode }) {
-  const [enabled, setEnabledState] = useState(() => readLocal() ?? false);
+  const [enabled, setEnabledState] = useState(() => readLocal() ?? true);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +47,7 @@ export function CinematicModeProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         const fromConfig = cfg[CONFIG_CINEMATIC];
         if (fromConfig === "true" || fromConfig === "false") {
-          const v = parseBool(fromConfig, false);
+          const v = parseBool(fromConfig, true);
           setEnabledState(v);
           writeLocal(v);
         } else {
