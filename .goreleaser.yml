@@ -79,5 +79,21 @@ nfpms:
       - rpm
     bindir: /usr/bin
     epoch: 1
+brews:
+  -
+    repository:
+      owner: stevencrawford
+      name: homebrew-tap
+    name: omnivue
+    directory: Formula
+    homepage: https://github.com/stevencrawford/omnivue
+    description: "Omnivue is an AI/LLM session manager for coding agents"
+    license: MIT
+    url_template: "https://github.com/stevencrawford/omnivue/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    commit_msg_template: "Brew formula update for omnivue version {{ .Tag }}"
+    install: |
+      bin.install "omnivue"
+    test: |
+      system "#{bin}/omnivue", "--version"
 release:
   use_existing_draft: true
