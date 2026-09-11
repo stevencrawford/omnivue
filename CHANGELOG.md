@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.3.0](https://github.com/stevencrawford/omnivue/compare/v0.2.4...v0.3.0) - 2026-09-11
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group in /internal/frontend with 10 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/156
+- chore(deps): bump the dependencies group in /internal/frontend with 19 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/160
+- chore(deps): bump modernc.org/sqlite from 1.56.0 to 1.57.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/159
+- chore(deps): bump the dependencies group in /internal/frontend with 14 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/165
+- chore(deps): bump Songmu/tagpr from 1.20.1 to 1.20.2 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/164
+- chore(deps): bump the dependencies group in /internal/frontend with 17 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/181
+- chore(deps): bump the dependencies group with 2 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/179
+- chore(deps): bump the dependencies group with 3 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/180
+### Other Changes
+- feat(ui): cinematic playable session view by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/161
+- fix: Remove Activity pane horizontal scrollbar by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/163
+- fix(cinematic): Route orphan tools to activity fallback by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/166
+- feat(cinematic): Connect search jump-to-message to activity drawer by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/168
+- fix: Tidy grep card, honor raw renderer fallback by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/167
+- fix: Harden TestPipelineRefresh_BroadcastsBeforeIndexing against CI flake by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/169
+- feat(cinematic): shift-click range selection on timeline by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/170
+- docs: Update documentation to reflect current codebase by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/172
+- fix(frontend): Unify plan/question/task-complete icon and font sizes by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/171
+- fix: Restore screenshot, move scratch add button by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/173
+- feat: Support Copilot message and requestedSchema question inputs by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/174
+- fix(console): Suppress negative duration for running commands by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/176
+- feat(cinematic): activity and plan bookmarks by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/175
+- feat(cinematic): Add file tree kind toggles by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/177
+- fix(frontend): Remove stray Show all under grep calls by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/178
+- feat(frontend): Enable Studio view by default by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/182
+
 ## [v0.2.4](https://github.com/stevencrawford/omnivue/compare/v0.2.3...v0.2.4) - 2026-08-17
 
 ### Other Changes
