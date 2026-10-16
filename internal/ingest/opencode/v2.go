@@ -29,6 +29,7 @@ const sessionV2Select = `
 		MAX(s.time_updated,
 			COALESCE((SELECT MAX(time_updated) FROM session_message WHERE session_id = s.id), 0)) AS time_updated,
 		COALESCE(p.name, ''),
+		COALESCE(p.worktree, ''),
 		(SELECT COUNT(*) FROM session_message WHERE session_id = s.id)
 	FROM session_v2 s
 	LEFT JOIN project p ON s.project_id = p.id
@@ -129,19 +130,20 @@ func (a *Adapter) sessionV2(ctx context.Context, id string) (*ingest.Session, er
 
 func scanSessionV2(scan func(dest ...any) error) (ingest.Session, error) {
 	var (
-		s           ingest.Session
-		parentID    sql.NullString
-		title       sql.NullString
-		slug        string
-		modelJSON   sql.NullString
-		agentCol    sql.NullString
-		summFiles   sql.NullInt64
-		summAdd     sql.NullInt64
-		summDel     sql.NullInt64
-		timeCreated int64
-		timeUpdated int64
-		projectName string
-		msgCount    int
+		s               ingest.Session
+		parentID        sql.NullString
+		title           sql.NullString
+		slug            string
+		modelJSON       sql.NullString
+		agentCol        sql.NullString
+		summFiles       sql.NullInt64
+		summAdd         sql.NullInt64
+		summDel         sql.NullInt64
+		timeCreated     int64
+		timeUpdated     int64
+		projectName     string
+		projectWorktree string
+		msgCount        int
 	)
 
 	err := scan(
@@ -150,7 +152,7 @@ func scanSessionV2(scan func(dest ...any) error) (ingest.Session, error) {
 		&s.TokensCacheRead, &s.TokensCacheWrite,
 		&summFiles, &summAdd, &summDel,
 		&timeCreated, &timeUpdated,
-		&projectName, &msgCount,
+		&projectName, &projectWorktree, &msgCount,
 	)
 	if err != nil {
 		return ingest.Session{}, err
@@ -163,7 +165,7 @@ func scanSessionV2(scan func(dest ...any) error) (ingest.Session, error) {
 		s.Title = slug
 	}
 	s.Model = extractModelID(modelJSON.String)
-	s.Repository = ingestkit.DeriveRepository(s.Directory, projectName)
+	s.Repository = deriveRepositoryV2(s.Directory, projectName, projectWorktree)
 	s.CreatedAt = time.UnixMilli(timeCreated)
 	s.UpdatedAt = time.UnixMilli(timeUpdated)
 	s.Status = ingest.SessionStatusCompleted
@@ -188,6 +190,24 @@ func scanSessionV2(scan func(dest ...any) error) (ingest.Session, error) {
 	s.MessageCount = msgCount
 
 	return s, nil
+}
+
+// deriveRepositoryV2 resolves the sidebar grouping name for a v2 session. In v2
+// a single project row (keyed by the canonical worktree) can own sessions that
+// ran in git worktrees or sandboxes, each with its own session_v2.directory.
+// Grouping by that directory would split one repository into a group per
+// worktree, so prefer the project's worktree root. The project name wins when
+// set, and the session directory is the fallback for the synthetic "global"
+// project (worktree "/") or when the project row is missing.
+func deriveRepositoryV2(directory, projectName, projectWorktree string) string {
+	if projectName != "" {
+		return projectName
+	}
+	root := projectWorktree
+	if root == "" || root == "/" {
+		root = directory
+	}
+	return ingestkit.DeriveRepository(root, "")
 }
 
 // openStepSessionsV2 returns the sessions whose most recent assistant turn has
