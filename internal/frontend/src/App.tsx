@@ -22,7 +22,7 @@ import { useSearchScope } from "./hooks/useSearchScope";
 import { useSearchState } from "./hooks/useSearchState";
 import { useRecentSearches } from "./hooks/useRecentSearches";
 import { useBookmarks } from "./hooks/useBookmarks";
-import { useSessions, setOnPromptQueueChanged } from "./hooks/useSessions";
+import { useSessions, setOnPromptsChanged } from "./hooks/useSessions";
 import { useStatus } from "./hooks/useStatus";
 import { useScratchFiles } from "./hooks/useScratchFiles";
 import { usePinMessage } from "./hooks/usePinMessage";
@@ -86,13 +86,10 @@ export function App() {
     focusMessageId,
     focusMessageKey,
     searchHighlightQuery,
-    highlightPromptId,
     filterTag,
     handleSessionSelect,
     handleBookmarkSelect,
     handleNotificationClick,
-    handlePromptClick,
-    handleHighlightDone,
     goHome,
     setTab,
     setSection,
@@ -122,7 +119,7 @@ export function App() {
   const [searchInput, setSearchInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [queueCount, setQueueCount] = useState(0);
+  const [promptCount, setPromptCount] = useState(0);
   const [promptVersion, setPromptVersion] = useState(0);
 
   // ---- URL hash routing ----
@@ -131,10 +128,10 @@ export function App() {
   // navigateTo. Browser Back/Forward undo navigation because each destination
   // is a distinct history entry.
 
-  const fetchQueueCount = useCallback(async () => {
+  const fetchPromptCount = useCallback(async () => {
     try {
-      const prompts = await fetchPrompts("queued");
-      setQueueCount(prompts.length);
+      const prompts = await fetchPrompts("open");
+      setPromptCount(prompts.length);
       setPromptVersion((v) => v + 1);
     } catch {
       /* ignore */
@@ -142,10 +139,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    setOnPromptQueueChanged(fetchQueueCount);
-    fetchQueueCount();
-    return () => setOnPromptQueueChanged(null);
-  }, [fetchQueueCount]);
+    setOnPromptsChanged(fetchPromptCount);
+    fetchPromptCount();
+    return () => setOnPromptsChanged(null);
+  }, [fetchPromptCount]);
 
   // Refresh the reported version whenever the server reconnects so an upgraded
   // binary surfaces its new version without a manual page reload.
@@ -328,9 +325,8 @@ export function App() {
                       onNotificationClick={handleNotificationClick}
                       onMarkAllNotificationsRead={markAllNotificationsRead}
                       onClearNotifications={clearAllNotifications}
-                      queueCount={queueCount}
+                      promptCount={promptCount}
                       promptVersion={promptVersion}
-                      onPromptClick={handlePromptClick}
                     />
                   </ErrorBoundary>
                   <main className="flex-1 flex flex-col overflow-hidden sess-main-canvas">
@@ -345,9 +341,6 @@ export function App() {
                             onNameChanged={loadSessions}
                             onBookmark={handleBookmark}
                             bookmarkIdByRef={bookmarkIdByRef}
-                            onQueueChanged={fetchQueueCount}
-                            highlightPromptId={highlightPromptId}
-                            onHighlightDone={handleHighlightDone}
                             onPinMessage={handlePinMessage}
                             pinnedScratchId={pinnedScratchId}
                             activeTab={activeTab}

@@ -339,24 +339,18 @@ export const NotificationSettingsSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Prompt Queue
+// Prompts
 // ---------------------------------------------------------------------------
 
-export const QueuedPromptSchema = z.object({
+export const PromptSchema = z.object({
   id: z.string(),
-  sessionId: z.string().nullable().optional(),
-  sourceId: z.string().nullable().optional(),
   promptText: z.string(),
-  status: z.enum(["queued", "dispatched", "cancelled"]),
-  priority: z.number(),
-  tags: z.string(),
+  status: z.enum(["open", "done"]),
+  pinned: z.boolean(),
+  position: z.number(),
   createdAt: z.number(),
-  dispatchedAt: z.number().nullable().optional(),
+  updatedAt: z.number().nullable().optional(),
+  doneAt: z.number().nullable().optional(),
 });
 
-export const QueuedPromptsSchema = z.array(QueuedPromptSchema);
-
-export const DispatchResponseSchema = z.object({
-  status: z.string(),
-  promptText: z.string(),
-});
+export const PromptsSchema = z.array(PromptSchema);

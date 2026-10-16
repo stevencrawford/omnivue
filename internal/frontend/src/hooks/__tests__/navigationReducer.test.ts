@@ -34,7 +34,6 @@ describe("navigationReducer", () => {
         showOverview: false,
         activeTab: "plan",
         searchHighlightQuery: "foo",
-        highlightPromptId: "p",
         focusPosition: { messageID: "m9", toolCallID: "tc1" },
         focusMessageIndex: 5,
         focusMessageKey: 3,
@@ -45,7 +44,6 @@ describe("navigationReducer", () => {
       expect(next.showOverview).toBe(false);
       expect(next.activeTab).toBe("session");
       expect(next.searchHighlightQuery).toBeNull();
-      expect(next.highlightPromptId).toBeNull();
       expect(next.focusPosition).toBeUndefined();
       expect(next.focusMessageIndex).toBeUndefined();
       expect(next.focusMessageId).toBeUndefined();
@@ -290,7 +288,6 @@ describe("navigationReducer", () => {
           showOverview: false,
           activeTab: "plan",
           searchHighlightQuery: "q",
-          highlightPromptId: "p",
           focusPosition: { messageID: "m9" },
           focusMessageIndex: 2,
         }),
@@ -300,7 +297,6 @@ describe("navigationReducer", () => {
       expect(next.showOverview).toBe(true);
       expect(next.activeTab).toBe("session");
       expect(next.searchHighlightQuery).toBeNull();
-      expect(next.highlightPromptId).toBeNull();
       expect(next.focusPosition).toBeUndefined();
       expect(next.focusMessageIndex).toBeUndefined();
     });

@@ -18,7 +18,7 @@ import { toolRendererRegistry } from "../tool-renderers/registry";
 import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
 import { useDisableCustomRenderers } from "../../hooks/useDisableCustomRenderers";
 import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../../hooks/useBookmarks";
-import { PinnedPromptBar } from "../PinnedPromptBar";
+import { UserPromptBubble } from "../UserPromptBubble";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
 
@@ -51,9 +51,6 @@ interface NotificationDrawerProps {
   planLoading?: boolean;
   onToggleCollapse?: () => void;
   firstMessage?: Message | null;
-  onQueueChanged?: () => void;
-  highlightPromptId?: string | null;
-  onHighlightDone?: () => void;
   activeTab?: ActivityTab;
   onTabChange?: (tab: ActivityTab) => void;
   /** Message id force-included past the cursor/span filter for a search jump. */
@@ -166,9 +163,6 @@ export function NotificationDrawer({
   planLoading,
   onToggleCollapse,
   firstMessage,
-  onQueueChanged,
-  highlightPromptId,
-  onHighlightDone,
   activeTab: controlledTab,
   onTabChange,
   spotlightId,
@@ -562,19 +556,13 @@ export function NotificationDrawer({
       </div>
 
       <div
-        className={`flex-1 min-h-0 min-w-0 overflow-hidden overflow-x-hidden ${activeTab !== "prompt" ? "hidden" : ""}`}
+        className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 ${activeTab !== "prompt" ? "hidden" : ""}`}
       >
-        <PinnedPromptBar
-          session={session}
-          firstMessage={firstMessage ?? null}
-          onOpenModal={onOpenModal}
-          onQueueChanged={onQueueChanged}
-          highlightPromptId={highlightPromptId}
-          onHighlightDone={onHighlightDone}
-          defaultExpanded
-          hideHeader
-          fillHeight
-        />
+        {firstMessage ? (
+          <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
+        ) : (
+          <p className="text-xs text-ov-text-secondary/70">This session has no initial prompt.</p>
+        )}
       </div>
 
       <div

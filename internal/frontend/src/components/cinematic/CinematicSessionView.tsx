@@ -68,9 +68,6 @@ interface CinematicSessionViewProps {
   onPinMessage?: (content: string) => void;
   /** A freshly pinned scratch file id to focus (set by the pin-message flow). */
   pinnedScratchId?: string | null;
-  onQueueChanged?: () => void;
-  highlightPromptId?: string | null;
-  onHighlightDone?: () => void;
   onJumpTerminal?: () => void;
   /** Hit tab from the navigation store (search hits set session/plan/scratch:*). */
   activeTab?: Tab;
@@ -91,9 +88,6 @@ export function CinematicSessionView({
   bookmarkIdByRef,
   onPinMessage,
   pinnedScratchId,
-  onQueueChanged,
-  highlightPromptId,
-  onHighlightDone,
   onJumpTerminal,
   activeTab,
   focusPosition,
@@ -1317,9 +1311,6 @@ export function CinematicSessionView({
                         activeTab={activityTab}
                         onTabChange={handleActivityTabChange}
                         firstMessage={firstMessage}
-                        onQueueChanged={onQueueChanged}
-                        highlightPromptId={highlightPromptId}
-                        onHighlightDone={onHighlightDone}
                         spotlightId={spotlightId}
                         jumpKey={focusMessageKey}
                         onJumpLanded={handleJumpLanded}

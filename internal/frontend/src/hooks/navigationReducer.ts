@@ -35,7 +35,6 @@ export interface NavigationState {
   focusMessageKey: number;
   focusMessageId: string | undefined;
   searchHighlightQuery: string | null;
-  highlightPromptId: string | null;
   filterTag: string | null;
 }
 
@@ -49,7 +48,6 @@ export const initialNavigationState: NavigationState = {
   focusMessageKey: 0,
   focusMessageId: undefined,
   searchHighlightQuery: null,
-  highlightPromptId: null,
   filterTag: null,
 };
 
@@ -58,8 +56,6 @@ export type NavigationAction =
   | { type: "JUMP_TO_MESSAGE"; target: FocusTarget }
   | { type: "CLEAR_FOCUS" }
   | { type: "GO_HOME" }
-  | { type: "HIGHLIGHT_PROMPT"; promptId: string }
-  | { type: "HIGHLIGHT_DONE" }
   | { type: "OPEN_TAG"; name: string }
   | { type: "CLEAR_TAG" }
   | { type: "BOOKMARK_SELECT"; bookmark: Bookmark }
@@ -177,7 +173,6 @@ export function navigationReducer(
         showOverview: false,
         activeTab: "session",
         searchHighlightQuery: null,
-        highlightPromptId: null,
         focusPosition: undefined,
         focusMessageIndex: undefined,
         focusMessageId: undefined,
@@ -200,16 +195,11 @@ export function navigationReducer(
         showOverview: true,
         activeTab: "session",
         searchHighlightQuery: null,
-        highlightPromptId: null,
         focusPosition: undefined,
         focusMessageIndex: undefined,
         focusMessageId: undefined,
         focusMessageKey: 0,
       };
-    case "HIGHLIGHT_PROMPT":
-      return { ...state, highlightPromptId: action.promptId };
-    case "HIGHLIGHT_DONE":
-      return { ...state, highlightPromptId: null };
     case "OPEN_TAG":
       return { ...state, filterTag: action.name, activeSection: "tags" };
     case "CLEAR_TAG":

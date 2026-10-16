@@ -88,7 +88,7 @@ describe("fetchStatus", () => {
     pid: 123,
     sources: 2,
     sessions: 10,
-    schemaVersion: 9,
+    schemaVersion: 10,
   };
 
   it("returns status on success", async () => {
