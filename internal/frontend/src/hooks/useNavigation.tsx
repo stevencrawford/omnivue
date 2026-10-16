@@ -7,7 +7,7 @@ import {
   useReducer,
   useRef,
 } from "react";
-import type { AppNotification, Bookmark, Position, Session } from "./types";
+import type { AppNotification, Bookmark, Position, Session, Tab } from "./types";
 import {
   initialNavigationState,
   navigationReducer,
@@ -29,7 +29,6 @@ import {
   clearSessionPosition,
   type SessionPosition,
 } from "./useSessionPosition";
-import type { Tab } from "../components/SessionViewer";
 import type { Section } from "../components/IconChannel";
 
 // ---------------------------------------------------------------------------

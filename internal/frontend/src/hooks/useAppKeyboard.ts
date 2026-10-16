@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import type { Session } from "./types";
-import type { Tab } from "../components/SessionViewer";
+import type { Session, Tab } from "./types";
 
 export interface AppKeyboardConfig {
   sessions: Session[];
@@ -94,7 +93,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
       if ((e.metaKey || e.ctrlKey) && !isInput) {
         const tabMap: Record<string, Tab> = {
           "1": "session",
-          "2": "diff",
+          "2": "plan",
         };
         const tab = tabMap[e.key];
         if (tab) {

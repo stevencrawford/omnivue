@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileMessages } from "../SessionViewer";
+import { reconcileMessages } from "../reconcileMessages";
 import type { Message } from "../../hooks/types";
 
 function msg(id: string, overrides: Partial<Message> = {}): Message {

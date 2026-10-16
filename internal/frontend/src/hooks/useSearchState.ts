@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SearchResult } from "./types";
-import type { Tab } from "../components/SessionViewer";
+import type { SearchResult, Tab } from "./types";
 import type { SearchHitTarget } from "./useNavigation";
 import { fetchSearch } from "./apiClient";
 import { isAbortError } from "../utils/errors";
