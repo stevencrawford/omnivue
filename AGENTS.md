@@ -115,11 +115,12 @@ Key gostyle rules that commonly trigger:
   - `types.go` — Unified types: `Session`, `Message`, `ToolCall`, `PlanItem`, `DiffFile`, `Source`, `FileEdit`, `StepEvent`
   - `adapter.go` — `Adapter` interface + `OpenReadOnlyDB()` safeguard
   - `detect.go` — `AutoDiscover()` scans known paths for agent session data
-  - `opencode/opencode.go` — OpenCode adapter: reads `opencode.db` (SQLite, read-only)
-  - `copilot/copilot.go` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
-  - `cursor/cursor.go` — Cursor adapter: reads `state.vscdb` (SQLite KV) + `agent-transcripts` JSONL + `ai-code-tracking.db` (read-only)
-  - `pi/pi.go` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
-  - `claude-code/claude_code.go` — Claude Code adapter: reads `~/.claude/projects/*/*.jsonl` (JSONL, read-only)
+  - `opencode/` — OpenCode adapter (v1 + v2): reads `opencode.db` (SQLite, read-only)
+  - `copilot/` — Copilot adapter: reads `session-store.db` + `events.jsonl` (read-only)
+  - `cursor/` — Cursor adapter: reads `state.vscdb` (SQLite KV) + `projects/<uuid>/*.jsonl` (read-only)
+  - `pi/` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
+  - `claude-code/` — Claude Code adapter: reads `~/.claude/projects/*/*.jsonl` (JSONL, read-only)
+  - `codex/` — Codex adapter: reads `~/.codex/session_index.jsonl` + `~/.codex/sessions/**/*.jsonl` (JSONL, read-only)
 - `internal/store/store.go` — Manages `$XDG_STATE_HOME/omnivue/omnivue.db`: sources, tags, FTS5 search index, scratch files, config, session name overrides
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, adaptive polling (5s live / 30s idle)
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
@@ -184,6 +185,7 @@ Before applying any migration to a database that already holds application data 
 | POST | `/_/api/sources` | Add a session source |
 | DELETE | `/_/api/sources/{id}` | Remove a session source |
 | PATCH | `/_/api/sources/{id}` | Update a session source |
+| GET | `/_/api/sources/discover` | Auto-discover known agent paths (no changes) |
 | GET | `/_/api/config` | Get all config key-value pairs |
 | PUT | `/_/api/config` | Set a config key-value pair |
 | GET | `/_/api/sessions` | List all sessions |
@@ -193,6 +195,7 @@ Before applying any migration to a database that already holds application data 
 | GET | `/_/api/sessions/{id}/diffs` | Get session file changes |
 | GET | `/_/api/sessions/{id}/edits` | Get raw edit/write tool call data |
 | GET | `/_/api/sessions/{id}/resume` | Get CLI command to resume the session |
+| GET | `/_/api/sessions/{id}/file?path=` | Read a file from the session's working directory |
 | PUT | `/_/api/sessions/{id}/name` | Override session display name |
 | DELETE | `/_/api/sessions/{id}/name` | Clear session display name override |
 | GET | `/_/api/sessions/{id}/scratch` | List scratch files for a session |
@@ -202,15 +205,20 @@ Before applying any migration to a database that already holds application data 
 | PATCH | `/_/api/sessions/{id}/scratch/{fileId}` | Rename a scratch file (title only) |
 | DELETE | `/_/api/sessions/{id}/scratch/{fileId}` | Delete a scratch file |
 | GET | `/_/api/scratch` | List all scratch files across sessions |
+| GET | `/_/api/recent-searches` | Get recent search queries |
+| POST | `/_/api/recent-searches` | Save recent search queries |
 | GET | `/_/api/search?q=&limit=&session_id=` | Full-text search (optionally scoped to session, tags ranked first) |
 | GET | `/_/api/tags` | List all tags |
 | POST | `/_/api/tags` | Create a new tag |
 | PATCH | `/_/api/tags/{id}` | Update a tag (name, color) |
 | DELETE | `/_/api/tags/{id}` | Delete a tag |
 | GET | `/_/api/tags/{id}/sessions` | List session IDs in a tag |
-| POST | `/_/api/tags/{id}/sessions/{sid}` | Apply a tag to a session |
-| DELETE | `/_/api/tags/{id}/sessions/{sid}` | Remove a tag from a session |
+| POST | `/_/api/tags/{id}/sessions/{sessionId}` | Apply a tag to a session |
+| DELETE | `/_/api/tags/{id}/sessions/{sessionId}` | Remove a tag from a session |
 | GET | `/_/api/sessions/{id}/tags` | Get tags applied to a session |
+| GET | `/_/api/bookmarks` | List all bookmarks |
+| POST | `/_/api/bookmarks` | Create or toggle a bookmark |
+| DELETE | `/_/api/bookmarks/{id}` | Delete a bookmark |
 | POST | `/_/api/reset` | Reset all user data (keeps agent data intact) |
 | POST | `/_/api/shutdown` | Shutdown server |
 | POST | `/_/api/restart` | Restart server |
@@ -221,58 +229,62 @@ Before applying any migration to a database that already holds application data 
 | POST | `/_/api/notifications/active-view` | Report currently-viewed session `{sessionId}` |
 | GET | `/_/api/notifications/settings` | Get notification settings JSON |
 | PUT | `/_/api/notifications/settings` | Save notification settings JSON |
-| GET | `/_/events` | SSE event stream (update, session-changed) |
+| GET | `/_/api/prompts?status=&limit=` | List prompt-pad entries |
+| POST | `/_/api/prompts` | Create a prompt |
+| PATCH | `/_/api/prompts/{id}` | Edit / toggle done / pin a prompt |
+| DELETE | `/_/api/prompts/{id}` | Delete a prompt |
+| PUT | `/_/api/prompts/order` | Persist manual prompt order |
+| POST | `/_/api/prompts/batch` | Delete multiple prompts |
+| GET | `/_/events` | SSE event stream (update, session-changed, notification, notifications-read, prompts-changed, reset) |
 
 ## Frontend
 
 - Package manager: **pnpm**
 - Framework: React 19 + TypeScript + Tailwind CSS v4
-- Key dependencies: `react-markdown`, `remark-gfm`, `remark-breaks`, `rehype-highlight`, `@monaco-editor/react`, `@tiptap/*`, `diff`, `marked`, `lucide-react`, `turndown`
+- Key dependencies: `react-markdown`, `remark-gfm`, `remark-breaks`, `rehype-highlight`, `@monaco-editor/react`, `@tiptap/*`, `diff`, `marked`, `turndown`, `lucide-react`, `recharts`, `zod`, `effect` (SSE only), `@xterm/xterm`, `react-router-dom`, `html-to-image`
 - Key components:
   - `App.tsx` — Root state, session selection, keyboard shortcuts, URL hash deep-linking
-  - `Sidebar.tsx` — Session tree grouped by repo, resizable, section nav (sessions/projects/notifications)
-  - `cinematic/CinematicSessionView.tsx` — Full-screen session workspace (timeline scrubber, activity drawer, console, file access tree)
+  - `Sidebar.tsx` — Resizable, collapsible sidebar; icon-channel nav (sessions/prompts/tags/bookmarks/notifications)
+  - `cinematic/CinematicSessionView.tsx` — The sole session view: full-screen workspace (timeline scrubber + playback, activity/plan/prompt drawer, console, file-access tree, markdown viewer, terminal)
+  - `PromptsPanel.tsx` — Global prompt pad (type/paste, copy, pin, reorder, done)
   - `MarkdownContent.tsx` — Markdown renderer with syntax highlighting
   - `DiffRenderer.tsx` — Inline unified diff rendering
   - `ScratchEditor.tsx` — WYSIWYG (TipTap) + code editor (Monaco) for scratch notes
   - `SearchPanel.tsx` — Inline search typeahead
   - `SearchResultsDrawer.tsx` — Full-screen search results
-  - `SettingsModal.tsx` — Manage sources, theme
+  - `SettingsModal.tsx` — Tabbed settings (agent/sessions/notifications/appearance/privacy/developer/about)
   - `ThemeToggle.tsx` — Light/dark theme toggle
   - `TagPanel.tsx` — Tag search/list + session assignment
-  - `CreateTagModal.tsx` — Create/edit tag name and color
-  - `ErrorBoundary.tsx` — Graceful error recovery
+  - `BookmarkPanel.tsx` — Bookmarked sessions/messages/plans
   - `IconChannel.tsx` — Section navigation toggle
-  - `SessionPanel.tsx` — Session list by repo
+  - `SessionPanel.tsx` — Session list grouped by repo
   - `sessions/SessionFamilySelect.tsx` — Header dropdown to switch between a session's main view and its sub-agents (sub-agents are not shown in the sidebar tree)
-  - `ProjectPanel.tsx` — Project-based browsing
-  - `ContextMenu.tsx` — Right-click menus
   - `Toast.tsx` — Notification toasts (supports optional click action)
   - `NotificationPanel.tsx` — Notifications list (bell section) with read/unread + filters
   - `NotificationRow.tsx` — Single notification row
-  - `NotificationsSettingsTab.tsx` — Notification settings (kinds, scope, delivery)
   - `TerminalPanel.tsx` — In-browser PTY terminal (xterm.js + WebSocket)
-- Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize)
-- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
-- Theme: GitHub-style light/dark via `data-theme` attribute
+- Hooks: `useSSE.ts` (SSE with auto-reconnect), `useNavigation.tsx` (session nav context + intent verbs), `useTheme.tsx` (theme state/persistence), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize). API access is via `apiClient.ts` + `schemas.ts`/`types.ts` (no `useApi` barrel).
+- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `reconcileMessages.ts` (preserve message identity across SSE polls), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
+- Theme: nine switchable themes (Ayu, Nord, Catppuccin, Tokyo Night, GitHub, One Monokai, Atom One, Dracula, Night Owl) via `data-theme`/`data-mode`/`data-contrast` attributes
 - localStorage keys use `omnivue-` prefix.
 
 ## Data Sources
 
 | Agent | Location | Format | Data |
 |-------|----------|--------|------|
-| OpenCode | `~/.local/share/opencode/opencode.db` | SQLite | Sessions, messages, parts, todos, diffs, tokens, costs |
+| OpenCode (v1) | `~/.local/share/opencode/opencode.db` | SQLite (`session`, `message`, `part`) | Sessions, messages, parts, todos, diffs, tokens, costs |
+| OpenCode (v2) | `~/.local/share/opencode/opencode.db` | SQLite (`session_v2`, `session_message`) | Sessions, turns, tool calls, plans, diffs, step usage |
 | OpenCode snapshots | `~/.local/share/opencode/snapshot/` | Git bare repos | File-level rewind |
 | Copilot | `~/.copilot/session-store.db` | SQLite | Sessions, turns, checkpoints, FTS index |
 | Copilot events | `~/.copilot/session-state/<uuid>/events.jsonl` | JSONL | Full conversation + tool calls |
-| Copilot plans | `~/.copilot/session-state/<uuid>/checkpoints/` | Markdown | Implementation plans |
+| Copilot plans | `~/.copilot/session-state/<uuid>/plan.md` | Markdown | Implementation plan |
 | Copilot snapshots | `~/.copilot/session-state/<uuid>/rewind-snapshots/` | JSON + raw files | File backups |
 | Cursor | `~/.cursor/state.vscdb` | SQLite KV | Composer sessions, bubble messages, tool calls |
 | Cursor transcripts | `~/.cursor/projects/<uuid>/*.jsonl` | JSONL | Agentic session transcripts |
-| Cursor tracking | `~/.cursor/ai-code-tracking.db` | SQLite | Conversation summaries, model, cost, tokens |
 | Pi | `~/.pi/agent/sessions/` | JSONL | Sessions, messages, tool calls, reasoning |
 | Claude Code | `~/.claude/projects/*/*.jsonl` | JSONL | Sessions, messages, tool calls, plans, file snapshots |
 | Claude Code subagents | `~/.claude/projects/*/*/subagents/agent-*.jsonl` | JSONL | Subagent transcripts |
+| Codex | `~/.codex/session_index.jsonl` + `~/.codex/sessions/**/*.jsonl` | JSONL | Sessions, messages, tool calls, plans, diffs, tokens |
 
 ## Phase Status
 

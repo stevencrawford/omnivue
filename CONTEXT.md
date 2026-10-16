@@ -170,6 +170,6 @@ state transition so callers cross one seam with intent verbs instead of wiring r
   `OPEN_TAG`, plus the raw setters. The binding exposes the verbs (navigateToSession,
   jumpToMessage, goHome, …) through a single `NavigationContext`.
 - **Seam:** every entry point into a selected session crosses it — Sidebar, SearchPanel,
-  notifications, bookmarks, the prompt queue, keyboard shortcuts, and the URL hash (deep
-  links and back/forward). Leaf consumers (`NotificationDrawer`, tool-call renderers) read the
-  same context instead of separate focus/nav providers.
+  notifications, bookmarks, keyboard shortcuts, and the URL hash (deep links and
+  back/forward). Leaf consumers (`NotificationDrawer`, tool-call renderers) read the same
+  context instead of separate focus/nav providers.

@@ -192,6 +192,21 @@ Get the CLI command to resume a session, rendered from the adapter's
 ```
 
 ```http
+GET /_/api/sessions/{id}/file?path={relativePath}
+```
+
+Read a single file from the session's working directory so the frontend can render its contents (for example, an on-disk markdown file open in the viewer). The `path` is resolved relative to the session's directory and confined to it with `os.OpenRoot`, so it cannot escape via `..` or an escaping symlink.
+
+```json
+{
+  "path": "docs/README.md",
+  "content": "# Project\n..."
+}
+```
+
+Returns `400` when `path` is missing, absolute, escapes the session directory, points at a directory, or the file is binary or larger than 2 MiB; `404` when the file or session working directory does not exist.
+
+```http
 PUT /_/api/sessions/{id}/name
 ```
 
