@@ -6,6 +6,7 @@ import {
   Copy,
   GripVertical,
   Loader2,
+  NotebookPen,
   Pencil,
   Pin,
   Plus,
@@ -26,9 +27,9 @@ interface PromptsPanelProps {
   promptVersion?: number;
 }
 
-// PromptsPanel is the global prompt pad: a session-independent dumping ground
-// for useful prompts and drafts. Entries can be typed or pasted in, copied back
-// out, checked off when done, edited, pinned, and dragged into a custom order.
+// PromptsPanel is the global prompt pad: a session-independent place to keep
+// the prompts you reuse. Entries can be typed or pasted in, copied back out,
+// checked off when done, edited, pinned, and dragged into a custom order.
 export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,9 +215,9 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
           </div>
         ) : open.length === 0 && done.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <ClipboardPaste size={24} className="text-ov-text-secondary/40 mb-3" />
-            <p className="text-xs text-ov-text-secondary/60 max-w-40 leading-relaxed">
-              A dumping ground for useful prompts and drafts. Type one in or paste from your
+            <NotebookPen size={24} className="text-ov-text-secondary/40 mb-3" />
+            <p className="text-xs text-ov-text-secondary/60 max-w-44 leading-relaxed">
+              Keep the prompts you reuse in one place. Type one below, or paste straight from your
               clipboard.
             </p>
           </div>
@@ -294,7 +295,21 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
         )}
       </div>
 
-      <div className="shrink-0 border-t border-ov-border px-1.5 pt-1.5 pb-1.5">
+      <div className="shrink-0 border-t border-ov-border px-1.5 pt-2 pb-2">
+        <button
+          type="button"
+          onClick={handlePaste}
+          title="Paste from clipboard"
+          className={`flex items-center justify-center gap-1.5 w-full mb-2 rounded-lg border border-dashed px-2 py-2 text-[11px] cursor-pointer transition-colors ${
+            pasteHint
+              ? "border-accent-border bg-accent/5 text-accent"
+              : "border-ov-border text-ov-text-secondary hover:border-accent-border hover:bg-accent/5 hover:text-accent"
+          }`}
+        >
+          <ClipboardPaste size={12} />
+          <span>{pasteHint ? "Press ⌘V / Ctrl+V to paste" : "Paste from clipboard"}</span>
+        </button>
+
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -316,18 +331,9 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
           </button>
         </div>
-        <div className="flex items-center justify-between mt-1 px-0.5">
-          <button
-            type="button"
-            onClick={handlePaste}
-            className="flex items-center gap-1 text-[10px] text-ov-text-secondary hover:text-accent cursor-pointer transition-colors"
-            title="Paste from clipboard"
-          >
-            <ClipboardPaste size={11} />
-            Paste from clipboard
-          </button>
-          <span className="text-[10px] text-ov-text-secondary">
-            {pasteHint ? "Press ⌘V / Ctrl+V to paste" : "Enter to add"}
+        <div className="flex items-center justify-end mt-1 px-0.5">
+          <span className="text-[10px] text-ov-text-secondary/70">
+            Enter to add · Shift+Enter for a new line
           </span>
         </div>
       </div>
