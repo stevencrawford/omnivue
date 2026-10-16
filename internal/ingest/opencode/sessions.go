@@ -109,6 +109,13 @@ func (a *Adapter) hasOpenStep(ctx context.Context, sessionID string) (bool, erro
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
+	if a.schema == schemaV2 {
+		return a.listSessionsV2(ctx)
+	}
+	return a.listSessionsV1(ctx)
+}
+
+func (a *Adapter) listSessionsV1(ctx context.Context) ([]ingest.Session, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT 
 			s.id, s.parent_id, s.title, s.directory, s.model, s.agent,
@@ -227,6 +234,13 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
+	if a.schema == schemaV2 {
+		return a.sessionV2(ctx, id)
+	}
+	return a.sessionV1(ctx, id)
+}
+
+func (a *Adapter) sessionV1(ctx context.Context, id string) (*ingest.Session, error) {
 	var (
 		s           ingest.Session
 		parentID    sql.NullString
