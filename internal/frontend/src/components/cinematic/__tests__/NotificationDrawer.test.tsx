@@ -5,6 +5,15 @@ import { STORAGE_KEYS } from "../../../utils/storageKeys";
 import { setDisableCustomRenderers } from "../../../hooks/useDisableCustomRenderers";
 import type { Message, Session, ToolCall } from "../../../hooks/types";
 
+// jsdom has no ResizeObserver; the drawer observes the activity list to keep the
+// scroll controls in sync. A no-op stub is enough for the tests below.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+
 vi.mock("../../../hooks/useNavigation", () => ({
   useNavigation: () => ({ navigateToSession: () => {} }),
 }));
@@ -345,5 +354,54 @@ describe("NotificationDrawer raw fallback", () => {
     });
     expect(screen.getByTitle("TODO")).toBeDefined();
     expect(screen.queryByText("Input")).toBeNull();
+  });
+});
+
+describe("NotificationDrawer scroll controls", () => {
+  // Renders the drawer, then pins the activity list's geometry and scroll
+  // offset so a scroll event reveals the floating top/bottom controls.
+  function scrollDrawer(top: number) {
+    const { container } = render(
+      <NotificationDrawer session={session} messages={messages} cursor={10} maxIndex={10} />,
+    );
+    const item = container.querySelector("[data-message-index]") as HTMLElement;
+    const scrollEl = item.parentElement as HTMLElement;
+    const scrollTo = vi.fn();
+    Object.defineProperty(scrollEl, "scrollHeight", { value: 1000, configurable: true });
+    Object.defineProperty(scrollEl, "clientHeight", { value: 300, configurable: true });
+    Object.defineProperty(scrollEl, "scrollTop", {
+      value: top,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(scrollEl, "scrollTo", {
+      value: scrollTo,
+      writable: true,
+      configurable: true,
+    });
+    act(() => {
+      fireEvent.scroll(scrollEl);
+    });
+    return { scrollTo };
+  }
+
+  it("shows the top and bottom controls once the activity list is scrolled", () => {
+    scrollDrawer(500);
+    expect(screen.getByTitle("Scroll to top")).toBeDefined();
+    expect(screen.getByTitle("Scroll to bottom")).toBeDefined();
+  });
+
+  it("hides the controls while the activity list is not scrollable", () => {
+    render(<NotificationDrawer session={session} messages={messages} cursor={0} maxIndex={0} />);
+    expect(screen.queryByTitle("Scroll to top")).toBeNull();
+    expect(screen.queryByTitle("Scroll to bottom")).toBeNull();
+  });
+
+  it("scrolls to the top and bottom on click", () => {
+    const { scrollTo } = scrollDrawer(500);
+    fireEvent.click(screen.getByTitle("Scroll to top"));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    fireEvent.click(screen.getByTitle("Scroll to bottom"));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "smooth" });
   });
 });

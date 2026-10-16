@@ -3,6 +3,8 @@ import {
   MessageSquare,
   Brain,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   User as UserIcon,
   FileText,
   Maximize2,
@@ -153,6 +155,18 @@ function ActivityTabButton({
   );
 }
 
+// Floating scroll controls for the activity list: mirror the classic
+// conversation view's thresholds so the buttons appear only once the panel is
+// meaningfully scrolled in that direction.
+function scrollButtonVisibility(el: HTMLDivElement): { top: boolean; bottom: boolean } {
+  const threshold = Math.max(el.clientHeight * 0.3, 100);
+  const scrollable = el.scrollHeight > el.clientHeight + 2;
+  return {
+    top: scrollable && el.scrollTop > threshold,
+    bottom: scrollable && el.scrollHeight - el.scrollTop - el.clientHeight > threshold,
+  };
+}
+
 export function NotificationDrawer({
   session,
   messages,
@@ -178,11 +192,29 @@ export function NotificationDrawer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const threshold = 80;
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const updateScrollButtons = useCallback((el: HTMLDivElement) => {
+    const btn = scrollButtonVisibility(el);
+    setShowScrollTop(btn.top);
+    setShowScrollBottom(btn.bottom);
+  }, []);
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
     isAtBottomRef.current = distance <= threshold;
+    updateScrollButtons(el);
+  }, [updateScrollButtons]);
+  const scrollToTop = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
   const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
   const activeTab = controlledTab ?? internalTab;
@@ -432,7 +464,20 @@ export function NotificationDrawer({
     if (!el) return;
     if (!isAtBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [drawerItems, cursor, maxIndex, activeTab, spotlightId]);
+    updateScrollButtons(el);
+  }, [drawerItems, cursor, maxIndex, activeTab, spotlightId, updateScrollButtons]);
+
+  // Keep the scroll controls in sync when the list grows or the panel resizes
+  // without a user scroll (items loading, drawer width drag, live streaming).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => updateScrollButtons(el);
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    update();
+    return () => observer.disconnect();
+  }, [activeTab, drawerItems, updateScrollButtons]);
 
   // Guards re-landing the same jump on every drawer re-render. Tracked as a
   // (key, target) pair: the focus key is reset to 0 on clear and then reused
@@ -540,7 +585,7 @@ export function NotificationDrawer({
       </div>
 
       <div
-        className={`flex-1 min-h-0 min-w-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}
+        className={`relative flex-1 min-h-0 min-w-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}
       >
         <div
           ref={scrollRef}
@@ -567,6 +612,28 @@ export function NotificationDrawer({
             ))
           )}
         </div>
+        {showScrollTop && (
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="absolute top-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+            title="Scroll to top"
+            aria-label="Scroll to top"
+          >
+            <ChevronUp size={14} />
+          </button>
+        )}
+        {showScrollBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="absolute bottom-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+            title="Scroll to bottom"
+            aria-label="Scroll to bottom"
+          >
+            <ChevronDown size={14} />
+          </button>
+        )}
       </div>
 
       <div
