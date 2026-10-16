@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Schema
+- Bump `schemaVersion` to 10: the session-scoped `prompt_queue` table is
+  rebuilt as the global, session-independent `prompts` table (migration
+  `0010_prompts_global.sql`). Existing queued prompts are carried over
+  (`dispatched` → `done`, otherwise `open`); no user data is lost.
+
+### Other Changes
+- feat(prompts): replace the session prompt queue with a global prompt pad
+
 ## [v0.3.0](https://github.com/stevencrawford/omnivue/compare/v0.2.4...v0.3.0) - 2026-09-11
 
 ### Dependency Updates ⬆️

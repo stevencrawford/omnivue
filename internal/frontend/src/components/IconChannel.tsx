@@ -1,7 +1,7 @@
 import React from "react";
-import { Tags, Bookmark, Bell, Settings, Layers, type LucideProps } from "lucide-react";
+import { Tags, Bookmark, Bell, Settings, NotebookPen, type LucideProps } from "lucide-react";
 
-export type Section = "sessions" | "queue" | "tags" | "bookmarks" | "notifications";
+export type Section = "sessions" | "prompts" | "tags" | "bookmarks" | "notifications";
 
 interface IconChannelProps {
   activeSection: Section;
@@ -10,7 +10,7 @@ interface IconChannelProps {
   sidebarOpen: boolean;
   onSidebarToggle: () => void;
   notificationUnreadCount?: number;
-  queueCount?: number;
+  promptCount?: number;
 }
 
 export function SessionsIcon({ size = 24, ...props }: LucideProps) {
@@ -38,7 +38,7 @@ const sections: {
   Icon: React.ComponentType<LucideProps>;
 }[] = [
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
-  { id: "queue", label: "Queued Prompts", Icon: Layers },
+  { id: "prompts", label: "Prompts", Icon: NotebookPen },
   { id: "tags", label: "Tags", Icon: Tags },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
   { id: "notifications", label: "Notifications", Icon: Bell },
@@ -51,7 +51,7 @@ export function IconChannel({
   sidebarOpen,
   onSidebarToggle,
   notificationUnreadCount = 0,
-  queueCount = 0,
+  promptCount = 0,
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
@@ -79,9 +79,9 @@ export function IconChannel({
             <div className="absolute left-0 w-0.5 h-5 rounded-r-full bg-accent" />
           )}
           <Icon className="size-5" strokeWidth={1.5} />
-          {id === "queue" && queueCount > 0 && (
+          {id === "prompts" && promptCount > 0 && (
             <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-blue-500 text-white">
-              {queueCount > 99 ? "99+" : queueCount}
+              {promptCount > 99 ? "99+" : promptCount}
             </span>
           )}
           {id === "notifications" && notificationUnreadCount > 0 && (

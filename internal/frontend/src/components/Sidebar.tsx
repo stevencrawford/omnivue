@@ -5,7 +5,7 @@ import { SessionPanel } from "./SessionPanel";
 import { TagPanel } from "./TagPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
-import { QueuePanel } from "./QueuePanel";
+import { PromptsPanel } from "./PromptsPanel";
 import { useResizable } from "../hooks/useResizable";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
@@ -27,9 +27,8 @@ interface SidebarProps {
   onNotificationClick: (n: AppNotification) => void;
   onMarkAllNotificationsRead: () => void;
   onClearNotifications: () => void;
-  queueCount?: number;
+  promptCount?: number;
   promptVersion?: number;
-  onPromptClick?: (sessionId: string, promptId: string) => void;
 }
 
 const SIDEBAR_WIDTH_KEY = STORAGE_KEYS.SIDEBAR_WIDTH;
@@ -52,9 +51,8 @@ export function Sidebar({
   onNotificationClick,
   onMarkAllNotificationsRead,
   onClearNotifications,
-  queueCount = 0,
+  promptCount = 0,
   promptVersion = 0,
-  onPromptClick,
 }: SidebarProps) {
   const {
     value: width,
@@ -86,14 +84,9 @@ export function Sidebar({
         />
       </div>
       <div
-        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "queue" ? "hidden" : ""}`}
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "prompts" ? "hidden" : ""}`}
       >
-        <QueuePanel
-          sessions={sessions}
-          promptVersion={promptVersion}
-          onSessionSelect={onSessionSelect}
-          onPromptClick={onPromptClick}
-        />
+        <PromptsPanel promptVersion={promptVersion} />
       </div>
       <div
         className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "tags" ? "hidden" : ""}`}
@@ -140,7 +133,7 @@ export function Sidebar({
         sidebarOpen={sidebarOpen}
         onSidebarToggle={onSidebarToggle}
         notificationUnreadCount={notificationUnreadCount}
-        queueCount={queueCount}
+        promptCount={promptCount}
       />
       <div
         className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}

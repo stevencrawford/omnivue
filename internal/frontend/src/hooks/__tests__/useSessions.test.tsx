@@ -27,7 +27,7 @@ vi.mock("../apiClient", () => ({
 const sseCallbacks: {
   onUpdate: () => void;
   onSessionChanged?: (ids: string[]) => void;
-  onPromptQueueChanged?: () => void;
+  onPromptsChanged?: () => void;
   onConnectionChange?: (connected: boolean) => void;
 } = { onUpdate: () => {} };
 
@@ -35,7 +35,7 @@ vi.mock("../useSSE", () => ({
   useSSE: (callbacks: typeof sseCallbacks) => {
     sseCallbacks.onUpdate = callbacks.onUpdate;
     sseCallbacks.onSessionChanged = callbacks.onSessionChanged;
-    sseCallbacks.onPromptQueueChanged = callbacks.onPromptQueueChanged;
+    sseCallbacks.onPromptsChanged = callbacks.onPromptsChanged;
     sseCallbacks.onConnectionChange = callbacks.onConnectionChange;
   },
 }));

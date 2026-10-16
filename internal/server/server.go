@@ -79,7 +79,7 @@ func NewHandler(dep Dep) http.Handler {
 	mux.HandleFunc("POST /_/api/prompts", handleCreatePrompt(dep.Prompts, dep.Bus))
 	mux.HandleFunc("PATCH /_/api/prompts/{id}", handleUpdatePrompt(dep.Prompts, dep.Bus))
 	mux.HandleFunc("DELETE /_/api/prompts/{id}", handleDeletePrompt(dep.Prompts, dep.Bus))
-	mux.HandleFunc("POST /_/api/prompts/{id}/dispatch", handleDispatchPrompt(dep.Prompts, dep.Bus))
+	mux.HandleFunc("PUT /_/api/prompts/order", handleReorderPrompts(dep.Prompts, dep.Bus))
 	mux.HandleFunc("POST /_/api/prompts/batch", handleBatchDeletePrompts(dep.Prompts, dep.Bus))
 	mux.HandleFunc("POST /_/api/shutdown", handleShutdown(dep.Shutdown))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(dep.Restart))
@@ -1001,29 +1001,28 @@ func handleSetNotifySettings(notifier *Notifier) http.HandlerFunc {
 	}
 }
 
-// --- Prompt Queue handlers ---
+// --- Prompt pad handlers ---
 
 func handleListPrompts(prompts store.PromptStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if prompts == nil {
-			writeOK(w, []store.QueuedPrompt{})
+			writeOK(w, []store.Prompt{})
 			return
 		}
 		status := r.URL.Query().Get("status")
-		sessionID := r.URL.Query().Get("session_id")
 		limit := 100
 		if l := r.URL.Query().Get("limit"); l != "" {
 			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
 				limit = parsed
 			}
 		}
-		list, err := prompts.ListPrompts(status, sessionID, limit)
+		list, err := prompts.ListPrompts(status, limit)
 		if err != nil {
 			writeError(w, err)
 			return
 		}
 		if len(list) == 0 {
-			list = []store.QueuedPrompt{}
+			list = []store.Prompt{}
 		}
 		writeOK(w, list)
 	}
@@ -1035,41 +1034,27 @@ func handleCreatePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFu
 			return
 		}
 		var body struct {
-			SessionID  *string  `json:"sessionId"`
-			SourceID   *string  `json:"sourceId"`
-			PromptText string   `json:"promptText"`
-			Priority   int      `json:"priority"`
-			Tags       []string `json:"tags"`
+			PromptText string `json:"promptText"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
 			writeError(w, badRequest("invalid request body"))
 			return
 		}
-		if body.PromptText == "" {
+		if strings.TrimSpace(body.PromptText) == "" {
 			writeError(w, badRequest("promptText is required"))
 			return
 		}
-		tagsJSON := "[]"
-		if len(body.Tags) > 0 {
-			if data, err := json.Marshal(body.Tags); err == nil {
-				tagsJSON = string(data)
-			}
-		}
-		p := store.QueuedPrompt{
-			ID:         fmt.Sprintf("qp_%d", time.Now().UnixNano()),
-			SessionID:  body.SessionID,
-			SourceID:   body.SourceID,
+		p := store.Prompt{
+			ID:         fmt.Sprintf("pr_%d", time.Now().UnixNano()),
 			PromptText: body.PromptText,
-			Status:     "queued",
-			Priority:   body.Priority,
-			Tags:       tagsJSON,
+			Status:     "open",
 			CreatedAt:  time.Now().UnixMilli(),
 		}
 		if err := prompts.CreatePrompt(p); err != nil {
 			writeError(w, err)
 			return
 		}
-		bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompts-changed"})
 		writeCreated(w, p)
 	}
 }
@@ -1080,15 +1065,16 @@ func handleUpdatePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFu
 			return
 		}
 		var body struct {
-			PromptText *string  `json:"promptText"`
-			Priority   *int     `json:"priority"`
-			Tags       []string `json:"tags"`
+			PromptText *string `json:"promptText"`
+			Status     *string `json:"status"`
+			Pinned     *bool   `json:"pinned"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
 			writeError(w, badRequest("invalid request body"))
 			return
 		}
-		existing, err := prompts.Prompt(r.PathValue("id"))
+		id := r.PathValue("id")
+		existing, err := prompts.Prompt(id)
 		if err != nil {
 			writeError(w, err)
 			return
@@ -1097,25 +1083,33 @@ func handleUpdatePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFu
 			writeError(w, notFound("not found"))
 			return
 		}
-		promptText := existing.PromptText
 		if body.PromptText != nil {
-			promptText = *body.PromptText
-		}
-		priority := existing.Priority
-		if body.Priority != nil {
-			priority = *body.Priority
-		}
-		tags := existing.Tags
-		if len(body.Tags) > 0 {
-			if data, err := json.Marshal(body.Tags); err == nil {
-				tags = string(data)
+			if strings.TrimSpace(*body.PromptText) == "" {
+				writeError(w, badRequest("promptText must not be empty"))
+				return
+			}
+			if err := prompts.UpdatePromptText(id, *body.PromptText); err != nil {
+				writeError(w, err)
+				return
 			}
 		}
-		if err := prompts.UpdatePromptContent(r.PathValue("id"), promptText, tags, priority); err != nil {
-			writeError(w, err)
-			return
+		if body.Status != nil {
+			if *body.Status != "open" && *body.Status != "done" {
+				writeError(w, badRequest(`status must be "open" or "done"`))
+				return
+			}
+			if err := prompts.SetPromptStatus(id, *body.Status); err != nil {
+				writeError(w, err)
+				return
+			}
 		}
-		bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		if body.Pinned != nil {
+			if err := prompts.SetPromptPinned(id, *body.Pinned); err != nil {
+				writeError(w, err)
+				return
+			}
+		}
+		bus.Send(sseEvent{Name: "prompts-changed"})
 		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
@@ -1129,32 +1123,29 @@ func handleDeletePrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFu
 			writeError(w, err)
 			return
 		}
-		bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompts-changed"})
 		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
-func handleDispatchPrompt(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
+func handleReorderPrompts(prompts store.PromptStore, bus *EventBus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !requireStore(w, prompts) {
 			return
 		}
-		existing, err := prompts.Prompt(r.PathValue("id"))
-		if err != nil {
+		var body struct {
+			IDs []string `json:"ids"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, badRequest("invalid request body"))
+			return
+		}
+		if err := prompts.ReorderPrompts(body.IDs); err != nil {
 			writeError(w, err)
 			return
 		}
-		if existing == nil {
-			writeError(w, notFound("not found"))
-			return
-		}
-		now := time.Now().UnixMilli()
-		if err := prompts.UpdatePromptStatus(r.PathValue("id"), "dispatched", &now); err != nil {
-			writeError(w, err)
-			return
-		}
-		bus.Send(sseEvent{Name: "prompt-queue-changed"})
-		writeOK(w, map[string]any{"status": "ok", "promptText": existing.PromptText})
+		bus.Send(sseEvent{Name: "prompts-changed"})
+		writeOK(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -1174,7 +1165,7 @@ func handleBatchDeletePrompts(prompts store.PromptStore, bus *EventBus) http.Han
 			writeError(w, err)
 			return
 		}
-		bus.Send(sseEvent{Name: "prompt-queue-changed"})
+		bus.Send(sseEvent{Name: "prompts-changed"})
 		writeOK(w, map[string]string{"status": "ok"})
 	}
 }

@@ -264,21 +264,21 @@ func (f *fakeNotificationStore) MarkSessionViewed(_ string) error { return nil }
 
 type fakePromptStore struct {
 	mu      sync.Mutex
-	prompts map[string]store.QueuedPrompt
+	prompts map[string]store.Prompt
 }
 
 func newFakePromptStore() *fakePromptStore {
-	return &fakePromptStore{prompts: map[string]store.QueuedPrompt{}}
+	return &fakePromptStore{prompts: map[string]store.Prompt{}}
 }
 
-func (f *fakePromptStore) CreatePrompt(p store.QueuedPrompt) error {
+func (f *fakePromptStore) CreatePrompt(p store.Prompt) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.prompts[p.ID] = p
 	return nil
 }
 
-func (f *fakePromptStore) Prompt(id string) (*store.QueuedPrompt, error) {
+func (f *fakePromptStore) Prompt(id string) (*store.Prompt, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	p, ok := f.prompts[id]
@@ -288,30 +288,17 @@ func (f *fakePromptStore) Prompt(id string) (*store.QueuedPrompt, error) {
 	return &p, nil
 }
 
-func (f *fakePromptStore) ListPrompts(_, _ string, _ int) ([]store.QueuedPrompt, error) {
+func (f *fakePromptStore) ListPrompts(_ string, _ int) ([]store.Prompt, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	out := make([]store.QueuedPrompt, 0, len(f.prompts))
+	out := make([]store.Prompt, 0, len(f.prompts))
 	for _, p := range f.prompts {
 		out = append(out, p)
 	}
 	return out, nil
 }
 
-func (f *fakePromptStore) UpdatePromptStatus(id, status string, dispatchedAt *int64) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	p, ok := f.prompts[id]
-	if !ok {
-		return os.ErrNotExist
-	}
-	p.Status = status
-	p.DispatchedAt = dispatchedAt
-	f.prompts[id] = p
-	return nil
-}
-
-func (f *fakePromptStore) UpdatePromptContent(id, promptText, tags string, priority int) error {
+func (f *fakePromptStore) UpdatePromptText(id, promptText string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	p, ok := f.prompts[id]
@@ -319,9 +306,45 @@ func (f *fakePromptStore) UpdatePromptContent(id, promptText, tags string, prior
 		return os.ErrNotExist
 	}
 	p.PromptText = promptText
-	p.Tags = tags
-	p.Priority = priority
 	f.prompts[id] = p
+	return nil
+}
+
+func (f *fakePromptStore) SetPromptStatus(id, status string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.prompts[id]
+	if !ok {
+		return os.ErrNotExist
+	}
+	p.Status = status
+	f.prompts[id] = p
+	return nil
+}
+
+func (f *fakePromptStore) SetPromptPinned(id string, pinned bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.prompts[id]
+	if !ok {
+		return os.ErrNotExist
+	}
+	p.Pinned = pinned
+	f.prompts[id] = p
+	return nil
+}
+
+func (f *fakePromptStore) ReorderPrompts(ids []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, id := range ids {
+		p, ok := f.prompts[id]
+		if !ok {
+			continue
+		}
+		p.Position = int64(i)
+		f.prompts[id] = p
+	}
 	return nil
 }
 

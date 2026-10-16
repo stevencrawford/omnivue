@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected legacy db stamped to version 9, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected legacy db stamped to version 10, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 on fresh install, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -185,8 +185,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 after migration, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -267,8 +267,8 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 after migration, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -325,8 +325,8 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 9 {
-		t.Fatalf("expected version 9 after migration, got %d", v)
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -335,5 +335,96 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 	}
 	if len(bookmarks) != 0 {
 		t.Fatalf("expected legacy bookmarks to be dropped, got %d", len(bookmarks))
+	}
+}
+
+// TestMigrate_PromptQueueToPrompts seeds a pre-versioning database with the old
+// session-scoped prompt_queue table, then runs the migrations through 0010 and
+// verifies the rebuild into the global prompts table: rows carry over,
+// `dispatched` becomes `done`, the session/source/priority/tags columns are
+// gone, and the old table is dropped.
+func TestMigrate_PromptQueueToPrompts(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	stateDir := filepath.Join(tmpDir, "omnivue")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(stateDir, "omnivue.db")
+
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE prompt_queue (
+			id            TEXT PRIMARY KEY,
+			session_id    TEXT,
+			source_id     TEXT,
+			prompt_text   TEXT NOT NULL,
+			status        TEXT NOT NULL DEFAULT 'queued'
+			              CHECK(status IN ('queued', 'dispatched', 'cancelled')),
+			priority      INTEGER NOT NULL DEFAULT 0,
+			tags          TEXT DEFAULT '[]',
+			created_at    INTEGER NOT NULL,
+			dispatched_at INTEGER
+		);
+		INSERT INTO prompt_queue (id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at) VALUES
+			('qp_1', 'sess-1', 'src-1', 'Refactor the parser', 'queued', 0, '["backend"]', 100, NULL),
+			('qp_2', 'sess-2', NULL, 'Write more tests', 'dispatched', 1, '[]', 200, 250),
+			('qp_3', NULL, NULL, 'Braindump idea', 'cancelled', 0, '[]', 300, NULL);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	v, err := s.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 10 {
+		t.Fatalf("expected version 10 after migration, got %d", v)
+	}
+
+	// The old table must be gone.
+	if _, err := s.db.Query(`SELECT 1 FROM prompt_queue LIMIT 1`); err == nil {
+		t.Fatal("expected prompt_queue table to be dropped")
+	}
+
+	// Ordered by pinned DESC, position ASC; positions were seeded from the old
+	// created_at values, so the original queue order is preserved.
+	prompts, err := s.ListPrompts("", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prompts) != 3 {
+		t.Fatalf("expected 3 migrated prompts, got %d", len(prompts))
+	}
+	if prompts[0].ID != "qp_1" || prompts[1].ID != "qp_2" || prompts[2].ID != "qp_3" {
+		t.Fatalf("expected order qp_1, qp_2, qp_3, got %s, %s, %s", prompts[0].ID, prompts[1].ID, prompts[2].ID)
+	}
+
+	byID := map[string]Prompt{}
+	for _, p := range prompts {
+		byID[p.ID] = p
+	}
+	if byID["qp_1"].Status != "open" {
+		t.Fatalf("expected qp_1 status open, got %q", byID["qp_1"].Status)
+	}
+	if byID["qp_2"].Status != "done" {
+		t.Fatalf("expected qp_2 status done, got %q", byID["qp_2"].Status)
+	}
+	if byID["qp_2"].DoneAt == nil || *byID["qp_2"].DoneAt != 250 {
+		t.Fatalf("expected qp_2 done_at 250, got %v", byID["qp_2"].DoneAt)
+	}
+	if byID["qp_3"].Status != "open" {
+		t.Fatalf("expected qp_3 status open, got %q", byID["qp_3"].Status)
 	}
 }

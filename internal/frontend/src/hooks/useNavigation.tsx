@@ -85,11 +85,9 @@ export interface NavigationValue extends NavigationState {
   openTag: (name: string) => void;
   clearFilterTag: () => void;
   handleSessionSelect: (id: string) => void;
-  handlePromptClick: (sessionId: string, promptId: string) => void;
   handleBookmarkSelect: (bookmark: Bookmark) => void;
   handleNotificationClick: (n: AppNotification) => void;
   handleDiffNavigateToMessage: (messageIndex: number, messageId?: string) => void;
-  handleHighlightDone: () => void;
   selectSearchHit: (target: SearchHitTarget) => void;
   setTab: (tab: Tab) => void;
   setSection: (section: Section) => void;
@@ -112,11 +110,9 @@ const defaultNavigationValue: NavigationValue = {
   openTag: () => {},
   clearFilterTag: () => {},
   handleSessionSelect: () => {},
-  handlePromptClick: () => {},
   handleBookmarkSelect: () => {},
   handleNotificationClick: () => {},
   handleDiffNavigateToMessage: () => {},
-  handleHighlightDone: () => {},
   selectSearchHit: () => {},
   setTab: () => {},
   setSection: () => {},
@@ -246,14 +242,6 @@ export function useNavigationState({
     [notifications, markNotificationRead, navigateTo, state.activeSection],
   );
 
-  const handlePromptClick = useCallback(
-    (sessionId: string, promptId: string) => {
-      handleSessionSelect(sessionId);
-      dispatch({ type: "HIGHLIGHT_PROMPT", promptId });
-    },
-    [handleSessionSelect],
-  );
-
   const handleBookmarkSelect = useCallback(
     (bookmark: Bookmark) => {
       dispatch({ type: "BOOKMARK_SELECT", bookmark });
@@ -325,7 +313,6 @@ export function useNavigationState({
   );
   const clearFilterTag = useCallback(() => dispatch({ type: "CLEAR_TAG" }), []);
   const clearFocus = useCallback(() => dispatch({ type: "CLEAR_FOCUS" }), []);
-  const handleHighlightDone = useCallback(() => dispatch({ type: "HIGHLIGHT_DONE" }), []);
   const navigateSession = useCallback(
     (delta: 1 | -1, sessions: Session[]) => {
       const next = nextSessionId(sessions, activeSessionId, delta);
@@ -349,11 +336,9 @@ export function useNavigationState({
       openTag,
       clearFilterTag,
       handleSessionSelect,
-      handlePromptClick,
       handleBookmarkSelect,
       handleNotificationClick,
       handleDiffNavigateToMessage,
-      handleHighlightDone,
       selectSearchHit,
       setTab,
       setSection,
@@ -368,11 +353,9 @@ export function useNavigationState({
       saveScrollPosition,
       getScrollPosition,
       handleSessionSelect,
-      handlePromptClick,
       handleBookmarkSelect,
       handleNotificationClick,
       handleDiffNavigateToMessage,
-      handleHighlightDone,
       selectSearchHit,
       setTab,
       setSection,

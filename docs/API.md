@@ -16,7 +16,7 @@ Returns server status with schema version.
   "pid": 12345,
   "sources": 3,
   "sessions": 42,
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "indexed": true
 }
 ```
@@ -540,31 +540,32 @@ PUT /_/api/notifications/settings
 
 Save notification settings. Accepts the same JSON shape as above.
 
-## Prompt Queue
+## Prompts
+
+Prompts are a global, session-independent pad — a dumping ground for useful
+prompts and drafts. Entries are ordered by `pinned DESC, position ASC`.
 
 ```http
-GET /_/api/prompts?status=<s>&session_id=<id>&limit=<n>
+GET /_/api/prompts?status=<s>&limit=<n>
 ```
 
-List queued prompts.
+List prompts.
 
 Parameters:
-- `status` (optional) — Filter by status (`queued`, `dispatched`, `cancelled`)
-- `session_id` (optional) — Filter by session
-- `limit` (optional, default 100) — Max results
+- `status` (optional) — Filter by status (`open`, `done`)
+- `limit` (optional, default 100, max 500) — Max results
 
 ```json
 [
   {
-    "id": "qp_1234",
-    "sessionId": "sess_123",
-    "sourceId": "src_1",
+    "id": "pr_1234",
     "promptText": "Add a login endpoint",
-    "status": "queued",
-    "priority": 0,
-    "tags": "[]",
+    "status": "open",
+    "pinned": false,
+    "position": -1,
     "createdAt": 1769876543000,
-    "dispatchedAt": null
+    "updatedAt": null,
+    "doneAt": null
   }
 ]
 ```
@@ -573,31 +574,26 @@ Parameters:
 POST /_/api/prompts
 ```
 
-Queue a new prompt. `promptText` is required. Returns the created prompt
-with `201` and emits a `prompt-queue-changed` SSE event.
+Create a prompt. `promptText` is required. Returns the created prompt with
+`201` and emits a `prompts-changed` SSE event.
 
 ```json
-{
-  "sessionId": "sess_123",
-  "sourceId": "src_1",
-  "promptText": "Add a login endpoint",
-  "priority": 0,
-  "tags": ["backend"]
-}
+{ "promptText": "Add a login endpoint" }
 ```
 
 ```http
 PATCH /_/api/prompts/{id}
 ```
 
-Edit a queued prompt's text, priority, or tags. Returns `200` with
-`{"status":"ok"}` and emits a `prompt-queue-changed` event.
+Edit a prompt's text, toggle its done state, or pin/unpin it. Every field is
+optional. Returns `200` with `{"status":"ok"}` and emits a `prompts-changed`
+event.
 
 ```json
 {
   "promptText": "Add a login endpoint with rate limiting",
-  "priority": 1,
-  "tags": ["backend"]
+  "status": "done",
+  "pinned": true
 }
 ```
 
@@ -605,26 +601,29 @@ Edit a queued prompt's text, priority, or tags. Returns `200` with
 DELETE /_/api/prompts/{id}
 ```
 
-Delete a queued prompt. Returns `200` with `{"status":"ok"}` and emits a
-`prompt-queue-changed` event.
+Delete a prompt. Returns `200` with `{"status":"ok"}` and emits a
+`prompts-changed` event.
 
 ```http
-POST /_/api/prompts/{id}/dispatch
+PUT /_/api/prompts/order
 ```
 
-Mark a prompt as dispatched. Returns `200` with
-`{"status":"ok","promptText":"..."}` and emits a `prompt-queue-changed`
-event.
+Persist the manual drag order. Returns `200` with `{"status":"ok"}` and emits
+a `prompts-changed` event.
+
+```json
+{ "ids": ["pr_1", "pr_2", "pr_3"] }
+```
 
 ```http
 POST /_/api/prompts/batch
 ```
 
 Delete multiple prompts at once. Returns `200` with `{"status":"ok"}` and
-emits a `prompt-queue-changed` event.
+emits a `prompts-changed` event.
 
 ```json
-{"ids": ["qp_123", "qp_456"]}
+{"ids": ["pr_123", "pr_456"]}
 ```
 
 ## Terminal (WebSocket)
@@ -699,7 +698,7 @@ data: {"id":"notif_abc","sessionId":"sess_1",...}
 event: notifications-read
 data: {"ids":["notif_abc","notif_def"]}
 
-event: prompt-queue-changed
+event: prompts-changed
 data: {}
 
 event: reset
@@ -712,5 +711,5 @@ Events:
 - `session-changed` — Specific sessions changed, with IDs
 - `notification` — A new notification was created
 - `notifications-read` — Notifications were marked as read
-- `prompt-queue-changed` — The prompt queue changed (refresh)
+- `prompts-changed` — The prompt pad changed (refresh)
 - `reset` — All user data was reset

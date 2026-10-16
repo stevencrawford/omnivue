@@ -18,7 +18,7 @@ import type {
   Bookmark,
   AppNotification,
   NotificationSettings,
-  QueuedPrompt,
+  Prompt,
 } from "./types";
 import {
   SessionsSchema,
@@ -44,9 +44,8 @@ import {
   SessionSchema,
   NotificationsSchema,
   NotificationSettingsSchema,
-  QueuedPromptsSchema,
-  QueuedPromptSchema,
-  DispatchResponseSchema,
+  PromptsSchema,
+  PromptSchema,
 } from "./schemas";
 
 // ---------------------------------------------------------------------------
@@ -472,45 +471,28 @@ export async function setNotificationSettings(
 }
 
 // ---------------------------------------------------------------------------
-// Prompt Queue
+// Prompts
 // ---------------------------------------------------------------------------
 
-export async function fetchPrompts(
-  status?: string,
-  sessionId?: string,
-  limit?: number,
-): Promise<QueuedPrompt[]> {
+export async function fetchPrompts(status?: string, limit?: number): Promise<Prompt[]> {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
-  if (sessionId) params.set("session_id", sessionId);
   if (limit) params.set("limit", String(limit));
   const qs = params.toString();
-  return fetchJson(`/_/api/prompts${qs ? `?${qs}` : ""}`, QueuedPromptsSchema);
+  return fetchJson(`/_/api/prompts${qs ? `?${qs}` : ""}`, PromptsSchema);
 }
 
-export async function createPrompt(data: {
-  promptText: string;
-  sessionId?: string | null;
-  sourceId?: string | null;
-  priority?: number;
-  tags?: string[];
-}): Promise<QueuedPrompt> {
-  return fetchJson("/_/api/prompts", QueuedPromptSchema, {
+export async function createPrompt(data: { promptText: string }): Promise<Prompt> {
+  return fetchJson("/_/api/prompts", PromptSchema, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      promptText: data.promptText,
-      sessionId: data.sessionId ?? null,
-      sourceId: data.sourceId ?? null,
-      priority: data.priority ?? 0,
-      tags: data.tags ?? [],
-    }),
+    body: JSON.stringify({ promptText: data.promptText }),
   });
 }
 
 export async function updatePrompt(
   id: string,
-  data: { promptText?: string; priority?: number; tags?: string[] },
+  data: { promptText?: string; status?: "open" | "done"; pinned?: boolean },
 ): Promise<void> {
   await fetchVoid(`/_/api/prompts/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -519,14 +501,16 @@ export async function updatePrompt(
   });
 }
 
-export async function deletePrompt(id: string): Promise<void> {
-  await fetchVoid(`/_/api/prompts/${encodeURIComponent(id)}`, { method: "DELETE" });
+export async function reorderPrompts(ids: string[]): Promise<void> {
+  await fetchVoid("/_/api/prompts/order", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
 }
 
-export async function dispatchPrompt(id: string): Promise<{ promptText: string }> {
-  return fetchJson(`/_/api/prompts/${encodeURIComponent(id)}/dispatch`, DispatchResponseSchema, {
-    method: "POST",
-  });
+export async function deletePrompt(id: string): Promise<void> {
+  await fetchVoid(`/_/api/prompts/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function batchDeletePrompts(ids: string[]): Promise<void> {

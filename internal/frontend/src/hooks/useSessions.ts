@@ -23,11 +23,11 @@ export interface SessionsState {
 
 const INDEXING_STATUS_POLL_MS = 3000;
 
-// Global callback for prompt-queue-changed SSE events.
-// Components can register by calling setOnPromptQueueChanged.
-let onPromptQueueChanged: (() => void) | null = null;
-export function setOnPromptQueueChanged(cb: (() => void) | null) {
-  onPromptQueueChanged = cb;
+// Global callback for prompts-changed SSE events.
+// Components can register by calling setOnPromptsChanged.
+let onPromptsChanged: (() => void) | null = null;
+export function setOnPromptsChanged(cb: (() => void) | null) {
+  onPromptsChanged = cb;
 }
 
 export function useSessions(): SessionsState {
@@ -125,8 +125,8 @@ export function useSessions(): SessionsState {
         return next;
       });
     },
-    onPromptQueueChanged: () => {
-      onPromptQueueChanged?.();
+    onPromptsChanged: () => {
+      onPromptsChanged?.();
     },
     onConnectionChange: setConnected,
   });

@@ -17,7 +17,7 @@ import type {
   NotificationSeveritySchema,
   PlanSchema,
   PositionSchema,
-  QueuedPromptSchema,
+  PromptSchema,
   SearchResultSchema,
   ScratchFileSchema,
   SessionFileSchema,
@@ -55,7 +55,7 @@ export type NotificationSeverity = z.infer<typeof NotificationSeveritySchema>;
 export type NotificationScope = z.infer<typeof NotificationScopeSchema>;
 export type AppNotification = z.infer<typeof NotificationSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
-export type QueuedPrompt = z.infer<typeof QueuedPromptSchema>;
+export type Prompt = z.infer<typeof PromptSchema>;
 
 // The session view's active tab, driven by the navigation store. Cinematic is
 // the only session presentation, so the live values are the default conversation
