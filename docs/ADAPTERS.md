@@ -6,7 +6,8 @@ Adapters are the pluggable interface between Omnivue and AI coding agent data st
 
 | Agent | Adapter | Source data | Format |
 |-------|---------|-------------|--------|
-| OpenCode | `internal/ingest/opencode/` | `~/.local/share/opencode/opencode.db` | SQLite (`session`, `message`, `part` tables; plans from `part` tool `todowrite`/`task`; diffs from `session.summary_diffs` JSON) |
+| OpenCode (v1) | `internal/ingest/opencode/` | `~/.local/share/opencode/opencode.db` | SQLite (`session`, `message`, `part` tables; plans from `part` tool `todowrite`/`task`; diffs from `session.summary_diffs` JSON) |
+| OpenCode (v2) | `internal/ingest/opencode/` (`v2.go`) | `~/.local/share/opencode/opencode.db` | SQLite (`session_v2`, `session_message`, `project` tables; one row per turn keyed by monotonic `seq`; plans/diffs/edits parsed from the per-row `data` JSON blob) |
 | Copilot | `internal/ingest/copilot/` | `~/.copilot/session-store.db` | SQLite (`sessions`, `turns`, `session_files` tables, `checkpoints` table) |
 | | | `~/.copilot/session-state/<uuid>/events.jsonl` | JSONL (conversation + tool calls) |
 | | | `~/.copilot/session-state/<id>/session.db` | SQLite (`todos` table) |
@@ -24,6 +25,10 @@ Adapters are the pluggable interface between Omnivue and AI coding agent data st
 | | | `~/.codex/sessions/**/*.jsonl` | JSONL (sessions; plans and diffs parsed inline) |
 
 Detection notes (`internal/ingest/detect.go`, `registry.go`):
+- OpenCode probes the schema once at construction: the presence of the
+  `session_message` table selects the v2 code path, otherwise v1. A v2 database
+  keeps a frozen copy of the v1 tables, so the `session_message` table is the
+  authoritative signal.
 - Cursor resolves to the `state.vscdb` **file** (checks the given path,
   `<path>/state.vscdb`, and the standard macOS/Linux globalStorage
   locations), so its `Source.Path` is a file while other adapters use
@@ -59,11 +64,11 @@ invocation with the `cd` prefix stripped, and the in-harness command:
 | Agent | Command | In-harness |
 |-------|---------|------------|
 | OpenCode | `cd <dir> && opencode -s <id>` | `/session <id>` |
-| Copilot | `cd <dir> && copilot --resume=<id>` | `/resume` |
-| Cursor | `cd <dir> && cursor --composer <id>` | `/resume` |
-| Pi | `cd <dir> && pi --session <id>` | `/resume` |
-| Claude Code | `cd <dir> && claude -r <id>` | `/resume` |
-| Codex | `cd <dir> && codex resume <id>` | `/resume` |
+| Copilot | `cd <dir> && copilot --resume=<id>` | `/resume <id>` |
+| Cursor | `cd <dir> && cursor --composer <id>` | `/resume <id>` |
+| Pi | `cd <dir> && pi --session <id>` | `/resume <id>` |
+| Claude Code | `cd <dir> && claude -r <id>` | `/resume <id>` |
+| Codex | `cd <dir> && codex resume <id>` | `/resume <id>` |
 
 ## Adapter interface
 

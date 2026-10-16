@@ -21,16 +21,17 @@ Omnivue is a 100% local multi-agent session manager for your AI coding sessions.
 ## Features
 
 - **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex out of the box
+- **Cinematic session view** — Full-screen playable workspace: a timeline scrubber with playback, turn isolation, an activity/plan/prompt drawer, a console, and a file-access tree
+- **File viewer** — Browse the files a session read or edited; render markdown from disk and view merged diffs in place
 - **Embedded terminal** — In-browser PTY that runs the agent's resume command (xterm.js + WebSocket)
 - **Conversation viewer** — Full message history with tool calls, reasoning, and step events
 - **File diffs** — Unified diff view of every file change made during a session
 - **Plan tracking** — Implementation plans and checkpoints with status indicators
-- **Prompt queue** — Queue prompts globally or per session, dispatch or delete from the sidebar
-- **Session view** — Full-screen workspace with a timeline scrubber, activity drawer, console, and file access tree
+- **Prompt pad** — Global, session-independent library of reusable prompts: paste straight from the clipboard, copy back, pin, reorder, and check off
 - **Live updates** — Adaptive SSE-based polling (5s when active, 30s when idle) with notification events
 - **Full-text search** — FTS5 index across all session content and tags, scoped or global
 - **Notifications** — In-app toasts and OS notifications for new messages, questions, task completions, and status changes; configurable kinds, scope, and channels
-- **Bookmarks** — Toggle bookmarks on any message or tool call; navigate from a sidebar panel
+- **Bookmarks** — Toggle bookmarks on any message, tool call, or plan item; navigate from a sidebar panel
 - **User tags** — Virtual organization with unique names, custom colors, and searchable grouping
 - **Scratch notes** — Per-session markdown notes with rich text or code editor
 - **Session renaming** — Override display names from the sidebar
@@ -38,8 +39,9 @@ Omnivue is a 100% local multi-agent session manager for your AI coding sessions.
 - **Overview screen** — Analytics dashboard with session activity charts, model/agent breakdown, and time-range filtering
 - **Settings UI** — Agent, sessions, notifications, appearance, privacy, developer, and about tabs
 - **Resume sessions** — One-click copy of the CLI command to resume, or open an embedded terminal
+- **Collapsible sidebar** — Icon-channel navigation (sessions, prompts, tags, bookmarks, notifications) with a collapsible, resizable side panel
 - **Keyboard-driven** — `j`/`k` navigate, `⌘1`/`⌘2` session & plan, `⌘K` search, `?` shortcuts reference
-- **Deep linking** — Shareable URLs `#/session/{id}`
+- **Deep linking** — Shareable URLs for sessions and sections (`#/session/{id}`, `#/tags`, `#/search?q=…`); Back/Forward undo navigation
 - **Multi-theme** — Ayu, Nord, Catppuccin, Tokyo Night, GitHub, One Monokai, Atom One, Dracula, and Night Owl themes with light/dark modes and high-contrast support
 - **Read-only access** — Never writes to agent databases (enforced at driver level)
 - **Single binary** — Go + embedded React SPA, zero runtime dependencies

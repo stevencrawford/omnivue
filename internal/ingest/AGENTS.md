@@ -101,13 +101,14 @@ Implement `LastModified` to return the latest modification timestamp across all 
 ### OpenCode (`internal/ingest/opencode/`)
 
 - **Source**: Single SQLite file (`~/.local/share/opencode/opencode.db`)
-- **Table structure**: `session`, `message`, `project`, `todo`, `task`
-- **Messages**: Stored in `message` table with `parts` column containing JSON array of content parts (text + tool calls)
-- **Tool calls**: Inline in message parts with standard names (`edit`, `write`, `read`, `bash`, `grep`, `glob`, `todowrite`, `task`, `question`, `webfetch`, `websearch`, `codesearch`)
-- **Plans**: Synthesized from `todo` and `task` tables
-- **Diffs**: Computed from `tool_call` data and snapshot git repos
+- **Two storage generations**: the adapter probes the schema once at construction (`detectSchema`) — the presence of the `session_message` table selects **v2** (implemented in `v2.go`), otherwise **v1**. A v2 database keeps a frozen copy of the v1 tables, so `session_message` is the authoritative signal.
+- **v1 tables**: `session`, `message`, `part`, `project`; `Session`/`Messages`/`Plan`/`Edits`/`Diffs` join `message` → `part`, with text and tool calls in each part's `data` JSON.
+- **v2 tables**: `session_v2`, `session_message`, `project`; one row per turn keyed by a monotonic `seq` and a `type` (`user`/`assistant`/`system`/`synthetic`/`compaction`), with the whole turn in the row's `data` JSON blob. `synthetic` rows are skipped and `compaction` rows become a `compaction` marker.
+- **Tool calls**: Standard names (`edit`, `write`, `read`, `bash`, `grep`, `glob`, `todowrite`, `task`, `question`, `webfetch`, `websearch`, `codesearch`)
+- **Plans**: Synthesized from todo/task tool calls and sub-agent task output
+- **Diffs**: From the `session.summary_diffs` JSON (v2 reads `session_v2.summary_diffs`) plus edit/write tool calls
 - **Resume**: `cd /path && opencode -s <session_id>`
-- **Key pattern**: Parse message parts JSON to extract text content and tool calls:
+- **Key pattern** (v1): Parse the message parts JSON to extract text content and tool calls:
 
   ```go
   var parts []struct {
@@ -120,11 +121,11 @@ Implement `LastModified` to return the latest modification timestamp across all 
 
 ### Copilot (`internal/ingest/copilot/`)
 
-- **Sources**: Multi-source — `session-store.db` (SQLite) + `session-state/<uuid>/events.jsonl` (JSONL) + `checkpoints/` (Markdown)
+- **Sources**: Multi-source — `session-store.db` (SQLite) + `session-state/<uuid>/events.jsonl` (JSONL) + `session-state/<uuid>/plan.md` (Markdown) + `session-state/<uuid>/session.db` (`todos` table) + `session-state/<uuid>/research/*.md` (synthetic research sessions)
 - **Table structure**: `sessions`, `turns`, `session_files` in `session-store.db`
 - **Messages**: From `events.jsonl` — each line is a conversation turn with content parts (text + tool_use)
 - **Tool calls**: Only `tool_use` type in events (limited detail). The adapter stores them but with minimal metadata.
-- **Plans**: From `checkpoints/` directory as markdown files
+- **Plans**: From `session-state/<uuid>/plan.md`, falling back to the `checkpoints` table in `session-store.db`
 - **Diffs**: From `session_files` table (file path + status) — no unified diff patch available
 - **Resume**: `cd /path && copilot --resume=<session_id>`
 - **Key pattern**: Parse JSONL events with scanner, extract tool calls from content array:
@@ -142,7 +143,7 @@ raw `bufio.Scanner` for all JSONL parsing.
 
 ### Cursor (`internal/ingest/cursor/`)
 
-- **Sources**: `state.vscdb` (SQLite KV) + `projects/<uuid>/*.jsonl` (agent transcripts) + `ai-code-tracking.db` (enrichment)
+- **Sources**: `state.vscdb` (SQLite KV) + `projects/<uuid>/*.jsonl` (agent transcripts)
 - **KV store**: Key-value table `cursorDiskKV` with keys like `composerData:<id>`, `bubbleId:<session>:<id>`, `composer.content.<hash>`
 - **Bubble messages**: Full conversation from KV store with tool call data (preferred path)
 - **Transcript fallback**: From JSONL files when bubble data is unavailable
@@ -165,7 +166,25 @@ raw `bufio.Scanner` for all JSONL parsing.
 - **Plans**: Not supported — Pi implements neither the `Planner` seam nor a stub
 - **Diffs**: Computed from edit/write tool calls (`DiffStatsFromEdits`)
 - **Resume**: `cd /path && pi --session <id>`
-- **Key pattern**: Parse JSONL files with scanner, read first line as session header, subsequent lines as events:
+- **Key pattern**: Parse JSONL files with scanner, read first line as session header, subsequent lines as events
+
+### Claude Code (`internal/ingest/claude-code/`, package `claudecode`)
+
+- **Sources**: `~/.claude/projects/<project>/<session>.jsonl` (main transcripts) + `projects/<project>/<session>/subagents/agent-*.jsonl` (subagent transcripts) + `~/.claude/plans/<slug>.md` (plans) + `projects/<project>/sessions-index.json` (session index/summaries)
+- **Messages**: JSONL transcript lines with `text`, `thinking` (reasoning), and `tool_use`/`tool_result` content
+- **Tool calls**: Native harness names mapped through `ingestkit.CanonicalizeToolName`; agent-native names are preserved where a transform gates on the original (e.g. `TaskCreate`/`TaskUpdate`)
+- **Plans**: From the `plans/` markdown directory
+- **Diffs**: Synthesized from edit/write tool calls
+- **Resume**: `cd /path && claude -r <id>`
+
+### Codex (`internal/ingest/codex/`)
+
+- **Sources**: `~/.codex/session_index.jsonl` (session index) + `~/.codex/sessions/**/*.jsonl` (rollout transcripts; first line is `session_meta`)
+- **Messages**: `response_item` / `event_msg` lines
+- **Tool calls**: `function_call` / `custom_tool_call`
+- **Plans**: From `event_msg` → `item_completed` of type `Plan`
+- **Diffs**: From `patch_apply_end.changes` plus edit/write tool calls; tokens are per-turn deltas derived from cumulative `token_count`
+- **Resume**: `cd /path && codex resume <id>`
 
 ## Tool Call Normalization
 
