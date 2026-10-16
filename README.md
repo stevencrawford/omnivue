@@ -63,7 +63,7 @@ brew install stevencrawford/tap/omnivue
 
 ### 2. Build from source
 
-Requires Go 1.26+, [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
+Requires Go 1.26.8+, [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
 
 ```bash
 git clone https://github.com/stevencrawford/omnivue.git

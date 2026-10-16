@@ -10,7 +10,7 @@ Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `omnivue` rep
 
 ## Build & Run
 
-Requires Go 1.26+ and [pnpm](https://pnpm.io/). Node.js version is managed via `pnpm.executionEnv.nodeVersion` in `internal/frontend/package.json`.
+Requires Go 1.26.8+ and [pnpm](https://pnpm.io/). Node.js version is managed via `pnpm.executionEnv.nodeVersion` in `internal/frontend/package.json`.
 
 After making changes to any files under `internal/frontend/`, run the following to ensure consistent formatting:
 
