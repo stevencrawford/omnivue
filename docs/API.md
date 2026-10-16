@@ -542,8 +542,8 @@ Save notification settings. Accepts the same JSON shape as above.
 
 ## Prompts
 
-Prompts are a global, session-independent pad — a dumping ground for useful
-prompts and drafts. Entries are ordered by `pinned DESC, position ASC`.
+Prompts are a global, session-independent pad for keeping the prompts you
+reuse. Entries are ordered by `pinned DESC, position ASC`.
 
 ```http
 GET /_/api/prompts?status=<s>&limit=<n>

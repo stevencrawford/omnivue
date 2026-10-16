@@ -804,8 +804,8 @@ func (s *Store) MarkSessionViewed(sessionID string) error {
 // --- Prompt Pad CRUD ---
 
 // Prompt represents a single saved prompt in the global prompt pad. Prompts are
-// not tied to a session: they are a free-form dumping ground for useful prompts
-// and drafts that can be copied back out on demand.
+// not tied to a session: they are reusable prompts and drafts that can be copied
+// back out on demand.
 type Prompt struct {
 	ID         string `json:"id"`
 	PromptText string `json:"promptText"`
