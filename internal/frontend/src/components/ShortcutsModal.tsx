@@ -16,6 +16,7 @@ const GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: "j / ↓", desc: "Next session" },
       { keys: "k / ↑", desc: "Previous session" },
+      { keys: "Esc", desc: "Back to parent session (sub-agent)" },
       { keys: "⌘1", desc: "Session tab" },
       { keys: "⌘2", desc: "Diff tab" },
     ],

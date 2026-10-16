@@ -7,7 +7,7 @@ import type { Session } from "../hooks/types";
 
 export interface SessionFamilyMember {
   session: Session;
-  /** "Main" for the root, otherwise the sub-agent name or session title. */
+  /** "Main" for the root, otherwise "<sub-agent type> - <session title>". */
   label: string;
   isMain: boolean;
 }
@@ -32,10 +32,23 @@ export function resolveFamilyRoot(sessions: Session[], id: string | null): strin
   return current.id;
 }
 
+// OpenCode appends the spawning agent to a sub-agent's title, e.g.
+// "Map cinematic view dispatch (@explore subagent)". Strip it so the label can
+// present the agent type and the human title separately without repeating the
+// type.
+const SUBAGENT_TITLE_ANNOTATION = /\s*\(@[^)]*\bsubagent\)\s*$/i;
+
+function cleanSubAgentTitle(title: string): string {
+  return title.replace(SUBAGENT_TITLE_ANNOTATION, "").trim();
+}
+
 function memberLabel(session: Session, subIndex: number): string {
-  const name = session.subAgent?.trim();
-  if (name) return name;
-  const title = session.title?.trim();
+  const type = session.subAgent?.trim();
+  const title = cleanSubAgentTitle(session.title?.trim() ?? "");
+  // "<type> - <title>" is the useful form ("explore - Map frontend structure");
+  // fall back to whichever half exists, then to a numbered label.
+  if (type && title && title.toLowerCase() !== type.toLowerCase()) return `${type} - ${title}`;
+  if (type) return type;
   if (title) return title;
   return `Sub-agent ${subIndex}`;
 }

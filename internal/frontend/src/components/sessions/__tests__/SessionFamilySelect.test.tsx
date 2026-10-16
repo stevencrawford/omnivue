@@ -34,6 +34,8 @@ const family: SessionFamilyMember[] = [
   { session: session("sub-2"), label: "Sub-agent 2", isMain: false },
 ];
 
+const openMenu = () => fireEvent.click(screen.getByRole("button", { name: /Sub-agent/ }));
+
 describe("SessionFamilySelect", () => {
   it("renders nothing when there are no sub-agents", () => {
     const { container } = render(
@@ -42,26 +44,27 @@ describe("SessionFamilySelect", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the current member and lists Main plus sub-agents", () => {
+  it("lists the sub-agents without offering the root session", () => {
     render(<SessionFamilySelect family={family} activeId="root" onSelect={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: /Main/ }));
+    openMenu();
     expect(screen.getByRole("option", { name: /Researcher/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Sub-agent 2/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /^Main$/ })).not.toBeInTheDocument();
   });
 
   it("selects a sub-agent and closes the menu", () => {
     const onSelect = vi.fn();
     render(<SessionFamilySelect family={family} activeId="root" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: /Main/ }));
+    openMenu();
     fireEvent.click(screen.getByRole("option", { name: /Researcher/ }));
     expect(onSelect).toHaveBeenCalledWith("sub-1");
     expect(screen.queryByRole("option", { name: /Researcher/ })).not.toBeInTheDocument();
   });
 
-  it("does not re-select the active member", () => {
+  it("does not re-select the active sub-agent", () => {
     const onSelect = vi.fn();
     render(<SessionFamilySelect family={family} activeId="sub-1" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: /Researcher/ }));
+    openMenu();
     fireEvent.click(screen.getByRole("option", { name: /Researcher/ }));
     expect(onSelect).not.toHaveBeenCalled();
   });

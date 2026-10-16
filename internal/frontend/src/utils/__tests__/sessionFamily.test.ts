@@ -68,12 +68,14 @@ describe("buildSessionFamily", () => {
         id: "sub-b",
         parentId: "root",
         subAgent: "Beta",
+        title: "Second task",
         createdAt: "2024-01-03T00:00:00Z",
       }),
       baseSession({
         id: "sub-a",
         parentId: "root",
         subAgent: "Alpha",
+        title: "First task",
         createdAt: "2024-01-02T00:00:00Z",
       }),
     ];
@@ -81,8 +83,33 @@ describe("buildSessionFamily", () => {
     expect(family.map((m) => m.session.id)).toEqual(["root", "sub-a", "sub-b"]);
     expect(family[0].isMain).toBe(true);
     expect(family[0].label).toBe("Main");
-    expect(family[1].label).toBe("Alpha");
-    expect(family[2].label).toBe("Beta");
+    expect(family[1].label).toBe("Alpha - First task");
+    expect(family[2].label).toBe("Beta - Second task");
+  });
+
+  it("strips the OpenCode sub-agent annotation from the title", () => {
+    const sessions = [
+      baseSession({ id: "root" }),
+      baseSession({
+        id: "s1",
+        parentId: "root",
+        subAgent: "explore",
+        title: "Map frontend structure (@explore subagent)",
+      }),
+    ];
+    const family = buildSessionFamily(sessions, "root");
+    expect(family[1].label).toBe("explore - Map frontend structure");
+  });
+
+  it("falls back to the type, then the title, when one is missing", () => {
+    const sessions = [
+      baseSession({ id: "root" }),
+      baseSession({ id: "s1", parentId: "root", subAgent: "code-review", title: "" }),
+      baseSession({ id: "s2", parentId: "root", title: "Do the thing" }),
+    ];
+    const family = buildSessionFamily(sessions, "root");
+    expect(family[1].label).toBe("code-review");
+    expect(family[2].label).toBe("Do the thing");
   });
 
   it("flattens nested sub-agents under their branch", () => {

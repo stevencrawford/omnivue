@@ -19,6 +19,11 @@ export interface AppKeyboardConfig {
   clearSearchHighlight: () => void;
   setShowOverview: (v: boolean) => void;
   navigateSession: (delta: 1 | -1, sessions: Session[]) => void;
+  /**
+   * Set while a sub-agent is open: Escape returns to the parent session. Null
+   * on the root session and on the overview.
+   */
+  backToParent?: (() => void) | null;
   onOpenShortcuts?: () => void;
 }
 
@@ -38,6 +43,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     clearSearchHighlight,
     setShowOverview,
     navigateSession,
+    backToParent,
     onOpenShortcuts,
   } = config;
 
@@ -69,6 +75,18 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
         }
         if (searchHighlightQuery) {
           clearSearchHighlight();
+          return;
+        }
+        // Escape is the keyboard twin of the sub-agent "Back" button. Bail when
+        // the user is typing or a dialog/floating menu owns the key, so it never
+        // hijacks another control's own Escape handling.
+        if (
+          backToParent &&
+          !isInput &&
+          !document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')
+        ) {
+          e.preventDefault();
+          backToParent();
           return;
         }
       }
@@ -144,6 +162,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
     clearSearchHighlight,
     setShowOverview,
     navigateSession,
+    backToParent,
     onOpenShortcuts,
   ]);
 }

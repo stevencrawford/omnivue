@@ -17,6 +17,7 @@ import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
 import { SessionFamilySelect } from "./sessions/SessionFamilySelect";
+import { SubAgentBackButton } from "./sessions/SubAgentBackButton";
 import { useNavigation } from "../hooks/useNavigation";
 
 export function SessionHeader({
@@ -55,6 +56,14 @@ export function SessionHeader({
   // Root session plus any sub-agents, shown as a selector beside the title. The
   // selector renders itself only when the family has more than one member.
   const family = useMemo(() => activeSessionFamily(sessions, session.id), [sessions, session.id]);
+
+  // While a sub-agent is open the selector is replaced by a "Back" control: the
+  // only way to reach a sub-agent is by descending from the root, so leaving one
+  // is always to its parent rather than sideways to a sibling.
+  const parent = useMemo(
+    () => (session.parentId ? (sessions.find((s) => s.id === session.parentId) ?? null) : null),
+    [sessions, session.parentId],
+  );
 
   useEffect(() => {
     setDisplayTitle(session.title);
@@ -250,11 +259,18 @@ export function SessionHeader({
             )}
           </>
         )}
-        <SessionFamilySelect
-          family={family}
-          activeId={session.id}
-          onSelect={navigation.navigateToSession}
-        />
+        {parent ? (
+          <SubAgentBackButton
+            parentLabel={parent.title || parent.id}
+            onBack={() => navigation.navigateToSession(parent.id)}
+          />
+        ) : (
+          <SessionFamilySelect
+            family={family}
+            activeId={session.id}
+            onSelect={navigation.navigateToSession}
+          />
+        )}
         <span className={`${badgeClass} shrink-0`}>{agentLabel(session.agent)}</span>
         {hasPrivacy && <span className="sess-privacy-badge shrink-0">Privacy mode</span>}
 
