@@ -49,8 +49,14 @@ import {
 } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
 import { useResizable } from "../../hooks/useResizable";
+import { useElementWidth } from "../../hooks/useElementWidth";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
 import { isSpanContained, mergeSpanRange } from "../../utils/spanRange";
+import {
+  DRAWER_DEFAULT_WIDTH,
+  TREE_DEFAULT_WIDTH,
+  shouldAutoCollapseDrawer,
+} from "../../utils/cinematicLayout";
 
 interface CinematicSessionViewProps {
   session: Session;
@@ -110,9 +116,19 @@ export function CinematicSessionView({
     null,
   );
   const [terminalOpen, setTerminalOpen] = useState(false);
-  const [drawerCollapsed, setDrawerCollapsed] = useState(
+  // The user's resting preference for the activity drawer, persisted across
+  // reloads and never touched by the width-driven auto-collapse.
+  const [drawerCollapsedPref, setDrawerCollapsedPref] = useState(
     () => getStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED) === "true",
   );
+  // Transient width-driven collapse. Deliberately not persisted: it is
+  // recomputed from the row width, so widening the window — or collapsing the
+  // LHS session list — restores whatever the user had chosen.
+  const [autoCollapsed, setAutoCollapsed] = useState(false);
+  // Set when the user (or a jump) explicitly expands the drawer on a narrow
+  // row, so the width-driven collapse does not immediately override them.
+  const [autoCollapseOverride, setAutoCollapseOverride] = useState(false);
+  const drawerCollapsed = drawerCollapsedPref || (autoCollapsed && !autoCollapseOverride);
   const [consoleCollapsed, setConsoleCollapsed] = useState(
     () => getStorageItem(STORAGE_KEYS.CINEMATIC_CONSOLE_COLLAPSED) === "true",
   );
@@ -145,7 +161,8 @@ export function CinematicSessionView({
   });
 
   const expandDrawer = useCallback(() => {
-    setDrawerCollapsed(false);
+    setDrawerCollapsedPref(false);
+    setAutoCollapseOverride(true);
     setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "false");
   }, []);
 
@@ -154,14 +171,14 @@ export function CinematicSessionView({
     axis: "horizontal",
     min: 180,
     max: 700,
-    defaultValue: 280,
+    defaultValue: TREE_DEFAULT_WIDTH,
   });
   const { value: drawerWidth, startResize: startDrawerResize } = useResizable({
     storageKey: STORAGE_KEYS.CINEMATIC_DRAWER_WIDTH,
     axis: "horizontal",
     min: 260,
     max: 900,
-    defaultValue: 360,
+    defaultValue: DRAWER_DEFAULT_WIDTH,
     invert: true,
   });
   const { value: consoleHeight, startResize: startConsoleResize } = useResizable({
@@ -171,6 +188,28 @@ export function CinematicSessionView({
     max: 650,
     defaultValue: 260,
   });
+
+  // The session row (tree | diff | drawer) is measured to decide when the
+  // activity drawer must auto-collapse. It deliberately excludes the LHS
+  // session sidebar, so collapsing that sidebar widens the row and restores the
+  // drawer on its own — no cross-component wiring needed.
+  const [rowRef, rowWidth] = useElementWidth<HTMLDivElement>();
+  const wasNarrowRef = useRef(false);
+  useEffect(() => {
+    if (rowWidth === null) return;
+    const narrow = shouldAutoCollapseDrawer(rowWidth);
+    const wasNarrow = wasNarrowRef.current;
+    wasNarrowRef.current = narrow;
+    if (narrow) {
+      setAutoCollapsed(true);
+      // A fresh narrow episode clears any earlier manual override so the
+      // drawer collapses again on the next squeeze.
+      if (!wasNarrow) setAutoCollapseOverride(false);
+    } else {
+      setAutoCollapsed(false);
+      setAutoCollapseOverride(false);
+    }
+  }, [rowWidth]);
 
   const loadRef = useRef<{ id: number; controller: AbortController | null }>({
     id: 0,
@@ -818,12 +857,13 @@ export function CinematicSessionView({
   }, [onJumpTerminal]);
 
   const toggleDrawer = useCallback(() => {
-    setDrawerCollapsed((v) => {
-      const next = !v;
-      setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, String(next));
-      return next;
-    });
-  }, []);
+    if (drawerCollapsed) {
+      expandDrawer();
+    } else {
+      setDrawerCollapsedPref(true);
+      setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "true");
+    }
+  }, [drawerCollapsed, expandDrawer]);
 
   const toggleConsole = useCallback(() => {
     setConsoleCollapsed((v) => {
@@ -841,12 +881,9 @@ export function CinematicSessionView({
   const handleCollapsedActivitySelect = useCallback(
     (tab: ActivityTab) => {
       handleActivityTabChange(tab);
-      if (drawerCollapsed) {
-        setDrawerCollapsed(false);
-        setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "false");
-      }
+      if (drawerCollapsed) expandDrawer();
     },
-    [drawerCollapsed, handleActivityTabChange],
+    [drawerCollapsed, handleActivityTabChange, expandDrawer],
   );
 
   // Target routing. Two independent triggers share this effect:
@@ -956,7 +993,7 @@ export function CinematicSessionView({
             onClearSpan={handleClearSpan}
           />
 
-          <div className="flex flex-1 overflow-hidden min-h-0">
+          <div ref={rowRef} className="flex flex-1 overflow-hidden min-h-0">
             {loading && messages.length === 0 ? (
               <LoadingState label="Loading session…" />
             ) : (
