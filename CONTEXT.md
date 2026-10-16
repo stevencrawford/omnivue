@@ -171,5 +171,5 @@ state transition so callers cross one seam with intent verbs instead of wiring r
   jumpToMessage, goHome, …) through a single `NavigationContext`.
 - **Seam:** every entry point into a selected session crosses it — Sidebar, SearchPanel,
   notifications, bookmarks, the prompt queue, keyboard shortcuts, and the URL hash (deep
-  links and back/forward). Leaf consumers (`ConversationView`, tool-call renderers) read the
+  links and back/forward). Leaf consumers (`NotificationDrawer`, tool-call renderers) read the
   same context instead of separate focus/nav providers.

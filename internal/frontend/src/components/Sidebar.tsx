@@ -8,7 +8,6 @@ import { NotificationPanel } from "./NotificationPanel";
 import { QueuePanel } from "./QueuePanel";
 import { useCallback, useEffect, useRef } from "react";
 import { useResizable } from "../hooks/useResizable";
-import { useCinematicMode } from "../hooks/useCinematicMode";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
 interface SidebarProps {
@@ -70,9 +69,7 @@ export function Sidebar({
     defaultValue: 280,
   });
 
-  const renderedWidth = sidebarOpen ? width : 48;
   const panelWidth = sidebarOpen ? Math.max(172, width - 48) : 0;
-  const { enabled: isCinematic } = useCinematicMode();
   const hasAutoClosedRef = useRef(false);
   const hoverCloseRef = useRef<number | null>(null);
   const sectionHoverRef = useRef<number | null>(null);
@@ -87,12 +84,12 @@ export function Sidebar({
   }, []);
 
   const scheduleHoverClose = useCallback(() => {
-    if (!isCinematic || !sidebarOpen) return;
+    if (!sidebarOpen) return;
     cancelHoverClose();
     hoverCloseRef.current = window.setTimeout(() => {
       onSidebarToggle();
     }, 300);
-  }, [isCinematic, sidebarOpen, onSidebarToggle, cancelHoverClose]);
+  }, [sidebarOpen, onSidebarToggle, cancelHoverClose]);
 
   const cancelSectionHover = useCallback(() => {
     if (sectionHoverRef.current !== null) {
@@ -124,12 +121,12 @@ export function Sidebar({
         cancelSectionHover();
         if (activeSection !== section) onSectionChange(section);
         onSidebarToggle();
-        if (isCinematic) cancelHoverClose();
+        cancelHoverClose();
         return;
       }
       if (section === activeSection) {
         cancelSectionHover();
-        if (isCinematic) cancelHoverClose();
+        cancelHoverClose();
         return;
       }
       cancelSectionHover();
@@ -137,14 +134,13 @@ export function Sidebar({
         onSectionChange(section);
         sectionHoverRef.current = null;
       }, SECTION_HOVER_DELAY);
-      if (isCinematic) cancelHoverClose();
+      cancelHoverClose();
     },
     [
       sidebarOpen,
       activeSection,
       onSectionChange,
       onSidebarToggle,
-      isCinematic,
       cancelHoverClose,
       cancelSectionHover,
     ],
@@ -159,63 +155,62 @@ export function Sidebar({
       } else if (activeSection !== section) {
         onSectionChange(section);
       }
-      if (isCinematic) cancelHoverClose();
+      cancelHoverClose();
     },
     [
       sidebarOpen,
       activeSection,
       onSectionChange,
       onSidebarToggle,
-      isCinematic,
       cancelHoverClose,
       cancelSectionHover,
     ],
   );
 
   useEffect(() => {
-    if (!hasAutoClosedRef.current && isCinematic && activeSessionId === null && sidebarOpen) {
+    if (!hasAutoClosedRef.current && activeSessionId === null && sidebarOpen) {
       hasAutoClosedRef.current = true;
       onSidebarToggle();
     }
     if (activeSessionId !== null) {
       hasAutoClosedRef.current = true;
     }
-  }, [isCinematic, activeSessionId, sidebarOpen, onSidebarToggle]);
+  }, [activeSessionId, sidebarOpen, onSidebarToggle]);
 
-  const closeIfCinematic = useCallback(() => {
-    if (isCinematic && sidebarOpen) onSidebarToggle();
-  }, [isCinematic, sidebarOpen, onSidebarToggle]);
+  const closeOnSelect = useCallback(() => {
+    if (sidebarOpen) onSidebarToggle();
+  }, [sidebarOpen, onSidebarToggle]);
 
   const handleSessionSelectWrapped = useCallback(
     (id: string) => {
       onSessionSelect(id);
-      closeIfCinematic();
+      closeOnSelect();
     },
-    [onSessionSelect, closeIfCinematic],
+    [onSessionSelect, closeOnSelect],
   );
 
   const handlePromptClickWrapped = useCallback(
     (sessionId: string, promptId: string) => {
       onPromptClick?.(sessionId, promptId);
-      closeIfCinematic();
+      closeOnSelect();
     },
-    [onPromptClick, closeIfCinematic],
+    [onPromptClick, closeOnSelect],
   );
 
   const handleBookmarkSelectWrapped = useCallback(
     (b: Bookmark) => {
       onBookmarkSelect(b);
-      closeIfCinematic();
+      closeOnSelect();
     },
-    [onBookmarkSelect, closeIfCinematic],
+    [onBookmarkSelect, closeOnSelect],
   );
 
   const handleNotificationClickWrapped = useCallback(
     (n: AppNotification) => {
       onNotificationClick(n);
-      closeIfCinematic();
+      closeOnSelect();
     },
-    [onNotificationClick, closeIfCinematic],
+    [onNotificationClick, closeOnSelect],
   );
 
   const panels = (
@@ -273,85 +268,49 @@ export function Sidebar({
     </>
   );
 
-  if (isCinematic) {
-    return (
-      <>
-        <aside
-          className="flex shrink-0 relative"
-          style={{ width: "48px" }}
-          onMouseEnter={handlePanelEnter}
-          onMouseLeave={handleCinematicLeave}
-        >
-          <IconChannel
-            activeSection={activeSection}
-            onSectionChange={onSectionChange}
-            onSettingsOpen={onSettingsOpen}
-            sidebarOpen={sidebarOpen}
-            onSidebarToggle={onSidebarToggle}
-            notificationUnreadCount={notificationUnreadCount}
-            queueCount={queueCount}
-            onSectionHover={handleSectionHover}
-            onSectionHoverCancel={cancelSectionHover}
-            onSectionFocus={handleSectionFocus}
-          />
-        </aside>
-        {sidebarOpen && (
-          <>
-            <div
-              className="absolute inset-0 left-12 z-20 bg-black/55"
-              onClick={onSidebarToggle}
-              aria-hidden="true"
-            />
-            <div
-              className="absolute left-12 top-0 bottom-0 z-30 flex flex-col bg-ov-bg-sidebar border-r border-ov-border shadow-xl overflow-hidden"
-              style={{ width: `${panelWidth}px` }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseEnter={handlePanelEnter}
-              onMouseLeave={handleCinematicLeave}
-            >
-              <div className="flex-1 flex flex-col overflow-hidden min-h-0">{panels}</div>
-              <div
-                className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
-                onMouseDown={startResize}
-              />
-            </div>
-          </>
-        )}
-      </>
-    );
-  }
-
   return (
-    <aside
-      className={`flex shrink-0 relative ${sidebarOpen ? "border-r border-ov-border" : ""}`}
-      style={{ width: `${renderedWidth}px` }}
-      onMouseLeave={cancelSectionHover}
-    >
-      <IconChannel
-        activeSection={activeSection}
-        onSectionChange={onSectionChange}
-        onSettingsOpen={onSettingsOpen}
-        sidebarOpen={sidebarOpen}
-        onSidebarToggle={onSidebarToggle}
-        notificationUnreadCount={notificationUnreadCount}
-        queueCount={queueCount}
-        onSectionHover={handleSectionHover}
-        onSectionHoverCancel={cancelSectionHover}
-        onSectionFocus={handleSectionFocus}
-      />
-      <div
-        className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}
-        style={{ width: `${panelWidth}px` }}
+    <>
+      <aside
+        className="flex shrink-0 relative"
+        style={{ width: "48px" }}
         onMouseEnter={handlePanelEnter}
+        onMouseLeave={handleCinematicLeave}
       >
-        {panels}
-      </div>
-      {sidebarOpen && (
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
-          onMouseDown={startResize}
+        <IconChannel
+          activeSection={activeSection}
+          onSectionChange={onSectionChange}
+          onSettingsOpen={onSettingsOpen}
+          sidebarOpen={sidebarOpen}
+          onSidebarToggle={onSidebarToggle}
+          notificationUnreadCount={notificationUnreadCount}
+          queueCount={queueCount}
+          onSectionHover={handleSectionHover}
+          onSectionHoverCancel={cancelSectionHover}
+          onSectionFocus={handleSectionFocus}
         />
+      </aside>
+      {sidebarOpen && (
+        <>
+          <div
+            className="absolute inset-0 left-12 z-20 bg-black/55"
+            onClick={onSidebarToggle}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute left-12 top-0 bottom-0 z-30 flex flex-col bg-ov-bg-sidebar border-r border-ov-border shadow-xl overflow-hidden"
+            style={{ width: `${panelWidth}px` }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseEnter={handlePanelEnter}
+            onMouseLeave={handleCinematicLeave}
+          >
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">{panels}</div>
+            <div
+              className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10 ${isResizing ? "bg-accent/50" : ""}`}
+              onMouseDown={startResize}
+            />
+          </div>
+        </>
       )}
-    </aside>
+    </>
   );
 }

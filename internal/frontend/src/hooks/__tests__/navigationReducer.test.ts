@@ -32,7 +32,7 @@ describe("navigationReducer", () => {
       const state = base({
         activeSessionId: "old",
         showOverview: false,
-        activeTab: "diff",
+        activeTab: "plan",
         searchHighlightQuery: "foo",
         highlightPromptId: "p",
         focusPosition: { messageID: "m9", toolCallID: "tc1" },
@@ -200,7 +200,7 @@ describe("navigationReducer", () => {
 
   describe("DIFF_NAV_TO_MESSAGE", () => {
     it("prefers the canonical message id as a position over the raw index", () => {
-      const next = navigationReducer(base({ focusMessageKey: 2, activeTab: "summary" }), {
+      const next = navigationReducer(base({ focusMessageKey: 2, activeTab: "plan" }), {
         type: "DIFF_NAV_TO_MESSAGE",
         messageIndex: 4,
         messageId: "m44",
@@ -212,7 +212,7 @@ describe("navigationReducer", () => {
     });
 
     it("falls back to the raw index when no message id is present", () => {
-      const next = navigationReducer(base({ focusMessageKey: 2, activeTab: "summary" }), {
+      const next = navigationReducer(base({ focusMessageKey: 2, activeTab: "plan" }), {
         type: "DIFF_NAV_TO_MESSAGE",
         messageIndex: 4,
         messageId: undefined,
@@ -288,7 +288,7 @@ describe("navigationReducer", () => {
         base({
           activeSessionId: "s1",
           showOverview: false,
-          activeTab: "diff",
+          activeTab: "plan",
           searchHighlightQuery: "q",
           highlightPromptId: "p",
           focusPosition: { messageID: "m9" },

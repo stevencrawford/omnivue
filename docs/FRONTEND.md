@@ -32,7 +32,7 @@ The frontend is a React 19 SPA located in `internal/frontend/`. It is built with
 
 The root component manages global state:
 - Session list, active session, search state, bookmarks, notifications
-- Scratch files, open scratch tabs, live changed session IDs from SSE
+- Scratch files (pin-as-scratch), live changed session IDs from SSE
 - Pin message flow (create scratch file from message content)
 - Keyboard shortcut dispatch
 - URL hash deep-linking (`#/session/{id}`)
@@ -61,57 +61,33 @@ Analytics dashboard shown when no session is selected. Includes:
 - `ActivityCharts` — session count and edit activity over time
 - `ModelAgentBreakdown` — usage breakdown by model and agent
 - `TimeRangeSelector` — filter overview data by time range (7d, 14d, 30d, 90d)
-- `SessionSummary` — per-session summary cards with key metrics
 
-### Session detail (`SessionViewer.tsx`)
+### Session view (`cinematic/`)
 
-Tabbed detail view with tabs: Session (conversation), Diff, Plan, Summary,
-Todos, Terminal, and per-file Scratch tabs. Tab state is driven by the
-`activeTab` URL parameter.
-The tab bar (`SessionTabBar.tsx`) owns main/scratch tabs plus the
-rename/create/delete dialogs and the resume/terminal buttons.
+The cinematic view is the session presentation: `CinematicSessionView` is a
+full-screen workspace with a `TimelineScrubber` across the top, `ConsolePane`,
+`FileAccessTree` + `FileDetail`, and a `NotificationDrawer` that carries the
+conversation (activity), the plan, and tool call rendering. Width/collapse
+persisted via the `omnivue-cinematic-*` localStorage keys.
 
-### Conversation view (`ConversationView.tsx`)
-
-Renders the message list grouped by user turn (`utils/conversationGrouping.ts`
-`groupMessages`, `MessageBlock.tsx` per block). Each message can contain:
-- User request text (`UserTurnMessage`, `UserPromptBubble`)
-- Assistant text with markdown (`AssistantMessage`, `ui/MarkdownContent`)
+The drawer is where conversation rendering lives. Each activity item can
+contain:
+- User request text (`UserPromptBubble`)
+- Assistant text with markdown (`ui/MarkdownContent`)
 - Tool calls (expandable cards with `ToolCallList`, `ToolRendererWrapper`)
 - Reasoning blocks (collapsible)
-- System reminders (collapsible at top, `SystemReminderView`)
-- `ScrollMarkers` — jump-to markers for tool calls and key steps
 - `BookmarkButton` — toggle bookmarks on individual tool call outputs
 - `CopyButton` (`ui/CopyButton`) — copy message content to clipboard
 - `ResumeButton` — one-click copy of resume command
 - `PinnedPromptBar` — pinned message context plus queued prompts for the session
 - `PinMessageModal` — create a scratch file from selected message content
 
-### Diff view (`DiffView.tsx`)
+Plan/checkpoint items (status indicators: pending, in_progress, completed,
+blocked, canceled; priority badges) render in the drawer's plan tab.
 
-Three-panel layout: file tree (`diff/FileTree.tsx`), diff stats, and unified diff content. Uses `omnivue-diff-tree-width` / `omnivue-diff-tree-collapsed` localStorage keys for tree panel width/collapse. Uses `DiffRenderer` for inline unified diff rendering. Diff hunks are structured `DiffLine` objects (`utils/diff.ts`); search matches over hunks via `hunksContain`.
-
-### Session summary (`SessionSummary.tsx`, `session-summary/`)
-
-Per-session analytics: token/cost timeline charts (`TokenTimelineChart`,
-`CostTimelineChart`), token breakdown pie (`TokenBreakdownPie`),
-effectiveness cards (`EffectivenessCards`), activity breakdown
-(`ActivityBreakdown`), timeline step navigation.
-
-### Cinematic view (`cinematic/`)
-
-Alternative full-screen session presentation: `CinematicSessionView` with
-`TimelineScrubber`, `ConsolePane`, `FileAccessTree`, `FileDetail`, and
-`NotificationDrawer`. Width/collapse persisted via the `omnivue-cinematic-*`
-localStorage keys.
-
-### Plan view (`PlanView.tsx`)
-
-Plan/checkpoint items with status indicators (pending, in_progress, completed, blocked, canceled) and priority badges (high, medium, low).
-
-### Todos view (`TodosView.tsx`)
-
-Session todo/task list with status tracking and dependency links.
+Diff hunks are structured `DiffLine` objects (`utils/diff.ts`); search matches
+over hunks via `hunksContain`. `DiffRenderer` renders unified diffs inline
+inside `FileDetail`.
 
 ### Scratch editor (`ScratchEditor.tsx`)
 
@@ -174,9 +150,7 @@ Connected via a `ResumeButton` that opens a terminal tab for the session.
 
 - `AppHeader` — Top bar with home button, search highlight indicator, navigation
 - `SessionHeader` — Session detail header with title, model, agent, status, timestamps
-- `SessionTabBar` — Main/scratch tab bar with rename/create/delete dialogs
-- `MessageBlock` — Single grouped message block (assistant/user/system)
-- `AssistantMessage` / `UserTurnMessage` / `UserPromptBubble` / `SystemReminderView` — Message renderers
+- `UserPromptBubble` — User request bubble (also used by `PinnedPromptBar`)
 - `TimeRangeSelector` — Overview time range filtering
 - `MarkdownScreenshotButton` + `ScreenshotWindow` + `ScreenshotCaptureLayer` — Markdown screenshot capture (`lib/screenshot.ts`, `html-to-image`)
 - `ShortcutsModal` — Keyboard shortcuts reference modal (opens with `?`)
@@ -235,18 +209,14 @@ interface SearchResult { sessionId, sessionName?, sourceId, chunkType, repositor
 | `useRecentSearches` | `hooks/useRecentSearches.ts` | Recent search queries (local + server sync) |
 | `useSearchScope` | `hooks/useSearchScope.ts` | Search scope (all sessions vs single session) |
 | `useSearchState` | `hooks/useSearchState.ts` | Search results drawer state |
-| `useSearchHighlight` | `hooks/useSearchHighlight.ts` | Search highlight in message content |
 | `useSearchHighlightContext` | `hooks/useSearchHighlightContext.tsx` | Search highlight context provider |
-| `useSessionSummary` | `hooks/useSessionSummary.ts` | Session metrics for overview cards |
 | `useSessionTokenomics` | `hooks/useSessionTokenomics.ts` | Token/cost breakdown |
 | `useSessionListSettings` | `hooks/useSessionListSettings.tsx` | Session list group-by, stale-session hiding |
 | `useSessionPosition` | `hooks/useSessionPosition.ts` | Per-session scroll position persistence |
 | `useTimeRange` | `hooks/useTimeRange.ts` | Overview time range filtering |
 | `useStatus` | `hooks/useStatus.ts` | Server status (version, schemaVersion) |
 | `useTimeline` | `hooks/useTimeline.ts` | Session timeline step navigation |
-| `useCinematicMode` | `hooks/useCinematicMode.tsx` | Cinematic view mode state |
 | `useCinematicSearchJump` | `hooks/useCinematicSearchJump.ts` | Search-result jumps in cinematic view |
-| `useConversationJumps` | `hooks/useConversationJumps.ts` | Message jump targets in conversation |
 | `useConversationScroll` | `hooks/useConversationScroll.ts` | Scroll position tracking in conversation |
 | `useDisableCustomRenderers` | `hooks/useDisableCustomRenderers.ts` | Custom tool renderer opt-out |
 | `useHideCosts` | `hooks/useHideCosts.ts` | Hide cost display |
@@ -264,7 +234,7 @@ No external state library. Core state lives in `App.tsx`:
 - `liveChangedSessionIds` — SSE-driven dirty list
 - `bookmarks` — Bookmark[]
 - `notifications` / `notificationSettings` — Notification state
-- `pinMessage` / `openScratchTabs` / `scratchFileMap` — Scratch state
+- `pinMessage` — Pin-as-scratch state
 - `recentSearches` — string[]
 - `activeSection` / `sidebarOpen` / `settingsOpen` / `shortcutsOpen` — UI state
 
@@ -273,17 +243,16 @@ No external state library. Core state lives in `App.tsx`:
 | File | Purpose |
 |------|---------|
 | `utils/buildTree.ts` | Groups sessions by repository |
-| `utils/conversationGrouping.ts` | Groups messages by user turn |
 | `utils/detectLanguage.ts` | Language detection for syntax highlighting |
 | `utils/diff.ts` | Structured diff hunks (`DiffLine`), compute/parse/render, `hunksContain` search |
 | `utils/diffTree.ts` | File-tree building, `mergeFileEdits`, `DIFF_STATUS_COLORS` |
 | `utils/errors.ts` | Shared error helpers (`getErrorMessage`, `isAbortError`, `describeApiError`, `runCatching`, `showErrorToast`) |
 | `utils/fileAccess.ts` | File access helpers for cinematic view |
 | `utils/jsonField.ts` | JSON field serialization utilities |
-| `utils/latestThinking.ts` | Latest thinking-stream extraction |
 | `utils/overviewAnalytics.ts` | Overview analytics data computation |
 | `utils/patchBody.ts` | Patch body helpers |
 | `utils/reasoningChunks.ts` | Reasoning chunk helpers |
+| `utils/reconcileMessages.ts` | Preserve message identity across SSE polls (avoids re-renders) |
 | `utils/scratchMarkdown.ts` | Scratch markdown helpers |
 | `utils/searchSections.ts` | Shared search section grouping (`groupSearchSections`) |
 | `utils/searchUtils.tsx` | Search result rendering utilities |
@@ -310,15 +279,12 @@ All use `omnivue-` prefix (centralized in `utils/storageKeys.ts` as `STORAGE_KEY
 | `omnivue-sidebar-group` | Session group-by option | `useSessionListSettings` |
 | `omnivue-sidebar-display` | Condensed/verbose | `SessionPanel` |
 | `omnivue-pinned-height` | Pinned prompt bar height | `PinnedPromptBar` |
-| `omnivue-diff-tree-width` | Diff tree panel width | `DiffView` |
-| `omnivue-diff-tree-collapsed` | Diff tree collapsed state | `DiffView` |
 | `omnivue-cinematic-tree-width` | Cinematic tree width | Cinematic view |
 | `omnivue-cinematic-drawer-width` | Cinematic drawer width | Cinematic view |
 | `omnivue-cinematic-console-height` | Cinematic console height | Cinematic view |
 | `omnivue-cinematic-drawer-collapsed` | Cinematic drawer collapsed | Cinematic view |
 | `omnivue-cinematic-console-collapsed` | Cinematic console collapsed | Cinematic view |
 | `omnivue-cinematic-activity-tab` | Cinematic activity tab | Cinematic view |
-| `omnivue-cinematic` | Cinematic mode flag | `useCinematicMode` |
 | `omnivue-tags-expanded` | Expanded tags | `TagPanel` |
 | `omnivue-tag-sort` | Tag sort order | `TagPanel` |
 | `omnivue-copy-mode-` (prefix) | Per-session copy mode | `ModeAwareCopyButton` |

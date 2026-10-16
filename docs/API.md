@@ -107,7 +107,6 @@ Known keys written by the frontend:
 |-----|---------|
 | `theme-name` | Theme name (`AppearanceSettingsTab`) |
 | `theme-mode` | `light` / `dark` (`AppearanceSettingsTab`) |
-| `sessions.cinematicMode` | Cinematic view enabled |
 | `sessions.hideStale` | Hide stale completed sessions from the list |
 | `sessions.staleDays` | Stale threshold in days |
 | `recent_searches` | Recent search queries (managed via `/recent-searches`) |

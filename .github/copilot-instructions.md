@@ -8,7 +8,7 @@ Forked from [mo](https://github.com/k1LoW/mo) (a Markdown viewer), `omnivue` rep
 
 ## Build & Run
 
-Requires Go 1.26+ and [pnpm](https://pnpm.io/). Build with `make build`, run with `./omnivue --foreground --port 16275`.
+Requires Go 1.26.8+ and [pnpm](https://pnpm.io/). Build with `make build`, run with `./omnivue --foreground --port 16275`.
 
 ## Architecture
 
