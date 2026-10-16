@@ -41,7 +41,7 @@ The root component manages global state:
 ### Sidebar (`Sidebar.tsx`)
 
 Resizable panel showing session tree grouped by repository. Uses `omnivue-sidebar-width` localStorage key for width persistence. Navigation sections (`IconChannel.tsx`: sessions, prompts, tags, bookmarks, notifications):
-- **Sessions** — group by repo using `buildTree()` (`sessions/SessionTree.tsx`)
+- **Sessions** — group by repo using `buildTree()` (`sessions/SessionTree.tsx`); lists root sessions only
 - **Prompts** — global prompt pad via `PromptsPanel` (session-independent, with clipboard paste, done check-off, inline edit, pin, and drag reorder)
 - **Tags** — tag-based organization via `TagPanel` (`tags/` row/filter/list components)
 - **Bookmarks** — bookmarked sessions via `BookmarkPanel`
@@ -152,7 +152,7 @@ Connected via a `ResumeButton` that opens a terminal tab for the session.
 ### Other components
 
 - `AppHeader` — Top bar with home button, search highlight indicator, navigation
-- `SessionHeader` — Session detail header with title, model, agent, status, timestamps
+- `SessionHeader` — Session detail header with title, model, agent, status, timestamps, and — when the session has sub-agents — a family selector (`sessions/SessionFamilySelect`) to switch between the main session and its sub-agents
 - `UserPromptBubble` — User request bubble (rendered inline in the drawer's Prompt tab)
 - `TimeRangeSelector` — Overview time range filtering
 - `MarkdownScreenshotButton` + `ScreenshotWindow` + `ScreenshotCaptureLayer` — Markdown screenshot capture (`lib/screenshot.ts`, `html-to-image`)
@@ -163,7 +163,7 @@ Connected via a `ResumeButton` that opens a terminal tab for the session.
 - `ErrorBoundary` (`ui/ErrorBoundary`) — Graceful error recovery
 - `IconChannel` — Section navigation toggle (sessions/prompts/tags/bookmarks/notifications)
 - Presentational widgets in `components/ui/`: `Spinner`, `LoadingState`, `EmptyState`, `EmptyPanel`, `FilterChip`, `Toggle`, `CopyButton`, `MarkdownContent`, `Modal`, `ErrorBoundary`
-- Feature subdirs: `sessions/` (`SessionTree`, `VerboseStats`, `GroupMenu`, `IconBtn`), `overview/` (`ActivityCharts`, `StatCard`, `MiniSessionRow`, `ModelAgentBreakdown`, `RepoCard`)
+- Feature subdirs: `sessions/` (`SessionTree`, `SessionFamilySelect`, `VerboseStats`, `GroupMenu`, `IconBtn`), `overview/` (`ActivityCharts`, `StatCard`, `MiniSessionRow`, `ModelAgentBreakdown`, `RepoCard`)
 
 ## API integration
 
