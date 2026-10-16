@@ -38,7 +38,11 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
   const [editText, setEditText] = useState("");
   const [doneExpanded, setDoneExpanded] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [pasteHint, setPasteHint] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Set when the Clipboard API is unavailable/denied so the next native paste
+  // in the composer creates the entry directly instead of requiring Enter.
+  const awaitingPasteRef = useRef(false);
 
   const loadPrompts = useCallback(async () => {
     try {
@@ -61,6 +65,8 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
   const handleCreate = async (text: string) => {
     const value = text.trim();
     if (!value || submitting) return;
+    awaitingPasteRef.current = false;
+    setPasteHint(false);
     setSubmitting(true);
     try {
       const created = await createPrompt({ promptText: value });
@@ -74,6 +80,14 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    if (awaitingPasteRef.current) {
+      awaitingPasteRef.current = false;
+      setPasteHint(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -81,13 +95,36 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
     }
   };
 
+  // Paste directly creates a new entry. The async Clipboard API is the happy
+  // path; when it is missing (Firefox, non-secure origin) or denied we fall
+  // back to arming the composer so the user's next native paste (Cmd/Ctrl+V)
+  // creates the entry without needing Enter.
   const handlePaste = async () => {
+    setPasteHint(false);
     try {
-      const text = await navigator.clipboard.readText();
-      if (text.trim()) await handleCreate(text);
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text.trim()) {
+          await handleCreate(text);
+          return;
+        }
+      }
     } catch {
       /* clipboard unavailable or permission denied */
     }
+    awaitingPasteRef.current = true;
+    setPasteHint(true);
+    textareaRef.current?.focus();
+  };
+
+  const handleComposerPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!awaitingPasteRef.current) return;
+    const text = e.clipboardData.getData("text");
+    if (!text.trim()) return;
+    e.preventDefault();
+    awaitingPasteRef.current = false;
+    setPasteHint(false);
+    handleCreate(text);
   };
 
   const handleToggleDone = async (prompt: Prompt) => {
@@ -170,42 +207,7 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
         )}
       </div>
 
-      <div className="shrink-0 px-1.5 pb-1.5">
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={textareaRef}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a prompt to save..."
-            rows={Math.min(8, Math.max(2, inputText.split("\n").length))}
-            className="flex-1 resize-none bg-ov-bg-secondary border border-ov-border rounded-[0.625rem] px-2.5 py-2 text-xs text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent-border transition-[border-color,box-shadow] duration-150"
-          />
-          <button
-            type="button"
-            onClick={() => handleCreate(inputText)}
-            disabled={!inputText.trim() || submitting}
-            className="shrink-0 size-8 flex items-center justify-center rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-            title="Add prompt"
-          >
-            {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          </button>
-        </div>
-        <div className="flex items-center justify-between mt-1 px-0.5">
-          <button
-            type="button"
-            onClick={handlePaste}
-            className="flex items-center gap-1 text-[10px] text-ov-text-secondary hover:text-accent cursor-pointer transition-colors"
-            title="Paste from clipboard"
-          >
-            <ClipboardPaste size={11} />
-            Paste from clipboard
-          </button>
-          <span className="text-[10px] text-ov-text-secondary">Enter to add</span>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-1.5 pb-2 border-t border-ov-border">
+      <div className="flex-1 overflow-y-auto px-1.5 pb-2">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <span className="text-xs text-ov-text-secondary">Loading...</span>
@@ -290,6 +292,44 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
             )}
           </>
         )}
+      </div>
+
+      <div className="shrink-0 border-t border-ov-border px-1.5 pt-1.5 pb-1.5">
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={textareaRef}
+            value={inputText}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handleComposerPaste}
+            placeholder="Type a prompt to save..."
+            rows={Math.min(8, Math.max(2, inputText.split("\n").length))}
+            className="flex-1 resize-none bg-ov-bg-secondary border border-ov-border rounded-[0.625rem] px-2.5 py-2 text-xs text-ov-text placeholder:text-ov-text-secondary outline-none focus:border-accent-border transition-[border-color,box-shadow] duration-150"
+          />
+          <button
+            type="button"
+            onClick={() => handleCreate(inputText)}
+            disabled={!inputText.trim() || submitting}
+            className="shrink-0 size-8 flex items-center justify-center rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            title="Add prompt"
+          >
+            {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          </button>
+        </div>
+        <div className="flex items-center justify-between mt-1 px-0.5">
+          <button
+            type="button"
+            onClick={handlePaste}
+            className="flex items-center gap-1 text-[10px] text-ov-text-secondary hover:text-accent cursor-pointer transition-colors"
+            title="Paste from clipboard"
+          >
+            <ClipboardPaste size={11} />
+            Paste from clipboard
+          </button>
+          <span className="text-[10px] text-ov-text-secondary">
+            {pasteHint ? "Press ⌘V / Ctrl+V to paste" : "Enter to add"}
+          </span>
+        </div>
       </div>
     </div>
   );
