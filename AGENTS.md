@@ -244,6 +244,7 @@ Before applying any migration to a database that already holds application data 
   - `ErrorBoundary.tsx` — Graceful error recovery
   - `IconChannel.tsx` — Section navigation toggle
   - `SessionPanel.tsx` — Session list by repo
+  - `sessions/SessionFamilySelect.tsx` — Header dropdown to switch between a session's main view and its sub-agents (sub-agents are not shown in the sidebar tree)
   - `ProjectPanel.tsx` — Project-based browsing
   - `ContextMenu.tsx` — Right-click menus
   - `Toast.tsx` — Notification toasts (supports optional click action)
@@ -252,7 +253,7 @@ Before applying any migration to a database that already holds application data 
   - `NotificationsSettingsTab.tsx` — Notification settings (kinds, scope, delivery)
   - `TerminalPanel.tsx` — In-browser PTY terminal (xterm.js + WebSocket)
 - Hooks: `useSSE.ts` (SSE with auto-reconnect), `useApi.ts` (typed API fetchers), `useTheme.ts` (theme state/persistence), `useNav.ts` (session nav context), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize)
-- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository)
+- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
 - Theme: GitHub-style light/dark via `data-theme` attribute
 - localStorage keys use `omnivue-` prefix.
 

@@ -50,6 +50,7 @@ src/
 │       └── vendor/             # Third-party renderers (auto-discovered)
 ├── utils/                     # Pure utility functions
 │   ├── buildTree.ts            # Session → repo-grouped tree
+│   ├── sessionFamily.ts        # Session family (root + sub-agents) resolution
 │   ├── sessionFilters.ts       # Filter/sort logic
 │   └── toolDisplay.ts          # Tool call display helpers
 ├── styles/

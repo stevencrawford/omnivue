@@ -93,39 +93,18 @@ describe("buildTree", () => {
     expect(tree.map((n) => n.session?.id)).toEqual(["s2", "s3", "s1"]);
   });
 
-  it("nests child sessions under parent", () => {
+  it("excludes child sessions from the tree", () => {
     const sessions = [
       baseSession({ id: "parent-1", repository: "org/repo" }),
       baseSession({ id: "child-1", parentId: "parent-1", repository: "org/repo" }),
+      baseSession({ id: "grandchild-1", parentId: "child-1", repository: "org/repo" }),
     ];
     const tree = buildTree(sessions, "repo");
     expect(tree).toHaveLength(1);
     expect(tree[0].children).toHaveLength(1);
     expect(tree[0].children[0].session?.id).toBe("parent-1");
-    expect(tree[0].children[0].children).toHaveLength(1);
-    expect(tree[0].children[0].children[0].session?.id).toBe("child-1");
-  });
-
-  it("nests grandchildren sessions recursively", () => {
-    const sessions = [
-      baseSession({ id: "root", repository: "org/repo" }),
-      baseSession({ id: "child", parentId: "root", repository: "org/repo" }),
-      baseSession({ id: "grandchild", parentId: "child", repository: "org/repo" }),
-      baseSession({ id: "great-grandchild", parentId: "grandchild", repository: "org/repo" }),
-    ];
-    const tree = buildTree(sessions, "repo");
-    expect(tree).toHaveLength(1);
-    expect(tree[0].children).toHaveLength(1);
-    // root → child → grandchild → great-grandchild
-    expect(tree[0].children[0].session?.id).toBe("root");
-    expect(tree[0].children[0].children).toHaveLength(1);
-    expect(tree[0].children[0].children[0].session?.id).toBe("child");
-    expect(tree[0].children[0].children[0].children).toHaveLength(1);
-    expect(tree[0].children[0].children[0].children[0].session?.id).toBe("grandchild");
-    expect(tree[0].children[0].children[0].children[0].children).toHaveLength(1);
-    expect(tree[0].children[0].children[0].children[0].children[0].session?.id).toBe(
-      "great-grandchild",
-    );
+    // Sub-agents are surfaced in the main-view family selector, not the tree.
+    expect(tree[0].children[0].children).toHaveLength(0);
   });
 
   it("handles empty session list", () => {

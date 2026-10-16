@@ -336,6 +336,7 @@ export function App() {
                           <CinematicSessionView
                             key={activeSession.id + "-cinematic"}
                             session={activeSession}
+                            sessions={sessions}
                             liveChangedIds={liveChangedIds}
                             ackSessionChange={ackSessionChange}
                             onNameChanged={loadSessions}
