@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, FolderTree, Minus, Plus, Tags } from "lucide-react";
 import type { Session } from "../hooks/types";
 import { buildTree, type GroupMode } from "../utils/buildTree";
+import { resolveFamilyRoot } from "../utils/sessionFamily";
 import { shortDir } from "../utils/sessionUtils";
 import {
   getDistinctValues,
@@ -17,17 +18,6 @@ import { SessionTree, type DisplayMode } from "./sessions/SessionTree";
 import { IconBtn } from "./sessions/IconBtn";
 import { GroupMenu } from "./sessions/GroupMenu";
 import { STORAGE_KEYS } from "../utils/storageKeys";
-
-function getAncestorChain(sessions: Session[], id: string): string[] {
-  const chain: string[] = [];
-  let current = sessions.find((s) => s.id === id);
-  while (current && current.parentId) {
-    const parentId = current.parentId;
-    chain.unshift(parentId);
-    current = sessions.find((s) => s.id === parentId);
-  }
-  return chain;
-}
 
 interface SessionPanelProps {
   sessions: Session[];
@@ -95,36 +85,6 @@ export function SessionPanel({
       return next;
     });
   }, []);
-  const [toggledIds, setToggledIds] = useState<Set<string>>(new Set());
-  const prevActiveRef = useRef(activeSessionId);
-
-  const toggleExpand = useCallback((id: string) => {
-    setToggledIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  // On navigation, clear manual toggles and auto-expand the ancestor chain
-  useEffect(() => {
-    if (!activeSessionId) return;
-    if (activeSessionId !== prevActiveRef.current) {
-      prevActiveRef.current = activeSessionId;
-      setToggledIds(new Set());
-    }
-  }, [activeSessionId]);
-
-  // Derive the full set of expanded IDs: ancestors of active session + manual toggles
-  const expandedIds = useMemo(() => {
-    const ids = new Set(toggledIds);
-    if (activeSessionId) {
-      for (const id of getAncestorChain(sessions, activeSessionId)) ids.add(id);
-      if (sessions.some((s) => s.parentId === activeSessionId)) ids.add(activeSessionId);
-    }
-    return ids;
-  }, [toggledIds, activeSessionId, sessions]);
   const [contextMenu, setContextMenu] = useState<{
     sessionId: string;
     x: number;
@@ -168,6 +128,14 @@ export function SessionPanel({
   const treeSessions = hideStale ? visibleSessions : filteredSessions;
 
   const tree = useMemo(() => buildTree(treeSessions, groupMode), [treeSessions, groupMode]);
+
+  // Sub-agents are surfaced in the main-view family selector, not the tree; when
+  // one is active, highlight its family root so the sidebar still shows where
+  // the user is.
+  const treeActiveId = useMemo(
+    () => resolveFamilyRoot(sessions, activeSessionId),
+    [sessions, activeSessionId],
+  );
 
   const agents = useMemo(() => getDistinctValues(sessions, "agent"), [sessions]);
   const projects = useMemo(() => getDistinctValues(sessions, "directory"), [sessions]);
@@ -357,10 +325,8 @@ export function SessionPanel({
             nodes={tree}
             collapsed={collapsed}
             onToggleCollapse={toggleCollapse}
-            activeSessionId={activeSessionId}
+            activeSessionId={treeActiveId}
             onSessionSelect={onSessionSelect}
-            expandedIds={expandedIds}
-            onToggleExpand={toggleExpand}
             onContextMenu={handleContextMenu}
             displayMode={displayMode}
             sessionUnread={sessionUnread}

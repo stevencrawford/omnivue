@@ -8,7 +8,6 @@ export interface TreeNode {
   children: TreeNode[];
   session?: Session;
   isGroup: boolean;
-  childSessions?: Session[];
 }
 
 /** Last path segment for display (e.g. `~/dev/foo` → `foo`). */
@@ -26,55 +25,17 @@ function shortDir(directory: string): string {
   return parts.length > 0 ? parts[parts.length - 1]! : directory;
 }
 
-export function parentIdsWithChildren(sessions: Session[]): Set<string> {
-  const ids = new Set<string>();
-  for (const s of sessions) {
-    if (s.parentId) ids.add(s.parentId);
-  }
-  return ids;
-}
-
-const MAX_CHILD_DEPTH = 10;
-
-function buildChildTree(
-  parentId: string,
-  childMap: Map<string, Session[]>,
-  parentPath: string,
-  depth: number,
-): TreeNode[] {
-  if (depth >= MAX_CHILD_DEPTH) return [];
-  const children = childMap.get(parentId);
-  if (!children) return [];
-  return [...children]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .map((cs) => {
-      const childPath = `${parentPath}/${cs.id}`;
-      return {
-        name: cs.title || cs.id.slice(0, 8),
-        fullPath: childPath,
-        children: buildChildTree(cs.id, childMap, childPath, depth + 1),
-        session: cs,
-        isGroup: false,
-      };
-    });
-}
-
 const byRecent = (a: Session, b: Session) =>
   new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 
 export function buildTree(sessions: Session[], groupMode: GroupMode = "repo"): TreeNode[] {
   if (!sessions || sessions.length === 0) return [];
 
-  // Build parent -> children map
-  const childMap = new Map<string, Session[]>();
+  // Sub-agents (and any child sessions) are surfaced in the main-view family
+  // selector, not the sidebar, so the tree only ever holds root sessions.
   const childIds = new Set<string>();
   for (const session of sessions) {
-    if (session.parentId) {
-      childIds.add(session.id);
-      const existing = childMap.get(session.parentId) || [];
-      existing.push(session);
-      childMap.set(session.parentId, existing);
-    }
+    if (session.parentId) childIds.add(session.id);
   }
 
   // Only root sessions go into grouping
@@ -83,10 +44,9 @@ export function buildTree(sessions: Session[], groupMode: GroupMode = "repo"): T
   const toLeaf = (session: Session): TreeNode => ({
     name: session.title || session.id,
     fullPath: session.id,
-    children: buildChildTree(session.id, childMap, session.id, 0),
+    children: [],
     session,
     isGroup: false,
-    childSessions: childMap.get(session.id),
   });
 
   // No grouping — a flat, latest-first list of root sessions

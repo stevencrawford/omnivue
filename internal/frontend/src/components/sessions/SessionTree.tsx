@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { Session } from "../../hooks/types";
 import type { TreeNode } from "../../utils/buildTree";
 import { relativeTime, sessionMetaParts, sessionTitle } from "../../utils/sessionUtils";
@@ -13,8 +13,6 @@ export const VISIBLE_LIMIT = 15;
 export interface SessionRowSharedProps {
   activeSessionId: string | null;
   onSessionSelect: (sessionId: string) => void;
-  expandedIds: Set<string>;
-  onToggleExpand: (id: string) => void;
   onContextMenu: (sessionId: string, e: React.MouseEvent) => void;
   displayMode: DisplayMode;
   sessionUnread: Record<string, number>;
@@ -23,22 +21,16 @@ export interface SessionRowSharedProps {
 
 function SessionRow({
   session,
-  childNodes,
   isActive,
   unreadCount = 0,
-  compact = false,
   staleIds,
   ...shared
 }: {
   session: Session;
-  childNodes: TreeNode[];
   isActive: boolean;
   unreadCount?: number;
-  compact?: boolean;
   staleIds?: Set<string>;
 } & SessionRowSharedProps) {
-  const subCount = childNodes.length;
-  const subsVisible = shared.expandedIds.has(session.id);
   const isStale = staleIds ? staleIds.has(session.id) : false;
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -47,119 +39,47 @@ function SessionRow({
   };
 
   const handleClick = () => {
-    if (isActive) {
-      shared.onToggleExpand(session.id);
-    } else {
-      shared.onSessionSelect(session.id);
-    }
+    shared.onSessionSelect(session.id);
   };
 
-  const childContent = subCount > 0 && subsVisible && (
-    <div className="ml-2 mt-px mb-1 space-y-px border-l border-ov-border/60">
-      {childNodes.map((child) => {
-        const childSession = child.session;
-        if (!childSession) return null;
-        return (
-          <SessionRow
-            key={childSession.id}
-            session={childSession}
-            childNodes={child.children}
-            isActive={childSession.id === shared.activeSessionId}
-            compact={true}
-            staleIds={staleIds}
-            {...shared}
-          />
-        );
-      })}
-    </div>
-  );
-
-  if (compact) {
-    return (
-      <div>
-        <button
-          type="button"
-          draggable
-          onDragStart={handleDragStart}
-          onClick={handleClick}
-          onContextMenu={(e) => shared.onContextMenu(session.id, e)}
-          title={session.directory || session.repository}
-          className={`session-draggable w-full flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 text-left rounded-r-md transition-colors ${
-            isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-          } ${isStale && !isActive ? "sess-session-stale" : ""}`}
-        >
-          {subCount > 0 ? (
-            <ChevronRight
-              size={10}
-              className={`shrink-0 text-accent/80 transition-transform ${subsVisible ? "rotate-90" : ""}`}
-            />
-          ) : (
-            <ArrowRight size={10} className="text-accent/80 shrink-0" />
-          )}
-          {session.status === "active" && (
-            <span className="sess-live-dot shrink-0" title="Session active" />
-          )}
-          <span className="text-[11px] truncate flex-1">
-            {session.subAgent ? (
-              <span className="text-ov-text-secondary">{session.subAgent}: </span>
-            ) : null}
-            {sessionTitle(session)}
-          </span>
-          <span className="text-[11px] opacity-60 tabular-nums shrink-0">
-            {relativeTime(session.updatedAt)}
-          </span>
-        </button>
-        {childContent}
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <button
-        type="button"
-        draggable
-        onDragStart={handleDragStart}
-        onClick={handleClick}
-        onContextMenu={(e) => shared.onContextMenu(session.id, e)}
-        title={session.directory || session.repository}
-        className={`session-draggable sess-parent-session w-full text-left transition-all ${
-          isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
-        } ${isStale && !isActive ? "sess-session-stale" : ""}`}
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          {session.status === "active" && (
-            <span className="sess-live-dot shrink-0" title="Session active" />
-          )}
-          <span className="sess-parent-session-title truncate flex-1 text-ov-text">
-            {sessionTitle(session)}
-          </span>
-          {subCount > 0 && !subsVisible && (
-            <span className="shrink-0 text-[11px] px-1 rounded bg-ov-bg-hover text-ov-text-secondary">
-              {subCount}
-            </span>
-          )}
-          {unreadCount > 0 && (
-            <span
-              title={`${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`}
-              className="shrink-0 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-          <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
-            {relativeTime(session.updatedAt)}
-          </span>
-        </div>
-        {sessionMetaParts(session).length > 0 && (
-          <p className="sess-parent-session-meta truncate mt-0.5">
-            {sessionMetaParts(session).join(" · ")}
-          </p>
+    <button
+      type="button"
+      draggable
+      onDragStart={handleDragStart}
+      onClick={handleClick}
+      onContextMenu={(e) => shared.onContextMenu(session.id, e)}
+      title={session.directory || session.repository}
+      className={`session-draggable sess-parent-session w-full text-left transition-all ${
+        isActive ? "sess-session-active" : "hover:bg-ov-bg-hover"
+      } ${isStale && !isActive ? "sess-session-stale" : ""}`}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        {session.status === "active" && (
+          <span className="sess-live-dot shrink-0" title="Session active" />
         )}
-        {shared.displayMode === "verbose" && <VerboseStats session={session} />}
-      </button>
-      {childContent}
-    </div>
+        <span className="sess-parent-session-title truncate flex-1 text-ov-text">
+          {sessionTitle(session)}
+        </span>
+        {unreadCount > 0 && (
+          <span
+            title={`${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`}
+            className="shrink-0 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white"
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+        <span className="shrink-0 text-[11px] text-ov-text-secondary tabular-nums">
+          {relativeTime(session.updatedAt)}
+        </span>
+      </div>
+      {sessionMetaParts(session).length > 0 && (
+        <p className="sess-parent-session-meta truncate mt-0.5">
+          {sessionMetaParts(session).join(" · ")}
+        </p>
+      )}
+      {shared.displayMode === "verbose" && <VerboseStats session={session} />}
+    </button>
   );
 }
 
@@ -202,7 +122,6 @@ function GroupNode({
               <SessionRow
                 key={session.id}
                 session={session}
-                childNodes={child.children}
                 isActive={session.id === shared.activeSessionId}
                 unreadCount={shared.sessionUnread[session.id] || 0}
                 {...shared}
@@ -250,7 +169,6 @@ export function SessionTree({
             <SessionRow
               key={node.session.id}
               session={node.session}
-              childNodes={node.children}
               isActive={node.session.id === shared.activeSessionId}
               unreadCount={shared.sessionUnread[node.session.id] || 0}
               {...shared}
