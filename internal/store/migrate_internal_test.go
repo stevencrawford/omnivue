@@ -54,8 +54,8 @@ func TestMigrate_PreMigrationBackupOnLegacyDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected legacy db stamped to version 10, got %d", v)
+	if v != 12 {
+		t.Fatalf("expected legacy db stamped to version 12, got %d", v)
 	}
 
 	// A pre-migration backup must exist (from-version 0, the pre-versioning
@@ -101,8 +101,8 @@ func TestMigrate_NoBackupOnFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 on fresh install, got %d", v)
+	if v != 12 {
+		t.Fatalf("expected version 12 on fresh install, got %d", v)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), "omnivue.db.premigrate-*.bak"))
@@ -185,8 +185,8 @@ func TestMigrate_ConsolidateFoldersIntoTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 12 {
+		t.Fatalf("expected version 12 after migration, got %d", v)
 	}
 
 	tags, err := s.ListTags()
@@ -267,8 +267,8 @@ func TestMigrate_BookmarkKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 12 {
+		t.Fatalf("expected version 12 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -325,8 +325,8 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 12 {
+		t.Fatalf("expected version 12 after migration, got %d", v)
 	}
 
 	bookmarks, err := s.ListBookmarks()
@@ -339,7 +339,7 @@ func TestMigrate_BookmarkMessageID(t *testing.T) {
 }
 
 // TestMigrate_PromptQueueToPrompts seeds a pre-versioning database with the old
-// session-scoped prompt_queue table, then runs the migrations through 0010 and
+// session-scoped prompt_queue table, then runs the migrations through 0012 and
 // verifies the rebuild into the global prompts table: rows carry over,
 // `dispatched` becomes `done`, the session/source/priority/tags columns are
 // gone, and the old table is dropped.
@@ -389,8 +389,8 @@ func TestMigrate_PromptQueueToPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 10 {
-		t.Fatalf("expected version 10 after migration, got %d", v)
+	if v != 12 {
+		t.Fatalf("expected version 12 after migration, got %d", v)
 	}
 
 	// The old table must be gone.
@@ -426,5 +426,96 @@ func TestMigrate_PromptQueueToPrompts(t *testing.T) {
 	}
 	if byID["qp_3"].Status != "open" {
 		t.Fatalf("expected qp_3 status open, got %q", byID["qp_3"].Status)
+	}
+}
+
+// TestMigrate_PromptsAboveWatermark reproduces the version-collision bug: a
+// database stamped at version 11, because it ran the file_activity migrations
+// from the feat/file-graph branch (which used versions 0010 and 0011), must
+// still pick up the global prompts migration. While that migration was
+// numbered 0010 it was shadowed by that higher watermark, the prompts table was
+// never created, and the prompt pad silently returned "no such table: prompts".
+// This asserts the table is created (and legacy prompt_queue rows carry over)
+// even when the database is already ahead of the old version number.
+func TestMigrate_PromptsAboveWatermark(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmpDir)
+
+	stateDir := filepath.Join(tmpDir, "omnivue")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(stateDir, "omnivue.db")
+
+	db, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE sources (
+			id TEXT PRIMARY KEY,
+			path TEXT NOT NULL UNIQUE,
+			agent_type TEXT NOT NULL,
+			label TEXT,
+			enabled INTEGER DEFAULT 1,
+			last_scanned_at TEXT,
+			created_at TEXT NOT NULL
+		);
+		CREATE TABLE file_activity (
+			session_id TEXT NOT NULL,
+			source_id  TEXT NOT NULL,
+			repository TEXT NOT NULL,
+			path       TEXT NOT NULL,
+			reads      INTEGER NOT NULL DEFAULT 0,
+			writes     INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (session_id, path)
+		);
+		CREATE TABLE prompt_queue (
+			id            TEXT PRIMARY KEY,
+			session_id    TEXT,
+			source_id     TEXT,
+			prompt_text   TEXT NOT NULL,
+			status        TEXT NOT NULL DEFAULT 'queued'
+			              CHECK(status IN ('queued', 'dispatched', 'cancelled')),
+			priority      INTEGER NOT NULL DEFAULT 0,
+			tags          TEXT DEFAULT '[]',
+			created_at    INTEGER NOT NULL,
+			dispatched_at INTEGER
+		);
+		INSERT INTO prompt_queue (id, prompt_text, status, created_at)
+		VALUES ('qp_1', 'Keep me', 'queued', 500);
+		CREATE TABLE goose_db_version (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			version_id INTEGER NOT NULL,
+			is_applied INTEGER NOT NULL,
+			tstamp TIMESTAMP DEFAULT (datetime('now'))
+		);
+		INSERT INTO goose_db_version (version_id, is_applied) VALUES
+			(1, 1), (2, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (10, 1), (11, 1);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	v, err := s.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != 12 {
+		t.Fatalf("expected version 12 after migration, got %d", v)
+	}
+
+	prompts, err := s.ListPrompts("", 100)
+	if err != nil {
+		t.Fatalf("prompts table missing after migration: %v", err)
+	}
+	if len(prompts) != 1 || prompts[0].ID != "qp_1" || prompts[0].PromptText != "Keep me" {
+		t.Fatalf("expected carried-over prompt qp_1, got %+v", prompts)
 	}
 }

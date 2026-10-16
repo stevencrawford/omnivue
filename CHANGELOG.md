@@ -3,12 +3,17 @@
 ## Unreleased
 
 ### Schema
-- Bump `schemaVersion` to 10: the session-scoped `prompt_queue` table is
+- Bump `schemaVersion` to 12: the session-scoped `prompt_queue` table is
   rebuilt as the global, session-independent `prompts` table (migration
-  `0010_prompts_global.sql`). Existing queued prompts are carried over
-  (`dispatched` → `done`, otherwise `open`); no user data is lost.
+  `0012_prompts_global.sql`). Existing queued prompts are carried over
+  (`dispatched` → `done`, otherwise `open`); no user data is lost. Version 0012
+  (not 0010) is used because 0010/0011 are already taken by the unmerged
+  `feat/file-graph` branch; databases that ran those migrations are stamped at
+  version 11 and would otherwise never apply the prompts table.
 
 ### Other Changes
+- fix(prompts): renumber the global prompt-pad migration above the file_activity
+  watermark so the prompts table is created on databases stamped at version 11
 - feat(prompts): replace the session prompt queue with a global prompt pad
 - fix(prompts): pin the composer to the bottom and make paste create a prompt directly
 
