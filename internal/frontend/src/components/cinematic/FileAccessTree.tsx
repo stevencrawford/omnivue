@@ -93,12 +93,6 @@ function kindIcon(kind: string) {
   return <FilePlus size={12} className="text-accent shrink-0" />;
 }
 
-function formatCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
-  return `${n}`;
-}
-
 export interface TreeKindVisibility {
   showReads: boolean;
   showEdits: boolean;
@@ -131,7 +125,6 @@ interface FileAccessTreeProps {
   accesses: FileAccess[];
   selectedPath: string;
   onSelect: (path: string) => void;
-  tokenTotals?: Map<string, { in: number; out: number }>;
   scratchFiles?: ScratchFile[];
   selectedScratchId?: string | null;
   onSelectScratch?: (id: string) => void;
@@ -171,14 +164,12 @@ function TreeFileRow({
   onSelect,
   depth,
   isFocused,
-  tokenTotals,
 }: {
   node: TreeNode;
   selected: boolean;
   onSelect: () => void;
   depth: number;
   isFocused?: boolean;
-  tokenTotals?: Map<string, { in: number; out: number }>;
 }) {
   const accesses = node.accesses;
   const hasRead = accesses.some((a) => a.kind === "read");
@@ -189,10 +180,6 @@ function TreeFileRow({
   const editKind = lastEdit?.kind ?? "edit";
   const titleKind = showBoth ? `${firstKind}+${editKind}` : (accesses[0]?.kind ?? "");
   const titlePath = accesses[0]?.filePath ?? node.fullPath;
-  const tokens = tokenTotals?.get(node.fullPath);
-  const inTokens = tokens?.in ?? 0;
-  const outTokens = tokens?.out ?? 0;
-  const hasTokens = inTokens > 0 || outTokens > 0;
   return (
     <button
       type="button"
@@ -221,15 +208,6 @@ function TreeFileRow({
         kindIcon(accesses[0]?.kind ?? "read")
       )}
       <span className="text-xs font-mono truncate min-w-0 text-ov-text">{node.name}</span>
-      {hasTokens && (
-        <span
-          className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] font-mono pr-2"
-          title={`tokens in: ${inTokens.toLocaleString()} / tokens out: ${outTokens.toLocaleString()}`}
-        >
-          {inTokens > 0 && <span className="text-emerald-500">+{formatCompact(inTokens)}</span>}
-          {outTokens > 0 && <span className="text-amber-500">-{formatCompact(outTokens)}</span>}
-        </span>
-      )}
     </button>
   );
 }
@@ -242,7 +220,6 @@ function FileAccessTreeInner({
   expandedMap,
   onToggleDir,
   focusedPath,
-  tokenTotals,
 }: {
   nodes: TreeNode[];
   selectedPath: string;
@@ -251,7 +228,6 @@ function FileAccessTreeInner({
   expandedMap: Record<string, boolean>;
   onToggleDir: (path: string) => void;
   focusedPath: string | null;
-  tokenTotals?: Map<string, { in: number; out: number }>;
 }) {
   return (
     <div>
@@ -289,7 +265,6 @@ function FileAccessTreeInner({
                   expandedMap={expandedMap}
                   onToggleDir={onToggleDir}
                   focusedPath={focusedPath}
-                  tokenTotals={tokenTotals}
                 />
               )}
             </div>
@@ -305,7 +280,6 @@ function FileAccessTreeInner({
             onSelect={() => onSelect(node.fullPath)}
             depth={depth}
             isFocused={isFocused}
-            tokenTotals={tokenTotals}
           />
         );
       })}
@@ -317,7 +291,6 @@ export function FileAccessTree({
   accesses,
   selectedPath,
   onSelect,
-  tokenTotals,
   scratchFiles = [],
   selectedScratchId = null,
   onSelectScratch,
@@ -649,7 +622,6 @@ export function FileAccessTree({
             expandedMap={expandedMap}
             onToggleDir={toggleDir}
             focusedPath={focusedPath}
-            tokenTotals={tokenTotals}
           />
         )}
       </div>
