@@ -222,6 +222,12 @@ export function SessionHeader({
   return (
     <div className="px-4 py-3 border-b border-ov-border shrink-0">
       <div className="flex items-center gap-2 min-w-0">
+        {parent && (
+          <SubAgentBackButton
+            parentLabel={parent.title || parent.id}
+            onBack={() => navigation.navigateToSession(parent.id)}
+          />
+        )}
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <input
@@ -259,12 +265,7 @@ export function SessionHeader({
             )}
           </>
         )}
-        {parent ? (
-          <SubAgentBackButton
-            parentLabel={parent.title || parent.id}
-            onBack={() => navigation.navigateToSession(parent.id)}
-          />
-        ) : (
+        {!parent && (
           <SessionFamilySelect
             family={family}
             activeId={session.id}

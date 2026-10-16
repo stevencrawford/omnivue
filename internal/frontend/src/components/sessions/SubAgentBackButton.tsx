@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 interface SubAgentBackButtonProps {
   /** Display name of the parent session, surfaced in the tooltip/label. */
@@ -7,9 +7,9 @@ interface SubAgentBackButtonProps {
 }
 
 /**
- * Header control shown while viewing a sub-agent. It replaces the family
- * selector so descending into a sub-agent is a one-way move until the user
- * explicitly backs out to the parent session (click, or Escape).
+ * Plain left-arrow shown immediately before a sub-agent's title. It returns to
+ * the parent session so descending into a sub-agent is a one-way move until the
+ * user backs out (arrow, or Escape).
  */
 export function SubAgentBackButton({ parentLabel, onBack }: SubAgentBackButtonProps) {
   return (
@@ -18,10 +18,9 @@ export function SubAgentBackButton({ parentLabel, onBack }: SubAgentBackButtonPr
       onClick={onBack}
       title={`Back to ${parentLabel}`}
       aria-label={`Back to ${parentLabel}`}
-      className="flex items-center gap-0.5 shrink-0 pl-0.5 pr-1.5 py-0.5 rounded-md border border-ov-border bg-ov-bg-secondary text-xs text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+      className="shrink-0 flex items-center justify-center size-6 rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
     >
-      <ChevronLeft size={13} className="shrink-0 text-ov-text-secondary" />
-      <span className="truncate max-w-[10rem]">Back</span>
+      <ArrowLeft size={16} />
     </button>
   );
 }
