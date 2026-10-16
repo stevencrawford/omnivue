@@ -1,153 +1,33 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ScratchFile, Session } from "./types";
-import { fetchAllScratchFiles, createScratchFile, renameScratchFile } from "./apiClient";
-import { runCatching } from "../utils/errors";
-
-export interface ScratchFileInfo {
-  title: string;
-  mode: string;
-  sessionId: string;
-}
+import { useCallback } from "react";
+import type { ScratchFile } from "./types";
+import { createScratchFile } from "./apiClient";
 
 export interface ScratchFilesState {
-  scratchFiles: ScratchFile[];
-  openScratchTabs: string[];
-  scratchFileMap: Record<string, ScratchFileInfo>;
-  loadScratchFiles: () => Promise<void>;
-  handleNewScratchFile: () => Promise<void>;
-  handleCloseScratchTab: (fileId: string) => void;
-  handleRenameScratchFile: (fileId: string, newTitle: string) => Promise<void>;
-  handlePinAsScratch: (title: string, content: string) => Promise<void>;
+  /**
+   * Create a read-only scratch file from pinned message content. Returns the
+   * created file (so the caller can focus it) or null when there is no active
+   * session or the request fails.
+   */
+  handlePinAsScratch: (title: string, content: string) => Promise<ScratchFile | null>;
 }
 
-export function useScratchFiles(
-  sessions: Session[],
-  activeSessionId: string | null,
-  activeTab: string,
-  activeSession: Session | null,
-  setActiveTab: (tab: string) => void,
-): ScratchFilesState {
-  const [scratchFiles, setScratchFiles] = useState<ScratchFile[]>([]);
-  const [openScratchTabs, setOpenScratchTabs] = useState<string[]>([]);
-
-  const sessionIds = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
-
-  const validScratchFiles = useMemo(
-    () => scratchFiles.filter((f) => sessionIds.has(f.sessionId)),
-    [scratchFiles, sessionIds],
-  );
-
-  const scratchFileMap = useMemo(() => {
-    const map: Record<string, ScratchFileInfo> = {};
-    for (const f of validScratchFiles) {
-      map[f.id] = { title: f.title, mode: f.mode, sessionId: f.sessionId };
-    }
-    return map;
-  }, [validScratchFiles]);
-
-  const loadScratchFiles = useCallback(async () => {
-    const data = await runCatching(
-      () => fetchAllScratchFiles(),
-      (err) => {
-        console.error("[scratch] failed to load:", err instanceof Error ? err.message : err);
-      },
-    );
-    setScratchFiles(data ?? []);
-  }, []);
-
-  useEffect(() => {
-    loadScratchFiles();
-  }, [loadScratchFiles]);
-
-  // Auto-open scratch tabs when switching to a session. A deep link (e.g. from
-  // the companion mac app) hydrates the active session id before the scratch
-  // fetch resolves, so on top of the session-change trigger we also re-apply
-  // when the active session's file list grows after the fact. Tracking the
-  // already-applied file ids keeps a user-closed tab closed on unrelated file
-  // changes while still opening files that arrive late.
-  const appliedRef = useRef<{ sessionId: string | null; fileIds: string[] }>({
-    sessionId: null,
-    fileIds: [],
-  });
-  useEffect(() => {
-    if (!activeSessionId) return;
-    const sessionFileIds = validScratchFiles
-      .filter((f) => f.sessionId === activeSessionId)
-      .map((f) => f.id);
-    const applied = appliedRef.current;
-    if (applied.sessionId === activeSessionId) {
-      const missing = sessionFileIds.filter((id) => !applied.fileIds.includes(id));
-      if (missing.length === 0) return;
-      appliedRef.current = { sessionId: activeSessionId, fileIds: sessionFileIds };
-      setOpenScratchTabs((prev) => [...new Set([...prev, ...missing])]);
-      return;
-    }
-    appliedRef.current = { sessionId: activeSessionId, fileIds: sessionFileIds };
-    setOpenScratchTabs(sessionFileIds);
-  }, [activeSessionId, validScratchFiles]);
-
-  const handleNewScratchFile = useCallback(async () => {
-    if (!activeSessionId) return;
-    try {
-      const f = await createScratchFile(activeSessionId, "Untitled", "# Untitled");
-      setScratchFiles((prev) => [f, ...prev]);
-      setOpenScratchTabs((prev) => [...prev, f.id]);
-      setActiveTab(`scratch:${f.id}`);
-    } catch {
-      /* ignore */
-    }
-  }, [activeSessionId, setActiveTab]);
-
-  const handleCloseScratchTab = useCallback(
-    (fileId: string) => {
-      setOpenScratchTabs((prev) => prev.filter((id) => id !== fileId));
-      const tab = `scratch:${fileId}`;
-      if (activeTab === tab && activeSession) {
-        setActiveTab("session");
-      }
-    },
-    [activeTab, activeSession, setActiveTab],
-  );
-
-  const handleRenameScratchFile = useCallback(
-    async (fileId: string, newTitle: string) => {
-      const info = scratchFileMap[fileId];
-      if (!info) return;
-      try {
-        await renameScratchFile(info.sessionId, fileId, newTitle);
-        setScratchFiles((prev) =>
-          prev.map((f) => (f.id === fileId ? { ...f, title: newTitle } : f)),
-        );
-      } catch {
-        /* ignore */
-      }
-    },
-    [scratchFileMap],
-  );
-
+/**
+ * Scratch files are owned by the cinematic session view (its file tree and
+ * editor). The only app-level scratch action is pinning a message into a new
+ * read-only scratch file, which the modal in `App.tsx` drives.
+ */
+export function useScratchFiles(activeSessionId: string | null): ScratchFilesState {
   const handlePinAsScratch = useCallback(
-    async (title: string, content: string) => {
-      if (!activeSessionId) return;
+    async (title: string, content: string): Promise<ScratchFile | null> => {
+      if (!activeSessionId) return null;
       try {
-        const f = await createScratchFile(activeSessionId, title, content, "readonly");
-        setScratchFiles((prev) => [f, ...prev]);
-        setOpenScratchTabs((prev) => (prev.includes(f.id) ? prev : [...prev, f.id]));
-        setActiveTab(`scratch:${f.id}`);
+        return await createScratchFile(activeSessionId, title, content, "readonly");
       } catch {
-        /* ignore */
+        return null;
       }
     },
-    [activeSessionId, setActiveTab],
+    [activeSessionId],
   );
 
-  return {
-    scratchFiles,
-    openScratchTabs,
-    scratchFileMap,
-    loadScratchFiles,
-    handleNewScratchFile,
-    handleCloseScratchTab,
-    handleRenameScratchFile,
-    handlePinAsScratch,
-  };
+  return { handlePinAsScratch };
 }

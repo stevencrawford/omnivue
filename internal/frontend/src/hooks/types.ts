@@ -55,6 +55,12 @@ export type AppNotification = z.infer<typeof NotificationSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type QueuedPrompt = z.infer<typeof QueuedPromptSchema>;
 
+// The session view's active tab, driven by the navigation store. Cinematic is
+// the only session presentation, so the live values are the default conversation
+// ("session"), the plan panel ("plan"), and a per-file scratch editor
+// (`scratch:<fileId>`). Search hits set these; the view routes on them.
+export type Tab = "session" | "plan" | `scratch:${string}`;
+
 // Decoding target for AppNotification.payload (an opaque JSON string stored in
 // the wire format). Not runtime-validated, so it stays a hand-written shape.
 export interface NotificationPayload {

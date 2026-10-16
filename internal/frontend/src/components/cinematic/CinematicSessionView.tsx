@@ -7,8 +7,8 @@ import type {
   FileEdit,
   Position,
   ScratchFile,
+  Tab,
 } from "../../hooks/types";
-import type { Tab } from "../SessionViewer";
 import { useCinematicSearchJump } from "../../hooks/useCinematicSearchJump";
 import {
   fetchMessages,
@@ -22,7 +22,7 @@ import {
 import { isAbortError } from "../../utils/errors";
 import { useToast } from "../../hooks/useToast";
 import { SessionHeader } from "../SessionHeader";
-import { reconcileMessages } from "../SessionViewer";
+import { reconcileMessages } from "../../utils/reconcileMessages";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { FileAccessTree } from "./FileAccessTree";
 import { FileDetail } from "./FileDetail";
@@ -64,7 +64,9 @@ interface CinematicSessionViewProps {
     kind?: BookmarkKind,
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
-  onNavigateToMessage?: (messageIndex: number, messageId?: string) => void;
+  onPinMessage?: (content: string) => void;
+  /** A freshly pinned scratch file id to focus (set by the pin-message flow). */
+  pinnedScratchId?: string | null;
   onQueueChanged?: () => void;
   highlightPromptId?: string | null;
   onHighlightDone?: () => void;
@@ -86,10 +88,8 @@ export function CinematicSessionView({
   onNameChanged,
   onBookmark,
   bookmarkIdByRef,
-  // Kept for API parity with SessionViewer. Jump *dispatch* inside cinematic is
-  // unnecessary: every navigation jump (search hit, diff nav, bookmark,
-  // notification) lands here as focus state via the focus* props below.
-  onNavigateToMessage: _onNavigateToMessage,
+  onPinMessage,
+  pinnedScratchId,
   onQueueChanged,
   highlightPromptId,
   onHighlightDone,
@@ -990,6 +990,25 @@ export function CinematicSessionView({
     }
   }, [scratchFiles, selectedScratchId]);
 
+  // Pinning a message creates a scratch file server-side and hands us its id.
+  // Reload the file list first so the focus survives the "unknown scratch id"
+  // guard above, then select the file.
+  const lastPinnedScratchRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pinnedScratchId || lastPinnedScratchRef.current === pinnedScratchId) return;
+    lastPinnedScratchRef.current = pinnedScratchId;
+    let cancelled = false;
+    void (async () => {
+      await loadScratchFiles();
+      if (cancelled) return;
+      setSelectedScratchId(pinnedScratchId);
+      setSelectedPath("");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pinnedScratchId, loadScratchFiles]);
+
   const handleOpenModal = useCallback((content: string, title?: string) => {
     setMarkdownModal({ content, title });
   }, []);
@@ -1287,6 +1306,7 @@ export function CinematicSessionView({
                         onJumpLanded={handleJumpLanded}
                         onBookmark={onBookmark}
                         bookmarkIdByRef={bookmarkIdByRef}
+                        onPin={onPinMessage}
                       />
                     </div>
                   </>
