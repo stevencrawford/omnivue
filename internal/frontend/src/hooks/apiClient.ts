@@ -11,6 +11,7 @@ import type {
   DiffFile,
   FileEdit,
   ScratchFile,
+  SessionFile,
   StatusInfo,
   SearchResult,
   Tag,
@@ -27,6 +28,7 @@ import {
   FileEditsSchema,
   ScratchFileSchema,
   ScratchFilesSchema,
+  SessionFileSchema,
   StatusInfoSchema,
   SearchResultsSchema,
   SourcesSchema,
@@ -142,6 +144,19 @@ export async function fetchDiffs(sessionId: string): Promise<DiffFile[]> {
 
 export async function fetchEdits(sessionId: string): Promise<FileEdit[]> {
   return fetchJson(`/_/api/sessions/${encodeURIComponent(sessionId)}/edits`, FileEditsSchema);
+}
+
+export async function fetchSessionFile(
+  sessionId: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<SessionFile> {
+  const params = new URLSearchParams({ path });
+  return fetchJson(
+    `/_/api/sessions/${encodeURIComponent(sessionId)}/file?${params.toString()}`,
+    SessionFileSchema,
+    signal ? { signal } : undefined,
+  );
 }
 
 export async function setSessionName(sessionId: string, displayName: string): Promise<void> {

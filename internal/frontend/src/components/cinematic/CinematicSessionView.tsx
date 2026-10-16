@@ -15,6 +15,7 @@ import {
   fetchPlan,
   fetchEdits,
   fetchScratchFiles,
+  fetchSessionFile,
   createScratchFile,
   renameScratchFile,
   deleteScratchFile,
@@ -1013,6 +1014,23 @@ export function CinematicSessionView({
     setMarkdownModal({ content, title });
   }, []);
 
+  // Renders the currently-selected tree file's on-disk content in the expanded
+  // markdown viewer. Works for read and edited markdown files alike because the
+  // backend reads from the session's working directory rather than the session
+  // transcript (which may be ranged or partial).
+  const handleOpenMarkdown = useCallback(async () => {
+    if (!selectedPath) return;
+    try {
+      const file = await fetchSessionFile(session.id, selectedPath);
+      setMarkdownModal({
+        content: file.content,
+        title: file.path.split("/").pop() || file.path,
+      });
+    } catch (err) {
+      showErrorToast(err, "Failed to load markdown file");
+    }
+  }, [session.id, selectedPath, showErrorToast]);
+
   const handleJumpTerminal = useCallback(() => {
     if (onJumpTerminal) onJumpTerminal();
     setTerminalOpen((v) => !v);
@@ -1194,6 +1212,7 @@ export function CinematicSessionView({
                         mergedDiff={selectedMergedDiff}
                         sessionDirectory={session.directory}
                         onJump={handleJumpToMessage}
+                        onOpenMarkdown={handleOpenMarkdown}
                       />
                     )}
                   </div>
