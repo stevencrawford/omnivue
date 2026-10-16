@@ -36,8 +36,7 @@ src/
 ├── components/
 │   ├── AppHeader.tsx           # Top bar (logo, search, theme toggle)
 │   ├── Sidebar.tsx             # Resizable sidebar with section panels
-│   ├── SessionViewer.tsx       # Tabbed session detail (session/diff/plan/scratch/terminal)
-│   ├── ConversationView.tsx    # Message list with grouping, scroll markers
+│   ├── cinematic/              # The session view (CinematicSessionView + timeline/console/tree/drawer)
 │   ├── ui/                     # Reusable presentational widgets (prop-driven)
 │   │   ├── MarkdownContent.tsx # Markdown renderer with syntax highlighting
 │   │   ├── Modal.tsx           # Dialog shell
@@ -99,7 +98,7 @@ Effect is used **only** for the SSE event stream in `useSSE.ts` (streams, expone
 runFork(effect)   // → () => void  (cancel function; used by useSSE.ts)
 ```
 
-Cancellation for one-shot fetches uses `AbortController` (e.g. `useSearchState`, `SessionViewer`) — see `apiClient.ts` functions that accept a `signal`.
+Cancellation for one-shot fetches uses `AbortController` (e.g. `useSearchState`, `useScratchFiles`) — see `apiClient.ts` functions that accept a `signal`.
 
 ## API Client
 
@@ -128,20 +127,21 @@ export async function fetchSessions(): Promise<Session[]> {
   `Toggle`, `FilterChip`, `CopyButton`, `MarkdownContent`, `EmptyState`.
 - **Views / containers** (pull app-level data from `useXxx` hooks or `apiClient`, own a screen
   or a section of one) live directly in `components/` or in a feature subdir
-  (`sessions/`, `tags/`, `settings/`, `overview/`, `session-summary/`, `tool-renderers/`).
+  (`sessions/`, `tags/`, `settings/`, `overview/`, `cinematic/`, `tool-renderers/`).
 - A component is presentational if its state is all local (`useState`/`useRef` for UI);
   it is a container if it reads app data hooks (`useNavigation`, `useTags`, `useBookmarks`,
-  `useSessionSummary`, `apiClient`, etc.). Put it in `ui/` only if it is reusable and
+  `apiClient`, etc.). Put it in `ui/` only if it is reusable and
   prop-driven; don't move a screen or a section.
 
 ### Event handler naming
 - `handleXxx` for event handlers (e.g., `handleSearchSelect`, `handleDrawerClose`).
 - `onXxx` for prop callbacks (e.g., `onTabChange`, `onSessionSelect`).
 
-### Tab panels
-- All tabs remain mounted, inactive ones hidden via `className="hidden"`.
-- Lazy-loaded flags (`diffLoaded`, `planLoaded`) set on first tab click to avoid
-  unnecessary API calls. These are simple `useState<boolean>`, not Effect.
+### Session view
+- The cinematic view (`components/cinematic/`) is the sole session presentation. The
+  activity drawer's internal tabs (activity/plan) keep their panels mounted and toggle
+  visibility with `className="hidden"`; lazy-loaded data is fetched on first activation.
+  These are simple `useState<boolean>`, not Effect.
 
 ## Tool Renderer Plugin System
 

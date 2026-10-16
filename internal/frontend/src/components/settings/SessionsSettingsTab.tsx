@@ -3,12 +3,10 @@ import {
   STALE_DAYS_MIN,
   STALE_DAYS_MAX,
 } from "../../hooks/useSessionListSettings";
-import { useCinematicMode } from "../../hooks/useCinematicMode";
 import { Toggle } from "../ui/Toggle";
 
 export function SessionsSettingsTab() {
   const { hideStale, staleDays, setHideStale, setStaleDays } = useSessionListSettings();
-  const { enabled: cinematicEnabled, setEnabled: setCinematicEnabled } = useCinematicMode();
 
   return (
     <div>
@@ -19,14 +17,7 @@ export function SessionsSettingsTab() {
         Control how the session list is displayed.
       </p>
 
-      <Toggle
-        checked={cinematicEnabled}
-        onChange={setCinematicEnabled}
-        label="Studio view"
-        hint="Immersive workspace that replaces tabs — file tree, console, and activity drawer stay synced to a scrubbable timeline. Play, step, or isolate any turn."
-      />
-
-      <div className="mt-6">
+      <div>
         <Toggle
           checked={hideStale}
           onChange={setHideStale}

@@ -8,8 +8,6 @@ export const STORAGE_KEYS = {
   SIDEBAR_GROUP: "omnivue-sidebar-group",
   SIDEBAR_DISPLAY: "omnivue-sidebar-display",
   PINNED_HEIGHT: "omnivue-pinned-height",
-  DIFF_TREE_WIDTH: "omnivue-diff-tree-width",
-  DIFF_TREE_COLLAPSED: "omnivue-diff-tree-collapsed",
   CINEMATIC_TREE_WIDTH: "omnivue-cinematic-tree-width",
   CINEMATIC_DRAWER_WIDTH: "omnivue-cinematic-drawer-width",
   CINEMATIC_CONSOLE_HEIGHT: "omnivue-cinematic-console-height",

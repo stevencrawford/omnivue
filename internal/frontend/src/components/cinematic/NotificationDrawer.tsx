@@ -70,6 +70,7 @@ interface NotificationDrawerProps {
     kind?: BookmarkKind,
   ) => void;
   bookmarkIdByRef?: Record<string, string>;
+  onPin?: (content: string) => void;
 }
 
 function formatDuration(ms: number): string {
@@ -175,6 +176,7 @@ export function NotificationDrawer({
   onJumpLanded,
   onBookmark,
   bookmarkIdByRef,
+  onPin,
 }: NotificationDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
@@ -275,6 +277,7 @@ export function NotificationDrawer({
                 <MarkdownContent
                   content={msg.content}
                   className="markdown-body--wide text-xs min-w-0 wrap-break-word"
+                  onPin={onPin}
                   onOpenModal={
                     msg.content.length > 100 && onOpenModal
                       ? () => onOpenModal(msg.content, "User message")
@@ -333,6 +336,7 @@ export function NotificationDrawer({
               <MarkdownContent
                 content={msg.content}
                 className="markdown-body--wide text-xs min-w-0 wrap-break-word"
+                onPin={onPin}
                 onOpenModal={
                   isLong && onOpenModal
                     ? () => onOpenModal(msg.content, "Assistant message")
@@ -371,6 +375,7 @@ export function NotificationDrawer({
               renderer={renderer}
               tool={tool}
               variant={disableCustomRenderers ? "summary" : "detail"}
+              onPin={onPin}
               onBookmark={
                 bookmarkable && onBookmark
                   ? () => onBookmark(session.id, msg.id, tool.id, toolLabel)
@@ -417,6 +422,7 @@ export function NotificationDrawer({
     onOpenModal,
     onBookmark,
     bookmarkIdByRef,
+    onPin,
     indexById,
     disableCustomRenderers,
   ]);
@@ -608,6 +614,7 @@ export function NotificationDrawer({
               <MarkdownContent
                 content={planContent}
                 className="markdown-body--wide text-xs min-w-0 wrap-break-word"
+                onPin={onPin}
               />
             </div>
           </div>
