@@ -801,61 +801,63 @@ func (s *Store) MarkSessionViewed(sessionID string) error {
 	return err
 }
 
-// --- Prompt Queue CRUD ---
+// --- Prompt Pad CRUD ---
 
-// QueuedPrompt represents a single prompt queued for deferred dispatch.
-type QueuedPrompt struct {
-	ID           string  `json:"id"`
-	SessionID    *string `json:"sessionId,omitempty"`
-	SourceID     *string `json:"sourceId,omitempty"`
-	PromptText   string  `json:"promptText"`
-	Status       string  `json:"status"`
-	Priority     int     `json:"priority"`
-	Tags         string  `json:"tags"`                   // JSON array
-	CreatedAt    int64   `json:"createdAt"`              // unix ms
-	DispatchedAt *int64  `json:"dispatchedAt,omitempty"` // unix ms
+// Prompt represents a single saved prompt in the global prompt pad. Prompts are
+// not tied to a session: they are a free-form dumping ground for useful prompts
+// and drafts that can be copied back out on demand.
+type Prompt struct {
+	ID         string `json:"id"`
+	PromptText string `json:"promptText"`
+	Status     string `json:"status"` // "open" | "done"
+	Pinned     bool   `json:"pinned"`
+	Position   int64  `json:"position"`
+	CreatedAt  int64  `json:"createdAt"` // unix ms
+	UpdatedAt  *int64 `json:"updatedAt,omitempty"`
+	DoneAt     *int64 `json:"doneAt,omitempty"`
 }
 
-// CreatePrompt inserts a new queued prompt.
-func (s *Store) CreatePrompt(p QueuedPrompt) error {
+// CreatePrompt inserts a new prompt. The caller sets identity, text, and
+// timestamps; position is computed so the newest prompt lands at the top of the
+// open list (the lowest position wins under `position ASC`).
+func (s *Store) CreatePrompt(p Prompt) error {
 	_, err := s.db.Exec(`
-		INSERT INTO prompt_queue (id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, p.ID, p.SessionID, p.SourceID, p.PromptText, p.Status, p.Priority, p.Tags, p.CreatedAt, p.DispatchedAt)
+		INSERT INTO prompts (id, prompt_text, status, pinned, position, created_at, updated_at, done_at)
+		VALUES (?, ?, ?, ?, COALESCE((SELECT MIN(position) FROM prompts), 0) - 1, ?, ?, ?)
+	`, p.ID, p.PromptText, p.Status, boolToInt(p.Pinned), p.CreatedAt, p.UpdatedAt, p.DoneAt)
 	return err
 }
 
-// Prompt returns a single queued prompt by ID.
-func (s *Store) Prompt(id string) (*QueuedPrompt, error) {
-	var p QueuedPrompt
-	var sessionID, sourceID sql.NullString
-	var dispatchedAt sql.NullInt64
+// Prompt returns a single prompt by ID.
+func (s *Store) Prompt(id string) (*Prompt, error) {
+	var p Prompt
+	var pinned int
+	var updatedAt, doneAt sql.NullInt64
 	err := s.db.QueryRow(`
-		SELECT id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at
-		FROM prompt_queue WHERE id = ?
-	`, id).Scan(&p.ID, &sessionID, &sourceID, &p.PromptText, &p.Status, &p.Priority, &p.Tags, &p.CreatedAt, &dispatchedAt)
+		SELECT id, prompt_text, status, pinned, position, created_at, updated_at, done_at
+		FROM prompts WHERE id = ?
+	`, id).Scan(&p.ID, &p.PromptText, &p.Status, &pinned, &p.Position, &p.CreatedAt, &updatedAt, &doneAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if sessionID.Valid {
-		p.SessionID = &sessionID.String
+	p.Pinned = pinned != 0
+	if updatedAt.Valid {
+		v := updatedAt.Int64
+		p.UpdatedAt = &v
 	}
-	if sourceID.Valid {
-		p.SourceID = &sourceID.String
-	}
-	if dispatchedAt.Valid {
-		v := dispatchedAt.Int64
-		p.DispatchedAt = &v
+	if doneAt.Valid {
+		v := doneAt.Int64
+		p.DoneAt = &v
 	}
 	return &p, nil
 }
 
-// ListPrompts returns prompts ordered by created_at DESC. Filters: status,
-// sessionID (empty = all), limit (default 100, max 500).
-func (s *Store) ListPrompts(status, sessionID string, limit int) ([]QueuedPrompt, error) {
+// ListPrompts returns prompts ordered by pinned DESC, position ASC. Filters:
+// status (empty = all), limit (default 100, max 500).
+func (s *Store) ListPrompts(status string, limit int) ([]Prompt, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -868,15 +870,11 @@ func (s *Store) ListPrompts(status, sessionID string, limit int) ([]QueuedPrompt
 		where = append(where, "status = ?")
 		args = append(args, status)
 	}
-	if sessionID != "" {
-		where = append(where, "session_id = ?")
-		args = append(args, sessionID)
-	}
-	q := "SELECT id, session_id, source_id, prompt_text, status, priority, tags, created_at, dispatched_at FROM prompt_queue"
+	q := "SELECT id, prompt_text, status, pinned, position, created_at, updated_at, done_at FROM prompts"
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // where is built from placeholders, not user input
 	}
-	q += " ORDER BY created_at DESC LIMIT ?"
+	q += " ORDER BY pinned DESC, position ASC LIMIT ?"
 	args = append(args, limit)
 
 	rows, err := s.db.Query(q, args...)
@@ -885,50 +883,77 @@ func (s *Store) ListPrompts(status, sessionID string, limit int) ([]QueuedPrompt
 	}
 	defer rows.Close()
 
-	var out []QueuedPrompt
+	var out []Prompt
 	for rows.Next() {
-		var p QueuedPrompt
-		var sessionID, sourceID sql.NullString
-		var dispatchedAt sql.NullInt64
-		if err := rows.Scan(&p.ID, &sessionID, &sourceID, &p.PromptText, &p.Status, &p.Priority, &p.Tags, &p.CreatedAt, &dispatchedAt); err != nil {
+		var p Prompt
+		var pinned int
+		var updatedAt, doneAt sql.NullInt64
+		if err := rows.Scan(&p.ID, &p.PromptText, &p.Status, &pinned, &p.Position, &p.CreatedAt, &updatedAt, &doneAt); err != nil {
 			return nil, err
 		}
-		if sessionID.Valid {
-			p.SessionID = &sessionID.String
+		p.Pinned = pinned != 0
+		if updatedAt.Valid {
+			v := updatedAt.Int64
+			p.UpdatedAt = &v
 		}
-		if sourceID.Valid {
-			p.SourceID = &sourceID.String
-		}
-		if dispatchedAt.Valid {
-			v := dispatchedAt.Int64
-			p.DispatchedAt = &v
+		if doneAt.Valid {
+			v := doneAt.Int64
+			p.DoneAt = &v
 		}
 		out = append(out, p)
 	}
 	return out, rows.Err()
 }
 
-// UpdatePromptStatus sets the status and optionally dispatched_at for a prompt.
-func (s *Store) UpdatePromptStatus(id, status string, dispatchedAt *int64) error {
+// UpdatePromptText updates a prompt's text and records the edit time.
+func (s *Store) UpdatePromptText(id, promptText string) error {
+	now := time.Now().UnixMilli()
 	_, err := s.db.Exec(`
-		UPDATE prompt_queue SET status = ?, dispatched_at = COALESCE(?, dispatched_at)
-		WHERE id = ?
-	`, status, dispatchedAt, id)
+		UPDATE prompts SET prompt_text = ?, updated_at = ? WHERE id = ?
+	`, promptText, now, id)
 	return err
 }
 
-// UpdatePromptContent updates the prompt text, priority, and tags.
-func (s *Store) UpdatePromptContent(id, promptText, tags string, priority int) error {
+// SetPromptStatus sets a prompt's status. Marking a prompt "done" stamps
+// done_at; reopening it clears the timestamp.
+func (s *Store) SetPromptStatus(id, status string) error {
+	var doneAt any
+	if status == "done" {
+		doneAt = time.Now().UnixMilli()
+	}
 	_, err := s.db.Exec(`
-		UPDATE prompt_queue SET prompt_text = ?, priority = ?, tags = ?
-		WHERE id = ?
-	`, promptText, priority, tags, id)
+		UPDATE prompts SET status = ?, done_at = ? WHERE id = ?
+	`, status, doneAt, id)
 	return err
 }
 
-// DeletePrompt removes a queued prompt.
+// SetPromptPinned pins or unpins a prompt.
+func (s *Store) SetPromptPinned(id string, pinned bool) error {
+	_, err := s.db.Exec(`UPDATE prompts SET pinned = ? WHERE id = ?`, boolToInt(pinned), id)
+	return err
+}
+
+// ReorderPrompts assigns sequential positions following the given ID order so
+// the manual drag order is preserved across restarts.
+func (s *Store) ReorderPrompts(ids []string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE prompts SET position = ? WHERE id = ?`, i, id); err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("reorder prompts: %w", errors.Join(err, rbErr))
+			}
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// DeletePrompt removes a prompt.
 func (s *Store) DeletePrompt(id string) error {
-	_, err := s.db.Exec(`DELETE FROM prompt_queue WHERE id = ?`, id)
+	_, err := s.db.Exec(`DELETE FROM prompts WHERE id = ?`, id)
 	return err
 }
 
@@ -939,13 +964,21 @@ func (s *Store) BatchDeletePrompts(ids []string) error {
 	}
 	placeholders := strings.Repeat("?,", len(ids))
 	placeholders = strings.TrimSuffix(placeholders, ",")
-	query := "DELETE FROM prompt_queue WHERE id IN (" + placeholders + ")" //nolint:gosec
+	query := "DELETE FROM prompts WHERE id IN (" + placeholders + ")" //nolint:gosec
 	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = id
 	}
 	_, err := s.db.Exec(query, args...)
 	return err
+}
+
+// boolToInt converts a Go bool to the 0/1 integer SQLite stores.
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 // --- Search Index ---
@@ -1132,7 +1165,7 @@ type SearchResult struct {
 // session names, scratch files, config, bookmarks). Agent data is unaffected.
 func (s *Store) Reset() error {
 	tables := []string{
-		"prompt_queue",
+		"prompts",
 		"bookmarks",
 		"notifications",
 		"notification_state",

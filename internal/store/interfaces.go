@@ -78,13 +78,15 @@ type NotificationStore interface {
 	MarkSessionViewed(sessionID string) error
 }
 
-// PromptStore exposes CRUD for the deferred prompt queue.
+// PromptStore exposes CRUD for the global prompt pad.
 type PromptStore interface {
-	CreatePrompt(p QueuedPrompt) error
-	Prompt(id string) (*QueuedPrompt, error)
-	ListPrompts(status, sessionID string, limit int) ([]QueuedPrompt, error)
-	UpdatePromptStatus(id, status string, dispatchedAt *int64) error
-	UpdatePromptContent(id, promptText, tags string, priority int) error
+	CreatePrompt(p Prompt) error
+	Prompt(id string) (*Prompt, error)
+	ListPrompts(status string, limit int) ([]Prompt, error)
+	UpdatePromptText(id, promptText string) error
+	SetPromptStatus(id, status string) error
+	SetPromptPinned(id string, pinned bool) error
+	ReorderPrompts(ids []string) error
 	DeletePrompt(id string) error
 	BatchDeletePrompts(ids []string) error
 }
