@@ -30,6 +30,7 @@ import {
   type SessionPosition,
 } from "./useSessionPosition";
 import type { Section } from "../components/IconChannel";
+import { resolveFamilyRoot } from "../utils/sessionFamily";
 
 // ---------------------------------------------------------------------------
 // Navigation intent — React binding
@@ -315,8 +316,13 @@ export function useNavigationState({
   const clearFocus = useCallback(() => dispatch({ type: "CLEAR_FOCUS" }), []);
   const navigateSession = useCallback(
     (delta: 1 | -1, sessions: Session[]) => {
-      const next = nextSessionId(sessions, activeSessionId, delta);
-      dispatch({ type: "NAV_SESSION_DELTA", delta, sessions });
+      // j/k cycle only root sessions (what the sidebar shows); sub-agents are
+      // reached through the main-view family selector. When a sub-agent is
+      // active, continue from its family root so the jump is not a no-op.
+      const roots = sessions.filter((s) => !s.parentId);
+      const anchor = resolveFamilyRoot(sessions, activeSessionId);
+      const next = nextSessionId(roots, anchor, delta);
+      dispatch({ type: "NAV_SESSION_DELTA", delta, sessions: roots, anchor });
       navigateTo(next === null ? HOME_ROUTE : sessionRoute(next));
     },
     [activeSessionId, navigateTo],

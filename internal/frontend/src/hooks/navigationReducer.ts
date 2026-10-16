@@ -73,7 +73,7 @@ export type NavigationAction =
   | { type: "SET_OVERVIEW"; overview: boolean }
   | { type: "SET_SEARCH_HIGHLIGHT"; query: string | null }
   | { type: "CLEAR_SEARCH_HIGHLIGHT" }
-  | { type: "NAV_SESSION_DELTA"; delta: 1 | -1; sessions: Session[] }
+  | { type: "NAV_SESSION_DELTA"; delta: 1 | -1; sessions: Session[]; anchor?: string | null }
   | { type: "HYDRATE_SESSION"; id: string }
   | { type: "HYDRATE_OVERVIEW" };
 
@@ -285,7 +285,11 @@ export function navigationReducer(
       const sessions = action.sessions;
       return {
         ...state,
-        activeSessionId: nextSessionId(sessions, state.activeSessionId, action.delta),
+        activeSessionId: nextSessionId(
+          sessions,
+          action.anchor ?? state.activeSessionId,
+          action.delta,
+        ),
         showOverview: false,
         searchHighlightQuery: null,
       };
