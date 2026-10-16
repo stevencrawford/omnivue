@@ -40,9 +40,9 @@ The root component manages global state:
 
 ### Sidebar (`Sidebar.tsx`)
 
-Resizable panel showing session tree grouped by repository. Uses `omnivue-sidebar-width` localStorage key for width persistence. Navigation sections (`IconChannel.tsx`: sessions, queued prompts, tags, bookmarks, notifications):
+Resizable panel showing session tree grouped by repository. Uses `omnivue-sidebar-width` localStorage key for width persistence. Navigation sections (`IconChannel.tsx`: sessions, prompts, tags, bookmarks, notifications):
 - **Sessions** — group by repo using `buildTree()` (`sessions/SessionTree.tsx`)
-- **Queued Prompts** — prompt queue via `QueuePanel`
+- **Prompts** — global prompt pad via `PromptsPanel` (session-independent, with clipboard paste, done check-off, inline edit, pin, and drag reorder)
 - **Tags** — tag-based organization via `TagPanel` (`tags/` row/filter/list components)
 - **Bookmarks** — bookmarked sessions via `BookmarkPanel`
 - **Notifications** — notification list with filters via `NotificationPanel`
@@ -79,7 +79,7 @@ contain:
 - `BookmarkButton` — toggle bookmarks on individual tool call outputs
 - `CopyButton` (`ui/CopyButton`) — copy message content to clipboard
 - `ResumeButton` — one-click copy of resume command
-- `PinnedPromptBar` — pinned message context plus queued prompts for the session
+- `Pinned message context` — the drawer's Prompt tab renders the session's first message inline (`UserPromptBubble`)
 - `PinMessageModal` — create a scratch file from selected message content
 
 Plan/checkpoint items (status indicators: pending, in_progress, completed,
@@ -125,10 +125,12 @@ Tag-based session organization. Supports unique names, optional colors, and sess
 - `NotificationsSettingsTab` — settings UI for notification kinds, scope, and channels
 - `NotificationToaster` (in `App.tsx`) — subscribes to notification list, fires in-app toasts and browser OS notifications
 
-### Prompt queue (`QueuePanel.tsx`, `PinnedPromptBar.tsx`)
+### Prompts (`PromptsPanel.tsx`)
 
-- `QueuePanel` — sidebar section listing queued prompts (session-scoped and global) with dispatch/delete
-- `PinnedPromptBar` — per-session prompt bar to queue prompts and show pinned message context
+- `PromptsPanel` — global, session-independent prompt pad in the sidebar: a
+  dumping ground for useful prompts and drafts. Supports a composer, paste from
+  clipboard, copy back, check-off/done, inline edit, pin-to-top, and drag
+  reorder. Backed by `/_/api/prompts`.
 
 ### Terminal (`TerminalPanel.tsx`)
 
@@ -150,7 +152,7 @@ Connected via a `ResumeButton` that opens a terminal tab for the session.
 
 - `AppHeader` — Top bar with home button, search highlight indicator, navigation
 - `SessionHeader` — Session detail header with title, model, agent, status, timestamps
-- `UserPromptBubble` — User request bubble (also used by `PinnedPromptBar`)
+- `UserPromptBubble` — User request bubble (rendered inline in the drawer's Prompt tab)
 - `TimeRangeSelector` — Overview time range filtering
 - `MarkdownScreenshotButton` + `ScreenshotWindow` + `ScreenshotCaptureLayer` — Markdown screenshot capture (`lib/screenshot.ts`, `html-to-image`)
 - `ShortcutsModal` — Keyboard shortcuts reference modal (opens with `?`)
@@ -158,7 +160,7 @@ Connected via a `ResumeButton` that opens a terminal tab for the session.
 - `ContextMenu` — Right-click context menus
 - `Toast` — Toast notification component (used by NotificationToaster)
 - `ErrorBoundary` (`ui/ErrorBoundary`) — Graceful error recovery
-- `IconChannel` — Section navigation toggle (sessions/queued prompts/tags/bookmarks/notifications)
+- `IconChannel` — Section navigation toggle (sessions/prompts/tags/bookmarks/notifications)
 - Presentational widgets in `components/ui/`: `Spinner`, `LoadingState`, `EmptyState`, `EmptyPanel`, `FilterChip`, `Toggle`, `CopyButton`, `MarkdownContent`, `Modal`, `ErrorBoundary`
 - Feature subdirs: `sessions/` (`SessionTree`, `VerboseStats`, `GroupMenu`, `IconBtn`), `overview/` (`ActivityCharts`, `StatCard`, `MiniSessionRow`, `ModelAgentBreakdown`, `RepoCard`)
 
@@ -179,7 +181,7 @@ interface Source { id, path, agentType, label, enabled, createdAt }
 interface Bookmark { id, sessionId, messageId?, toolCallId?, label, kind, createdAt }
 interface AppNotification { id, sessionId, sourceId, kind, title, preview, severity, payload?, createdAt, readAt? }
 interface NotificationSettings { enabled, kinds, scope, inAppToast, sidebarBadge, browserNotify, excludeActiveView, enabledAt }
-interface QueuedPrompt { id, sessionId?, sourceId?, promptText, status, priority, tags, createdAt, dispatchedAt? }
+interface Prompt { id, promptText, status: "open" | "done", pinned, position, createdAt, updatedAt?, doneAt? }
 interface Tag { id, name, color?, createdAt, updatedAt }
 interface ScratchFile { id, sessionId, title, content, mode, createdAt, updatedAt }
 interface SearchResult { sessionId, sessionName?, sourceId, chunkType, repository, snippet, updatedAt?, fileTitle?, fileId?, messageIndex? }
@@ -278,7 +280,6 @@ All use `omnivue-` prefix (centralized in `utils/storageKeys.ts` as `STORAGE_KEY
 | `omnivue-sidebar-collapsed` | Collapsed repo groups | `SessionPanel` |
 | `omnivue-sidebar-group` | Session group-by option | `useSessionListSettings` |
 | `omnivue-sidebar-display` | Condensed/verbose | `SessionPanel` |
-| `omnivue-pinned-height` | Pinned prompt bar height | `PinnedPromptBar` |
 | `omnivue-cinematic-tree-width` | Cinematic tree width | Cinematic view |
 | `omnivue-cinematic-drawer-width` | Cinematic drawer width | Cinematic view |
 | `omnivue-cinematic-console-height` | Cinematic console height | Cinematic view |
