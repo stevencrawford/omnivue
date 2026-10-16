@@ -1,5 +1,30 @@
 # Changelog
 
+## [v0.3.1](https://github.com/stevencrawford/omnivue/compare/v0.3.0...v0.3.1) - 2026-10-16
+
+### Dependency Updates ⬆️
+- chore(deps): bump the dependencies group across 1 directory with 4 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/192
+- chore(deps): bump the dependencies group across 1 directory with 3 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/191
+- chore(deps): bump the dependencies group across 1 directory with 26 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/190
+### Other Changes
+- refactor(frontend): Make cinematic the only session view by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/195
+- fix(opencode): Read OpenCode v2 session format by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/194
+- feat: Collapsible sidebar and markdown viewer by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/193
+- fix(opencode): Group worktree sessions by repo by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/197
+- Use pop-out icon for the markdown open button by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/198
+- fix(cinematic): Fix notification and bookmark jumps by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/199
+- feat: Global prompt pad by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/200
+- feat(cinematic): Add activity scroll controls by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/201
+- fix(prompts): Composer at bottom and working paste by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/202
+- fix(cinematic): Remove token counts from file tree by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/203
+- feat(cinematic): Auto-collapse activity drawer when narrow by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/204
+- feat(prompts): Clean up panel and add paste box by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/205
+- Move sub-agent navigation into a main-view family selector by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/206
+- docs: Update documentation to reflect current codebase by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/207
+- fix(store): Renumber prompts migration to 0012 by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/208
+- feat(sessions): Improve sub-agent navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/209
+- fix(sessions): Simplify sub-agent back button by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/210
+
 ## Unreleased
 
 ### Schema
