@@ -7,6 +7,8 @@ export function detectLanguage(filePath: string): string {
     jsx: "jsx",
     json: "json",
     md: "markdown",
+    mdx: "markdown",
+    markdown: "markdown",
     css: "css",
     html: "html",
     go: "go",
