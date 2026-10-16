@@ -1,4 +1,4 @@
-import { BookOpen, File, FileText, ArrowRight, MessageSquareText } from "lucide-react";
+import { BookOpen, File, SquareArrowOutUpRight, ArrowRight, MessageSquareText } from "lucide-react";
 import type { ReactNode } from "react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { readPreviewContent } from "../../utils/fileAccess";
@@ -27,8 +27,8 @@ function OpenMarkdownButton({ path, onOpen }: { path: string; onOpen?: () => voi
       className="flex items-center gap-1 px-2 py-1 text-[11px] text-ov-text-secondary hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors"
       title="Open in markdown viewer"
     >
-      <FileText size={11} />
-      <span>Render</span>
+      <SquareArrowOutUpRight size={11} />
+      <span>Open</span>
     </button>
   );
 }
