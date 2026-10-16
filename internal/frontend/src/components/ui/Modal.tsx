@@ -57,6 +57,8 @@ export function Modal({
       />
       <div
         ref={panelRef}
+        role="dialog"
+        aria-modal="true"
         className={`relative z-50 flex flex-col rounded-xl border border-accent-border bg-surface-elevated shadow-2xl w-full ${SIZE_MAP[size]} max-h-[80vh] overflow-hidden ${className}`}
       >
         {title && (

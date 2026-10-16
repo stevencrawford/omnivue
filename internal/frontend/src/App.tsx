@@ -232,6 +232,12 @@ export function App() {
   }, [searchHighlightQuery, activeSessionId, setSearchSessionScope]);
 
   // ---- Keyboard shortcuts ----
+  // Escape acts as "back" while a sub-agent is open (mirrors the header's Back
+  // control); null on the root session and the overview.
+  const backToParent = activeSession?.parentId
+    ? (sessions.find((s) => s.id === activeSession.parentId) ?? null)
+    : null;
+
   const keyboardConfig: AppKeyboardConfig = {
     sessions,
     activeSessionId,
@@ -247,6 +253,7 @@ export function App() {
     clearSearchHighlight,
     setShowOverview,
     navigateSession,
+    backToParent: backToParent ? () => handleSessionSelect(backToParent.id) : null,
     onOpenShortcuts: () => setShortcutsOpen(true),
   };
   useAppKeyboard(keyboardConfig);
