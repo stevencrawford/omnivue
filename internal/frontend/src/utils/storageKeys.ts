@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   CONTRAST: "omnivue-contrast",
   HIDE_COSTS: "omnivue-hide-costs",
   SIDEBAR_WIDTH: "omnivue-sidebar-width",
+  SIDEBAR_EXPANDED: "omnivue-sidebar-expanded",
   SIDEBAR_COLLAPSED: "omnivue-sidebar-collapsed",
   SIDEBAR_GROUP: "omnivue-sidebar-group",
   SIDEBAR_DISPLAY: "omnivue-sidebar-display",

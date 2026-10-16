@@ -33,6 +33,7 @@ import { useToast } from "./hooks/useToast";
 import { fetchPrompts } from "./hooks/apiClient";
 import { NavigationContext, useNavigationState } from "./hooks/useNavigation";
 import { SEARCH_ROUTE, pathToRoute } from "./hooks/useRouteSync";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "./utils/storageKeys";
 
 // ---------------------------------------------------------------------------
 // App — root component
@@ -109,7 +110,14 @@ export function App() {
   useActiveView(activeSessionId);
 
   // ---- UI state ----
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // The sidebar is either expanded or collapsed; the choice persists across
+  // reloads so it never surprises the user by reappearing on hover.
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => getStorageItem(STORAGE_KEYS.SIDEBAR_EXPANDED) !== "false",
+  );
+  useEffect(() => {
+    setStorageItem(STORAGE_KEYS.SIDEBAR_EXPANDED, String(sidebarOpen));
+  }, [sidebarOpen]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);

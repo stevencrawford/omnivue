@@ -1,4 +1,4 @@
-import { BookOpen, File, ArrowRight, MessageSquareText } from "lucide-react";
+import { BookOpen, File, FileText, ArrowRight, MessageSquareText } from "lucide-react";
 import type { ReactNode } from "react";
 import type { FileAccess } from "../../utils/fileAccess";
 import { readPreviewContent } from "../../utils/fileAccess";
@@ -14,6 +14,23 @@ interface FileDetailProps {
   mergedDiff?: MergedFileDiff | null;
   sessionDirectory?: string;
   onJump?: (messageIndex: number, messageId?: string) => void;
+  /** Opens the file's rendered markdown in the expanded markdown viewer. */
+  onOpenMarkdown?: () => void;
+}
+
+function OpenMarkdownButton({ path, onOpen }: { path: string; onOpen?: () => void }) {
+  if (!onOpen || detectLanguage(path) !== "markdown") return null;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex items-center gap-1 px-2 py-1 text-[11px] text-ov-text-secondary hover:text-accent hover:bg-accent/5 rounded cursor-pointer transition-colors"
+      title="Open in markdown viewer"
+    >
+      <FileText size={11} />
+      <span>Render</span>
+    </button>
+  );
 }
 
 function FileDetailHeader({
@@ -78,6 +95,7 @@ export function FileDetail({
   mergedDiff,
   sessionDirectory,
   onJump,
+  onOpenMarkdown,
 }: FileDetailProps) {
   if (!access && !mergedDiff) {
     return (
@@ -101,6 +119,7 @@ export function FileDetail({
             icon={<File size={14} className="shrink-0 text-ov-text-secondary" />}
             fileName={mergedDiff.path.split("/").pop() || mergedDiff.path}
             fullPath={fullPath}
+            actions={<OpenMarkdownButton path={mergedDiff.path} onOpen={onOpenMarkdown} />}
           />
           <div className="flex-1 overflow-y-auto p-0 min-w-0">
             {mergedDiff.hunks.map((hunk, i) => {
@@ -139,6 +158,7 @@ export function FileDetail({
           icon={<File size={14} className="shrink-0 text-ov-text-secondary" />}
           fileName={mergedDiff.path.split("/").pop() || mergedDiff.path}
           fullPath={fullPath}
+          actions={<OpenMarkdownButton path={mergedDiff.path} onOpen={onOpenMarkdown} />}
         />
         <div className="flex-1 flex items-center justify-center">
           <EmptyPanel icon={<File size={20} />} title="Patch content not available for this file" />
@@ -159,14 +179,17 @@ export function FileDetail({
           fileName={fileName}
           fullPath={fullPath}
           actions={
-            onJump ? (
-              <JumpButton
-                messageIndex={access.messageIndex}
-                messageId={access.messageId}
-                onJump={onJump}
-                title="Jump timeline to this read"
-              />
-            ) : undefined
+            <>
+              {onJump && (
+                <JumpButton
+                  messageIndex={access.messageIndex}
+                  messageId={access.messageId}
+                  onJump={onJump}
+                  title="Jump timeline to this read"
+                />
+              )}
+              <OpenMarkdownButton path={access.filePath} onOpen={onOpenMarkdown} />
+            </>
           }
         />
         <div className="flex-1 overflow-y-auto p-0">
@@ -189,14 +212,17 @@ export function FileDetail({
         fileName={fileName}
         fullPath={fallbackPath}
         actions={
-          access && onJump ? (
-            <JumpButton
-              messageIndex={access.messageIndex}
-              messageId={access.messageId}
-              onJump={onJump}
-              title="Jump timeline to this change"
-            />
-          ) : undefined
+          <>
+            {access && onJump && (
+              <JumpButton
+                messageIndex={access.messageIndex}
+                messageId={access.messageId}
+                onJump={onJump}
+                title="Jump timeline to this change"
+              />
+            )}
+            <OpenMarkdownButton path={fallbackRel} onOpen={onOpenMarkdown} />
+          </>
         }
       />
       <div className="flex-1 flex items-center justify-center">

@@ -652,44 +652,44 @@ export function FileAccessTree({
             tokenTotals={tokenTotals}
           />
         )}
-        <div className="border-t border-ov-border mt-1">
-          <div className="flex items-center w-full pr-1">
+      </div>
+      {/* Scratch is pinned to the bottom and capped in height so an empty or
+          long list never crowds the file tree. */}
+      <div className="shrink-0 border-t border-ov-border">
+        <div className="flex items-center w-full pr-1">
+          <button
+            type="button"
+            onClick={() => setScratchExpanded((v) => !v)}
+            className="flex items-center gap-1 flex-1 min-w-0 px-1 py-1.5 text-left text-[11px] cursor-pointer transition-colors text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
+            style={{ paddingLeft: 8 }}
+            aria-label={scratchExpanded ? "Collapse Scratch" : "Expand Scratch"}
+            aria-expanded={scratchExpanded}
+          >
+            <ChevronRight
+              size={12}
+              className={`shrink-0 transition-transform ${scratchExpanded ? "rotate-90" : ""}`}
+            />
+            <FileText size={14} className="shrink-0" />
+            <span className="font-medium truncate">Scratch</span>
+            <span className="ml-auto text-[11px] opacity-60">{scratchFiles.length}</span>
+          </button>
+          {onNewScratch && (
             <button
               type="button"
-              onClick={() => setScratchExpanded((v) => !v)}
-              className="flex items-center gap-1 flex-1 min-w-0 px-1 py-1.5 text-left text-[11px] cursor-pointer transition-colors text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-              style={{ paddingLeft: 8 }}
-              aria-label={scratchExpanded ? "Collapse Scratch" : "Expand Scratch"}
-              aria-expanded={scratchExpanded}
+              onClick={onNewScratch}
+              className="shrink-0 size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              title="New scratch file"
+              aria-label="New scratch file"
             >
-              <ChevronRight
-                size={12}
-                className={`shrink-0 transition-transform ${scratchExpanded ? "rotate-90" : ""}`}
-              />
-              <FileText size={14} className="shrink-0" />
-              <span className="font-medium truncate">Scratch</span>
-              <span className="ml-auto text-[11px] opacity-60">{scratchFiles.length}</span>
+              <Plus size={14} />
             </button>
-            {onNewScratch && (
-              <button
-                type="button"
-                onClick={onNewScratch}
-                className="shrink-0 size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-                title="New scratch file"
-                aria-label="New scratch file"
-              >
-                <Plus size={14} />
-              </button>
-            )}
-          </div>
-          {scratchExpanded && (
-            <div className="pb-1">
-              {scratchFiles.length === 0 ? (
-                <p className="px-3 py-1.5 text-[11px] text-ov-text-secondary/70 italic">
-                  No scratch files
-                </p>
-              ) : (
-                scratchFiles.map((file) => {
+          )}
+        </div>
+        {scratchExpanded && (
+          <div className="max-h-48 overflow-y-auto pb-1">
+            {scratchFiles.length === 0
+              ? null
+              : scratchFiles.map((file) => {
                   const selected = selectedScratchId === file.id;
                   const isRenaming = renamingId === file.id;
                   return (
@@ -752,11 +752,9 @@ export function FileAccessTree({
                       )}
                     </div>
                   );
-                })
-              )}
-            </div>
-          )}
-        </div>
+                })}
+          </div>
+        )}
       </div>
     </div>
   );

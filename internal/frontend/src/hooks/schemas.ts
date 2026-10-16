@@ -198,6 +198,15 @@ export const ScratchFileSchema = z.object({
 export const ScratchFilesSchema = z.array(ScratchFileSchema);
 
 // ---------------------------------------------------------------------------
+// SessionFile
+// ---------------------------------------------------------------------------
+
+export const SessionFileSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+});
+
+// ---------------------------------------------------------------------------
 // StatusInfo
 // ---------------------------------------------------------------------------
 
