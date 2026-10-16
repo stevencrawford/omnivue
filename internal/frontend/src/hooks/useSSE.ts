@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Stream, Effect } from "effect";
+import { Stream, Effect, Queue } from "effect";
 import { runFork } from "../lib/effect";
 
 interface SSECallbacks {
@@ -23,75 +23,80 @@ type SSEEvent =
   | { type: "reset" };
 
 function makeSSEStream() {
-  return Stream.async<SSEEvent, string>((emit) => {
-    const es = new EventSource("/_/events");
+  return Stream.callback<SSEEvent, never>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const es = new EventSource("/_/events");
 
-    es.addEventListener("started", (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data);
-        if (typeof data.pid === "number") {
-          emit.single({ type: "started", pid: data.pid });
-        }
-      } catch {
-        /* ignore */
-      }
-    });
+        es.addEventListener("started", (e) => {
+          try {
+            const data = JSON.parse((e as MessageEvent).data);
+            if (typeof data.pid === "number") {
+              Queue.offerUnsafe(queue, { type: "started", pid: data.pid });
+            }
+          } catch {
+            /* ignore */
+          }
+        });
 
-    es.addEventListener("update", () => {
-      emit.single({ type: "update" });
-    });
+        es.addEventListener("update", () => {
+          Queue.offerUnsafe(queue, { type: "update" });
+        });
 
-    es.addEventListener("reset", () => {
-      emit.single({ type: "reset" });
-    });
+        es.addEventListener("reset", () => {
+          Queue.offerUnsafe(queue, { type: "reset" });
+        });
 
-    es.addEventListener("session-changed", (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data);
-        if (Array.isArray(data.ids)) {
-          emit.single({ type: "session-changed", ids: data.ids });
-        }
-      } catch {
-        /* ignore */
-      }
-    });
+        es.addEventListener("session-changed", (e) => {
+          try {
+            const data = JSON.parse((e as MessageEvent).data);
+            if (Array.isArray(data.ids)) {
+              Queue.offerUnsafe(queue, { type: "session-changed", ids: data.ids });
+            }
+          } catch {
+            /* ignore */
+          }
+        });
 
-    es.addEventListener("notification", () => {
-      emit.single({ type: "notification" });
-    });
+        es.addEventListener("notification", () => {
+          Queue.offerUnsafe(queue, { type: "notification" });
+        });
 
-    es.addEventListener("prompt-queue-changed", () => {
-      emit.single({ type: "prompt-queue-changed" });
-    });
+        es.addEventListener("prompt-queue-changed", () => {
+          Queue.offerUnsafe(queue, { type: "prompt-queue-changed" });
+        });
 
-    es.addEventListener("notifications-read", (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data);
-        if (data && data.all) {
-          emit.single({ type: "notifications-read", ids: null });
-        } else if (Array.isArray(data.ids)) {
-          emit.single({ type: "notifications-read", ids: data.ids });
-        } else {
-          emit.single({ type: "notifications-read", ids: null });
-        }
-      } catch {
-        emit.single({ type: "notifications-read", ids: null });
-      }
-    });
+        es.addEventListener("notifications-read", (e) => {
+          try {
+            const data = JSON.parse((e as MessageEvent).data);
+            if (data && data.all) {
+              Queue.offerUnsafe(queue, { type: "notifications-read", ids: null });
+            } else if (Array.isArray(data.ids)) {
+              Queue.offerUnsafe(queue, { type: "notifications-read", ids: data.ids });
+            } else {
+              Queue.offerUnsafe(queue, { type: "notifications-read", ids: null });
+            }
+          } catch {
+            Queue.offerUnsafe(queue, { type: "notifications-read", ids: null });
+          }
+        });
 
-    es.onopen = () => {
-      emit.single({ type: "connection", connected: true });
-    };
+        es.onopen = () => {
+          Queue.offerUnsafe(queue, { type: "connection", connected: true });
+        };
 
-    es.onerror = () => {
-      // Let the browser's native EventSource reconnect instead of failing the
-      // stream: the old emit.fail fed a retry schedule that ended permanently
-      // after 60s, leaving the app with no SSE after a sustained blip.
-      emit.single({ type: "connection", connected: false });
-    };
+        es.onerror = () => {
+          // Let the browser's native EventSource reconnect instead of failing the
+          // stream: failing the queue would feed a retry schedule that could end
+          // permanently, leaving the app with no SSE after a sustained blip.
+          Queue.offerUnsafe(queue, { type: "connection", connected: false });
+        };
 
-    return Effect.sync(() => es.close());
-  });
+        return es;
+      }),
+      (es) => Effect.sync(() => es.close()),
+    ),
+  );
 }
 
 export function useSSE(callbacks: SSECallbacks) {
