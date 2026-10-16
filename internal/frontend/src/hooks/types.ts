@@ -20,6 +20,7 @@ import type {
   QueuedPromptSchema,
   SearchResultSchema,
   ScratchFileSchema,
+  SessionFileSchema,
   SessionSchema,
   SourceSchema,
   StatusInfoSchema,
@@ -40,6 +41,7 @@ export type Position = z.infer<typeof PositionSchema>;
 export type Message = z.infer<typeof MessageSchema>;
 export type ToolCall = z.infer<typeof ToolCallSchema>;
 export type ScratchFile = z.infer<typeof ScratchFileSchema>;
+export type SessionFile = z.infer<typeof SessionFileSchema>;
 export type StatusInfo = z.infer<typeof StatusInfoSchema>;
 export type Plan = NonNullable<z.infer<typeof PlanSchema>>;
 export type DiffFile = z.infer<typeof DiffFileSchema>;

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TREE_VISIBILITY, FileAccessTree, isAccessVisible } from "../FileAccessTree";
 import { STORAGE_KEYS } from "../../../utils/storageKeys";
 import type { FileAccess } from "../../../utils/fileAccess";
+import type { ScratchFile } from "../../../hooks/types";
 
 function makeAccess(filePath: string, kind: FileAccess["kind"], id?: string): FileAccess {
   const accessId = id ?? `${kind}:${filePath}`;
@@ -126,5 +127,47 @@ describe("FileAccessTree kind toggles", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide reads" }));
     expect(onSelect).toHaveBeenCalled();
     expect(onSelect.mock.calls[0][0]).not.toBe("src/read-only.ts");
+  });
+});
+
+describe("FileAccessTree scratch section", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  function makeScratch(id: string, title: string): ScratchFile {
+    return { id, sessionId: "ses-1", title } as ScratchFile;
+  }
+
+  function renderWithScratch(scratchFiles: ScratchFile[]) {
+    render(
+      <FileAccessTree
+        accesses={makeAccesses()}
+        selectedPath=""
+        onSelect={vi.fn()}
+        scratchFiles={scratchFiles}
+      />,
+    );
+  }
+
+  it("shows the Scratch header with a zero count and no empty-state noise", () => {
+    renderWithScratch([]);
+    expect(screen.getByText("Scratch")).toBeDefined();
+    expect(screen.getByText("0")).toBeDefined();
+    expect(screen.queryByText("No scratch files")).toBeNull();
+  });
+
+  it("pins the capped-height scratch list below the file tree", () => {
+    renderWithScratch([makeScratch("s1", "notes.md")]);
+    expect(screen.getByText("notes.md")).toBeDefined();
+    const list = screen.getByText("notes.md").closest(".max-h-48");
+    expect(list).not.toBeNull();
+    expect(list?.closest(".shrink-0")).not.toBeNull();
+  });
+
+  it("hides the scratch list when the section is collapsed", () => {
+    renderWithScratch([makeScratch("s1", "notes.md")]);
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Scratch" }));
+    expect(screen.queryByText("notes.md")).toBeNull();
   });
 });

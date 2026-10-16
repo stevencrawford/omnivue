@@ -54,6 +54,7 @@ func NewHandler(dep Dep) http.Handler {
 	mux.HandleFunc("DELETE /_/api/sessions/{id}/scratch/{fileId}", handleDeleteScratchFile(dep.Scratch, dep.Indexer))
 	mux.HandleFunc("GET /_/api/scratch", handleListAllScratchFiles(dep.Scratch))
 	mux.HandleFunc("GET /_/api/sessions/{id}/resume", handleGetResumeCommand(dep.Hub))
+	mux.HandleFunc("GET /_/api/sessions/{id}/file", handleGetSessionFile(dep.Hub))
 	mux.HandleFunc("GET /_/api/recent-searches", handleGetRecentSearches(dep.Config))
 	mux.HandleFunc("POST /_/api/recent-searches", handleSetRecentSearches(dep.Config))
 	mux.HandleFunc("GET /_/api/search", handleSearch(dep.Search, dep.Hub))

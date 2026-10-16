@@ -11,6 +11,13 @@ import (
 )
 
 func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	if a.schema == schemaV2 {
+		return a.messagesV2(ctx, sessionID)
+	}
+	return a.messagesV1(ctx, sessionID)
+}
+
+func (a *Adapter) messagesV1(ctx context.Context, sessionID string) ([]ingest.Message, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT id, data, time_created
 		FROM message

@@ -12,6 +12,13 @@ import (
 )
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
+	if a.schema == schemaV2 {
+		return a.editsV2(ctx, sessionID)
+	}
+	return a.editsV1(ctx, sessionID)
+}
+
+func (a *Adapter) editsV1(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
 	rows, err := a.db.QueryContext(ctx, `
 		SELECT p.data, m.time_created, m.id,
 			(SELECT COUNT(*) FROM message m2 WHERE m2.session_id = m.session_id AND (m2.time_created < m.time_created OR (m2.time_created = m.time_created AND m2.id < m.id))) AS message_index
@@ -78,10 +85,12 @@ func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdi
 }
 
 func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
+	query := `SELECT summary_diffs FROM session WHERE id = ?`
+	if a.schema == schemaV2 {
+		query = `SELECT summary_diffs FROM session_v2 WHERE id = ?`
+	}
 	var diffsJSON sql.NullString
-	err := a.db.QueryRowContext(ctx, `
-		SELECT summary_diffs FROM session WHERE id = ?
-	`, sessionID).Scan(&diffsJSON)
+	err := a.db.QueryRowContext(ctx, query, sessionID).Scan(&diffsJSON)
 	if err != nil {
 		return nil, fmt.Errorf("querying session diffs: %w", err)
 	}

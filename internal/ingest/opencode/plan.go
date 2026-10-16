@@ -12,6 +12,13 @@ import (
 )
 
 func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
+	if a.schema == schemaV2 {
+		return a.planV2(ctx, sessionID)
+	}
+	return a.planV1(ctx, sessionID)
+}
+
+func (a *Adapter) planV1(ctx context.Context, sessionID string) (*ingest.Plan, error) {
 	var parentID sql.NullString
 	var agentCol sql.NullString
 	err := a.db.QueryRowContext(ctx, `SELECT parent_id, agent FROM session WHERE id = ?`, sessionID).Scan(&parentID, &agentCol)
