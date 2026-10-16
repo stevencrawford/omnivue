@@ -1,14 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Pencil,
-  Plus,
-  Tag as TagIcon,
-  X,
-  Check,
-  Terminal,
-  PanelsTopLeft,
-  ArrowLeft,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Pencil, Plus, Tag as TagIcon, X, Check, Terminal, PanelsTopLeft } from "lucide-react";
 import type { Session, Tag } from "../hooks/types";
 import {
   setSessionName,
@@ -20,20 +11,24 @@ import {
   unassignTagFromSession,
 } from "../hooks/apiClient";
 import { agentLabel } from "../utils/sessionUtils";
+import { activeSessionFamily } from "../utils/sessionFamily";
 import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
+import { SessionFamilySelect } from "./sessions/SessionFamilySelect";
 import { useNavigation } from "../hooks/useNavigation";
 
 export function SessionHeader({
   session,
+  sessions,
   hasPrivacy,
   onNameChanged,
   onJumpTerminal,
   terminalActive,
 }: {
   session: Session;
+  sessions: Session[];
   hasPrivacy?: boolean;
   onNameChanged?: () => void;
   onJumpTerminal?: () => void;
@@ -56,6 +51,10 @@ export function SessionHeader({
   const tagInputRef = useRef<HTMLInputElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
   const { version, bump, openTag } = useTagsContext();
+
+  // Root session plus any sub-agents, shown as a selector beside the title. The
+  // selector renders itself only when the family has more than one member.
+  const family = useMemo(() => activeSessionFamily(sessions, session.id), [sessions, session.id]);
 
   useEffect(() => {
     setDisplayTitle(session.title);
@@ -214,17 +213,6 @@ export function SessionHeader({
   return (
     <div className="px-4 py-3 border-b border-ov-border shrink-0">
       <div className="flex items-center gap-2 min-w-0">
-        {session.parentId && !editing && (
-          <button
-            type="button"
-            onClick={() => navigation.handleSessionSelect(session.parentId!)}
-            className="shrink-0 size-7 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            title="Back to parent session"
-            aria-label="Back to parent session"
-          >
-            <ArrowLeft size={16} />
-          </button>
-        )}
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <input
@@ -262,6 +250,11 @@ export function SessionHeader({
             )}
           </>
         )}
+        <SessionFamilySelect
+          family={family}
+          activeId={session.id}
+          onSelect={navigation.navigateToSession}
+        />
         <span className={`${badgeClass} shrink-0`}>{agentLabel(session.agent)}</span>
         {hasPrivacy && <span className="sess-privacy-badge shrink-0">Privacy mode</span>}
 

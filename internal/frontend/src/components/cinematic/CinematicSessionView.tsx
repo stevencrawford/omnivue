@@ -60,6 +60,7 @@ import {
 
 interface CinematicSessionViewProps {
   session: Session;
+  sessions: Session[];
   liveChangedIds: Set<string>;
   ackSessionChange?: (id: string) => void;
   onNameChanged?: () => void;
@@ -87,6 +88,7 @@ interface CinematicSessionViewProps {
 
 export function CinematicSessionView({
   session,
+  sessions,
   liveChangedIds,
   ackSessionChange,
   onNameChanged,
@@ -954,6 +956,7 @@ export function CinematicSessionView({
     <div className="flex flex-col h-full">
       <SessionHeader
         session={session}
+        sessions={sessions}
         hasPrivacy={hasPrivacy}
         onNameChanged={onNameChanged}
         onJumpTerminal={!session.parentId ? handleJumpTerminal : undefined}
