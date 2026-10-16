@@ -231,11 +231,8 @@ Before applying any migration to a database that already holds application data 
 - Key components:
   - `App.tsx` — Root state, session selection, keyboard shortcuts, URL hash deep-linking
   - `Sidebar.tsx` — Session tree grouped by repo, resizable, section nav (sessions/projects/notifications)
-  - `SessionViewer.tsx` — Tabbed detail view (session/diff/plan/scratch)
-  - `ConversationView.tsx` — Message rendering with step events, reasoning, tool calls
+  - `cinematic/CinematicSessionView.tsx` — Full-screen session workspace (timeline scrubber, activity drawer, console, file access tree)
   - `MarkdownContent.tsx` — Markdown renderer with syntax highlighting
-  - `PlanView.tsx` — Plan/checkpoint items with status indicators
-  - `DiffView.tsx` — File change list with expandable unified diff
   - `DiffRenderer.tsx` — Inline unified diff rendering
   - `ScratchEditor.tsx` — WYSIWYG (TipTap) + code editor (Monaco) for scratch notes
   - `SearchPanel.tsx` — Inline search typeahead
