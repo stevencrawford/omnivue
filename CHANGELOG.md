@@ -10,6 +10,7 @@
 
 ### Other Changes
 - feat(prompts): replace the session prompt queue with a global prompt pad
+- fix(prompts): pin the composer to the bottom and make paste create a prompt directly
 
 ## [v0.3.0](https://github.com/stevencrawford/omnivue/compare/v0.2.4...v0.3.0) - 2026-09-11
 

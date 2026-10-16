@@ -128,8 +128,9 @@ Tag-based session organization. Supports unique names, optional colors, and sess
 ### Prompts (`PromptsPanel.tsx`)
 
 - `PromptsPanel` — global, session-independent prompt pad in the sidebar: a
-  dumping ground for useful prompts and drafts. Supports a composer, paste from
-  clipboard, copy back, check-off/done, inline edit, pin-to-top, and drag
+  dumping ground for useful prompts and drafts. Entries scroll above a composer
+  pinned to the bottom. Supports paste from clipboard (which creates a prompt
+  directly), copy back, check-off/done, inline edit, pin-to-top, and drag
   reorder. Backed by `/_/api/prompts`.
 
 ### Terminal (`TerminalPanel.tsx`)
