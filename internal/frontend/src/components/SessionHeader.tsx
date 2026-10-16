@@ -24,7 +24,6 @@ import { hasTagColor, tagColor } from "../utils/tagColors";
 import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
-import { useCinematicMode } from "../hooks/useCinematicMode";
 import { useNavigation } from "../hooks/useNavigation";
 
 export function SessionHeader({
@@ -40,7 +39,6 @@ export function SessionHeader({
   onJumpTerminal?: () => void;
   terminalActive?: boolean;
 }) {
-  const { enabled: cinematicEnabled } = useCinematicMode();
   const navigation = useNavigation();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -438,22 +436,20 @@ export function SessionHeader({
           {session.repository || session.directory}
         </span>
 
-        {cinematicEnabled && (
-          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
-            <ResumeButton sessionId={session.id} />
-            {onJumpTerminal && !session.parentId && (
-              <button
-                type="button"
-                onClick={onJumpTerminal}
-                className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
-                title={terminalActive ? "Back to session view" : "Jump to terminal"}
-                aria-label={terminalActive ? "Back to session view" : "Jump to terminal"}
-              >
-                {terminalActive ? <PanelsTopLeft size={14} /> : <Terminal size={14} />}
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
+          <ResumeButton sessionId={session.id} />
+          {onJumpTerminal && !session.parentId && (
+            <button
+              type="button"
+              onClick={onJumpTerminal}
+              className={`size-7 flex items-center justify-center rounded shrink-0 cursor-pointer transition-colors ${terminalActive ? "bg-accent text-white" : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"}`}
+              title={terminalActive ? "Back to session view" : "Jump to terminal"}
+              aria-label={terminalActive ? "Back to session view" : "Jump to terminal"}
+            >
+              {terminalActive ? <PanelsTopLeft size={14} /> : <Terminal size={14} />}
+            </button>
+          )}
+        </div>
       </div>
 
       <CreateTagModal

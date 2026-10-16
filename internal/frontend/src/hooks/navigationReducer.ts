@@ -1,5 +1,4 @@
-import type { Bookmark, Position, Session } from "./types";
-import type { Tab } from "../components/SessionViewer";
+import type { Bookmark, Position, Session, Tab } from "./types";
 import type { Section } from "../components/IconChannel";
 
 // ---------------------------------------------------------------------------
