@@ -131,6 +131,55 @@ func TestListSessions_V2(t *testing.T) {
 	}
 }
 
+// TestListSessions_V2_WorktreesGroupUnderRepo guards the grouping regression
+// introduced by v2: a project's sessions may run in git worktrees (each with its
+// own session_v2.directory) while sharing one project row, so they must group
+// under the project's worktree root rather than a group per worktree.
+func TestListSessions_V2_WorktreesGroupUnderRepo(t *testing.T) {
+	dir, db := newV2Fixture(t)
+	execFixture(t, db, `INSERT INTO project (id, name, worktree) VALUES ('p1', NULL, '/repos/main')`)
+	for id, sessionDir := range map[string]string{
+		"ses_main":     "/repos/main",
+		"ses_worktree": "/repos/main/.worktrees/feature",
+	} {
+		execFixture(t, db, `INSERT INTO session_v2 (id, project_id, slug, directory, title, version, time_created, time_updated)
+			VALUES (?, 'p1', 's', ?, 't', '2.0.31', 1000, 1000)`, id, sessionDir)
+	}
+	// The synthetic global project has worktree "/" and must fall back to the
+	// session directory.
+	execFixture(t, db, `INSERT INTO project (id, name, worktree) VALUES ('global', NULL, '/')`)
+	execFixture(t, db, `INSERT INTO session_v2 (id, project_id, slug, directory, title, version, time_created, time_updated)
+		VALUES ('ses_global', 'global', 's', '/scratch/foo', 't', '2.0.31', 1000, 1000)`)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter, err := opencode.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	sessions, err := adapter.ListSessions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]ingest.Session{}
+	for _, s := range sessions {
+		byID[s.ID] = s
+	}
+
+	if got := byID["ses_main"].Repository; got != "main" {
+		t.Errorf("ses_main repository = %q, want main", got)
+	}
+	if got := byID["ses_worktree"].Repository; got != "main" {
+		t.Errorf("ses_worktree repository = %q, want main (worktree must group under its repo)", got)
+	}
+	if got := byID["ses_global"].Repository; got != "foo" {
+		t.Errorf("ses_global repository = %q, want foo (falls back to directory)", got)
+	}
+}
+
 func TestListSessions_V2_OpenStepMarksInProgress(t *testing.T) {
 	dir, db := newV2Fixture(t)
 	execFixture(t, db, `INSERT INTO project (id, name) VALUES ('p1', 'repo')`)

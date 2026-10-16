@@ -95,8 +95,10 @@ func (ix *Indexer) IndexSessions(ctx context.Context) {
 		}
 		scratchContent := scratchContentOf(scratchFiles)
 
-		// Combined content for hash comparison.
-		sessionHash := contentHash(nameContent, planContent, messagesContent, scratchContent)
+		// Combined content for hash comparison. The repository is included so a
+		// grouping change (e.g. a session moving under its worktree's repo root)
+		// refreshes the repository stored on each search chunk.
+		sessionHash := contentHash(sess.Repository, nameContent, planContent, messagesContent, scratchContent)
 
 		// Check if already indexed with same hash.
 		existingHash, err := ix.search.IndexState(sess.ID)
@@ -219,16 +221,17 @@ func (ix *Indexer) updateIndexState(ctx context.Context, sessionID, sourceID, re
 	if err != nil {
 		return
 	}
-	h := contentHash(sess.Title, planContent, buildMessagesContent(messages), scratchContentOf(files))
+	h := contentHash(sess.Repository, sess.Title, planContent, buildMessagesContent(messages), scratchContentOf(files))
 	if err := retryOnBusy(func() error { return ix.search.UpdateIndexState(sessionID, sourceID, h) }); err != nil {
 		slog.Warn("failed to update index state", "session", sessionID, "error", err)
 	}
 }
 
 // contentHash returns the stable hash over a session's searchable content, used
-// to skip re-indexing sessions whose content has not changed.
-func contentHash(name, plan, messages, scratch string) string {
-	combined := name + "\n" + plan + "\n" + messages + "\n" + scratch
+// to skip re-indexing sessions whose content has not changed. The repository is
+// part of the input because it is stored on every search chunk.
+func contentHash(repository, name, plan, messages, scratch string) string {
+	combined := repository + "\n" + name + "\n" + plan + "\n" + messages + "\n" + scratch
 	h := sha256.Sum256([]byte(combined))
 	return hex.EncodeToString(h[:8])
 }
