@@ -60,8 +60,6 @@ interface NotificationDrawerProps {
   spotlightId?: string | null;
   /** Focus key of the active jump; landing runs once per key. */
   jumpKey?: number;
-  /** Fired after the jump scrolled and pulsed so the owner can clear focus. */
-  onJumpLanded?: () => void;
   onBookmark?: (
     sessionId: string,
     messageId: string | undefined,
@@ -173,7 +171,6 @@ export function NotificationDrawer({
   onTabChange,
   spotlightId,
   jumpKey,
-  onJumpLanded,
   onBookmark,
   bookmarkIdByRef,
   onPin,
@@ -437,26 +434,38 @@ export function NotificationDrawer({
     el.scrollTop = el.scrollHeight;
   }, [drawerItems, cursor, maxIndex, activeTab, spotlightId]);
 
-  const landedKeyRef = useRef(0);
+  // Guards re-landing the same jump on every drawer re-render. Tracked as a
+  // (key, target) pair: the focus key is reset to 0 on clear and then reused
+  // from 1, so the key alone is not unique across jumps in a session.
+  const landedRef = useRef<{ key: number; id: string } | null>(null);
   const landTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const onJumpLandedRef = useRef(onJumpLanded);
-  onJumpLandedRef.current = onJumpLanded;
 
   // Search/message jump landing: scroll the drawer to the spotlighted message
   // and pulse it, mirroring the classic conversation jump. Re-runs when the
   // items change so a jump issued while messages load still lands. Never
-  // touches the timeline cursor. The pulse timer lives in a ref so live
-  // message growth mid-pulse cannot cancel the focus release.
+  // touches the timeline cursor.
+  //
+  // The spotlight is intentionally *not* cleared after landing: it is what
+  // keeps the landed message visible past the cursor/span filter until the
+  // user scrubs the timeline or issues another jump (the owner clears focus on
+  // those actions). Clearing it here would make the jumped-to message vanish
+  // one pulse after it was revealed. The pulse timer lives in a ref so live
+  // message growth mid-pulse cannot cancel it.
   useEffect(() => {
-    if (!spotlightId || !jumpKey || activeTab !== "activity") return;
-    if (landedKeyRef.current === jumpKey) return;
+    if (!spotlightId) {
+      // Focus cleared — allow the next jump to land even if its key repeats.
+      landedRef.current = null;
+      return;
+    }
+    if (!jumpKey || activeTab !== "activity") return;
+    if (landedRef.current?.key === jumpKey && landedRef.current.id === spotlightId) return;
     const container = scrollRef.current;
     if (!container) return;
     const el = container.querySelector<HTMLElement>(
       `[data-message-id="${cssEscape(spotlightId)}"]`,
     );
     if (!el) return;
-    landedKeyRef.current = jumpKey;
+    landedRef.current = { key: jumpKey, id: spotlightId };
     try {
       el.scrollIntoView({ block: "center", behavior: "smooth" });
     } catch {
@@ -466,7 +475,6 @@ export function NotificationDrawer({
     if (landTimerRef.current) clearTimeout(landTimerRef.current);
     landTimerRef.current = setTimeout(() => {
       el.classList.remove("sess-message-highlight");
-      onJumpLandedRef.current?.();
     }, 2000);
   }, [spotlightId, jumpKey, drawerItems, activeTab]);
 

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NotificationDrawer } from "../NotificationDrawer";
 import { STORAGE_KEYS } from "../../../utils/storageKeys";
 import { setDisableCustomRenderers } from "../../../hooks/useDisableCustomRenderers";
@@ -239,6 +239,66 @@ describe("NotificationDrawer bookmarks", () => {
     );
     expect(screen.queryByTitle("Bookmark")).toBeNull();
     expect(screen.queryByTitle("Remove bookmark")).toBeNull();
+  });
+});
+
+describe("NotificationDrawer jump landing", () => {
+  const scrollIntoView = vi.fn();
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+  afterEach(() => scrollIntoView.mockClear());
+
+  const jumpMessages: Message[] = [
+    { id: "m0", role: "assistant", content: "zero", timestamp: "2026-01-01T00:00:00Z" },
+    { id: "m1", role: "assistant", content: "one", timestamp: "2026-01-01T00:00:01Z" },
+    { id: "m2", role: "assistant", content: "two", timestamp: "2026-01-01T00:00:02Z" },
+  ];
+
+  function renderJump(spotlightId: string | null, jumpKey: number) {
+    return render(
+      <NotificationDrawer
+        session={session}
+        messages={jumpMessages}
+        cursor={0}
+        maxIndex={2}
+        spotlightId={spotlightId}
+        jumpKey={jumpKey}
+      />,
+    );
+  }
+
+  it("scrolls to a message that sits outside the cursor window", () => {
+    renderJump("m2", 1);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it("lands on each successive jump even though the focus key restarts at 1", () => {
+    const { rerender } = renderJump("m1", 1);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    // Landing leaves focus active (the spotlight keeps the message visible);
+    // the owner clears it when the user scrubs, resetting the key to 0.
+    rerender(
+      <NotificationDrawer
+        session={session}
+        messages={jumpMessages}
+        cursor={0}
+        maxIndex={2}
+        spotlightId={null}
+        jumpKey={0}
+      />,
+    );
+    rerender(
+      <NotificationDrawer
+        session={session}
+        messages={jumpMessages}
+        cursor={0}
+        maxIndex={2}
+        spotlightId="m2"
+        jumpKey={1}
+      />,
+    );
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 });
 
