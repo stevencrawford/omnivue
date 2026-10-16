@@ -155,11 +155,6 @@ export function CinematicSessionView({
     setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "false");
   }, []);
 
-  // Search-hit routing is declared below, next to handleActivityTabChange.
-  const handleJumpLanded = useCallback(() => {
-    onClearFocus?.();
-  }, [onClearFocus]);
-
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
     storageKey: STORAGE_KEYS.CINEMATIC_TREE_WIDTH,
     axis: "horizontal",
@@ -374,33 +369,44 @@ export function CinematicSessionView({
   // selectedSpan isolates the view to one turn — or a contiguous range of
   // turns via Shift+Click — between user prompts. Any scrub/play/live
   // navigation should clear the isolation so the prefix-time filter (cursor)
-  // resumes.
+  // resumes. User navigation also releases any active jump focus: the
+  // spotlight exists only to keep a jumped-to message visible past the cursor
+  // filter, so moving the timeline (or isolating a turn) hands visibility back
+  // to the normal cursor/span window.
+  const releaseJumpFocus = useCallback(() => {
+    if (focusMessageKey !== 0) onClearFocus?.();
+  }, [focusMessageKey, onClearFocus]);
+
   const setCursor = useCallback(
     (next: number) => {
       anchorSpanRef.current = null;
       setSelectedSpan(null);
+      releaseJumpFocus();
       setCursorRaw(next);
     },
-    [setCursorRaw],
+    [setCursorRaw, releaseJumpFocus],
   );
 
   const goLive = useCallback(() => {
     anchorSpanRef.current = null;
     setSelectedSpan(null);
+    releaseJumpFocus();
     goLiveRaw();
-  }, [goLiveRaw]);
+  }, [goLiveRaw, releaseJumpFocus]);
 
   const step = useCallback(
     (delta: number) => {
       anchorSpanRef.current = null;
       setSelectedSpan(null);
+      releaseJumpFocus();
       stepRaw(delta);
     },
-    [stepRaw],
+    [stepRaw, releaseJumpFocus],
   );
 
   const handleSpanSelect = useCallback(
     (start: number, end: number, extend: boolean) => {
+      releaseJumpFocus();
       const clicked = { start, end };
       if (!extend) {
         // Plain click: clicking any turn inside the current selection clears
@@ -431,13 +437,14 @@ export function CinematicSessionView({
         return { ...merged, trailing: merged.end === events.length };
       });
     },
-    [events.length],
+    [events.length, releaseJumpFocus],
   );
 
   const handleClearSpan = useCallback(() => {
     anchorSpanRef.current = null;
     setSelectedSpan(null);
-  }, []);
+    releaseJumpFocus();
+  }, [releaseJumpFocus]);
 
   // keep span valid when the event list changes (e.g. live growth or session switch)
   useEffect(() => {
@@ -506,6 +513,7 @@ export function CinematicSessionView({
     (messageIndex: number, messageId?: string) => {
       anchorSpanRef.current = null;
       setSelectedSpan(null);
+      releaseJumpFocus();
       let idx = -1;
       if (messageId) {
         idx = events.findIndex((e) => e.messageId === messageId);
@@ -528,7 +536,7 @@ export function CinematicSessionView({
         }
       }
     },
-    [events, setCursorRaw, eventIndexByToolId, fileAccessAll],
+    [events, setCursorRaw, eventIndexByToolId, fileAccessAll, releaseJumpFocus],
   );
 
   const visibleAccess = useMemo(() => {
@@ -1068,27 +1076,35 @@ export function CinematicSessionView({
     [drawerCollapsed, handleActivityTabChange],
   );
 
-  // Search-hit routing: plan hits open the plan tab, scratch hits select the
-  // scratch file, message hits scroll the activity drawer via the spotlight
-  // (focus is cleared by the drawer landing effect). The timeline cursor is
-  // never moved by a search jump.
+  // Target routing. Two independent triggers share this effect:
+  // - `activeTab` is a persistent navigation intent: "plan" opens the plan tab
+  //   (plan bookmarks, plan search hits, Cmd+2), `scratch:<id>` selects the
+  //   scratch file. It must fire on the value itself, not on the focus key —
+  //   plan bookmarks carry no message focus.
+  // - a message jump (focus key advanced, `activeTab === "session"`) reveals
+  //   the activity drawer so the spotlighted message is visible, and returning
+  //   to the session tab from plan/scratch hands the drawer back to activity.
+  // The timeline cursor is never moved by a jump.
+  const prevNavTabRef = useRef<Tab | undefined>(undefined);
   useEffect(() => {
-    if (focusMessageKey === 0) return;
+    const prev = prevNavTabRef.current;
+    prevNavTabRef.current = activeTab;
     if (activeTab === "plan") {
       handleActivityTabChange("plan");
       expandDrawer();
-      onClearFocus?.();
       return;
     }
     if (activeTab?.startsWith("scratch:")) {
       setSelectedScratchId(activeTab.slice(8));
       setSelectedPath("");
-      onClearFocus?.();
       return;
     }
-    handleActivityTabChange("activity");
-    expandDrawer();
-  }, [focusMessageKey, activeTab, handleActivityTabChange, expandDrawer, onClearFocus]);
+    const returnedToSession = prev !== undefined && prev !== "session";
+    if (focusMessageKey !== 0 || returnedToSession) {
+      handleActivityTabChange("activity");
+      expandDrawer();
+    }
+  }, [focusMessageKey, activeTab, handleActivityTabChange, expandDrawer]);
 
   const firstMessage = messages[0];
 
@@ -1112,6 +1128,7 @@ export function CinematicSessionView({
           anchorSpanRef.current = null;
           setSelectedSpan(null);
         }
+        releaseJumpFocus();
         setPlaying((p) => !p);
       } else if (e.key === "Escape" && selectedSpan) {
         e.preventDefault();
@@ -1121,7 +1138,7 @@ export function CinematicSessionView({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [step, setPlaying, selectedSpan]);
+  }, [step, setPlaying, selectedSpan, releaseJumpFocus]);
 
   return (
     <div className="flex flex-col h-full">
@@ -1153,6 +1170,7 @@ export function CinematicSessionView({
                 anchorSpanRef.current = null;
                 setSelectedSpan(null);
               }
+              releaseJumpFocus();
               setPlaying((p) => !p);
             }}
             onStep={step}
@@ -1322,7 +1340,6 @@ export function CinematicSessionView({
                         onHighlightDone={onHighlightDone}
                         spotlightId={spotlightId}
                         jumpKey={focusMessageKey}
-                        onJumpLanded={handleJumpLanded}
                         onBookmark={onBookmark}
                         bookmarkIdByRef={bookmarkIdByRef}
                         onPin={onPinMessage}
