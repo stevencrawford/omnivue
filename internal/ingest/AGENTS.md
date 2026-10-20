@@ -101,7 +101,7 @@ Implement `LastModified` to return the latest modification timestamp across all 
 ### OpenCode (`internal/ingest/opencode/`)
 
 - **Source**: Single SQLite file (`~/.local/share/opencode/opencode.db`)
-- **Two storage generations**: the adapter probes the schema once at construction (`detectSchema`) — the presence of the `session_message` table selects **v2** (implemented in `v2.go`), otherwise **v1**. A v2 database keeps a frozen copy of the v1 tables, so `session_message` is the authoritative signal.
+- **Two storage generations**: the adapter re-probes the schema on every read (`detectSchema`) — **v2** (implemented in `v2.go`) requires both the `session_v2` and `session_message` tables, **v1** is selected when the `session` table is present, and a database with neither is treated as fresh or mid-migration and yields no sessions. Requiring both v2 tables avoids `no such table: session_v2` while OpenCode creates them one statement at a time, and re-probing lets a running server pick up an OpenCode upgrade without a restart. A v2 database keeps a frozen copy of the v1 tables.
 - **v1 tables**: `session`, `message`, `part`, `project`; `Session`/`Messages`/`Plan`/`Edits`/`Diffs` join `message` → `part`, with text and tool calls in each part's `data` JSON.
 - **v2 tables**: `session_v2`, `session_message`, `project`; one row per turn keyed by a monotonic `seq` and a `type` (`user`/`assistant`/`system`/`synthetic`/`compaction`), with the whole turn in the row's `data` JSON blob. `synthetic` rows are skipped and `compaction` rows become a `compaction` marker.
 - **Tool calls**: Standard names (`edit`, `write`, `read`, `bash`, `grep`, `glob`, `todowrite`, `task`, `question`, `webfetch`, `websearch`, `codesearch`)

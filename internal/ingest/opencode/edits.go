@@ -12,10 +12,14 @@ import (
 )
 
 func (a *Adapter) Edits(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	if a.schema == schemaV2 {
+	switch a.currentSchema(ctx) {
+	case schemaV2:
 		return a.editsV2(ctx, sessionID)
+	case schemaV1:
+		return a.editsV1(ctx, sessionID)
+	default:
+		return nil, nil
 	}
-	return a.editsV1(ctx, sessionID)
 }
 
 func (a *Adapter) editsV1(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
@@ -85,9 +89,14 @@ func (a *Adapter) editsV1(ctx context.Context, sessionID string) ([]ingest.FileE
 }
 
 func (a *Adapter) Diffs(ctx context.Context, sessionID string) ([]ingest.DiffFile, error) {
-	query := `SELECT summary_diffs FROM session WHERE id = ?`
-	if a.schema == schemaV2 {
+	var query string
+	switch a.currentSchema(ctx) {
+	case schemaV2:
 		query = `SELECT summary_diffs FROM session_v2 WHERE id = ?`
+	case schemaV1:
+		query = `SELECT summary_diffs FROM session WHERE id = ?`
+	default:
+		return nil, nil
 	}
 	var diffsJSON sql.NullString
 	err := a.db.QueryRowContext(ctx, query, sessionID).Scan(&diffsJSON)

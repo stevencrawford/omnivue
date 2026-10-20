@@ -12,10 +12,14 @@ import (
 )
 
 func (a *Adapter) Plan(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	if a.schema == schemaV2 {
+	switch a.currentSchema(ctx) {
+	case schemaV2:
 		return a.planV2(ctx, sessionID)
+	case schemaV1:
+		return a.planV1(ctx, sessionID)
+	default:
+		return nil, nil
 	}
-	return a.planV1(ctx, sessionID)
 }
 
 func (a *Adapter) planV1(ctx context.Context, sessionID string) (*ingest.Plan, error) {

@@ -1,15 +1,22 @@
 package opencode
 
-import "database/sql"
+import (
+	"database/sql"
+	"sync/atomic"
+)
 
 // schemaKind records which OpenCode storage schema the database uses. OpenCode
 // v2 migrated from the v1 tables (session/message/part) to session_v2/
-// session_message; the adapter probes once at construction and routes reads
-// accordingly so both generations stay supported.
-type schemaKind int
+// session_message; the adapter re-probes the schema as it reads so both
+// generations stay supported, including a database that is mid-migration.
+type schemaKind int32
 
 const (
-	schemaV1 schemaKind = iota
+	// schemaUnknown means neither generation's session tables exist yet. A
+	// fresh database or an in-flight OpenCode migration can be in this state,
+	// and it simply has no sessions to read.
+	schemaUnknown schemaKind = iota
+	schemaV1
 	schemaV2
 )
 
@@ -17,7 +24,17 @@ const (
 type Adapter struct {
 	db       *sql.DB
 	basePath string
-	schema   schemaKind
+	schema   atomic.Int32
+}
+
+// cachedSchema returns the most recently detected storage generation.
+func (a *Adapter) cachedSchema() schemaKind {
+	return schemaKind(a.schema.Load())
+}
+
+// cacheSchema records a detected storage generation.
+func (a *Adapter) cacheSchema(kind schemaKind) {
+	a.schema.Store(int32(kind))
 }
 
 // editInput mirrors the JSON fields in edit/write tool call inputs.
