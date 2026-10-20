@@ -37,6 +37,10 @@
   version 11 and would otherwise never apply the prompts table.
 
 ### Other Changes
+- fix(opencode): detect the v2 schema only once both `session_v2` and
+  `session_message` exist, re-probe it as the database is read, and report no
+  sessions while neither generation is present, so an in-flight (or absent)
+  OpenCode v2 migration no longer logs `no such table: session_v2` warnings
 - fix(prompts): renumber the global prompt-pad migration above the file_activity
   watermark so the prompts table is created on databases stamped at version 11
 - feat(prompts): replace the session prompt queue with a global prompt pad

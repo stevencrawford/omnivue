@@ -11,10 +11,14 @@ import (
 )
 
 func (a *Adapter) Messages(ctx context.Context, sessionID string) ([]ingest.Message, error) {
-	if a.schema == schemaV2 {
+	switch a.currentSchema(ctx) {
+	case schemaV2:
 		return a.messagesV2(ctx, sessionID)
+	case schemaV1:
+		return a.messagesV1(ctx, sessionID)
+	default:
+		return nil, nil
 	}
-	return a.messagesV1(ctx, sessionID)
 }
 
 func (a *Adapter) messagesV1(ctx context.Context, sessionID string) ([]ingest.Message, error) {

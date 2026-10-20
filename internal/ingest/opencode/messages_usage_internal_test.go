@@ -21,6 +21,11 @@ func TestMessages_StepAttributedUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec(`CREATE TABLE session (
+		id TEXT PRIMARY KEY
+	)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Exec(`CREATE TABLE message (
 		id TEXT PRIMARY KEY,
 		session_id TEXT NOT NULL,
@@ -109,6 +114,11 @@ func TestMessages_RunningToolHasNoDuration(t *testing.T) {
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE session (
+		id TEXT PRIMARY KEY
+	)`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`CREATE TABLE message (

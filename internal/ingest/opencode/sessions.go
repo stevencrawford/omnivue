@@ -109,10 +109,17 @@ func (a *Adapter) hasOpenStep(ctx context.Context, sessionID string) (bool, erro
 }
 
 func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
-	if a.schema == schemaV2 {
+	switch a.currentSchema(ctx) {
+	case schemaV2:
 		return a.listSessionsV2(ctx)
+	case schemaV1:
+		return a.listSessionsV1(ctx)
+	default:
+		// Neither storage generation is present yet (fresh database or an
+		// OpenCode migration in progress). Report no sessions instead of an
+		// error so the poller does not warn on every cycle.
+		return nil, nil
 	}
-	return a.listSessionsV1(ctx)
 }
 
 func (a *Adapter) listSessionsV1(ctx context.Context) ([]ingest.Session, error) {
@@ -234,10 +241,14 @@ func (a *Adapter) listSessionsV1(ctx context.Context) ([]ingest.Session, error) 
 }
 
 func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, error) {
-	if a.schema == schemaV2 {
+	switch a.currentSchema(ctx) {
+	case schemaV2:
 		return a.sessionV2(ctx, id)
+	case schemaV1:
+		return a.sessionV1(ctx, id)
+	default:
+		return nil, fmt.Errorf("session not found: %s", id)
 	}
-	return a.sessionV1(ctx, id)
 }
 
 func (a *Adapter) sessionV1(ctx context.Context, id string) (*ingest.Session, error) {
