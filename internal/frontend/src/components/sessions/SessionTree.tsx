@@ -142,7 +142,9 @@ function GroupNode({
         <GroupIcon kind={node.kind} />
         {node.kind === "branch" && branchDot(node.name)}
         <span className="truncate flex-1 text-left">{node.name}</span>
-        <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
+        {node.children.length > 1 && (
+          <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
+        )}
       </button>
       {!isCollapsed && (
         <div className="space-y-px mt-px">
