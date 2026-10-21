@@ -4,7 +4,7 @@ import type { Session } from "../hooks/types";
 import { buildTree, type GroupMode } from "../utils/buildTree";
 import {
   buildProjectTree,
-  buildWorkspaces,
+  hasMultipleWorktrees,
   hasWorkspaceData,
   type ProjectNode,
 } from "../utils/projectTree";
@@ -154,10 +154,7 @@ export function SessionPanel({
   );
 
   const showWorkspaceNudge = useMemo(
-    () =>
-      hasGit &&
-      effectiveGroup !== "workspace" &&
-      buildWorkspaces(treeSessions).some((workspace) => workspace.hasMultipleWorktrees),
+    () => hasGit && effectiveGroup !== "workspace" && hasMultipleWorktrees(treeSessions),
     [hasGit, effectiveGroup, treeSessions],
   );
 

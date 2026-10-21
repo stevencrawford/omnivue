@@ -42,8 +42,6 @@
   no subprocesses at runtime, and no `omnivue.db` migration
 - feat(sidebar): group sessions by workspace → worktree → branch, with an
   opt-in hint and a workspace/worktree/branch breadcrumb in the session header
-- feat(projects): add a Projects channel with a workspace map, worktree table,
-  and per-worktree session lists
 - ingest: Claude Code and Copilot capture branch/cwd transitions from their
   transcripts; Codex records the first and last turn working directory
 

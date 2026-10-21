@@ -246,7 +246,7 @@ Before applying any migration to a database that already holds application data 
 - Key dependencies: `react-markdown`, `remark-gfm`, `remark-breaks`, `rehype-highlight`, `@monaco-editor/react`, `@tiptap/*`, `diff`, `marked`, `turndown`, `lucide-react`, `recharts`, `zod`, `effect` (SSE only), `@xterm/xterm`, `react-router-dom`, `html-to-image`
 - Key components:
   - `App.tsx` — Root state, session selection, keyboard shortcuts, URL hash deep-linking
-  - `Sidebar.tsx` — Resizable, collapsible sidebar; icon-channel nav (sessions/projects/prompts/tags/bookmarks/notifications)
+  - `Sidebar.tsx` — Resizable, collapsible sidebar; icon-channel nav (sessions/prompts/tags/bookmarks/notifications)
   - `cinematic/CinematicSessionView.tsx` — The sole session view: full-screen workspace (timeline scrubber + playback, activity/plan/prompt drawer, console, file-access tree, markdown viewer, terminal)
   - `PromptsPanel.tsx` — Global prompt pad (type/paste, copy, pin, reorder, done)
   - `MarkdownContent.tsx` — Markdown renderer with syntax highlighting
@@ -261,18 +261,15 @@ Before applying any migration to a database that already holds application data 
   - `IconChannel.tsx` — Section navigation toggle
   - `SessionPanel.tsx` — Session list grouped by workspace/worktree/branch (or repo/CWD/model/none)
   - `sessions/WorkspaceTree.tsx` — Collapsible workspace → worktree → branch → session tree
-  - `sessions/PathBreadcrumb.tsx` — Session header breadcrumb; opens the workspace in Projects
+  - `sessions/PathBreadcrumb.tsx` — Session header workspace / worktree / branch breadcrumb
   - `sessions/WorkspaceNudge.tsx` — One-time hint to switch to workspace grouping
-  - `projects/ProjectsScreen.tsx` — Workspace map with per-workspace detail and worktree table
-  - `projects/WorktreeTable.tsx` — Registered worktrees + sessions for one workspace
-  - `projects/ProjectsPanel.tsx` — Sidebar workspace list for the Projects channel
   - `sessions/SessionFamilySelect.tsx` — Header dropdown to switch between a session's main view and its sub-agents (sub-agents are not shown in the sidebar tree)
   - `Toast.tsx` — Notification toasts (supports optional click action)
   - `NotificationPanel.tsx` — Notifications list (bell section) with read/unread + filters
   - `NotificationRow.tsx` — Single notification row
   - `TerminalPanel.tsx` — In-browser PTY terminal (xterm.js + WebSocket)
 - Hooks: `useSSE.ts` (SSE with auto-reconnect), `useNavigation.tsx` (session nav context + intent verbs), `useTheme.tsx` (theme state/persistence), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize). API access is via `apiClient.ts` + `schemas.ts`/`types.ts` (no `useApi` barrel).
-- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `projectTree.ts` (workspace/worktree/branch grouping + workspace summaries), `reconcileMessages.ts` (preserve message identity across SSE polls), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
+- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `projectTree.ts` (workspace/worktree/branch grouping), `reconcileMessages.ts` (preserve message identity across SSE polls), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
 - Theme: nine switchable themes (Ayu, Nord, Catppuccin, Tokyo Night, GitHub, One Monokai, Atom One, Dracula, Night Owl) via `data-theme`/`data-mode`/`data-contrast` attributes
 - localStorage keys use `omnivue-` prefix.
 

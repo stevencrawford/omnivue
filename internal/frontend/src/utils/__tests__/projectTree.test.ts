@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProjectTree,
-  buildWorkspaces,
+  hasMultipleWorktrees,
   hasWorkspaceData,
   rootSessions,
   workspaceLabel,
@@ -86,6 +86,19 @@ describe("workspace labels", () => {
     expect(hasWorkspaceData([baseSession({})])).toBe(false);
     expect(hasWorkspaceData([workspaceSession({})])).toBe(true);
   });
+
+  it("detects multiple worktrees within one workspace", () => {
+    const linked = workspaceSession({
+      id: "linked",
+      worktreeRoot: "/work/repo/.worktrees/feat/x",
+      worktreeRelPath: "feat/x",
+      isWorktree: true,
+    });
+    expect(hasMultipleWorktrees([workspaceSession({}), linked])).toBe(true);
+    expect(
+      hasMultipleWorktrees([workspaceSession({ id: "a" }), workspaceSession({ id: "b" })]),
+    ).toBe(false);
+  });
 });
 
 describe("buildProjectTree", () => {
@@ -111,9 +124,14 @@ describe("buildProjectTree", () => {
   });
 
   it("adds a branch level only when a worktree has multiple branches", () => {
+    const linked = {
+      worktreeRoot: "/work/repo/.worktrees/feat/x",
+      worktreeRelPath: "feat/x",
+      isWorktree: true,
+    };
     const nodes = buildProjectTree([
-      workspaceSession({ id: "a", branch: "main", branchEnd: "main" }),
-      workspaceSession({ id: "b", branch: "feat/a", branchEnd: "feat/a" }),
+      workspaceSession({ ...linked, id: "a", branch: "main", branchEnd: "main" }),
+      workspaceSession({ ...linked, id: "b", branch: "feat/a", branchEnd: "feat/a" }),
     ]);
 
     const worktree = nodes[0]?.children[0];
@@ -139,69 +157,24 @@ describe("buildProjectTree", () => {
     expect(nodes[0]?.children.every((child) => child.kind === "session")).toBe(true);
   });
 
+  it("hoists multiple branches out of the main worktree", () => {
+    const nodes = buildProjectTree([
+      workspaceSession({ id: "a", branch: "main", branchEnd: "main" }),
+      workspaceSession({ id: "b", branch: "main", branchEnd: "main" }),
+      workspaceSession({ id: "c", branch: "docs/audit", branchEnd: "docs/audit" }),
+    ]);
+
+    const children = nodes[0]?.children ?? [];
+    expect(children.map((child) => child.kind)).toEqual(["branch", "branch"]);
+    expect(children.map((child) => child.label)).toEqual(["main", "docs/audit"]);
+    expect(children.every((child) => child.label !== "worktree")).toBe(true);
+  });
+
   it("excludes sub-agent sessions", () => {
     const nodes = buildProjectTree([
       workspaceSession({ id: "parent" }),
       workspaceSession({ id: "child", parentId: "parent" }),
     ]);
     expect(nodes[0]?.count).toBe(1);
-  });
-});
-
-describe("buildWorkspaces", () => {
-  it("summarises sessions, worktrees, and branches", () => {
-    const workspaces = buildWorkspaces([
-      workspaceSession({ id: "main-1" }),
-      workspaceSession({
-        id: "feature-1",
-        worktreeRoot: "/work/repo/.worktrees/feat/x",
-        worktreeRelPath: "feat/x",
-        branch: "feat/x",
-        branchEnd: "feat/x",
-        isWorktree: true,
-        externalWorktree: false,
-      }),
-      workspaceSession({
-        id: "external-1",
-        worktreeRoot: "/elsewhere/x",
-        worktreeRelPath: "../elsewhere/x",
-        branch: "fix/y",
-        branchEnd: "fix/y",
-        isWorktree: true,
-        externalWorktree: true,
-      }),
-    ]);
-
-    expect(workspaces).toHaveLength(1);
-    const workspace = workspaces[0]!;
-    expect(workspace.sessionCount).toBe(3);
-    expect(workspace.worktrees).toHaveLength(3);
-    expect(workspace.hasMultipleWorktrees).toBe(true);
-    expect(workspace.worktrees[0]?.isMain).toBe(true);
-    expect(workspace.worktrees.map((worktree) => worktree.label)).toEqual([
-      "main",
-      "feat/x",
-      "elsewhere/x",
-    ]);
-  });
-
-  it("omits sessions without git placement", () => {
-    expect(buildWorkspaces([baseSession({ repository: "acme/legacy" })])).toEqual([]);
-  });
-
-  it("orders workspaces by most recent session", () => {
-    const older = workspaceSession({
-      id: "older",
-      workspaceRoot: "/work/older",
-      workspaceName: "older",
-      updatedAt: "2024-01-01T00:00:00Z",
-    });
-    const newer = workspaceSession({
-      id: "newer",
-      workspaceRoot: "/work/newer",
-      workspaceName: "newer",
-      updatedAt: "2024-06-01T00:00:00Z",
-    });
-    expect(buildWorkspaces([older, newer]).map((w) => w.name)).toEqual(["newer", "older"]);
   });
 });

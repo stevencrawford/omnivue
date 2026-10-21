@@ -5,10 +5,7 @@ import { shortDir } from "./sessionUtils";
 /**
  * Workspace-aware grouping. The server enriches each session with the git
  * placement of its final working directory; this module turns that flat list
- * into the two shapes the UI needs:
- *
- *   - buildProjectTree  → collapsible sidebar tree (workspace → worktree → branch)
- *   - buildWorkspaces   → Projects screen / sidebar summaries
+ * into the collapsible sidebar tree (workspace → worktree → branch).
  *
  * Sessions without git placement fall back to repository grouping so nothing
  * disappears on an older backend or a directory outside a repository.
@@ -27,31 +24,6 @@ export interface ProjectNode {
   external?: boolean;
   missing?: boolean;
   title?: string;
-}
-
-export interface WorktreeSummary {
-  root: string;
-  label: string;
-  relPath: string;
-  branches: string[];
-  sessions: Session[];
-  external: boolean;
-  missing: boolean;
-  isMain: boolean;
-  lastUpdated: string;
-}
-
-export interface WorkspaceSummary {
-  key: string;
-  root: string;
-  name: string;
-  kind: string;
-  remoteUrl?: string;
-  worktrees: WorktreeSummary[];
-  sessions: Session[];
-  sessionCount: number;
-  lastUpdated: string;
-  hasMultipleWorktrees: boolean;
 }
 
 const byRecent = (a: Session, b: Session) =>
@@ -73,6 +45,18 @@ export function rootSessions(sessions: Session[]): Session[] {
 
 export function hasWorkspaceData(sessions: Session[]): boolean {
   return sessions.some((session) => Boolean(session.workspaceRoot));
+}
+
+/** True when any workspace has sessions from more than one worktree. */
+export function hasMultipleWorktrees(sessions: Session[]): boolean {
+  const perWorkspace = new Map<string, Set<string>>();
+  for (const session of sessions) {
+    if (!session.workspaceRoot) continue;
+    const worktrees = perWorkspace.get(session.workspaceRoot) ?? new Set<string>();
+    worktrees.add(worktreeKey(session));
+    perWorkspace.set(session.workspaceRoot, worktrees);
+  }
+  return [...perWorkspace.values()].some((worktrees) => worktrees.size > 1);
 }
 
 export function worktreeLabel(session: Session): string {
@@ -105,15 +89,7 @@ function worktreeKey(session: Session): string {
   return session.worktreeRoot || sessionDirectory(session) || "unknown";
 }
 
-function latest(sessions: Session[]): string {
-  let value = "";
-  for (const session of sessions) {
-    if (session.updatedAt > value) value = session.updatedAt;
-  }
-  return value;
-}
-
-function worktreeSummary(workspaceRoot: string, sessions: Session[]): WorktreeSummary {
+function worktreeInfo(workspaceRoot: string, sessions: Session[]) {
   const first = sessions[0];
   const branches = [...new Set(sessions.map(sessionBranch).filter(Boolean))].sort();
   const root = first?.worktreeRoot || sessionDirectory(first) || "";
@@ -123,63 +99,11 @@ function worktreeSummary(workspaceRoot: string, sessions: Session[]): WorktreeSu
     label:
       displayRelPath(relPath) ||
       (root && root === workspaceRoot ? "main" : shortDir(root) || "main"),
-    relPath,
     branches,
-    sessions: [...sessions].sort(byRecent),
     external: sessions.some((session) => session.externalWorktree),
     missing: sessions.some((session) => session.worktreeMissing),
     isMain: !relPath && (!root || root === workspaceRoot),
-    lastUpdated: latest(sessions),
   };
-}
-
-/**
- * buildWorkspaces returns git-derived workspaces, newest first. Sessions with
- * no git placement are omitted: the Projects surface is specifically about
- * repositories the user can see and navigate, not a second repository list.
- */
-export function buildWorkspaces(sessions: Session[]): WorkspaceSummary[] {
-  const roots = rootSessions(sessions).filter((session) => session.workspaceRoot);
-  const grouped = new Map<string, Session[]>();
-  for (const session of roots) {
-    const key = workspaceKey(session);
-    const existing = grouped.get(key);
-    if (existing) existing.push(session);
-    else grouped.set(key, [session]);
-  }
-
-  const workspaces: WorkspaceSummary[] = [];
-  for (const [key, group] of grouped) {
-    const first = group[0];
-    const root = first.workspaceRoot || "";
-    const worktreeGroups = new Map<string, Session[]>();
-    for (const session of group) {
-      const wtKey = worktreeKey(session);
-      const existing = worktreeGroups.get(wtKey);
-      if (existing) existing.push(session);
-      else worktreeGroups.set(wtKey, [session]);
-    }
-    const worktrees = [...worktreeGroups.values()].map((group) => worktreeSummary(root, group));
-    worktrees.sort((a, b) => {
-      if (a.isMain !== b.isMain) return a.isMain ? -1 : 1;
-      return b.lastUpdated.localeCompare(a.lastUpdated);
-    });
-    workspaces.push({
-      key,
-      root,
-      name: first.workspaceName || shortRepoName(first.repository) || root,
-      kind: first.workspaceKind || "standard",
-      remoteUrl: first.remoteUrl,
-      worktrees,
-      sessions: [...group].sort(byRecent),
-      sessionCount: group.length,
-      lastUpdated: latest(group),
-      hasMultipleWorktrees: worktrees.length > 1,
-    });
-  }
-
-  workspaces.sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated));
-  return workspaces;
 }
 
 function sessionNode(session: Session): ProjectNode {
@@ -197,6 +121,16 @@ function sessionNode(session: Session): ProjectNode {
 
 function nestedCount(nodes: ProjectNode[]): number {
   return nodes.reduce((total, node) => total + (node.kind === "session" ? 1 : node.count), 0);
+}
+
+function latestOfNode(node: ProjectNode): string {
+  if (node.session) return node.session.updatedAt;
+  let value = "";
+  for (const child of node.children) {
+    const childLatest = latestOfNode(child);
+    if (childLatest > value) value = childLatest;
+  }
+  return value;
 }
 
 function branchNodes(parentId: string, sessions: Session[]): ProjectNode[] {
@@ -219,11 +153,7 @@ function branchNodes(parentId: string, sessions: Session[]): ProjectNode[] {
         branch,
       };
     })
-    .sort((a, b) => {
-      const aLatest = a.children[0]?.session?.updatedAt || "";
-      const bLatest = b.children[0]?.session?.updatedAt || "";
-      return bLatest.localeCompare(aLatest);
-    });
+    .sort((a, b) => latestOfNode(b).localeCompare(latestOfNode(a)));
 }
 
 /**
@@ -261,34 +191,42 @@ export function buildProjectTree(sessions: Session[]): ProjectNode[] {
         else worktreeGroups.set(wtKey, [session]);
       }
 
-      children = [...worktreeGroups.entries()].map(([wtKey, wtSessions]) => {
-        const summary = worktreeSummary(workspaceRoot, wtSessions);
+      children = [...worktreeGroups.entries()].flatMap(([wtKey, wtSessions]): ProjectNode[] => {
+        const info = worktreeInfo(workspaceRoot, wtSessions);
         const worktreeId = `${workspaceId}:wt:${wtKey}`;
         const branches = [...new Set(wtSessions.map(sessionBranch).filter(Boolean))];
         const branchLevel = branches.length > 1;
+
+        // The main checkout's worktree label is just "main"; adding a branch
+        // level beneath it would show "main → main". Hoist its branches to
+        // the workspace level instead, keeping linked worktrees as-is.
+        if (branchLevel && info.isMain) {
+          return branchNodes(worktreeId, wtSessions);
+        }
+
         const leafNodes = branchLevel
           ? branchNodes(worktreeId, wtSessions)
           : [...wtSessions].sort(byRecent).map(sessionNode);
-        return {
-          id: worktreeId,
-          label: summary.label,
-          kind: "worktree" as const,
-          children: leafNodes,
-          count: nestedCount(leafNodes),
-          branch: !branchLevel ? summary.branches[0] : undefined,
-          external: summary.external,
-          missing: summary.missing,
-          title: summary.root,
-        };
+        return [
+          {
+            id: worktreeId,
+            label: info.label,
+            kind: "worktree",
+            children: leafNodes,
+            count: nestedCount(leafNodes),
+            branch: !branchLevel ? info.branches[0] : undefined,
+            external: info.external,
+            missing: info.missing,
+            title: info.root,
+          },
+        ];
       });
 
       children.sort((a, b) => {
         const aMain = a.label === "main" && !a.external;
         const bMain = b.label === "main" && !b.external;
         if (aMain !== bMain) return aMain ? -1 : 1;
-        const aLatest = a.children[0]?.session?.updatedAt || "";
-        const bLatest = b.children[0]?.session?.updatedAt || "";
-        return bLatest.localeCompare(aLatest);
+        return latestOfNode(b).localeCompare(latestOfNode(a));
       });
     }
 
@@ -303,11 +241,7 @@ export function buildProjectTree(sessions: Session[]): ProjectNode[] {
     });
   }
 
-  workspaceNodes.sort((a, b) => {
-    const aLatest = a.children[0]?.session?.updatedAt || "";
-    const bLatest = b.children[0]?.session?.updatedAt || "";
-    return bLatest.localeCompare(aLatest);
-  });
+  workspaceNodes.sort((a, b) => latestOfNode(b).localeCompare(latestOfNode(a)));
   return workspaceNodes;
 }
 
