@@ -6,6 +6,8 @@ import { TagPanel } from "./TagPanel";
 import { BookmarkPanel } from "./BookmarkPanel";
 import { NotificationPanel } from "./NotificationPanel";
 import { PromptsPanel } from "./PromptsPanel";
+import { ProjectsPanel } from "./projects/ProjectsPanel";
+import { hasWorkspaceData } from "../utils/projectTree";
 import { useResizable } from "../hooks/useResizable";
 import { STORAGE_KEYS } from "../utils/storageKeys";
 
@@ -89,6 +91,11 @@ export function Sidebar({
         <PromptsPanel promptVersion={promptVersion} />
       </div>
       <div
+        className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "projects" ? "hidden" : ""}`}
+      >
+        <ProjectsPanel sessions={sessions} />
+      </div>
+      <div
         className={`flex-1 flex flex-col overflow-hidden ${activeSection !== "tags" ? "hidden" : ""}`}
       >
         <TagPanel
@@ -134,6 +141,7 @@ export function Sidebar({
         onSidebarToggle={onSidebarToggle}
         notificationUnreadCount={notificationUnreadCount}
         promptCount={promptCount}
+        showProjects={hasWorkspaceData(sessions)}
       />
       <div
         className={`flex-1 flex flex-col overflow-hidden bg-ov-bg-sidebar ${sidebarOpen ? "" : "hidden"}`}

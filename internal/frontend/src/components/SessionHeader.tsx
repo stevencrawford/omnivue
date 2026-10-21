@@ -17,6 +17,7 @@ import { useTagsContext } from "../hooks/useTags";
 import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
 import { SessionFamilySelect } from "./sessions/SessionFamilySelect";
+import { PathBreadcrumb } from "./sessions/PathBreadcrumb";
 import { SubAgentBackButton } from "./sessions/SubAgentBackButton";
 import { useNavigation } from "../hooks/useNavigation";
 
@@ -439,12 +440,7 @@ export function SessionHeader({
           </div>
         </div>
 
-        <span
-          className="text-[11px] font-mono text-ov-text-secondary ml-auto truncate max-w-[32%]"
-          title={session.directory}
-        >
-          {session.repository || session.directory}
-        </span>
+        <PathBreadcrumb session={session} />
 
         <div className="flex items-center gap-1 ml-2 pl-2 border-l border-ov-border shrink-0">
           <ResumeButton sessionId={session.id} />

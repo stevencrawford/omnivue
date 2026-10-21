@@ -8,6 +8,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { OverviewScreen } from "./components/OverviewScreen";
+import { ProjectsScreen } from "./components/projects/ProjectsScreen";
 import { AppHeader } from "./components/AppHeader";
 import { EmptyState } from "./components/ui/EmptyState";
 import { LoadingState } from "./components/ui/LoadingState";
@@ -372,6 +373,8 @@ export function App() {
                           Loading sessions...
                         </div>
                       </div>
+                    ) : sessions.length > 0 && showOverview && activeSection === "projects" ? (
+                      <ProjectsScreen sessions={sessions} onSessionSelect={handleSessionSelect} />
                     ) : sessions.length > 0 && showOverview ? (
                       <OverviewScreen sessions={sessions} onSessionSelect={handleSessionSelect} />
                     ) : (

@@ -1,6 +1,6 @@
 import type { Session } from "../hooks/types";
 
-export type GroupMode = "repo" | "cwd" | "model" | "none";
+export type GroupMode = "workspace" | "repo" | "cwd" | "model" | "none";
 
 export interface TreeNode {
   name: string;

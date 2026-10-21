@@ -19,7 +19,7 @@ export interface SessionRowSharedProps {
   staleIds: Set<string>;
 }
 
-function SessionRow({
+export function SessionRow({
   session,
   isActive,
   unreadCount = 0,

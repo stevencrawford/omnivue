@@ -1,7 +1,15 @@
 import React from "react";
-import { Tags, Bookmark, Bell, Settings, NotebookPen, type LucideProps } from "lucide-react";
+import {
+  Tags,
+  Bookmark,
+  Bell,
+  Settings,
+  NotebookPen,
+  FolderGit2,
+  type LucideProps,
+} from "lucide-react";
 
-export type Section = "sessions" | "prompts" | "tags" | "bookmarks" | "notifications";
+export type Section = "sessions" | "projects" | "prompts" | "tags" | "bookmarks" | "notifications";
 
 interface IconChannelProps {
   activeSection: Section;
@@ -11,6 +19,7 @@ interface IconChannelProps {
   onSidebarToggle: () => void;
   notificationUnreadCount?: number;
   promptCount?: number;
+  showProjects?: boolean;
 }
 
 export function SessionsIcon({ size = 24, ...props }: LucideProps) {
@@ -38,6 +47,7 @@ const sections: {
   Icon: React.ComponentType<LucideProps>;
 }[] = [
   { id: "sessions", label: "Sessions", Icon: SessionsIcon },
+  { id: "projects", label: "Projects", Icon: FolderGit2 },
   { id: "prompts", label: "Prompts", Icon: NotebookPen },
   { id: "tags", label: "Tags", Icon: Tags },
   { id: "bookmarks", label: "Bookmarks", Icon: Bookmark },
@@ -52,45 +62,48 @@ export function IconChannel({
   onSidebarToggle,
   notificationUnreadCount = 0,
   promptCount = 0,
+  showProjects = false,
 }: IconChannelProps) {
   return (
     <div className="flex flex-col items-center w-12 shrink-0 border-r border-ov-border bg-ov-bg-sidebar py-1.5">
-      {sections.map(({ id, label, Icon }) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => {
-            if (id === activeSection) {
-              onSidebarToggle();
-            } else {
-              onSectionChange(id);
-              if (!sidebarOpen) onSidebarToggle();
-            }
-          }}
-          title={label}
-          aria-label={label}
-          className={`relative flex items-center justify-center w-full h-10 transition-colors ${
-            activeSection === id
-              ? "text-accent cursor-pointer"
-              : "text-ov-text-secondary hover:text-ov-text cursor-pointer"
-          }`}
-        >
-          {activeSection === id && (
-            <div className="absolute left-0 w-0.5 h-5 rounded-r-full bg-accent" />
-          )}
-          <Icon className="size-5" strokeWidth={1.5} />
-          {id === "prompts" && promptCount > 0 && (
-            <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-blue-500 text-white">
-              {promptCount > 99 ? "99+" : promptCount}
-            </span>
-          )}
-          {id === "notifications" && notificationUnreadCount > 0 && (
-            <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white">
-              {notificationUnreadCount > 99 ? "99+" : notificationUnreadCount}
-            </span>
-          )}
-        </button>
-      ))}
+      {sections
+        .filter(({ id }) => id !== "projects" || showProjects)
+        .map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              if (id === activeSection) {
+                onSidebarToggle();
+              } else {
+                onSectionChange(id);
+                if (!sidebarOpen) onSidebarToggle();
+              }
+            }}
+            title={label}
+            aria-label={label}
+            className={`relative flex items-center justify-center w-full h-10 transition-colors ${
+              activeSection === id
+                ? "text-accent cursor-pointer"
+                : "text-ov-text-secondary hover:text-ov-text cursor-pointer"
+            }`}
+          >
+            {activeSection === id && (
+              <div className="absolute left-0 w-0.5 h-5 rounded-r-full bg-accent" />
+            )}
+            <Icon className="size-5" strokeWidth={1.5} />
+            {id === "prompts" && promptCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-blue-500 text-white">
+                {promptCount > 99 ? "99+" : promptCount}
+              </span>
+            )}
+            {id === "notifications" && notificationUnreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-3.5 h-3.5 px-1 flex items-center justify-center text-[9px] font-bold rounded-full bg-accent text-white">
+                {notificationUnreadCount > 99 ? "99+" : notificationUnreadCount}
+              </span>
+            )}
+          </button>
+        ))}
 
       <div className="flex-1" />
 

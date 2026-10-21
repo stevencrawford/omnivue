@@ -7,6 +7,7 @@ const SESSION_PATH = /^\/session\/([^/]+)$/;
 
 const SECTION_ROUTES: Record<string, Section> = {
   sessions: "sessions",
+  projects: "projects",
   prompts: "prompts",
   tags: "tags",
   bookmarks: "bookmarks",
