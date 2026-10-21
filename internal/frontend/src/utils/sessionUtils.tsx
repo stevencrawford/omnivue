@@ -36,7 +36,13 @@ export function agentLabel(agent: string): string {
 export function sessionMetaParts(session: Session): string[] {
   const parts: string[] = [];
   if (session.agent) parts.push(agentLabel(session.agent));
-  if (session.branch) parts.push(session.branch);
+  if (session.branch) {
+    parts.push(
+      session.branchChanged && session.branchStart
+        ? `${session.branchStart} → ${session.branch}`
+        : session.branch,
+    );
+  }
   const dir = shortDir(session.directory);
   if (dir) parts.push(dir);
   return parts;

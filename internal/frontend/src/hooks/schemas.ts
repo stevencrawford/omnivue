@@ -106,6 +106,15 @@ export const SessionSchema = z.object({
   diffAdditions: coerceNumber,
   diffDeletions: coerceNumber,
   todos: z.array(TodoSchema).optional(),
+  // Git workspace resolution (server-side enrichment; all optional).
+  workspaceRoot: optionalString,
+  worktreeRoot: optionalString,
+  worktreeRelPath: optionalString,
+  branchStart: optionalString,
+  branchSource: optionalString,
+  branchChanged: z.boolean().optional(),
+  isWorktree: z.boolean().optional(),
+  external: z.boolean().optional(),
 });
 
 export const SessionsSchema = z.array(SessionSchema);

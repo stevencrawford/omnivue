@@ -1,6 +1,9 @@
 import type { Session } from "../hooks/types";
 
-export type GroupMode = "repo" | "cwd" | "model" | "none";
+export type GroupMode = "repo" | "workspace" | "cwd" | "model" | "none";
+
+/** Visual nature of a group node, driving the header icon. */
+export type GroupKind = "workspace" | "worktree" | "branch" | "repo" | "folder";
 
 export interface TreeNode {
   name: string;
@@ -8,6 +11,7 @@ export interface TreeNode {
   children: TreeNode[];
   session?: Session;
   isGroup: boolean;
+  kind?: GroupKind;
 }
 
 /** Last path segment for display (e.g. `~/dev/foo` → `foo`). */

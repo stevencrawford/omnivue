@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, FolderTree, Minus, Plus, Tags } from "lucide-react";
+import { Archive, FolderTree, GitFork, Minus, Plus, Tags, X } from "lucide-react";
 import type { Session } from "../hooks/types";
-import { buildTree, type GroupMode } from "../utils/buildTree";
+import { type GroupMode, type TreeNode } from "../utils/buildTree";
+import { buildSessionTree, countDetectedWorktrees } from "../utils/projectTree";
 import { resolveFamilyRoot } from "../utils/sessionFamily";
 import { shortDir } from "../utils/sessionUtils";
 import {
@@ -43,13 +44,28 @@ function getInitialCollapsed(): Set<string> {
 function getInitialGroup(): GroupMode {
   try {
     const stored = localStorage.getItem(GROUP_KEY);
-    if (stored === "repo" || stored === "cwd" || stored === "model" || stored === "none") {
+    if (
+      stored === "repo" ||
+      stored === "workspace" ||
+      stored === "cwd" ||
+      stored === "model" ||
+      stored === "none"
+    ) {
       return stored;
     }
   } catch {
     /* noop */
   }
   return "repo";
+}
+
+function getInitialNudgeDismissed(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.NUDGE_WORKSPACE) === "1";
+  } catch {
+    /* noop */
+  }
+  return false;
 }
 
 function getInitialDisplay(): DisplayMode {
@@ -127,7 +143,21 @@ export function SessionPanel({
 
   const treeSessions = hideStale ? visibleSessions : filteredSessions;
 
-  const tree = useMemo(() => buildTree(treeSessions, groupMode), [treeSessions, groupMode]);
+  const tree = useMemo(() => buildSessionTree(treeSessions, groupMode), [treeSessions, groupMode]);
+
+  // Workspace auto-detection: once two or more distinct worktrees exist for
+  // any workspace, nudge the user toward workspace grouping (dismissible).
+  const worktreesDetected = useMemo(() => countDetectedWorktrees(treeSessions), [treeSessions]);
+  const [nudgeDismissed, setNudgeDismissed] = useState(getInitialNudgeDismissed);
+  const showWorkspaceNudge = groupMode !== "workspace" && worktreesDetected >= 2 && !nudgeDismissed;
+  const dismissNudge = useCallback(() => {
+    setNudgeDismissed(true);
+    try {
+      localStorage.setItem(STORAGE_KEYS.NUDGE_WORKSPACE, "1");
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   // Sub-agents are surfaced in the main-view family selector, not the tree; when
   // one is active, highlight its family root so the sidebar still shows where
@@ -174,7 +204,16 @@ export function SessionPanel({
   );
 
   const collapseAll = useCallback(() => {
-    const all = new Set(tree.filter((n) => n.isGroup).map((n) => n.fullPath));
+    const all = new Set<string>();
+    const collect = (nodes: TreeNode[]) => {
+      for (const n of nodes) {
+        if (n.isGroup) {
+          all.add(n.fullPath);
+          collect(n.children);
+        }
+      }
+    };
+    collect(tree);
     setCollapsed(all);
     saveCollapsed(all);
   }, [tree, saveCollapsed]);
@@ -296,6 +335,23 @@ export function SessionPanel({
           )}
         </div>
       </div>
+
+      {/* Workspace auto-detection nudge (dismissible, one-time) */}
+      {showWorkspaceNudge && (
+        <div className="mx-1.5 mb-1 flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-2 py-1 shrink-0">
+          <GitFork size={12} className="shrink-0 text-accent" />
+          <button
+            type="button"
+            onClick={() => setGroup("workspace")}
+            className="flex-1 text-left text-[11px] text-ov-text truncate cursor-pointer"
+          >
+            {worktreesDetected} worktrees detected — try Workspace grouping
+          </button>
+          <IconBtn title="Dismiss" onClick={dismissNudge}>
+            <X size={12} />
+          </IconBtn>
+        </div>
+      )}
 
       {/* Session tree */}
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">

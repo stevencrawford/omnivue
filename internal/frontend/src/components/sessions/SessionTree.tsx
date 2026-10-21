@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ChevronRight, Folder, GitBranch, GitFork } from "lucide-react";
 import type { Session } from "../../hooks/types";
-import type { TreeNode } from "../../utils/buildTree";
+import type { GroupKind, TreeNode } from "../../utils/buildTree";
 import { relativeTime, sessionMetaParts, sessionTitle } from "../../utils/sessionUtils";
 import { VerboseStats } from "./VerboseStats";
 
@@ -83,15 +83,44 @@ function SessionRow({
   );
 }
 
+/** Kind-aware icon for a group header; falls back to a folder glyph. */
+function GroupIcon({ kind }: { kind?: GroupKind }) {
+  if (kind === "worktree" || kind === "branch") {
+    return <GitBranch size={12} className="shrink-0 text-ov-text-secondary/70" />;
+  }
+  if (kind === "workspace") {
+    return <GitFork size={12} className="shrink-0 text-ov-text-secondary/70" />;
+  }
+  if (kind === "repo") {
+    return <Folder size={12} className="shrink-0 text-ov-text-secondary/70" />;
+  }
+  return null;
+}
+
+/** feat/fix/pr color hint derived from a branch path prefix. */
+function branchDot(name: string): ReactNode | null {
+  const kind = name.startsWith("feat")
+    ? "bg-emerald-400"
+    : name.startsWith("fix")
+      ? "bg-fuchsia-400"
+      : name.startsWith("pr")
+        ? "bg-orange-400"
+        : null;
+  if (!kind) return null;
+  return <span className={`shrink-0 size-1.5 rounded-full ${kind}`} />;
+}
+
 function GroupNode({
   node,
   collapsed,
   onToggleCollapse,
+  nested = false,
   ...shared
 }: {
   node: TreeNode;
   collapsed: Set<string>;
   onToggleCollapse: (path: string) => void;
+  nested?: boolean;
 } & SessionRowSharedProps) {
   const isCollapsed = collapsed.has(node.fullPath);
   const [showAll, setShowAll] = useState(false);
@@ -99,7 +128,7 @@ function GroupNode({
   const hasMore = node.children.length > VISIBLE_LIMIT;
 
   return (
-    <div>
+    <div className={nested ? "pl-3" : undefined}>
       <button
         type="button"
         className="flex items-center gap-1 w-full px-1.5 py-1 rounded-md text-[11px] font-medium text-ov-text-secondary hover:bg-ov-bg-hover hover:text-ov-text cursor-pointer"
@@ -110,12 +139,26 @@ function GroupNode({
           size={12}
           className={`shrink-0 transition-transform text-ov-text-secondary ${!isCollapsed ? "rotate-90" : ""}`}
         />
+        <GroupIcon kind={node.kind} />
+        {node.kind === "branch" && branchDot(node.name)}
         <span className="truncate flex-1 text-left">{node.name}</span>
         <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
       </button>
       {!isCollapsed && (
         <div className="space-y-px mt-px">
           {visible.map((child) => {
+            if (child.isGroup) {
+              return (
+                <GroupNode
+                  key={child.fullPath}
+                  node={child}
+                  collapsed={collapsed}
+                  onToggleCollapse={onToggleCollapse}
+                  nested
+                  {...shared}
+                />
+              );
+            }
             const session = child.session;
             if (!session) return null;
             return (
