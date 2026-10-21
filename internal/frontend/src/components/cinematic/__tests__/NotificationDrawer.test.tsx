@@ -405,3 +405,90 @@ describe("NotificationDrawer scroll controls", () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "smooth" });
   });
 });
+
+describe("NotificationDrawer activity filters", () => {
+  const filterMessages: Message[] = [
+    {
+      id: "u1",
+      role: "user",
+      content: "User prompt text",
+      timestamp: "2026-01-01T00:00:00Z",
+    },
+    {
+      id: "a1",
+      role: "assistant",
+      content: "Assistant reply text",
+      reasoning: "Weighing options",
+      reasoningAt: "2026-01-01T00:00:02Z",
+      timestamp: "2026-01-01T00:00:01Z",
+      toolCalls: [grepTool],
+    },
+  ];
+
+  function renderFilterDrawer() {
+    return render(
+      <NotificationDrawer session={session} messages={filterMessages} cursor={10} maxIndex={10} />,
+    );
+  }
+
+  function openFilters() {
+    fireEvent.click(screen.getByRole("button", { name: /filter activity/i }));
+  }
+
+  function expectAllKindsVisible() {
+    expect(screen.getByText("User prompt text")).toBeDefined();
+    expect(screen.getByText("Assistant reply text")).toBeDefined();
+    expect(screen.getByText("Thinking")).toBeDefined();
+    expect(screen.getByTitle("TODO")).toBeDefined();
+  }
+
+  afterEach(() => {
+    localStorage.removeItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_FILTERS);
+  });
+
+  it("shows every activity kind by default", () => {
+    renderFilterDrawer();
+    expectAllKindsVisible();
+  });
+
+  it("hides only the unchecked kind", () => {
+    renderFilterDrawer();
+    openFilters();
+    fireEvent.click(screen.getByLabelText("Tool calls"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTitle("TODO")).toBeNull();
+    expect(screen.getByText("User prompt text")).toBeDefined();
+    expect(screen.getByText("Assistant reply text")).toBeDefined();
+    expect(screen.getByText("Thinking")).toBeDefined();
+  });
+
+  it("shows the filtered empty state and restores everything with Show all", () => {
+    renderFilterDrawer();
+    openFilters();
+    for (const label of ["User messages", "Assistant messages", "Thinking", "Tool calls"]) {
+      fireEvent.click(screen.getByLabelText(label));
+    }
+    expect(screen.getByText("No activity matches the current filters")).toBeDefined();
+    fireEvent.click(screen.getByText("Show all"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expectAllKindsVisible();
+  });
+
+  it("persists the selection", () => {
+    renderFilterDrawer();
+    openFilters();
+    fireEvent.click(screen.getByLabelText("Tool calls"));
+    expect(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_FILTERS) ?? "{}"),
+    ).toMatchObject({ user: true, assistant: true, thinking: true, tool: false });
+  });
+
+  it("honours a stored partial selection on first render", () => {
+    localStorage.setItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_FILTERS, JSON.stringify({ tool: false }));
+    renderFilterDrawer();
+    expect(screen.queryByTitle("TODO")).toBeNull();
+    expect(screen.getByText("Assistant reply text")).toBeDefined();
+    expect(screen.getByText("Thinking")).toBeDefined();
+    expect(screen.getByText("User prompt text")).toBeDefined();
+  });
+});

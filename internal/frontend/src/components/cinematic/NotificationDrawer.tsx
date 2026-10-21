@@ -9,10 +9,19 @@ import {
   FileText,
   Maximize2,
   Activity,
+  ListFilter,
   PanelRightClose,
 } from "lucide-react";
 import type { BookmarkKind, Message, Plan, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
+import {
+  DEFAULT_ACTIVITY_FILTERS,
+  isActivityKindVisible,
+  loadActivityFilters,
+  saveActivityFilters,
+  type ActivityFilters,
+  type ActivityItemKind,
+} from "../../utils/activityFilters";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
 import { BookmarkButton } from "../tool-renderers/BookmarkButton";
@@ -23,6 +32,7 @@ import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../../hooks/useBookmar
 import { UserPromptBubble } from "../UserPromptBubble";
 import { LoadingState } from "../ui/LoadingState";
 import { EmptyPanel } from "../ui/EmptyPanel";
+import { ActivityFilterMenu } from "./ActivityFilterMenu";
 
 export type ActivityTab = "activity" | "prompt" | "plan";
 
@@ -41,6 +51,15 @@ const fallbackActivityRenderer = {
   Component: DefaultToolDiff,
   display: { type: "expandable" as const },
 };
+
+interface DrawerItem {
+  key: string;
+  node: ReactNode;
+  kind: ActivityItemKind;
+  messageId?: string;
+  messageIndex?: number;
+  toolCallId?: string;
+}
 
 interface NotificationDrawerProps {
   session: Session;
@@ -217,6 +236,12 @@ export function NotificationDrawer({
   // with the raw input/output view (same fallback as ToolCallList).
   const disableCustomRenderers = useDisableCustomRenderers();
 
+  const [activityFilters, setActivityFilters] = useState<ActivityFilters>(loadActivityFilters);
+  const handleFiltersChange = useCallback((next: ActivityFilters) => {
+    setActivityFilters(next);
+    saveActivityFilters(next);
+  }, []);
+
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
     const out: Message[] = [];
@@ -247,14 +272,8 @@ export function NotificationDrawer({
     return map;
   }, [messages]);
 
-  const drawerItems = useMemo(() => {
-    const items: Array<{
-      key: string;
-      node: ReactNode;
-      messageId?: string;
-      messageIndex?: number;
-      toolCallId?: string;
-    }> = [];
+  const allDrawerItems = useMemo(() => {
+    const items: DrawerItem[] = [];
     const reasoningMap = new Map<string, { reasoning: string; durationMs?: number }>();
     let pendingReasoning: string | null = null;
     let pendingKey: string | null = null;
@@ -273,6 +292,7 @@ export function NotificationDrawer({
         reasoningMap.set(`${key}-reasoning`, { reasoning, durationMs });
         items.push({
           key: `${key}-reasoning`,
+          kind: "thinking",
           messageId: key,
           messageIndex: indexById.get(key),
           node: <ThinkingBlock reasoning={reasoning} durationMs={durationMs} />,
@@ -289,6 +309,7 @@ export function NotificationDrawer({
         if (msg.content?.trim()) {
           items.push({
             key: `${msg.id}-user`,
+            kind: "user",
             messageId: msg.id,
             messageIndex: indexById.get(msg.id),
             node: (
@@ -334,6 +355,7 @@ export function NotificationDrawer({
         const msgLabel = msg.content.slice(0, 80);
         items.push({
           key: `${msg.id}-content`,
+          kind: "assistant",
           messageId: msg.id,
           messageIndex: indexById.get(msg.id),
           node: (
@@ -387,6 +409,7 @@ export function NotificationDrawer({
         const toolLabel = getToolSummary(tool, msg.agent || undefined);
         items.push({
           key: tool.id,
+          kind: "tool",
           messageId: msg.id,
           messageIndex: indexById.get(msg.id),
           toolCallId: tool.id,
@@ -422,6 +445,7 @@ export function NotificationDrawer({
           if (entry) {
             items[i] = {
               key,
+              kind: "thinking",
               messageId: items[i].messageId,
               messageIndex: items[i].messageIndex,
               node: (
@@ -449,6 +473,16 @@ export function NotificationDrawer({
     indexById,
     disableCustomRenderers,
   ]);
+
+  // A search jump must always have a landing target, so the spotlighted
+  // message bypasses the filters (same idea as the cursor bypass above).
+  const drawerItems = useMemo(
+    () =>
+      allDrawerItems.filter(
+        (it) => isActivityKindVisible(it.kind, activityFilters) || it.messageId === spotlightId,
+      ),
+    [allDrawerItems, activityFilters, spotlightId],
+  );
 
   useEffect(() => {
     if (activeTab !== "activity") return;
@@ -562,20 +596,25 @@ export function NotificationDrawer({
           icon={<FileText size={12} />}
           label="Plan"
         />
-        {onToggleCollapse && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse();
-            }}
-            className="ml-auto mr-1 size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-            title="Collapse activity panel"
-            aria-label="Collapse activity panel"
-          >
-            <PanelRightClose size={14} />
-          </button>
-        )}
+        <div className="ml-auto mr-1 flex items-center gap-0.5">
+          {activeTab === "activity" && (
+            <ActivityFilterMenu filters={activityFilters} onChange={handleFiltersChange} />
+          )}
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse();
+              }}
+              className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
+              title="Collapse activity panel"
+              aria-label="Collapse activity panel"
+            >
+              <PanelRightClose size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div
@@ -587,11 +626,28 @@ export function NotificationDrawer({
           className="h-full overflow-y-auto overflow-x-hidden p-2 space-y-2 min-w-0"
         >
           {drawerItems.length === 0 ? (
-            <EmptyPanel
-              icon={<Activity size={20} />}
-              title="Assistant activity appears here"
-              hint="Scrub the timeline to reveal messages and tool calls."
-            />
+            allDrawerItems.length === 0 ? (
+              <EmptyPanel
+                icon={<Activity size={20} />}
+                title="Assistant activity appears here"
+                hint="Scrub the timeline to reveal messages and tool calls."
+              />
+            ) : (
+              <div className="py-4 px-3 flex flex-col items-center gap-2">
+                <EmptyPanel
+                  icon={<ListFilter size={20} />}
+                  title="No activity matches the current filters"
+                  hint="Enable more activity types or scrub the timeline."
+                />
+                <button
+                  type="button"
+                  onClick={() => handleFiltersChange({ ...DEFAULT_ACTIVITY_FILTERS })}
+                  className="text-[11px] px-2.5 py-1 rounded-md border border-accent-border bg-accent-muted text-accent hover:bg-accent/20 cursor-pointer transition-colors"
+                >
+                  Show all
+                </button>
+              </div>
+            )
           ) : (
             drawerItems.map((it) => (
               <div

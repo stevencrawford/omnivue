@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   CINEMATIC_DRAWER_COLLAPSED: "omnivue-cinematic-drawer-collapsed",
   CINEMATIC_CONSOLE_COLLAPSED: "omnivue-cinematic-console-collapsed",
   CINEMATIC_ACTIVITY_TAB: "omnivue-cinematic-activity-tab",
+  CINEMATIC_ACTIVITY_FILTERS: "omnivue-cinematic-activity-filters",
   CINEMATIC_TREE_FILTERS: "omnivue-cinematic-tree-filters",
   TAGS_EXPANDED: "omnivue-tags-expanded",
   TAG_SORT: "omnivue-tag-sort",
