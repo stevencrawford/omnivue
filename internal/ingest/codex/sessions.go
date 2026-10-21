@@ -157,6 +157,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 	var model string
 	var cost float64
 	var tokensInput, tokensOutput int
+	var cwdStart, cwdEnd, branchStart, branchEnd string
 
 	scanner := ingestkit.NewJSONLScanner(f)
 	for scanner.Scan() {
@@ -174,12 +175,18 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 		case "session_meta":
 			var pl sessionMetaPayload
 			if json.Unmarshal(env.Payload, &pl) == nil {
-				if session.Directory == "" && pl.CWD != "" {
-					session.Directory = pl.CWD
+				if pl.CWD != "" {
+					if cwdStart == "" {
+						cwdStart = pl.CWD
+					}
+					cwdEnd = pl.CWD
 				}
 				if pl.Git != nil {
 					session.Repository = ingestkit.DeriveRepoFromURL(pl.Git.RepositoryURL)
-					session.Branch = pl.Git.Branch
+					if branchStart == "" {
+						branchStart = pl.Git.Branch
+					}
+					branchEnd = pl.Git.Branch
 				}
 				if session.Title == "" && pl.ID != "" {
 					session.Title = pl.ID[:8]
@@ -189,8 +196,11 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 		case "turn_context":
 			var pl turnContextPayload
 			if json.Unmarshal(env.Payload, &pl) == nil {
-				if session.Directory == "" && pl.CWD != "" {
-					session.Directory = pl.CWD
+				if pl.CWD != "" {
+					if cwdStart == "" {
+						cwdStart = pl.CWD
+					}
+					cwdEnd = pl.CWD
 				}
 				if pl.Model != "" {
 					model = pl.Model
@@ -230,9 +240,19 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 		}
 	}
 
-	if session.Directory == "" {
-		session.Directory = a.basePath
+	if cwdStart == "" {
+		cwdStart = a.basePath
 	}
+	if cwdEnd == "" {
+		cwdEnd = cwdStart
+	}
+
+	session.Directory = cwdStart
+	session.DirectoryStart = cwdStart
+	session.DirectoryEnd = cwdEnd
+	session.BranchStart = branchStart
+	session.BranchEnd = branchEnd
+	session.Branch = branchEnd
 
 	if session.Repository == "" {
 		session.Repository = ingestkit.DeriveRepoFromURL("")
@@ -240,6 +260,7 @@ func (a *Adapter) resolveSessionFromIndex(ctx context.Context, entry codexIndexE
 			session.Repository = filepath.Base(session.Directory)
 		}
 	}
+	session.FillProjectDefaults()
 
 	return session, nil
 }
@@ -267,6 +288,7 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 	defer f.Close()
 	scanner := ingestkit.NewJSONLScanner(f)
 	var msgCount int
+	var cwdEnd string
 	for scanner.Scan() {
 		var env codexEnvelope
 		if json.Unmarshal(scanner.Bytes(), &env) != nil {
@@ -276,8 +298,11 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 		case "session_meta":
 			var meta sessionMetaPayload
 			if json.Unmarshal(env.Payload, &meta) == nil {
-				if s.Directory == "" && meta.CWD != "" {
-					s.Directory = meta.CWD
+				if meta.CWD != "" {
+					if s.Directory == "" {
+						s.Directory = meta.CWD
+					}
+					cwdEnd = meta.CWD
 				}
 				if meta.Git != nil {
 					s.Repository = ingestkit.DeriveRepoFromURL(meta.Git.RepositoryURL)
@@ -294,9 +319,15 @@ func (a *Adapter) parseSessionFileMinimal(_ context.Context, id, fpath string) (
 	if s.Directory == "" {
 		s.Directory = a.basePath
 	}
+	if cwdEnd == "" {
+		cwdEnd = s.Directory
+	}
+	s.DirectoryStart = s.Directory
+	s.DirectoryEnd = cwdEnd
 	if s.Repository == "" {
 		s.Repository = filepath.Base(s.Directory)
 	}
+	s.FillProjectDefaults()
 	return s, nil
 }
 

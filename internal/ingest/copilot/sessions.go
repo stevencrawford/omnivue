@@ -75,20 +75,10 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 			s.DiffFiles = fileCount
 
 			if meta, msgCount := a.metadataFromEvents(s.ID); meta != nil {
-				s.Model = meta.Model
-				s.Cost = meta.Cost
-				s.TokensInput = meta.TokensInput
-				s.TokensOutput = meta.TokensOutput
-				s.TokensReasoning = meta.TokensReasoning
-				s.TokensCacheRead = meta.TokensCacheRead
-				s.TokensCacheWrite = meta.TokensCacheWrite
-				s.DiffAdditions = meta.DiffAdditions
-				s.DiffDeletions = meta.DiffDeletions
-				if meta.DiffFiles > 0 {
-					s.DiffFiles = meta.DiffFiles
-				}
+				applyEventsMetadata(&s, meta)
 				s.MessageCount = msgCount
 			}
+			s.FillProjectDefaults()
 
 			dbIDs[s.ID] = true
 			sessions = append(sessions, s)
@@ -131,20 +121,10 @@ func (a *Adapter) ListSessions(ctx context.Context) ([]ingest.Session, error) {
 				UpdatedAt: info.ModTime(),
 			}
 			if meta, msgCount := a.metadataFromEvents(id); meta != nil {
-				s.Model = meta.Model
-				s.Cost = meta.Cost
-				s.TokensInput = meta.TokensInput
-				s.TokensOutput = meta.TokensOutput
-				s.TokensReasoning = meta.TokensReasoning
-				s.TokensCacheRead = meta.TokensCacheRead
-				s.TokensCacheWrite = meta.TokensCacheWrite
-				s.DiffAdditions = meta.DiffAdditions
-				s.DiffDeletions = meta.DiffDeletions
-				if meta.DiffFiles > 0 {
-					s.DiffFiles = meta.DiffFiles
-				}
+				applyEventsMetadata(&s, meta)
 				s.MessageCount = msgCount
 			}
+			s.FillProjectDefaults()
 			sessions = append(sessions, s)
 		}
 	}
@@ -222,19 +202,9 @@ func (a *Adapter) Session(ctx context.Context, id string) (*ingest.Session, erro
 	}
 
 	if meta, _ := a.metadataFromEvents(id); meta != nil {
-		s.Model = meta.Model
-		s.Cost = meta.Cost
-		s.TokensInput = meta.TokensInput
-		s.TokensOutput = meta.TokensOutput
-		s.TokensReasoning = meta.TokensReasoning
-		s.TokensCacheRead = meta.TokensCacheRead
-		s.TokensCacheWrite = meta.TokensCacheWrite
-		s.DiffAdditions = meta.DiffAdditions
-		s.DiffDeletions = meta.DiffDeletions
-		if meta.DiffFiles > 0 {
-			s.DiffFiles = meta.DiffFiles
-		}
+		applyEventsMetadata(&s, meta)
 	}
+	s.FillProjectDefaults()
 
 	var msgCount int
 	if err := a.db.QueryRowContext(ctx, `

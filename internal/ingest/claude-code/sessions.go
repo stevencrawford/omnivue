@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stevencrawford/omnivue/internal/gitmeta"
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
@@ -116,21 +117,24 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 	scanner := ingestkit.NewJSONLScanner(f)
 
 	var (
-		parentSID    string
-		slug         string
-		cwd          string
-		gitBranch    string
-		firstTS      time.Time
-		lastTS       time.Time
-		model        string
-		msgCount     int
-		tokensIn     int
-		tokensOut    int
-		cacheRead    int
-		cacheWrite   int
-		hasRealUser  bool
-		agentID      string
-		firstUserMsg string
+		parentSID     string
+		slug          string
+		cwdStart      string
+		cwdEnd        string
+		branchStart   string
+		branchEnd     string
+		branchSamples []gitmeta.BranchSample
+		firstTS       time.Time
+		lastTS        time.Time
+		model         string
+		msgCount      int
+		tokensIn      int
+		tokensOut     int
+		cacheRead     int
+		cacheWrite    int
+		hasRealUser   bool
+		agentID       string
+		firstUserMsg  string
 	)
 
 	for scanner.Scan() {
@@ -154,12 +158,18 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 			slug = env.Slug
 		}
 
-		if env.CWD != "" && cwd == "" {
-			cwd = env.CWD
+		if env.CWD != "" {
+			if cwdStart == "" {
+				cwdStart = env.CWD
+			}
+			cwdEnd = env.CWD
 		}
 
-		if env.GitBranch != "" && gitBranch == "" {
-			gitBranch = env.GitBranch
+		if env.GitBranch != "" {
+			if branchStart == "" {
+				branchStart = env.GitBranch
+			}
+			branchEnd = env.GitBranch
 		}
 
 		if env.AgentID != "" && agentID == "" {
@@ -172,6 +182,13 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 		}
 		if ts.After(lastTS) {
 			lastTS = ts
+		}
+		if env.GitBranch != "" {
+			branchSamples = append(branchSamples, gitmeta.BranchSample{
+				Time:   ts,
+				Branch: env.GitBranch,
+				CWD:    env.CWD,
+			})
 		}
 
 		if env.Type == "assistant" && env.Message != nil {
@@ -224,7 +241,7 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 
 	title := deriveTitle(sessionID, slug, firstUserMsg, index)
 
-	repo := ingestkit.DeriveRepository(cwd, "")
+	repo := ingestkit.DeriveRepository(cwdStart, "")
 
 	status := ingest.SessionStatusActive
 	if hasRealUser && lastTS.Before(time.Now().Add(-5*time.Minute)) {
@@ -237,15 +254,20 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 	}
 
 	simplifiedModel := simplifyModelName(model)
-	return &ingest.Session{
+	session := &ingest.Session{
 		ID:               sessionID,
 		Title:            title,
 		Repository:       repo,
-		Branch:           gitBranch,
+		Branch:           branchEnd,
+		BranchStart:      branchStart,
+		BranchEnd:        branchEnd,
+		BranchSamples:    branchSamples,
 		Agent:            ingest.AgentClaudeCode,
 		Model:            simplifiedModel,
 		Cost:             calculateCost(simplifiedModel, tokensIn, tokensOut, cacheWrite, cacheRead),
-		Directory:        cwd,
+		Directory:        cwdStart,
+		DirectoryStart:   cwdStart,
+		DirectoryEnd:     cwdEnd,
 		Status:           status,
 		CreatedAt:        firstTS,
 		UpdatedAt:        lastTS,
@@ -255,7 +277,9 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 		TokensCacheWrite: cacheWrite,
 		MessageCount:     msgCount,
 		SubAgent:         subAgentName,
-	}, nil
+	}
+	session.FillProjectDefaults()
+	return session, nil
 }
 
 func deriveTitle(sessionID, slug, firstUserMsg string, index map[string]sessionIndexEntry) string {

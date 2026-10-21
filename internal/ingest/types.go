@@ -1,6 +1,10 @@
 package ingest
 
-import "time"
+import (
+	"time"
+
+	"github.com/stevencrawford/omnivue/internal/gitmeta"
+)
 
 // AgentType identifies the AI coding agent that produced the session.
 type AgentType string
@@ -92,8 +96,8 @@ const (
 // ToolUsage captures optional per-tool-call resource usage. The zero value (absent
 // Usage pointer on ToolCall) means the adapter records no usage for the tool call.
 type ToolUsage struct {
-	Tokens StepTokens `json:"tokens,omitzero"`
-	Cost   float64    `json:"cost,omitempty"`
+	Tokens StepTokens  `json:"tokens,omitzero"`
+	Cost   float64     `json:"cost,omitempty"`
 	Source UsageSource `json:"source"`
 }
 
@@ -160,6 +164,32 @@ type Session struct {
 	// Message count (used to filter empty sessions)
 	MessageCount int `json:"messageCount"`
 
+	// Project placement. Directory stays the initial cwd for resume and file
+	// access compatibility; DirectoryEnd is the last cwd observed in the
+	// transcript and is what workspace mapping uses.
+	DirectoryStart string `json:"directoryStart,omitempty"`
+	DirectoryEnd   string `json:"directoryEnd,omitempty"`
+
+	BranchStart      string `json:"branchStart,omitempty"`
+	BranchEnd        string `json:"branchEnd,omitempty"`
+	BranchConfidence string `json:"branchConfidence,omitempty"` // recorded|snapshot|current
+
+	WorkspaceRoot   string `json:"workspaceRoot,omitempty"`
+	WorkspaceName   string `json:"workspaceName,omitempty"`
+	WorkspaceKind   string `json:"workspaceKind,omitempty"` // standard|bare
+	WorktreeRoot    string `json:"worktreeRoot,omitempty"`
+	WorktreeRelPath string `json:"worktreeRelPath,omitempty"`
+	GitCommonDir    string `json:"gitCommonDir,omitempty"`
+	RemoteURL       string `json:"remoteUrl,omitempty"`
+
+	IsWorktree       bool `json:"isWorktree,omitempty"`
+	ExternalWorktree bool `json:"externalWorktree,omitempty"`
+	WorktreeMissing  bool `json:"worktreeMissing,omitempty"`
+
+	// BranchSamples are raw in-transcript observations used by the server to
+	// pick the branch at session end. They are never serialized.
+	BranchSamples []gitmeta.BranchSample `json:"-"`
+
 	// Diff summary
 	DiffFiles     int `json:"diffFiles"`
 	DiffAdditions int `json:"diffAdditions"`
@@ -167,6 +197,27 @@ type Session struct {
 
 	// TODOs extracted from agent task tracking (e.g. Copilot's todo table in session.db)
 	TODOs []Todo `json:"todos,omitempty"`
+}
+
+// FillProjectDefaults fills the start/end project fields from the legacy
+// Directory/Branch values. Adapters that only observe a single value call this
+// so the wire format is consistent for every agent.
+func (s *Session) FillProjectDefaults() {
+	if s.DirectoryStart == "" {
+		s.DirectoryStart = s.Directory
+	}
+	if s.DirectoryEnd == "" {
+		s.DirectoryEnd = s.DirectoryStart
+	}
+	if s.BranchEnd == "" {
+		s.BranchEnd = s.Branch
+	}
+	if s.BranchStart == "" {
+		s.BranchStart = s.BranchEnd
+	}
+	if s.BranchEnd != "" {
+		s.Branch = s.BranchEnd
+	}
 }
 
 // Todo represents a tracked task within a session.

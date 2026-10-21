@@ -3,6 +3,7 @@ package copilot
 import (
 	"encoding/json"
 
+	"github.com/stevencrawford/omnivue/internal/gitmeta"
 	"github.com/stevencrawford/omnivue/internal/ingest"
 )
 
@@ -25,6 +26,27 @@ type eventEnvelope struct {
 
 type modelChangeData struct {
 	NewModel string `json:"newModel"`
+}
+
+// sessionContext is the git context carried by session.start events.
+type sessionContext struct {
+	CWD        string `json:"cwd"`
+	GitRoot    string `json:"gitRoot"`
+	Branch     string `json:"branch"`
+	HeadCommit string `json:"headCommit"`
+	Repository string `json:"repository"`
+}
+
+type sessionStartData struct {
+	Context *sessionContext `json:"context"`
+}
+
+// sessionContextChangedData is the payload of a mid-session context change.
+type sessionContextChangedData struct {
+	CWD        string `json:"cwd"`
+	GitRoot    string `json:"gitRoot"`
+	Branch     string `json:"branch"`
+	HeadCommit string `json:"headCommit"`
 }
 
 type subAgentStartedData struct {
@@ -105,6 +127,12 @@ type eventsMetadata struct {
 	DiffAdditions    int
 	DiffDeletions    int
 	DiffFiles        int
+
+	BranchStart   string
+	BranchEnd     string
+	CWDStart      string
+	CWDEnd        string
+	BranchSamples []gitmeta.BranchSample
 }
 
 // subAgentState tracks the buffering of sub-agent events between subagent.started and subagent.completed.

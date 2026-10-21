@@ -4,9 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/stevencrawford/omnivue/internal/gitmeta"
 	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/store"
 )
@@ -22,12 +24,17 @@ type SessionHub struct {
 
 	// names persists session display-name overrides used during refresh.
 	names store.SessionNameStore
+
+	// git resolves workspace/worktree placement and branch history from
+	// read-only filesystem metadata.
+	git *gitmeta.Resolver
 }
 
 func NewSessionHub(names store.SessionNameStore) *SessionHub {
 	return &SessionHub{
 		adapters: make(map[string]ingest.Adapter),
 		names:    names,
+		git:      gitmeta.NewResolver(),
 	}
 }
 
@@ -238,13 +245,27 @@ func (h *SessionHub) ResumeCommand(ctx context.Context, sessionID string) (*Resu
 	if err != nil {
 		return nil, err
 	}
+	dir := resumeDirectory(sess)
 	spec := adapter.ResumeCommand()
 	return &ResumeSpec{
-		Directory:    sess.Directory,
-		Command:      spec.Command(sess.Directory, sess.ID),
+		Directory:    dir,
+		Command:      spec.Command(dir, sess.ID),
 		CommandNoCD:  spec.CommandNoCD(sess.ID),
 		AgentCommand: spec.AgentCommand(sess.ID),
 	}, nil
+}
+
+// resumeDirectory prefers the directory the session ended in when it still
+// exists. A session that moved between worktrees should resume in the last one
+// rather than the checkout where it was opened.
+func resumeDirectory(sess *ingest.Session) string {
+	if sess.DirectoryEnd != "" && sess.DirectoryEnd != sess.Directory {
+		//nolint:gosec // session directories are local paths recorded by the agent
+		if _, err := os.Stat(sess.DirectoryEnd); err == nil {
+			return sess.DirectoryEnd
+		}
+	}
+	return sess.Directory
 }
 
 // SetName applies a display-name override and updates the cached session list
@@ -348,6 +369,10 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 		}
 	}
 
+	// Resolve workspace/worktree placement and the branch each session ended
+	// on before publishing the snapshot.
+	h.enrichProjects(allSessions)
+
 	// Diff against the previous snapshot to identify sessions whose content
 	// has changed since the last refresh.
 	for _, sess := range allSessions {
@@ -380,6 +405,76 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 	h.sessions = allSessions
 	h.mu.Unlock()
 	return changedIDs, liveCount, transitions
+}
+
+// enrichProjects resolves each session's workspace and worktree placement and
+// selects the branch the session ended on. Unresolvable directories leave the
+// placement fields empty so the UI falls back to repository grouping.
+func (h *SessionHub) enrichProjects(sessions []ingest.Session) {
+	resolver := h.git
+	if resolver == nil {
+		resolver = gitmeta.NewResolver()
+	}
+
+	resolved := make(map[string]gitmeta.Info)
+	for i := range sessions {
+		session := &sessions[i]
+		dir := session.DirectoryEnd
+		if dir == "" {
+			dir = session.Directory
+		}
+		if dir == "" {
+			session.FillProjectDefaults()
+			continue
+		}
+
+		info, ok := resolved[dir]
+		if !ok {
+			info = resolver.Resolve(dir)
+			resolved[dir] = info
+		}
+		if !info.Found {
+			session.FillProjectDefaults()
+			continue
+		}
+
+		applyProjectInfo(session, info)
+		branch, confidence := resolver.BranchAt(
+			info,
+			session.Branch,
+			session.CreatedAt,
+			session.UpdatedAt,
+			session.BranchSamples,
+		)
+		if branch != "" {
+			if session.BranchStart == "" {
+				session.BranchStart = session.Branch
+			}
+			session.Branch = branch
+			session.BranchEnd = branch
+			session.BranchConfidence = string(confidence)
+		}
+		session.FillProjectDefaults()
+	}
+}
+
+// applyProjectInfo copies resolved git placement onto a session.
+func applyProjectInfo(session *ingest.Session, info gitmeta.Info) {
+	session.WorkspaceRoot = info.WorkspaceRoot
+	session.WorkspaceName = info.WorkspaceName
+	session.WorkspaceKind = string(info.WorkspaceKind)
+	session.WorktreeRoot = info.WorktreeRoot
+	session.WorktreeRelPath = info.WorktreeRelPath
+	session.GitCommonDir = info.GitCommonDir
+	session.RemoteURL = info.RemoteURL
+	session.IsWorktree = info.IsWorktree
+	session.ExternalWorktree = info.External
+
+	if info.WorktreeRoot != "" {
+		if _, err := os.Stat(info.WorktreeRoot); err != nil {
+			session.WorktreeMissing = true
+		}
+	}
 }
 
 // propagateChildren marks a parent session active when any descendant is
