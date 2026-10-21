@@ -208,6 +208,40 @@ func TestResolveSession_FallbackEnrichesLivenessAndName(t *testing.T) {
 	}
 }
 
+func TestResolveSession_FallbackEnrichesWorkspace(t *testing.T) {
+	wantRepo, wantWorktree := writeWorktreeFixture(t)
+
+	adapter := &mockAdapter{
+		sessions: []ingest.Session{{ID: "sub-3", Directory: wantWorktree, Branch: "main"}},
+	}
+	hub := &SessionHub{
+		adapters: map[string]ingest.Adapter{"src-1": adapter},
+		sessions: []ingest.Session{{ID: "other", SourceID: "src-1"}},
+	}
+
+	sess, _, err := hub.Resolve(context.Background(), "sub-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.WorkspaceRoot != wantRepo {
+		t.Errorf("expected fallback resolution to enrich workspaceRoot = %q, got %q", wantRepo, sess.WorkspaceRoot)
+	}
+	if sess.WorktreeRoot != wantWorktree {
+		t.Errorf("expected worktreeRoot = %q, got %q", wantWorktree, sess.WorktreeRoot)
+	}
+	hub.mu.RLock()
+	enriched := ""
+	for _, s := range hub.sessions {
+		if s.ID == "sub-3" {
+			enriched = s.WorkspaceRoot
+		}
+	}
+	hub.mu.RUnlock()
+	if enriched != wantRepo {
+		t.Errorf("expected cached session to carry workspaceRoot %q, got %q", wantRepo, enriched)
+	}
+}
+
 func TestResolveSession_CachedWithoutAdapterNotDuplicated(t *testing.T) {
 	adapter := &mockAdapter{
 		sessions: []ingest.Session{{ID: "cached-1", SourceID: "src-1", Title: "Cached"}},
