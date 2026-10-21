@@ -299,7 +299,7 @@ export function PromptsPanel({ promptVersion = 0 }: PromptsPanelProps) {
         <button
           type="button"
           onClick={handlePaste}
-          title="Paste from clipboard"
+          aria-label="Paste from clipboard"
           className={`flex items-center justify-center gap-1.5 w-full mb-2 rounded-lg border border-dashed px-2 py-2 text-[11px] cursor-pointer transition-colors ${
             pasteHint
               ? "border-accent-border bg-accent/5 text-accent"
