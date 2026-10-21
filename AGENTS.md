@@ -174,7 +174,7 @@ A change that only adds a new Go struct field, a new API endpoint, or new read l
 
 ### Backups
 
-Before applying any migration to a database that already holds application data (i.e. not a fresh install), `store.New()` creates a pre-migration backup copy of `omnivue.db` (+ WAL checkpoint) in the state directory as `omnivue.db.premigrate-v{from}-<timestamp>.bak`. Fresh installs are not backed up (nothing to lose). On migration failure, `New()` returns a descriptive error and the backup remains on disk for manual recovery; `omnivue reset` remains as the last-resort escape hatch.
+Before applying any migration to a database that already holds application data (i.e. not a fresh install), `store.New()` creates a pre-migration backup copy of `omnivue.db` (+ WAL checkpoint) in the state directory as `omnivue.db.premigrate-v{from}-<timestamp>.bak`. Fresh installs are not backed up (nothing to lose). On migration failure, `New()` returns a descriptive error and the backup remains on disk for manual recovery; the Settings → About reset action (`POST /_/api/reset`) remains as the last-resort escape hatch.
 
 ## API Endpoints
 

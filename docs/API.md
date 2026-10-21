@@ -12,14 +12,17 @@ Returns server status with schema version.
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.3.1",
   "pid": 12345,
   "sources": 3,
   "sessions": 42,
-  "schemaVersion": 10,
+  "schemaVersion": 12,
   "indexed": true
 }
 ```
+
+`indexed` is true once the first full search-index pass has completed; the UI
+shows an indexing placeholder until then.
 
 ## Sources
 
@@ -46,7 +49,10 @@ List configured session sources.
 POST /_/api/sources
 ```
 
-Add a new session source. The `agentType` field is auto-detected if omitted.
+Add a new session source and return it with `201`. The `path` field is
+required; a leading `~/` is expanded. `agentType` defaults to `opencode` when
+omitted (it is not sniffed), and `label` defaults to the registered label for
+the type. `enabled` defaults to false when the field is absent.
 
 ```json
 {
@@ -67,7 +73,7 @@ Remove a source by ID. Returns `204`.
 PATCH /_/api/sources/{id}
 ```
 
-Update a source's path, type, label, or enabled state.
+Update a source's path, type, label, or enabled state. Returns `204`.
 
 ```json
 {
@@ -131,7 +137,36 @@ Set a config key-value pair.
 GET /_/api/sessions
 ```
 
-List all sessions across all enabled sources. Returns an array of `Session` objects.
+List all sessions across all enabled sources. Returns an array of `Session`
+objects. Root sessions omit `parentId`; sub-agents include `parentId` and
+`subAgent`. Status is one of `active`, `completed`, or `archived` (the server
+also applies a liveness heuristic to mark recently-updated sessions active).
+
+```json
+{
+  "id": "ses_abc123",
+  "sourceId": "a1b2c3d4e5f6",
+  "title": "Fix login bug",
+  "repository": "my-app",
+  "branch": "fix/login",
+  "agent": "opencode",
+  "model": "claude-sonnet-4",
+  "cost": 0.42,
+  "directory": "/Users/user/my-app",
+  "status": "completed",
+  "createdAt": "2026-06-01T11:00:00Z",
+  "updatedAt": "2026-06-01T12:00:00Z",
+  "tokensInput": 12000,
+  "tokensOutput": 3400,
+  "tokensReasoning": 800,
+  "tokensCacheRead": 0,
+  "tokensCacheWrite": 0,
+  "messageCount": 18,
+  "diffFiles": 3,
+  "diffAdditions": 84,
+  "diffDeletions": 12
+}
+```
 
 ```http
 GET /_/api/sessions/{id}
@@ -149,25 +184,27 @@ Get session conversation messages, including tool calls, step events, and reason
 GET /_/api/sessions/{id}/plan
 ```
 
-Get the session's implementation plan items. Returns an array of `PlanItem` objects, or `null` if no plan exists.
+Get the session's implementation plan as markdown. Returns `null` if the
+session has no plan.
 
 ```json
-[
-  {
-    "id": "plan_123",
-    "title": "Add login endpoint",
-    "description": "Create POST /api/login route",
-    "status": "completed",
-    "assignedTo": ""
-  }
-]
+{
+  "markdown": "- [x] Add login endpoint\n- [ ] Add rate limiting",
+  "source": "file"
+}
 ```
+
+`source` is `"file"` when the plan came from an agent artifact (for example
+Copilot's `plan.md` or Claude Code's `plans/` directory) and `"synthesized"`
+when it was built from plan-like tool calls or agent tables.
 
 ```http
 GET /_/api/sessions/{id}/diffs
 ```
 
-Get file changes for the session. Each entry includes path, status (added/modified/deleted), and unified diff patch.
+Get file changes for the session. Each entry includes path, status
+(`added`/`modified`/`deleted`/`renamed`), addition/deletion counts, and an
+optional unified diff patch.
 
 ```http
 GET /_/api/sessions/{id}/edits
@@ -298,10 +335,12 @@ List all scratch files across all sessions.
 GET /_/api/search?q=<query>&limit=<n>&session_id=<id>
 ```
 
-Full-text search across indexed session content. Uses SQLite FTS5 syntax.
+Full-text search across indexed session content. Each whitespace-separated
+term is matched as a case-insensitive prefix (`term*`); FTS5 operators typed by
+the user are quoted rather than interpreted.
 
 Parameters:
-- `q` (required) — Search query (FTS5 syntax)
+- `q` (required) — Search terms
 - `limit` (optional, default 50) — Max results
 - `session_id` (optional) — Scope search to a single session
 
@@ -311,7 +350,7 @@ Parameters:
     "sessionId": "abc123",
     "sessionName": "Fix login bug",
     "sourceId": "src1",
-    "chunkType": "messages",
+    "chunkType": "message",
     "repository": "my-app",
     "snippet": "fix the <mark>login</mark> form validation",
     "updatedAt": "2026-06-01T12:00:00Z",
@@ -322,7 +361,10 @@ Parameters:
 ]
 ```
 
-Results are ordered by chunk type (name → plan → messages → scratch) then by FTS rank.
+Session hits are ordered by chunk type (name → plan → message → scratch) then by
+FTS rank. When `session_id` is omitted, tag-name matches are prepended ahead of
+the session hits; those entries set `chunkType` to `tag` and carry `tagName`
+instead of a session ID.
 
 ## Recent Searches
 
@@ -495,13 +537,29 @@ Parameters:
 ]
 ```
 
-Notification kinds: `question`, `permission_request`, `exit_plan_mode`, `task_complete`, `new_messages`, `new_tool_call`, `status_active`, `status_completed`, `status_error`.
+Notification kinds:
+
+| Kind | Severity | Trigger |
+|------|----------|---------|
+| `question` | attention | Agent asked a question (`question`/`ask` tool call) |
+| `permission_request` | attention | Agent requested permission (a permission tool, or a question with Allow/Deny choices) |
+| `exit_plan_mode` | attention | Agent proposed a plan (`exit_plan_mode`) |
+| `task_complete` | info | Agent marked a task complete |
+| `new_messages` | info | One or more new messages arrived |
+| `new_tool_call` | info | A tool call that is not one of the kinds above |
+| `status_active` | info | Session transitioned to active |
+| `status_completed` | info | Session transitioned to completed |
+| `status_error` | info | Session transitioned to an error state |
+
+See [NOTIFICATIONS.md](NOTIFICATIONS.md) for classification, scope, deduplication,
+and delivery behavior.
 
 ```http
 DELETE /_/api/notifications
 ```
 
-Clear all notifications. Returns `200` with `{"status":"ok"}`.
+Clear all notifications. Returns `200` with `{"status":"ok"}` and emits
+`notifications-read` with `{"all":true}`.
 
 ```http
 POST /_/api/notifications/read
@@ -534,20 +592,25 @@ GET /_/api/notifications/settings
 ```
 
 Returns the current notification settings as JSON. `scope` is one of
-`"all"` | `"opened"` | `"pinned"`.
+`"all"` | `"opened"` | `"pinned"` (`pinned` means the session has at least one
+tag). Notifications are opt-in: a fresh install returns the defaults below,
+with `enabled: false` and only the four attention-worthy kinds selected.
 
 ```json
 {
-  "enabled": true,
-  "kinds": ["question", "permission_request", "exit_plan_mode", "task_complete", "new_messages", "new_tool_call", "status_active", "status_completed", "status_error"],
+  "enabled": false,
+  "kinds": ["question", "permission_request", "exit_plan_mode", "task_complete"],
   "scope": "all",
   "inAppToast": true,
   "sidebarBadge": true,
   "browserNotify": false,
-  "excludeActiveView": true,
-  "enabledAt": 1769876543000
+  "excludeActiveView": true
 }
 ```
+
+`enabledAt` (unix ms) appears once notifications have been enabled. It is
+stamped on the first enable so the classifier can ignore messages that existed
+before opt-in; disabling clears it.
 
 ```http
 PUT /_/api/notifications/settings
@@ -558,7 +621,8 @@ Save notification settings. Accepts the same JSON shape as above.
 ## Prompts
 
 Prompts are a global, session-independent pad for keeping the prompts you
-reuse. Entries are ordered by `pinned DESC, position ASC`.
+reuse. Entries are ordered by `pinned DESC, position ASC`. New prompts are
+inserted at `MIN(position) - 1`, so `position` may be negative.
 
 ```http
 GET /_/api/prompts?status=<s>&limit=<n>
@@ -683,7 +747,7 @@ Restart the server. The server spawns a new process before shutting down. Return
 POST /_/api/reset
 ```
 
-Reset all user data: sources, tags, search index, session names, scratch files, config, bookmarks, and notifications. Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
+Reset all user data: sources, tags, prompts, search index, session names, scratch files, config, bookmarks, and notifications (including per-session notification bookkeeping). Agent data on disk is unaffected. Closes all adapters, clears sessions, and sends an SSE `reset` event.
 
 ```json
 {"status": "ok"}

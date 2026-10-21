@@ -146,7 +146,9 @@ Inline PTY terminal inside the session view. Uses xterm.js backed by a WebSocket
 ### Other components
 
 - `AppHeader` — Top bar with home button, search, connection indicator, running version, theme toggle
-- `SessionHeader` — Session detail header with title, model, agent, status, timestamps; terminal toggle; and — when the session has sub-agents — a family selector (`sessions/SessionFamilySelect`) to switch between the main session and its sub-agents
+- `SessionHeader` — Session detail header with title, model, agent, status, timestamps; resume menu (`ResumeButton`), terminal toggle; and — when the session has sub-agents — a family selector (`sessions/SessionFamilySelect`) to switch between the main session and its sub-agents
+- `ResumeButton` — Dropdown that copies the resume command variants (absolute, `cd`-stripped, in-harness) or opens the embedded terminal; also used by overview session rows
+- `session-summary/format.ts` — Duration/number formatting shared by the console and session summaries
 - `UserPromptBubble` — User request bubble (rendered inline in the drawer's prompt tab)
 - `TimeRangeSelector` — Overview time-range filtering
 - `MarkdownScreenshotButton` + `ScreenshotWindow` + `ScreenshotCaptureLayer` — Markdown screenshot capture (`lib/screenshot.ts`, `html-to-image`)
@@ -325,7 +327,10 @@ The tool renderer system uses a registry that auto-discovers renderers, maps too
 
 ## Notification system
 
-The notification system (`lib/browserNotify.ts`) provides:
+See [NOTIFICATIONS.md](NOTIFICATIONS.md) for classification, settings, scope,
+deduplication, and channel behavior.
+
+The delivery helpers (`lib/browserNotify.ts`) provide:
 
 - `canBrowserNotify(settings)` — Checks if OS notifications are permitted
 - `fireBrowserNotification(n)` — Fires a native `Notification` with the session title, click focuses window
