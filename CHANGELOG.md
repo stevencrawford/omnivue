@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.3.2](https://github.com/stevencrawford/omnivue/compare/v0.3.1...v0.3.2) - 2026-10-21
+
+### Other Changes
+- fix(opencode): Read v2 schema only when complete by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/211
+- feat(cinematic): Add activity kind filters by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/213
+- docs: Refresh docs to match current code by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/214
+- feat: Add workspace-aware project navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/215
+- fix: Address review gaps in workspace navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/217
+
 ## [v0.3.1](https://github.com/stevencrawford/omnivue/compare/v0.3.0...v0.3.1) - 2026-10-16
 
 ### Dependency Updates ⬆️
