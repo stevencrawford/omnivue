@@ -111,7 +111,9 @@ function GroupNode({
           className={`shrink-0 transition-transform text-ov-text-secondary ${!isCollapsed ? "rotate-90" : ""}`}
         />
         <span className="truncate flex-1 text-left">{node.name}</span>
-        <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
+        {node.children.length > 1 && (
+          <span className="text-[11px] tabular-nums opacity-70">{node.children.length}</span>
+        )}
       </button>
       {!isCollapsed && (
         <div className="space-y-px mt-px">

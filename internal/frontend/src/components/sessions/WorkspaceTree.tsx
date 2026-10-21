@@ -71,7 +71,7 @@ function GroupRow({
           aria-label="Worktree missing"
         />
       )}
-      <span className="text-[11px] tabular-nums opacity-70">{node.count}</span>
+      {node.count > 1 && <span className="text-[11px] tabular-nums opacity-70">{node.count}</span>}
     </button>
   );
 }
