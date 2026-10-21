@@ -9,7 +9,6 @@ import {
   type ProjectNode,
 } from "../utils/projectTree";
 import { resolveFamilyRoot } from "../utils/sessionFamily";
-import { shortDir } from "../utils/sessionUtils";
 import {
   getDistinctValues,
   filterSessions,
@@ -114,9 +113,7 @@ export function SessionPanel({
 
   const [filters, setFilters] = useState<SessionFilters>({
     agent: null,
-    project: null,
     repository: null,
-    model: null,
   });
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
@@ -167,14 +164,12 @@ export function SessionPanel({
   );
 
   const agents = useMemo(() => getDistinctValues(sessions, "agent"), [sessions]);
-  const projects = useMemo(() => getDistinctValues(sessions, "directory"), [sessions]);
   const repos = useMemo(() => getDistinctValues(sessions, "repository"), [sessions]);
-  const models = useMemo(() => getDistinctValues(sessions, "model"), [sessions]);
 
   const hasFilters = Object.values(filters).some((v) => v !== null);
 
   const clearFilters = useCallback(() => {
-    setFilters({ agent: null, project: null, repository: null, model: null });
+    setFilters({ agent: null, repository: null });
   }, []);
 
   const setFilter = useCallback((key: keyof SessionFilters, value: string | null) => {
@@ -316,23 +311,10 @@ export function SessionPanel({
             onChange={(v) => setFilter("agent", v)}
           />
           <FilterChip
-            label="Project"
-            value={filters.project}
-            options={projects}
-            onChange={(v) => setFilter("project", v)}
-            formatOption={shortDir}
-          />
-          <FilterChip
             label="Repo"
             value={filters.repository}
             options={repos}
             onChange={(v) => setFilter("repository", v)}
-          />
-          <FilterChip
-            label="Model"
-            value={filters.model}
-            options={models}
-            onChange={(v) => setFilter("model", v)}
           />
           {hasFilters && (
             <button
