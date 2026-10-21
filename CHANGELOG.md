@@ -36,6 +36,17 @@
   `feat/file-graph` branch; databases that ran those migrations are stamped at
   version 11 and would otherwise never apply the prompts table.
 
+### Workspace Navigation
+- feat(sessions): derive each session's workspace, worktree, and end-of-session
+  branch from read-only git metadata (`internal/gitmeta`); no repository writes,
+  no subprocesses at runtime, and no `omnivue.db` migration
+- feat(sidebar): group sessions by workspace → worktree → branch, with an
+  opt-in hint and a workspace/worktree/branch breadcrumb in the session header
+- feat(projects): add a Projects channel with a workspace map, worktree table,
+  and per-worktree session lists
+- ingest: Claude Code and Copilot capture branch/cwd transitions from their
+  transcripts; Codex records the first and last turn working directory
+
 ### Other Changes
 - fix(opencode): detect the v2 schema only once both `session_v2` and
   `session_message` exist, re-probe it as the database is read, and report no
