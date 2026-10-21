@@ -131,6 +131,7 @@ func (h *SessionHub) Resolve(ctx context.Context, id string) (*ingest.Session, i
 		}
 		sess.SourceID = sourceID
 		enrichSession(sess, h.names)
+		enrichGitInfo(sess)
 		// Only append to the cache when the session was genuinely absent; a
 		// cached-but-adapter-less session must not be duplicated.
 		if found == nil {
@@ -325,6 +326,10 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 	// Propagate "active" status and latest UpdatedAt from children to parents
 	// so parent sessions reflect sub-agent activity and don't appear "stuck".
 	propagateActive(allSessions)
+
+	// Layer git workspace/branch resolution on top (read-only filesystem
+	// lookups, cached per directory).
+	enrichGit(allSessions)
 
 	// Filter out Copilot sessions with no messages (e.g. sessions created on CLI launch).
 	filtered := allSessions[:0]

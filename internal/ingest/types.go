@@ -17,6 +17,24 @@ const (
 // SessionStatus represents the lifecycle state of a session.
 type SessionStatus string
 
+// BranchSource values record how Session.Branch (branch at session end) was
+// determined, so the UI can render weaker evidence dimmer.
+const (
+	// BranchSourceAdapter means the branch was sampled from the session
+	// transcript itself (strongest evidence; e.g. Claude Code's per-message
+	// gitBranch field).
+	BranchSourceAdapter = "adapter"
+	// BranchSourceAgent means the branch came from the agent's own session
+	// record (e.g. Copilot's branch column, Codex's session_meta git data).
+	BranchSourceAgent = "agent"
+	// BranchSourceReflog means the branch was replayed from the checkout
+	// timeline in <gitdir>/logs/HEAD.
+	BranchSourceReflog = "reflog"
+	// BranchSourceHead means only the checkout's current HEAD was available
+	// (approximate).
+	BranchSourceHead = "head"
+)
+
 const (
 	SessionStatusActive    SessionStatus = "active"
 	SessionStatusCompleted SessionStatus = "completed"
@@ -109,7 +127,6 @@ const (
 
 // PlanItemPriority represents the urgency of a plan item.
 type PlanItemPriority string
-
 const (
 	PlanPriorityHigh   PlanItemPriority = "high"
 	PlanPriorityMedium PlanItemPriority = "medium"
@@ -164,6 +181,23 @@ type Session struct {
 	DiffFiles     int `json:"diffFiles"`
 	DiffAdditions int `json:"diffAdditions"`
 	DiffDeletions int `json:"diffDeletions"`
+
+	// Git workspace layout, resolved server-side from Directory by
+	// internal/gitmeta (adapters never set these): where the session's
+	// checkout sits within the user's folder structure — flat repo, in-repo
+	// .worktrees, or workspace containers with a bare clone.
+	WorkspaceRoot   string `json:"workspaceRoot,omitempty"`
+	WorktreeRoot    string `json:"worktreeRoot,omitempty"`
+	WorktreeRelPath string `json:"worktreeRelPath,omitempty"`
+
+	// Branch layout evidence. Branch is the branch at session end; adapters
+	// that can read branch history set BranchStart when it differs, and the
+	// server falls back to the checkout's reflog otherwise.
+	BranchStart   string `json:"branchStart,omitempty"`
+	BranchSource  string `json:"branchSource,omitempty"`
+	BranchChanged bool   `json:"branchChanged,omitempty"`
+	IsWorktree    bool   `json:"isWorktree,omitempty"`
+	External      bool   `json:"external,omitempty"`
 
 	// TODOs extracted from agent task tracking (e.g. Copilot's todo table in session.db)
 	TODOs []Todo `json:"todos,omitempty"`

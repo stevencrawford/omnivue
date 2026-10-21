@@ -119,7 +119,6 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 		parentSID    string
 		slug         string
 		cwd          string
-		gitBranch    string
 		firstTS      time.Time
 		lastTS       time.Time
 		model        string
@@ -131,6 +130,8 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 		hasRealUser  bool
 		agentID      string
 		firstUserMsg string
+		firstBranch  string
+		lastBranch   string
 	)
 
 	for scanner.Scan() {
@@ -158,8 +159,14 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 			cwd = env.CWD
 		}
 
-		if env.GitBranch != "" && gitBranch == "" {
-			gitBranch = env.GitBranch
+		if env.GitBranch != "" {
+			// Track the full branch timeline: the first sample is where the
+			// session began, the last one where it ended. Sessions that
+			// switched branch mid-session surface as BranchChanged.
+			if firstBranch == "" {
+				firstBranch = env.GitBranch
+			}
+			lastBranch = env.GitBranch
 		}
 
 		if env.AgentID != "" && agentID == "" {
@@ -237,11 +244,21 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 	}
 
 	simplifiedModel := simplifyModelName(model)
+	branchStart := ""
+	if firstBranch != "" && firstBranch != lastBranch {
+		branchStart = firstBranch
+	}
+	branchSource := ""
+	if lastBranch != "" {
+		branchSource = ingest.BranchSourceAdapter
+	}
 	return &ingest.Session{
 		ID:               sessionID,
 		Title:            title,
 		Repository:       repo,
-		Branch:           gitBranch,
+		Branch:           lastBranch,
+		BranchStart:      branchStart,
+		BranchSource:     branchSource,
 		Agent:            ingest.AgentClaudeCode,
 		Model:            simplifiedModel,
 		Cost:             calculateCost(simplifiedModel, tokensIn, tokensOut, cacheWrite, cacheRead),
