@@ -50,13 +50,7 @@ function getInitialCollapsed(): Set<string> {
 function getInitialGroup(): GroupMode {
   try {
     const stored = localStorage.getItem(GROUP_KEY);
-    if (
-      stored === "workspace" ||
-      stored === "repo" ||
-      stored === "cwd" ||
-      stored === "model" ||
-      stored === "none"
-    ) {
+    if (stored === "workspace" || stored === "repo" || stored === "cwd" || stored === "none") {
       return stored;
     }
   } catch {

@@ -4,7 +4,6 @@ const GROUP_LABELS: Record<GroupMode, string> = {
   workspace: "Workspace",
   repo: "Repo",
   cwd: "CWD",
-  model: "Model",
   none: "None",
 };
 

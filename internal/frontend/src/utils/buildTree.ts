@@ -1,6 +1,6 @@
 import type { Session } from "../hooks/types";
 
-export type GroupMode = "workspace" | "repo" | "cwd" | "model" | "none";
+export type GroupMode = "workspace" | "repo" | "cwd" | "none";
 
 export interface TreeNode {
   name: string;
@@ -59,10 +59,6 @@ export function buildTree(sessions: Session[], groupMode: GroupMode = "repo"): T
       case "cwd": {
         const key = session.directory || "Unknown";
         return { key, label: session.directory ? shortDir(session.directory) : "Unknown" };
-      }
-      case "model": {
-        const key = session.model || "Unknown";
-        return { key, label: key };
       }
       default: {
         const key = session.repository || "Unknown";

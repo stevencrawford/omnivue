@@ -69,18 +69,6 @@ describe("buildTree", () => {
     expect(tree.every((n) => n.isGroup)).toBe(true);
   });
 
-  it("groups sessions by raw model string", () => {
-    const sessions = [
-      baseSession({ id: "s1", model: "anthropic/claude-3" }),
-      baseSession({ id: "s2", model: "openai/gpt-4" }),
-    ];
-    const tree = buildTree(sessions, "model");
-    expect(tree).toHaveLength(2);
-    expect(tree.map((n) => n.name)).toEqual(
-      expect.arrayContaining(["anthropic/claude-3", "openai/gpt-4"]),
-    );
-  });
-
   it("returns a flat latest-first list for none", () => {
     const sessions = [
       baseSession({ id: "s1", updatedAt: "2024-01-01T00:00:00Z" }),
