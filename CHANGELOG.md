@@ -44,6 +44,13 @@
   opt-in hint and a workspace/worktree/branch breadcrumb in the session header
 - ingest: Claude Code and Copilot capture branch/cwd transitions from their
   transcripts; Codex records the first and last turn working directory
+- fix(sessions): flag a session whose end-of-session worktree has since been
+  deleted instead of dropping its placement; enrich fallback-resolved sessions
+  so detail responses match the published snapshot
+- fix(gitmeta): stop the repository walk at the home directory without
+  attributing sessions to a home-level dotfiles repository
+- perf(ingest): keep only branch transitions in the branch samples captured
+  from transcripts
 
 ### Other Changes
 - fix(opencode): detect the v2 schema only once both `session_v2` and
