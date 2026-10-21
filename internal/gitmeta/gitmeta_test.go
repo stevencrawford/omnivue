@@ -94,6 +94,32 @@ func TestResolveNoRepo(t *testing.T) {
 	}
 }
 
+func TestResolveDoesNotAttributeToHomeRepository(t *testing.T) {
+	requireGit(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	initRepo(t, home)
+
+	// A session deeper inside home must not be attributed to a home-level
+	// repository (for example a dotfiles repo).
+	sub := filepath.Join(home, "scratch", "notes")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	info := NewResolver().Resolve(sub)
+	if info.Found {
+		t.Fatalf("expected home repository to be ignored, got %+v", info)
+	}
+
+	// Real repositories below home still resolve.
+	repo := filepath.Join(home, "projects", "thing")
+	initRepo(t, repo)
+	info = NewResolver().Resolve(repo)
+	if !info.Found {
+		t.Fatal("expected repository below home to resolve")
+	}
+}
+
 func TestResolveInRepoWorktree(t *testing.T) {
 	requireGit(t)
 	repo := filepath.Join(t.TempDir(), "repo")
@@ -268,7 +294,7 @@ func TestBranchAtEvidenceTiers(t *testing.T) {
 	info := Info{Found: true, Branch: "head-branch"}
 	end := time.Unix(2000, 0)
 
-	branch, confidence := resolver.BranchAt(info, "snapshot", time.Unix(1000, 0), end, []BranchSample{
+	branch, confidence := resolver.BranchAt(info, "snapshot", end, []BranchSample{
 		{Time: time.Unix(1200, 0), Branch: "main"},
 		{Time: time.Unix(1800, 0), Branch: "feat/x"},
 	})
@@ -276,14 +302,37 @@ func TestBranchAtEvidenceTiers(t *testing.T) {
 		t.Fatalf("sample: got %q/%q", branch, confidence)
 	}
 
-	branch, confidence = resolver.BranchAt(info, "snapshot", time.Unix(1000, 0), end, nil)
+	branch, confidence = resolver.BranchAt(info, "snapshot", end, nil)
 	if branch != "snapshot" || confidence != ConfidenceSnapshot {
 		t.Fatalf("snapshot: got %q/%q", branch, confidence)
 	}
 
-	branch, confidence = resolver.BranchAt(info, "", time.Unix(1000, 0), end, nil)
+	branch, confidence = resolver.BranchAt(info, "", end, nil)
 	if branch != "head-branch" || confidence != ConfidenceCurrent {
 		t.Fatalf("head: got %q/%q", branch, confidence)
+	}
+}
+
+func TestLatestSampleSkewFallsBackToClosest(t *testing.T) {
+	end := time.Unix(2000, 0)
+
+	// When every sample is after end (clock skew), the temporally closest
+	// sample to end wins rather than the first one in the list.
+	branch := latestSample([]BranchSample{
+		{Time: time.Unix(2200, 0), Branch: "later"},
+		{Time: time.Unix(2100, 0), Branch: "closer"},
+	}, end)
+	if branch != "closer" {
+		t.Fatalf("skew fallback = %q, want closer", branch)
+	}
+
+	// The normal path still takes the last sample at or before end.
+	branch = latestSample([]BranchSample{
+		{Time: time.Unix(1200, 0), Branch: "main"},
+		{Time: time.Unix(1800, 0), Branch: "feat/x"},
+	}, end)
+	if branch != "feat/x" {
+		t.Fatalf("normal path = %q, want feat/x", branch)
 	}
 }
 
