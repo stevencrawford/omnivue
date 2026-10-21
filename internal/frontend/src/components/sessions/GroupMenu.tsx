@@ -1,9 +1,9 @@
 import type { GroupMode } from "../../utils/buildTree";
 
 const GROUP_LABELS: Record<GroupMode, string> = {
+  workspace: "Workspace",
   repo: "Repo",
   cwd: "CWD",
-  model: "Model",
   none: "None",
 };
 
@@ -11,13 +11,17 @@ interface GroupMenuProps {
   open: boolean;
   groupMode: GroupMode;
   onSelect: (mode: GroupMode) => void;
+  showWorkspace?: boolean;
 }
 
-export function GroupMenu({ open, groupMode, onSelect }: GroupMenuProps) {
+export function GroupMenu({ open, groupMode, onSelect, showWorkspace = false }: GroupMenuProps) {
   if (!open) return null;
+  const modes = (Object.keys(GROUP_LABELS) as GroupMode[]).filter(
+    (mode) => mode !== "workspace" || showWorkspace,
+  );
   return (
     <div className="absolute right-0 top-full mt-1 w-24 bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-20 py-1">
-      {(Object.keys(GROUP_LABELS) as GroupMode[]).map((mode) => (
+      {modes.map((mode) => (
         <button
           key={mode}
           type="button"

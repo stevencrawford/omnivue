@@ -121,6 +121,7 @@ Key gostyle rules that commonly trigger:
   - `pi/` — Pi adapter: reads `~/.pi/agent/sessions/*.jsonl` (JSONL, read-only)
   - `claude-code/` — Claude Code adapter: reads `~/.claude/projects/*/*.jsonl` (JSONL, read-only)
   - `codex/` — Codex adapter: reads `~/.codex/session_index.jsonl` + `~/.codex/sessions/**/*.jsonl` (JSONL, read-only)
+- `internal/gitmeta/` — Read-only git layout resolver: walks `.git` pointers and `commondir` files, enumerates worktrees from `<commonDir>/worktrees/*/gitdir`, and replays `logs/HEAD` checkout entries to pick the branch a session ended on. Pure file reads; no subprocesses and no writes.
 - `internal/store/store.go` — Manages `$XDG_STATE_HOME/omnivue/omnivue.db`: sources, tags, FTS5 search index, scratch files, config, session name overrides
 - `internal/server/server.go` — HTTP server, session state, SSE for live-updates, adaptive polling (5s live / 30s idle)
 - `internal/static/static.go` — `go:generate` + `go:embed` for frontend build output
@@ -136,6 +137,7 @@ Key gostyle rules that commonly trigger:
 - **Read-only agent data**: We NEVER write to agent databases. All SQLite connections use `?mode=ro`. The `OpenReadOnlyDB()` helper enforces this with a write-attempt assertion.
 - **Single instance**: CLI probes `/_/api/status`. If server running, just opens browser.
 - **Unified session model**: Adapters normalize agent-specific formats to common `Session`/`Message` types.
+- **Workspace-aware sessions**: `internal/gitmeta` resolves each session's final directory to `workspaceRoot`/`worktreeRoot` and selects the end-of-session branch from transcript samples, the reflog, an agent snapshot, or the live HEAD (in that order). Workspaces are derived, never user-declared; runtime resolution is read-only and subprocess-free.
 - **Auto-discovery**: `omnivue init` scans known paths (`~/.local/share/opencode`, `~/.copilot`, `~/.cursor`, `~/.pi/agent/sessions`, `~/.claude`, `~/.codex`).
 - **Live-reload via SSE**: Adaptive polling (5s when active sessions, 30s when idle) detects new/changed sessions, sends `update` events to frontend.
 - **Persistent search**: FTS5 in `omnivue.db` indexes all session content incrementally (content-hash dedup).
@@ -257,14 +259,17 @@ Before applying any migration to a database that already holds application data 
   - `TagPanel.tsx` — Tag search/list + session assignment
   - `BookmarkPanel.tsx` — Bookmarked sessions/messages/plans
   - `IconChannel.tsx` — Section navigation toggle
-  - `SessionPanel.tsx` — Session list grouped by repo
+  - `SessionPanel.tsx` — Session list grouped by workspace/worktree/branch (or repo/CWD/model/none)
+  - `sessions/WorkspaceTree.tsx` — Collapsible workspace → worktree → branch → session tree
+  - `sessions/PathBreadcrumb.tsx` — Session header workspace / worktree / branch breadcrumb
+  - `sessions/WorkspaceNudge.tsx` — One-time hint to switch to workspace grouping
   - `sessions/SessionFamilySelect.tsx` — Header dropdown to switch between a session's main view and its sub-agents (sub-agents are not shown in the sidebar tree)
   - `Toast.tsx` — Notification toasts (supports optional click action)
   - `NotificationPanel.tsx` — Notifications list (bell section) with read/unread + filters
   - `NotificationRow.tsx` — Single notification row
   - `TerminalPanel.tsx` — In-browser PTY terminal (xterm.js + WebSocket)
 - Hooks: `useSSE.ts` (SSE with auto-reconnect), `useNavigation.tsx` (session nav context + intent verbs), `useTheme.tsx` (theme state/persistence), `useNotifications.ts` (notification list + settings + active-view tracking), `useNotificationPermission.ts` (browser notification permission), `useTerminal.ts` (WebSocket terminal connect/disconnect/input/resize). API access is via `apiClient.ts` + `schemas.ts`/`types.ts` (no `useApi` barrel).
-- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `reconcileMessages.ts` (preserve message identity across SSE polls), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
+- Utilities: `lib/browserNotify.ts` (OS notification helper), `buildTree.ts` (groups sessions by repository), `projectTree.ts` (workspace/worktree/branch grouping), `reconcileMessages.ts` (preserve message identity across SSE polls), `sessionFamily.ts` (resolves a session's root + sub-agents for the header selector)
 - Theme: nine switchable themes (Ayu, Nord, Catppuccin, Tokyo Night, GitHub, One Monokai, Atom One, Dracula, Night Owl) via `data-theme`/`data-mode`/`data-contrast` attributes
 - localStorage keys use `omnivue-` prefix.
 

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/stevencrawford/omnivue/internal/gitmeta"
+	"github.com/stevencrawford/omnivue/internal/ingest"
 	"github.com/stevencrawford/omnivue/internal/ingest/ingestkit"
 )
 
@@ -49,6 +51,34 @@ func (a *Adapter) metadataFromEvents(sessionID string) (*eventsMetadata, int) {
 				meta.Model = data.NewModel
 			}
 
+		case "session.start":
+			var data sessionStartData
+			if json.Unmarshal(env.Data, &data) == nil && data.Context != nil {
+				meta.BranchStart = data.Context.Branch
+				meta.BranchEnd = data.Context.Branch
+				meta.CWDStart = data.Context.CWD
+				meta.CWDEnd = data.Context.CWD
+				meta.addSample(env.Timestamp, data.Context.Branch, data.Context.CWD)
+			}
+
+		case "session.context_changed":
+			var data sessionContextChangedData
+			if json.Unmarshal(env.Data, &data) == nil {
+				if data.Branch != "" {
+					if meta.BranchStart == "" {
+						meta.BranchStart = data.Branch
+					}
+					meta.BranchEnd = data.Branch
+					meta.addSample(env.Timestamp, data.Branch, data.CWD)
+				}
+				if data.CWD != "" {
+					if meta.CWDStart == "" {
+						meta.CWDStart = data.CWD
+					}
+					meta.CWDEnd = data.CWD
+				}
+			}
+
 		case "session.shutdown":
 			shutdowns.record(env)
 		}
@@ -81,3 +111,52 @@ var (
 	userMsgPrefix      = []byte(`"user.message"`)
 	assistantMsgPrefix = []byte(`"assistant.message"`)
 )
+
+func (m *eventsMetadata) addSample(timestamp, branch, cwd string) {
+	if branch == "" {
+		return
+	}
+	m.BranchSamples = append(m.BranchSamples, gitmeta.BranchSample{
+		Time:   ingestkit.ParseTime(timestamp),
+		Branch: branch,
+		CWD:    cwd,
+	})
+}
+
+// applyEventsMetadata copies the summary and git placement observed in
+// events.jsonl onto a session. All Copilot construction paths use it so list,
+// detail, and DB-less sessions agree.
+func applyEventsMetadata(s *ingest.Session, meta *eventsMetadata) {
+	if meta == nil {
+		return
+	}
+	s.Model = meta.Model
+	s.Cost = meta.Cost
+	s.TokensInput = meta.TokensInput
+	s.TokensOutput = meta.TokensOutput
+	s.TokensReasoning = meta.TokensReasoning
+	s.TokensCacheRead = meta.TokensCacheRead
+	s.TokensCacheWrite = meta.TokensCacheWrite
+	s.DiffAdditions = meta.DiffAdditions
+	s.DiffDeletions = meta.DiffDeletions
+	if meta.DiffFiles > 0 {
+		s.DiffFiles = meta.DiffFiles
+	}
+
+	if meta.BranchStart != "" {
+		s.BranchStart = meta.BranchStart
+	}
+	if meta.BranchEnd != "" {
+		s.BranchEnd = meta.BranchEnd
+	}
+	if meta.CWDStart != "" {
+		s.DirectoryStart = meta.CWDStart
+	}
+	if meta.CWDEnd != "" {
+		s.DirectoryEnd = meta.CWDEnd
+	}
+	if len(meta.BranchSamples) > 0 {
+		s.BranchSamples = meta.BranchSamples
+	}
+	s.FillProjectDefaults()
+}

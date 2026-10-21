@@ -2,8 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, FolderTree, Minus, Plus, Tags } from "lucide-react";
 import type { Session } from "../hooks/types";
 import { buildTree, type GroupMode } from "../utils/buildTree";
+import {
+  buildProjectTree,
+  hasMultipleWorktrees,
+  hasWorkspaceData,
+  type ProjectNode,
+} from "../utils/projectTree";
 import { resolveFamilyRoot } from "../utils/sessionFamily";
-import { shortDir } from "../utils/sessionUtils";
 import {
   getDistinctValues,
   filterSessions,
@@ -15,6 +20,8 @@ import { ContextMenu } from "./ContextMenu";
 import { ManageTagsDialog } from "./ManageTagsDialog";
 import { FilterChip } from "./ui/FilterChip";
 import { SessionTree, type DisplayMode } from "./sessions/SessionTree";
+import { WorkspaceTree } from "./sessions/WorkspaceTree";
+import { WorkspaceNudge } from "./sessions/WorkspaceNudge";
 import { IconBtn } from "./sessions/IconBtn";
 import { GroupMenu } from "./sessions/GroupMenu";
 import { STORAGE_KEYS } from "../utils/storageKeys";
@@ -43,7 +50,7 @@ function getInitialCollapsed(): Set<string> {
 function getInitialGroup(): GroupMode {
   try {
     const stored = localStorage.getItem(GROUP_KEY);
-    if (stored === "repo" || stored === "cwd" || stored === "model" || stored === "none") {
+    if (stored === "workspace" || stored === "repo" || stored === "cwd" || stored === "none") {
       return stored;
     }
   } catch {
@@ -100,9 +107,7 @@ export function SessionPanel({
 
   const [filters, setFilters] = useState<SessionFilters>({
     agent: null,
-    project: null,
     repository: null,
-    model: null,
   });
 
   const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
@@ -127,7 +132,22 @@ export function SessionPanel({
 
   const treeSessions = hideStale ? visibleSessions : filteredSessions;
 
-  const tree = useMemo(() => buildTree(treeSessions, groupMode), [treeSessions, groupMode]);
+  const hasGit = useMemo(() => hasWorkspaceData(sessions), [sessions]);
+  const effectiveGroup: GroupMode = groupMode === "workspace" && !hasGit ? "repo" : groupMode;
+
+  const tree = useMemo(
+    () => (effectiveGroup === "workspace" ? [] : buildTree(treeSessions, effectiveGroup)),
+    [treeSessions, effectiveGroup],
+  );
+  const projectNodes = useMemo(
+    () => (effectiveGroup === "workspace" ? buildProjectTree(treeSessions) : []),
+    [treeSessions, effectiveGroup],
+  );
+
+  const showWorkspaceNudge = useMemo(
+    () => hasGit && effectiveGroup !== "workspace" && hasMultipleWorktrees(treeSessions),
+    [hasGit, effectiveGroup, treeSessions],
+  );
 
   // Sub-agents are surfaced in the main-view family selector, not the tree; when
   // one is active, highlight its family root so the sidebar still shows where
@@ -138,14 +158,12 @@ export function SessionPanel({
   );
 
   const agents = useMemo(() => getDistinctValues(sessions, "agent"), [sessions]);
-  const projects = useMemo(() => getDistinctValues(sessions, "directory"), [sessions]);
   const repos = useMemo(() => getDistinctValues(sessions, "repository"), [sessions]);
-  const models = useMemo(() => getDistinctValues(sessions, "model"), [sessions]);
 
   const hasFilters = Object.values(filters).some((v) => v !== null);
 
   const clearFilters = useCallback(() => {
-    setFilters({ agent: null, project: null, repository: null, model: null });
+    setFilters({ agent: null, repository: null });
   }, []);
 
   const setFilter = useCallback((key: keyof SessionFilters, value: string | null) => {
@@ -173,11 +191,27 @@ export function SessionPanel({
     [saveCollapsed],
   );
 
+  const groupPaths = useMemo(() => {
+    if (effectiveGroup !== "workspace") {
+      return tree.filter((node) => node.isGroup).map((node) => node.fullPath);
+    }
+    const ids: string[] = [];
+    const walk = (nodes: ProjectNode[]) => {
+      for (const node of nodes) {
+        if (node.kind === "session") continue;
+        ids.push(node.id);
+        walk(node.children);
+      }
+    };
+    walk(projectNodes);
+    return ids;
+  }, [effectiveGroup, tree, projectNodes]);
+
   const collapseAll = useCallback(() => {
-    const all = new Set(tree.filter((n) => n.isGroup).map((n) => n.fullPath));
+    const all = new Set(groupPaths);
     setCollapsed(all);
     saveCollapsed(all);
-  }, [tree, saveCollapsed]);
+  }, [groupPaths, saveCollapsed]);
 
   const expandAll = useCallback(() => {
     setCollapsed(new Set());
@@ -208,8 +242,7 @@ export function SessionPanel({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [groupOpen]);
 
-  const groupNodes = tree.filter((n) => n.isGroup);
-  const allCollapsed = groupNodes.length > 0 && groupNodes.every((n) => collapsed.has(n.fullPath));
+  const allCollapsed = groupPaths.length > 0 && groupPaths.every((id) => collapsed.has(id));
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -219,7 +252,7 @@ export function SessionPanel({
           Sessions
         </span>
         <div className="flex items-center gap-0.5">
-          {groupMode !== "none" && (
+          {effectiveGroup !== "none" && (
             <IconBtn
               title={allCollapsed ? "Expand all groups" : "Collapse all groups"}
               onClick={allCollapsed ? expandAll : collapseAll}
@@ -231,7 +264,12 @@ export function SessionPanel({
             <IconBtn title="Group by" onClick={() => setGroupOpen((v) => !v)}>
               <FolderTree size={14} />
             </IconBtn>
-            <GroupMenu open={groupOpen} groupMode={groupMode} onSelect={setGroup} />
+            <GroupMenu
+              open={groupOpen}
+              groupMode={effectiveGroup}
+              onSelect={setGroup}
+              showWorkspace={hasGit}
+            />
           </div>
           <IconBtn
             title={displayMode === "condensed" ? "Verbose view" : "Condensed view"}
@@ -267,23 +305,10 @@ export function SessionPanel({
             onChange={(v) => setFilter("agent", v)}
           />
           <FilterChip
-            label="Project"
-            value={filters.project}
-            options={projects}
-            onChange={(v) => setFilter("project", v)}
-            formatOption={shortDir}
-          />
-          <FilterChip
             label="Repo"
             value={filters.repository}
             options={repos}
             onChange={(v) => setFilter("repository", v)}
-          />
-          <FilterChip
-            label="Model"
-            value={filters.model}
-            options={models}
-            onChange={(v) => setFilter("model", v)}
           />
           {hasFilters && (
             <button
@@ -297,9 +322,31 @@ export function SessionPanel({
         </div>
       </div>
 
+      <WorkspaceNudge show={showWorkspaceNudge} onEnable={() => setGroup("workspace")} />
+
       {/* Session tree */}
       <div className="flex-1 overflow-y-auto px-1.5 pb-2">
-        {tree.length === 0 ? (
+        {effectiveGroup === "workspace" ? (
+          projectNodes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center px-4">
+              <p className="text-xs text-ov-text-secondary/60 max-w-36 leading-relaxed">
+                No git workspaces found. Sessions outside a repository stay in Repo grouping.
+              </p>
+            </div>
+          ) : (
+            <WorkspaceTree
+              nodes={projectNodes}
+              collapsed={collapsed}
+              onToggleCollapse={toggleCollapse}
+              activeSessionId={treeActiveId}
+              onSessionSelect={onSessionSelect}
+              onContextMenu={handleContextMenu}
+              displayMode={displayMode}
+              sessionUnread={sessionUnread}
+              staleIds={staleIds}
+            />
+          )
+        ) : tree.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <svg
               className="size-6 mb-3 text-ov-text-secondary/40"
