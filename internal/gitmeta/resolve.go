@@ -7,8 +7,9 @@ import (
 )
 
 // resolve walks up from dir looking for a .git entry or a bare repository root.
-// It stops at the user's home directory or the filesystem root so a session in
-// an unrelated folder is never attributed to a distant ancestor repository.
+// The user's home directory is treated as the walk limit and is not itself
+// considered a repository boundary, so sessions in unrelated folders are never
+// attributed to a home-level repository (for example a dotfiles repo).
 func resolve(dir string) Info {
 	if _, err := os.Stat(dir); err != nil {
 		return Info{}
@@ -17,18 +18,22 @@ func resolve(dir string) Info {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = ""
+	} else if resolved, err := evalSymlinks(home); err == nil {
+		// Canonicalise so the break comparison matches dirs that Resolve has
+		// already evaluated through symlinks.
+		home = resolved
 	}
 	current := dir
-	for {
+	// current is a canonicalised real directory and never empty, so an empty
+	// home (os.UserHomeDir failed) can never match here and the walk then
+	// stops at the filesystem root.
+	for current != home {
 		gitPath := filepath.Join(current, ".git")
 		if info, err := os.Lstat(gitPath); err == nil {
 			return describe(current, gitPath, info)
 		}
 		if looksLikeGitDir(current) {
 			return describeBareRoot(current)
-		}
-		if current == home {
-			break
 		}
 		parent := filepath.Dir(current)
 		if parent == current {
@@ -37,6 +42,16 @@ func resolve(dir string) Info {
 		current = parent
 	}
 	return Info{}
+}
+
+// evalSymlinks canonicalises path, falling back to cleaning it when resolution
+// fails (for example a dangling path).
+func evalSymlinks(path string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return filepath.Clean(path), err
+	}
+	return resolved, nil
 }
 
 // describe builds Info for a directory that contains the supplied .git entry.

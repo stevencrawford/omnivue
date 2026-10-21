@@ -184,11 +184,16 @@ func (a *Adapter) parseSessionFile(fpath, projectPath string, index map[string]s
 			lastTS = ts
 		}
 		if env.GitBranch != "" {
-			branchSamples = append(branchSamples, gitmeta.BranchSample{
-				Time:   ts,
-				Branch: env.GitBranch,
-				CWD:    env.CWD,
-			})
+			// Record only branch transitions: consecutive duplicates add
+			// memory without changing the branch BranchAt reconstructs at
+			// session end.
+			if n := len(branchSamples); n == 0 || branchSamples[n-1].Branch != env.GitBranch {
+				branchSamples = append(branchSamples, gitmeta.BranchSample{
+					Time:   ts,
+					Branch: env.GitBranch,
+					CWD:    env.CWD,
+				})
+			}
 		}
 
 		if env.Type == "assistant" && env.Message != nil {

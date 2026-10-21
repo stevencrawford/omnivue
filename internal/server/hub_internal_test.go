@@ -50,10 +50,14 @@ func TestResumeDirectoryPrefersEndWhenItExists(t *testing.T) {
 	}
 }
 
-func TestEnrichProjectsUsesWorktreeAndTranscriptBranch(t *testing.T) {
+// writeWorktreeFixture builds a hand-crafted repository with one registered
+// worktree (.worktrees/wt, branch feat/x) and returns the repo and worktree
+// paths, canonicalised through symlinks.
+func writeWorktreeFixture(t *testing.T) (repo, worktree string) {
+	t.Helper()
 	base := t.TempDir()
-	repo := filepath.Join(base, "repo")
-	worktree := filepath.Join(repo, ".worktrees", "wt")
+	repo = filepath.Join(base, "repo")
+	worktree = filepath.Join(repo, ".worktrees", "wt")
 
 	write := func(path, content string) {
 		t.Helper()
@@ -74,10 +78,23 @@ func TestEnrichProjectsUsesWorktreeAndTranscriptBranch(t *testing.T) {
 	write(filepath.Join(admin, "HEAD"), "ref: refs/heads/feat/x\n")
 	write(filepath.Join(worktree, ".git"), "gitdir: "+admin+"\n")
 
+	wantRepo, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantWorktree, err := filepath.EvalSymlinks(worktree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return wantRepo, wantWorktree
+}
+
+func TestEnrichProjectsUsesWorktreeAndTranscriptBranch(t *testing.T) {
+	wantRepo, wantWorktree := writeWorktreeFixture(t)
 	sessions := []ingest.Session{{
 		ID:            "ses-1",
-		Directory:     worktree,
-		DirectoryEnd:  worktree,
+		Directory:     wantWorktree,
+		DirectoryEnd:  wantWorktree,
 		Branch:        "main",
 		CreatedAt:     time.Unix(1000, 0),
 		UpdatedAt:     time.Unix(2000, 0),
@@ -87,14 +104,6 @@ func TestEnrichProjectsUsesWorktreeAndTranscriptBranch(t *testing.T) {
 	NewSessionHub(nil).enrichProjects(sessions)
 	got := sessions[0]
 
-	wantRepo, err := filepath.EvalSymlinks(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantWorktree, err := filepath.EvalSymlinks(worktree)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if got.WorkspaceRoot != wantRepo {
 		t.Fatalf("workspaceRoot = %q, want %q", got.WorkspaceRoot, wantRepo)
 	}
@@ -131,5 +140,48 @@ func TestEnrichProjectsFallsBackWhenDirectoryIsNotInRepo(t *testing.T) {
 	}
 	if got.DirectoryStart == "" || got.DirectoryEnd == "" {
 		t.Fatalf("expected directory defaults, got %+v", got)
+	}
+}
+
+func TestEnrichProjectsFlagsMissingEndDirectory(t *testing.T) {
+	wantRepo, wantWorktree := writeWorktreeFixture(t)
+	gone := filepath.Join(filepath.Dir(wantRepo), "removed-worktree")
+
+	sessions := []ingest.Session{{
+		ID:           "ses-1",
+		Directory:    wantWorktree,
+		DirectoryEnd: gone,
+		Branch:       "main",
+	}}
+	NewSessionHub(nil).enrichProjects(sessions)
+	got := sessions[0]
+
+	if got.WorkspaceRoot != wantRepo {
+		t.Fatalf("workspaceRoot = %q, want %q", got.WorkspaceRoot, wantRepo)
+	}
+	if got.WorktreeRoot != wantWorktree {
+		t.Fatalf("worktreeRoot = %q, want %q", got.WorktreeRoot, wantWorktree)
+	}
+	if !got.WorktreeMissing {
+		t.Fatal("expected worktreeMissing for a deleted end directory")
+	}
+}
+
+func TestEnrichProjectsLeavesMissingWhenNoFallbackExists(t *testing.T) {
+	base := t.TempDir()
+	gone := filepath.Join(base, "gone")
+
+	// Directory and DirectoryEnd both point at the deleted directory: there is
+	// no fallback, so placement stays empty rather than being flagged.
+	sessions := []ingest.Session{{
+		ID:           "ses-1",
+		Directory:    gone,
+		DirectoryEnd: gone,
+		Branch:       "main",
+	}}
+	NewSessionHub(nil).enrichProjects(sessions)
+	got := sessions[0]
+	if got.WorkspaceRoot != "" || got.WorktreeMissing {
+		t.Fatalf("expected no placement, got %+v", got)
 	}
 }

@@ -163,7 +163,7 @@ func (r *Resolver) Resolve(dir string) Info {
 
 // BranchAt picks the branch a session ended on, preferring evidence recorded
 // inside the session over agent snapshots and the live worktree HEAD.
-func (r *Resolver) BranchAt(info Info, snapshot string, start, end time.Time, samples []BranchSample) (string, Confidence) {
+func (r *Resolver) BranchAt(info Info, snapshot string, end time.Time, samples []BranchSample) (string, Confidence) {
 	if branch := latestSample(samples, end); branch != "" {
 		return branch, ConfidenceRecorded
 	}
@@ -180,7 +180,8 @@ func (r *Resolver) BranchAt(info Info, snapshot string, start, end time.Time, sa
 }
 
 // latestSample returns the last non-empty sample observed at or before end.
-// If every sample is after end (clock skew), the first sample is used.
+// If every sample is after end (clock skew), the temporally closest sample to
+// end is used.
 func latestSample(samples []BranchSample, end time.Time) string {
 	best := ""
 	var bestTime time.Time
@@ -197,9 +198,13 @@ func latestSample(samples []BranchSample, end time.Time) string {
 		return best
 	}
 	for _, sample := range samples {
-		if sample.Branch != "" {
-			return sample.Branch
+		if sample.Branch == "" {
+			continue
+		}
+		if best == "" || sample.Time.Before(bestTime) {
+			best = sample.Branch
+			bestTime = sample.Time
 		}
 	}
-	return ""
+	return best
 }

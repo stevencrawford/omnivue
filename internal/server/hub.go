@@ -138,6 +138,12 @@ func (h *SessionHub) Resolve(ctx context.Context, id string) (*ingest.Session, i
 		}
 		sess.SourceID = sourceID
 		enrichSession(sess, h.names)
+		// Fallback-resolved sessions bypass refreshSessions, so enrich their
+		// workspace placement here to match refresh-published sessions.
+		var enriched []ingest.Session
+		enriched = append(enriched, *sess)
+		h.enrichProjects(enriched)
+		*sess = enriched[0]
 		// Only append to the cache when the session was genuinely absent; a
 		// cached-but-adapter-less session must not be duplicated.
 		if found == nil {
@@ -409,7 +415,9 @@ func (h *SessionHub) refreshSessions(ctx context.Context) (changedIDs []string, 
 
 // enrichProjects resolves each session's workspace and worktree placement and
 // selects the branch the session ended on. Unresolvable directories leave the
-// placement fields empty so the UI falls back to repository grouping.
+// placement fields empty so the UI falls back to repository grouping; a final
+// directory that has since been deleted resolves against the initial directory
+// instead and is flagged as missing.
 func (h *SessionHub) enrichProjects(sessions []ingest.Session) {
 	resolver := h.git
 	if resolver == nil {
@@ -433,16 +441,32 @@ func (h *SessionHub) enrichProjects(sessions []ingest.Session) {
 			info = resolver.Resolve(dir)
 			resolved[dir] = info
 		}
+		missing := false
+		if !info.Found {
+			// The final directory may have been removed since the session
+			// ended. Fall back to the initial directory so placement survives,
+			// and flag the worktree as missing for the UI.
+			if alt := session.Directory; alt != "" && alt != dir {
+				altInfo, altOk := resolved[alt]
+				if !altOk {
+					altInfo = resolver.Resolve(alt)
+					resolved[alt] = altInfo
+				}
+				if altInfo.Found {
+					info = altInfo
+					missing = true
+				}
+			}
+		}
 		if !info.Found {
 			session.FillProjectDefaults()
 			continue
 		}
 
-		applyProjectInfo(session, info)
+		applyProjectInfo(session, info, missing)
 		branch, confidence := resolver.BranchAt(
 			info,
 			session.Branch,
-			session.CreatedAt,
 			session.UpdatedAt,
 			session.BranchSamples,
 		)
@@ -458,8 +482,9 @@ func (h *SessionHub) enrichProjects(sessions []ingest.Session) {
 	}
 }
 
-// applyProjectInfo copies resolved git placement onto a session.
-func applyProjectInfo(session *ingest.Session, info gitmeta.Info) {
+// applyProjectInfo copies resolved git placement onto a session. missing marks
+// the session's end-of-session directory as absent at enrich time.
+func applyProjectInfo(session *ingest.Session, info gitmeta.Info, missing bool) {
 	session.WorkspaceRoot = info.WorkspaceRoot
 	session.WorkspaceName = info.WorkspaceName
 	session.WorkspaceKind = string(info.WorkspaceKind)
@@ -469,12 +494,7 @@ func applyProjectInfo(session *ingest.Session, info gitmeta.Info) {
 	session.RemoteURL = info.RemoteURL
 	session.IsWorktree = info.IsWorktree
 	session.ExternalWorktree = info.External
-
-	if info.WorktreeRoot != "" {
-		if _, err := os.Stat(info.WorktreeRoot); err != nil {
-			session.WorktreeMissing = true
-		}
-	}
+	session.WorktreeMissing = missing
 }
 
 // propagateChildren marks a parent session active when any descendant is

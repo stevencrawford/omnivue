@@ -116,6 +116,11 @@ func (m *eventsMetadata) addSample(timestamp, branch, cwd string) {
 	if branch == "" {
 		return
 	}
+	// Record only branch transitions: consecutive duplicates add memory
+	// without changing the branch BranchAt reconstructs at session end.
+	if n := len(m.BranchSamples); n > 0 && m.BranchSamples[n-1].Branch == branch {
+		return
+	}
 	m.BranchSamples = append(m.BranchSamples, gitmeta.BranchSample{
 		Time:   ingestkit.ParseTime(timestamp),
 		Branch: branch,
