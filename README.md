@@ -21,6 +21,7 @@ Omnivue is a 100% local multi-agent session manager for your AI coding sessions.
 ## Features
 
 - **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex out of the box
+- **Sub-agent awareness** — Sub-agent transcripts are grouped under their root session and switchable from the session header's family selector
 - **Cinematic session view** — Full-screen playable workspace: a timeline scrubber with playback, turn isolation, an activity/plan/prompt drawer, a console, and a file-access tree
 - **File viewer** — Browse the files a session read or edited; render markdown from disk and view merged diffs in place
 - **Embedded terminal** — In-browser PTY that runs the agent's resume command (xterm.js + WebSocket)
@@ -74,6 +75,27 @@ make build
 ./omnivue --foreground --port 16275
 ```
 
+## CLI
+
+| Command | Purpose |
+|---------|---------|
+| `omnivue` | Start the server in the background and open the browser |
+| `omnivue init` | Discover agent data locations and interactively add sources |
+| `omnivue add <path> [--type <agent>]` | Add a source manually; the type is auto-detected unless forced |
+| `omnivue --foreground` | Run the server in the foreground |
+| `omnivue --status [--json]` | Show running servers |
+| `omnivue --shutdown` | Stop the running server |
+| `omnivue --restart` | Restart the running server |
+| `omnivue version [--json]` | Print version and revision |
+| `omnivue upgrade [--check]` | Upgrade from GitHub releases, or check for a newer version |
+
+Common flags: `--port` / `-p` (default `6275`), `--bind` / `-b` (default
+`localhost`), `--open`, `--no-open`, `--debug` / `-d`.
+
+Omnivue's own state (sources, tags, prompts, search index, scratch notes,
+bookmarks, notification settings) lives in
+`$XDG_STATE_HOME/omnivue/omnivue.db`. Agent databases are only ever read.
+
 ## Keyboard shortcuts
 
 | Key | Action |
@@ -92,7 +114,12 @@ make build
 
 ## Documentation
 
-For detailed documentation, API reference, adapter guide, and frontend overview, see the [docs/](docs/) directory.
+| Document | Contents |
+|----------|----------|
+| [docs/API.md](docs/API.md) | HTTP endpoints, request/response shapes, SSE events, terminal protocol |
+| [docs/ADAPTERS.md](docs/ADAPTERS.md) | Supported agents, data formats, capabilities, resume commands, adding an adapter |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | Frontend stack, component catalog, hooks, state, localStorage keys, tool renderers |
+| [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) | Notification kinds, settings, scope, deduplication, delivery channels |
 
 ## License
 

@@ -25,17 +25,21 @@ Adapters are the pluggable interface between Omnivue and AI coding agent data st
 | | | `~/.codex/sessions/**/*.jsonl` | JSONL (sessions; plans and diffs parsed inline) |
 
 Detection notes (`internal/ingest/detect.go`, `registry.go`):
-- OpenCode probes the schema once at construction: the presence of the
-  `session_message` table selects the v2 code path, otherwise v1. A v2 database
-  keeps a frozen copy of the v1 tables, so the `session_message` table is the
-  authoritative signal.
+- OpenCode re-probes the schema on every read, so a running server picks up an
+  OpenCode upgrade without a restart. v2 requires **both** `session_v2` and
+  `session_message`; v1 is selected when the `session` table exists; a database
+  with neither (fresh, or mid-migration) yields no sessions. Requiring both v2
+  tables avoids `no such table: session_v2` while OpenCode creates them one
+  statement at a time. A v2 database keeps a frozen copy of the v1 tables, so
+  the v2 pair is the authoritative signal.
 - Cursor resolves to the `state.vscdb` **file** (checks the given path,
   `<path>/state.vscdb`, and the standard macOS/Linux globalStorage
   locations), so its `Source.Path` is a file while other adapters use
   directories.
 - Copilot is detected when either `session-store.db` or `session-state/`
   exists, but construction requires `session-store.db`.
-- Codex falls back to the parent directory when expanding `~/`-prefixed paths.
+- Codex expands a leading `~/` itself and falls back to the parent directory
+  when the given path has no `session_index.jsonl`.
 
 ## Adapter capabilities
 
