@@ -147,8 +147,14 @@ func TestGitResolverCaches(t *testing.T) {
 	_, fixDir := fixtureBareWorkspace(t)
 	first := gitResolver.Resolve(fixDir)
 	second := gitResolver.Resolve(fixDir)
-	firstJSON, _ := json.Marshal(first)
-	secondJSON, _ := json.Marshal(second)
+	firstJSON, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondJSON, err := json.Marshal(second)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if string(firstJSON) != string(secondJSON) {
 		t.Errorf("cached resolution drifted: %s vs %s", firstJSON, secondJSON)
 	}

@@ -153,38 +153,6 @@ func (r *Resolver) MapWorkspace(root string) Workspace {
 	return ws
 }
 
-func (r *Resolver) mapLookup(root string, now time.Time) (Workspace, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	e, ok := r.cache[mapKey(root)]
-	if !ok || now.After(e.expires) {
-		return Workspace{}, false
-	}
-	return e.workspace, true
-}
-
-func (r *Resolver) mapStore(root string, ws Workspace, now time.Time) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.cache[mapKey(root)] = cacheEntry{workspace: ws, expires: now.Add(cacheTTL)}
-}
-
-func (r *Resolver) infoLookup(dir string, now time.Time) (Info, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	e, ok := r.cache[dir]
-	if !ok || now.After(e.expires) {
-		return Info{}, false
-	}
-	return e.info, true
-}
-
-func (r *Resolver) infoStore(dir string, info Info, now time.Time) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.cache[dir] = cacheEntry{info: info, expires: now.Add(cacheTTL)}
-}
-
 func mapKey(root string) string {
 	return "map:" + root
 }
@@ -474,6 +442,40 @@ func (r *Resolver) BranchAt(dir string, start, end time.Time) BranchUse {
 	return out
 }
 
+// mapLookup, mapStore, infoLookup and infoStore are the TTL-cache accessors
+// backing Resolve, MapWorkspace and BranchAt.
+func (r *Resolver) mapLookup(root string, now time.Time) (Workspace, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	e, ok := r.cache[mapKey(root)]
+	if !ok || now.After(e.expires) {
+		return Workspace{}, false
+	}
+	return e.workspace, true
+}
+
+func (r *Resolver) mapStore(root string, ws Workspace, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cache[mapKey(root)] = cacheEntry{workspace: ws, expires: now.Add(cacheTTL)}
+}
+
+func (r *Resolver) infoLookup(dir string, now time.Time) (Info, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	e, ok := r.cache[dir]
+	if !ok || now.After(e.expires) {
+		return Info{}, false
+	}
+	return e.info, true
+}
+
+func (r *Resolver) infoStore(dir string, info Info, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cache[dir] = cacheEntry{info: info, expires: now.Add(cacheTTL)}
+}
+
 // branchAtTime returns the branch in effect at t. When no entry precedes t the
 // fallback answers the branch that existed just before the first recorded
 // checkout (the first entry's origin), or finally deflt.
@@ -538,7 +540,7 @@ func parseReflog(path string) []checkoutEntry {
 		return nil
 	}
 	var entries []checkoutEntry
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if line == "" {
 			continue
 		}

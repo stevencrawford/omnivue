@@ -203,7 +203,7 @@ func TestMapWorkspace_EnumeratesUnpopulatedWorktrees(t *testing.T) {
 	if len(workspace.Worktrees) != 4 {
 		t.Fatalf("worktree count = %d, want 4: %+v", len(workspace.Worktrees), workspace.Worktrees)
 	}
-	rels := []string{}
+	var rels []string
 	for _, wk := range workspace.Worktrees {
 		rels = append(rels, wk.RelPath)
 	}
@@ -239,17 +239,17 @@ func TestResolve_RelativeGitdir(t *testing.T) {
 		t.Fatal(err)
 	}
 	pointerPath := filepath.Join(relDir, ".git")
-	if err := os.WriteFile(pointerPath, []byte("gitdir: ../.bare/worktrees/rel-checkout\n"), 0o644); err != nil {
+	if err := os.WriteFile(pointerPath, []byte("gitdir: ../.bare/worktrees/rel-checkout\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	gitDir := filepath.Join(ws, ".bare", "worktrees", "rel-checkout")
 	if err := os.MkdirAll(gitDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/rel-branch\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/rel-branch\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "commondir"), []byte("../..\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(gitDir, "commondir"), []byte("../..\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
