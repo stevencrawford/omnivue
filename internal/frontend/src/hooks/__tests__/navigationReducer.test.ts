@@ -330,7 +330,7 @@ describe("navigationReducer", () => {
     });
 
     it("resets to the default tab when hydrating a different session", () => {
-      const next = navigationReducer(base({ activeSessionId: "s1", activeTab: "diffs" }), {
+      const next = navigationReducer(base({ activeSessionId: "s1", activeTab: "workspace" }), {
         type: "HYDRATE_SESSION",
         id: "s2",
       });

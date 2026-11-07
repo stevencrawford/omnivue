@@ -30,7 +30,7 @@ import { SessionTabBar, type SessionTab } from "./SessionTabBar";
 import { PromptPanel } from "./PromptPanel";
 import { ActivityPanel } from "./ActivityPanel";
 import { PlanPanel } from "./PlanPanel";
-import { DiffsPanel } from "./DiffsPanel";
+import { WorkspacePanel } from "./WorkspacePanel";
 import { TerminalPanel } from "../TerminalPanel";
 import { useTimeline } from "../../hooks/useTimeline";
 import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
@@ -693,7 +693,7 @@ export function CinematicSessionView({
   const handleSelectScratch = useCallback(
     (id: string) => {
       setSelectedScratchId(id);
-      handleSessionTabChange("diffs");
+      handleSessionTabChange("workspace");
     },
     [handleSessionTabChange],
   );
@@ -705,7 +705,7 @@ export function CinematicSessionView({
       setSelectedScratchId(f.id);
       setSelectedPath("");
       setCreateScratchOpen(false);
-      handleSessionTabChange("diffs");
+      handleSessionTabChange("workspace");
     } catch (err) {
       showErrorToast(err, "Failed to create scratch file");
     }
@@ -778,7 +778,7 @@ export function CinematicSessionView({
       if (cancelled) return;
       setSelectedScratchId(pinnedScratchId);
       setSelectedPath("");
-      handleSessionTabChange("diffs");
+      handleSessionTabChange("workspace");
     })();
     return () => {
       cancelled = true;
@@ -811,10 +811,18 @@ export function CinematicSessionView({
     setTerminalOpen((v) => !v);
   }, [onJumpTerminal]);
 
+  // Plan is optional: a session without a generated plan has no Plan tab.
+  const planHasContent = (plan?.markdown.trim().length ?? 0) > 0;
+  // A plan intent keeps the tab (and its loading pane) around while the plan
+  // request is in flight, so a real plan can reveal itself. Once the request
+  // settles without a plan the view falls back to Activity.
+  const showPlanTab = planHasContent || (sessionTab === "plan" && planLoading);
+  const effectiveTab: SessionTab = sessionTab === "plan" && !showPlanTab ? "activity" : sessionTab;
+
   // Target routing. `activeTab` is a persistent navigation intent:
   // - "plan" opens Plan (plan bookmarks, plan search hits, Cmd+2)
-  // - "diffs"/"prompt" open their panes (Cmd+3/Cmd+4)
-  // - `scratch:<id>` selects the scratch file and opens Diffs
+  // - "workspace"/"prompt" open their panes (Cmd+3/Cmd+4)
+  // - `scratch:<id>` selects the scratch file and opens Workspace
   // - "session"/"activity" (and any focus jump) land on Activity, so the
   //   spotlighted message is visible.
   // The timeline cursor is never moved by a jump.
@@ -824,8 +832,8 @@ export function CinematicSessionView({
       setSessionTab("plan");
       return;
     }
-    if (activeTab === "diffs") {
-      setSessionTab("diffs");
+    if (activeTab === "workspace") {
+      setSessionTab("workspace");
       return;
     }
     if (activeTab === "prompt") {
@@ -835,11 +843,21 @@ export function CinematicSessionView({
     if (activeTab.startsWith("scratch:")) {
       setSelectedScratchId(activeTab.slice(8));
       setSelectedPath("");
-      setSessionTab("diffs");
+      setSessionTab("workspace");
       return;
     }
     setSessionTab("activity");
   }, [focusMessageKey, activeTab]);
+
+  // A plan intent (bookmark, search hit, Cmd+2) on a session with no plan must
+  // not strand the user on a hidden tab: once the plan request settles, hand
+  // the view back to Activity. Running after the routing effect above means a
+  // freshly-arrived intent is evaluated on the next render, when `planLoading`
+  // is already true.
+  useEffect(() => {
+    if (sessionTab !== "plan" || planLoading || planHasContent) return;
+    handleSessionTabChange("activity");
+  }, [sessionTab, planLoading, planHasContent, handleSessionTabChange]);
 
   const firstMessage = messages[0];
 
@@ -921,10 +939,11 @@ export function CinematicSessionView({
 
           <div className="flex flex-1 flex-col overflow-hidden min-h-0">
             <SessionTabBar
-              active={sessionTab}
+              active={effectiveTab}
               onChange={handleSessionTabChange}
               activityFilters={activityFilters}
               onActivityFiltersChange={handleActivityFiltersChange}
+              showPlan={showPlanTab}
             />
             {loading && messages.length === 0 ? (
               <LoadingState label="Loading session…" />
@@ -934,7 +953,7 @@ export function CinematicSessionView({
                   id="session-panel-prompt"
                   role="tabpanel"
                   aria-labelledby="session-tab-prompt"
-                  className={`h-full min-h-0 ${sessionTab === "prompt" ? "" : "hidden"}`}
+                  className={`h-full min-h-0 ${effectiveTab === "prompt" ? "" : "hidden"}`}
                 >
                   <PromptPanel firstMessage={firstMessage} onOpenModal={handleOpenModal} />
                 </div>
@@ -942,7 +961,7 @@ export function CinematicSessionView({
                   id="session-panel-activity"
                   role="tabpanel"
                   aria-labelledby="session-tab-activity"
-                  className={`h-full min-h-0 ${sessionTab === "activity" ? "" : "hidden"}`}
+                  className={`h-full min-h-0 ${effectiveTab === "activity" ? "" : "hidden"}`}
                 >
                   <ActivityPanel
                     session={session}
@@ -950,7 +969,7 @@ export function CinematicSessionView({
                     cursor={cursor}
                     maxIndex={maxIndex}
                     selectedSpan={selectedSpan}
-                    active={sessionTab === "activity"}
+                    active={effectiveTab === "activity"}
                     onOpenModal={handleOpenModal}
                     filters={activityFilters}
                     onFiltersChange={handleActivityFiltersChange}
@@ -965,7 +984,7 @@ export function CinematicSessionView({
                   id="session-panel-plan"
                   role="tabpanel"
                   aria-labelledby="session-tab-plan"
-                  className={`h-full min-h-0 ${sessionTab === "plan" ? "" : "hidden"}`}
+                  className={`h-full min-h-0 ${effectiveTab === "plan" ? "" : "hidden"}`}
                 >
                   <PlanPanel
                     session={session}
@@ -978,12 +997,12 @@ export function CinematicSessionView({
                   />
                 </div>
                 <div
-                  id="session-panel-diffs"
+                  id="session-panel-workspace"
                   role="tabpanel"
-                  aria-labelledby="session-tab-diffs"
-                  className={`h-full min-h-0 ${sessionTab === "diffs" ? "" : "hidden"}`}
+                  aria-labelledby="session-tab-workspace"
+                  className={`h-full min-h-0 ${effectiveTab === "workspace" ? "" : "hidden"}`}
                 >
-                  <DiffsPanel
+                  <WorkspacePanel
                     session={session}
                     messages={messages}
                     cursor={cursor}

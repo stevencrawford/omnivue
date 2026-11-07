@@ -22,7 +22,7 @@ Omnivue is a 100% local multi-agent session manager for your AI coding sessions.
 
 - **Multi-agent support** — OpenCode, Copilot, Cursor, Pi, Claude Code, and Codex out of the box
 - **Sub-agent awareness** — Sub-agent transcripts are grouped under their root session and switchable from the session header's family selector
-- **Cinematic session view** — Full-screen playable workspace: a timeline scrubber with playback, turn isolation, one tabbed pane for prompt/activity/plan/diffs, a console, and a file-access tree
+- **Cinematic session view** — Full-screen playable workspace: a timeline scrubber with playback, turn isolation, one tabbed pane for prompt/activity/plan/workspace, a console, and a file-access tree
 - **File viewer** — Browse the files a session read or edited; render markdown from disk and view merged diffs in place
 - **Embedded terminal** — In-browser PTY that runs the agent's resume command (xterm.js + WebSocket)
 - **Conversation viewer** — Full message history with tool calls, reasoning, and step events
@@ -104,7 +104,7 @@ bookmarks, notification settings) lives in
 | `k` / `↑` | Select previous session |
 | `⌘1` / `Ctrl+1` | Activity tab |
 | `⌘2` / `Ctrl+2` | Plan tab |
-| `⌘3` / `Ctrl+3` | Diffs tab |
+| `⌘3` / `Ctrl+3` | Workspace tab |
 | `⌘4` / `Ctrl+4` | Prompt tab |
 | `⌘K` / `Ctrl+K` | Open search palette (scoped to active session) |
 | `↑` / `↓` | Navigate search results |

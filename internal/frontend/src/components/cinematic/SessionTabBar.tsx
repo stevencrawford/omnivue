@@ -3,7 +3,7 @@ import type { ActivityFilters } from "../../utils/activityFilters";
 import { ActivityFilterMenu } from "./ActivityFilterMenu";
 
 /** The four panes of the session workspace. */
-export type SessionTab = "prompt" | "activity" | "plan" | "diffs";
+export type SessionTab = "prompt" | "activity" | "plan" | "workspace";
 
 const TABS: ReadonlyArray<{
   id: SessionTab;
@@ -13,7 +13,7 @@ const TABS: ReadonlyArray<{
   { id: "prompt", label: "Prompt", Icon: MessageSquare },
   { id: "activity", label: "Activity", Icon: Activity },
   { id: "plan", label: "Plan", Icon: FileText },
-  { id: "diffs", label: "Diffs", Icon: FileDiff },
+  { id: "workspace", label: "Workspace", Icon: FileDiff },
 ];
 
 interface SessionTabBarProps {
@@ -21,6 +21,8 @@ interface SessionTabBarProps {
   onChange: (tab: SessionTab) => void;
   activityFilters: ActivityFilters;
   onActivityFiltersChange: (next: ActivityFilters) => void;
+  /** Plan is only offered when the session actually has a plan. */
+  showPlan: boolean;
 }
 
 /**
@@ -32,14 +34,16 @@ export function SessionTabBar({
   onChange,
   activityFilters,
   onActivityFiltersChange,
+  showPlan,
 }: SessionTabBarProps) {
+  const tabs = showPlan ? TABS : TABS.filter((tab) => tab.id !== "plan");
   return (
     <div
       role="tablist"
       aria-label="Session panes"
       className="flex items-center px-3 h-10 border-b border-ov-border bg-surface-elevated shrink-0 min-w-0"
     >
-      {TABS.map(({ id, label, Icon }) => (
+      {tabs.map(({ id, label, Icon }) => (
         <button
           key={id}
           id={`session-tab-${id}`}

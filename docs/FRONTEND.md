@@ -80,13 +80,13 @@ Analytics dashboard shown when the overview is active. Includes:
 
 `CinematicSessionView` is the **sole** session presentation: a full-screen workspace composed of
 - `TimelineScrubber` — timeline cursor with play/pause, step, speed, and go-live controls; Shift+Click isolates a contiguous range of turns
-- `SessionTabBar` — one full-width pane with four tabs: **Prompt**, **Activity** (default), **Plan**, and **Diffs**
+- `SessionTabBar` — one full-width pane with up to four tabs: **Prompt**, **Activity** (default), **Plan**, and **Workspace**. Plan is only offered when the session actually has a plan
 - `ActivityPanel` — the timeline-filtered conversation, reasoning, and tool calls
 - `PlanPanel` / `PromptPanel` — the session plan and its initial prompt
-- `DiffsPanel` — `FileAccessTree` + `FileDetail` (reads/edits/writes/deletes + scratch files) and `ConsolePane`, all filtered by the cursor/span
+- `WorkspacePanel` — `FileAccessTree` + `FileDetail` (reads/edits/writes/deletes + scratch files) and `ConsolePane`, all filtered by the cursor/span
 - `TerminalPanel` (toggled from the header), scratch editor, and a markdown modal for the expanded file viewer
 
-All four panes stay mounted and are hidden with `className="hidden"` so scroll position, tree state, and jump landing survive tab switches. `⌘1`–`⌘4` switch Activity/Plan/Diffs/Prompt; opening a session defaults to Activity unless a navigation intent (plan bookmark, scratch hit) says otherwise. Tree width and console height/collapse persist via `omnivue-cinematic-*` localStorage keys. The session view falls back to 5s polling while a session is active, on top of SSE.
+All panes stay mounted and are hidden with `className="hidden"` so scroll position, tree state, and jump landing survive tab switches. `⌘1`–`⌘4` switch Activity/Plan/Workspace/Prompt; opening a session defaults to Activity unless a navigation intent (plan bookmark, scratch hit) says otherwise. A plan intent on a session with no plan falls back to Activity once the plan request settles. Tree width and console height/collapse persist via `omnivue-cinematic-*` localStorage keys. The session view falls back to 5s polling while a session is active, on top of SSE.
 
 Each activity item can contain:
 - User request text (`UserPromptBubble`)
@@ -282,9 +282,9 @@ All use `omnivue-` prefix (centralized in `utils/storageKeys.ts` as `STORAGE_KEY
 | `omnivue-sidebar-collapsed` | Collapsed repo groups | `SessionPanel` |
 | `omnivue-sidebar-group` | Session group-by option | `SessionPanel` |
 | `omnivue-sidebar-display` | Condensed/verbose | `SessionPanel` |
-| `omnivue-cinematic-tree-width` | Diffs tree width | `DiffsPanel` (`useResizable`) |
-| `omnivue-cinematic-console-height` | Diffs console height | `DiffsPanel` (`useResizable`) |
-| `omnivue-cinematic-console-collapsed` | Diffs console collapsed | `DiffsPanel` |
+| `omnivue-cinematic-tree-width` | Workspace tree width | `WorkspacePanel` (`useResizable`) |
+| `omnivue-cinematic-console-height` | Workspace console height | `WorkspacePanel` (`useResizable`) |
+| `omnivue-cinematic-console-collapsed` | Workspace console collapsed | `WorkspacePanel` |
 | `omnivue-cinematic-activity-filters` | Activity kind visibility filters | `ActivityFilterMenu` |
 | `omnivue-cinematic-tree-filters` | File-tree kind visibility filters | `FileAccessTree` |
 | `omnivue-tags-expanded` | Expanded tags | `TagPanel` |

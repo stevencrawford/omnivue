@@ -9,7 +9,7 @@ import {
 } from "../../../utils/activityFilters";
 import { STORAGE_KEYS } from "../../../utils/storageKeys";
 
-function renderBar(onChange = vi.fn()) {
+function renderBar(onChange = vi.fn(), showPlan = true) {
   return render(
     <SessionTabBar
       active="activity"
@@ -21,6 +21,7 @@ function renderBar(onChange = vi.fn()) {
         tool: true,
       }}
       onActivityFiltersChange={() => {}}
+      showPlan={showPlan}
     />,
   );
 }
@@ -31,7 +32,7 @@ describe("SessionTabBar", () => {
     expect(screen.getByRole("tab", { name: "Prompt" })).toBeDefined();
     expect(screen.getByRole("tab", { name: "Activity" })).toBeDefined();
     expect(screen.getByRole("tab", { name: "Plan" })).toBeDefined();
-    expect(screen.getByRole("tab", { name: "Diffs" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Workspace" })).toBeDefined();
   });
 
   it("marks the active tab selected", () => {
@@ -45,13 +46,20 @@ describe("SessionTabBar", () => {
   it("reports tab clicks", () => {
     const onChange = vi.fn();
     renderBar(onChange);
-    fireEvent.click(screen.getByRole("tab", { name: "Diffs" }));
-    expect(onChange).toHaveBeenCalledWith("diffs");
+    fireEvent.click(screen.getByRole("tab", { name: "Workspace" }));
+    expect(onChange).toHaveBeenCalledWith("workspace");
   });
 
   it("only shows the activity filter menu on the activity tab", () => {
     renderBar();
     expect(screen.getByRole("button", { name: /filter activity/i })).toBeDefined();
+  });
+
+  it("hides the Plan tab when the session has no plan", () => {
+    renderBar(vi.fn(), false);
+    expect(screen.queryByRole("tab", { name: "Plan" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Activity" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Workspace" })).toBeDefined();
   });
 });
 
@@ -72,6 +80,7 @@ describe("SessionTabBar activity filters", () => {
         onChange={() => {}}
         activityFilters={filters}
         onActivityFiltersChange={handleChange}
+        showPlan
       />
     );
   }

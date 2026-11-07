@@ -12,7 +12,7 @@ import { ScratchEditor } from "../ScratchEditor";
 const TREE_DEFAULT_WIDTH = 280;
 const CONSOLE_DEFAULT_HEIGHT = 260;
 
-interface DiffsPanelProps {
+interface WorkspacePanelProps {
   session: Session;
   messages: Message[];
   cursor: number;
@@ -34,10 +34,10 @@ interface DiffsPanelProps {
 }
 
 /**
- * The old centre column as a single tab: file-access tree, selected file/diff
- * (or scratch editor), and the timeline-synced console.
+ * The Workspace tab: file-access tree, selected file/diff (or scratch editor),
+ * and the timeline-synced console.
  */
-export function DiffsPanel({
+export function WorkspacePanel({
   session,
   messages,
   cursor,
@@ -56,7 +56,7 @@ export function DiffsPanel({
   selectedMergedDiff,
   onJump,
   onOpenMarkdown,
-}: DiffsPanelProps) {
+}: WorkspacePanelProps) {
   const { value: treeWidth, startResize: startTreeResize } = useResizable({
     storageKey: STORAGE_KEYS.CINEMATIC_TREE_WIDTH,
     axis: "horizontal",

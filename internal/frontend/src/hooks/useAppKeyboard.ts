@@ -112,7 +112,7 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
         const tabMap: Record<string, Tab> = {
           "1": "activity",
           "2": "plan",
-          "3": "diffs",
+          "3": "workspace",
           "4": "prompt",
         };
         const tab = tabMap[e.key];

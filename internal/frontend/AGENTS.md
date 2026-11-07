@@ -140,7 +140,7 @@ export async function fetchSessions(): Promise<Session[]> {
 
 ### Session view
 - The cinematic view (`components/cinematic/`) is the sole session presentation. The
-  workspace tabs (Prompt/Activity/Plan/Diffs) keep their panels mounted and toggle
+  workspace tabs (Prompt/Activity/Plan/Workspace) keep their panels mounted and toggle
   visibility with `className="hidden"`, so scroll position, tree state, and jump landing
   survive tab switches. Activity is the default tab on session open; `⌘1`–`⌘4` switch
   tabs. These are simple `useState`, not Effect.

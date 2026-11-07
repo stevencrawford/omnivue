@@ -19,7 +19,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: "Esc", desc: "Back to parent session (sub-agent)" },
       { keys: "⌘1", desc: "Activity tab" },
       { keys: "⌘2", desc: "Plan tab" },
-      { keys: "⌘3", desc: "Diffs tab" },
+      { keys: "⌘3", desc: "Workspace tab" },
       { keys: "⌘4", desc: "Prompt tab" },
     ],
   },

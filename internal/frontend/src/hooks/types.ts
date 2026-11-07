@@ -59,11 +59,11 @@ export type Prompt = z.infer<typeof PromptSchema>;
 
 // The session view's active tab, driven by the navigation store. Cinematic is
 // the only session presentation, so the live values are the four workspace
-// panes — prompt, activity, plan, and diffs — plus a per-file scratch editor
-// (`scratch:<fileId>`). "session" is kept as the default/Activity alias for
-// older intents; search hits and keyboard shortcuts set these, and the view
+// panes — prompt, activity, plan, and workspace — plus a per-file scratch
+// editor (`scratch:<fileId>`). "session" is kept as the default/Activity alias
+// for older intents; search hits and keyboard shortcuts set these, and the view
 // routes on them.
-export type Tab = "session" | "activity" | "prompt" | "plan" | "diffs" | `scratch:${string}`;
+export type Tab = "session" | "activity" | "prompt" | "plan" | "workspace" | `scratch:${string}`;
 
 // Decoding target for AppNotification.payload (an opaque JSON string stored in
 // the wire format). Not runtime-validated, so it stays a hand-written shape.
