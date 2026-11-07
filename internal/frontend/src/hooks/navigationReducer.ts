@@ -291,20 +291,31 @@ export function navigationReducer(
           action.delta,
         ),
         showOverview: false,
+        activeTab: "session",
         searchHighlightQuery: null,
       };
     }
-    case "HYDRATE_SESSION":
+    case "HYDRATE_SESSION": {
+      // Re-hydrating the session the reducer already selected must preserve the
+      // active tab: a plan bookmark (or scratch search hit) dispatches its
+      // intent — which sets activeSessionId and activeTab — and then pushes the
+      // route, whose hydration lands here. Resetting the tab would undo the
+      // intent. Hydrating a *different* session (back/forward, deep link) is a
+      // genuine session open, so it starts on the default Activity tab.
+      const sameSession = action.id === state.activeSessionId;
       return {
         ...state,
         activeSessionId: action.id,
         showOverview: false,
+        activeTab: sameSession ? state.activeTab : "session",
       };
+    }
     case "HYDRATE_OVERVIEW":
       return {
         ...state,
         activeSessionId: null,
         showOverview: true,
+        activeTab: "session",
       };
     default:
       return state;

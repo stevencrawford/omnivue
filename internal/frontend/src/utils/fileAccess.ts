@@ -70,7 +70,7 @@ export function isDrawerTool(tool: ToolCall): boolean {
   const k = effectiveToolKind(tool);
   // Activity is the fallback for anything without a dedicated panel
   // (tree/fileviewer handles files, console handles shell). Keep in sync
-  // with NON_ACTIVITY_KINDS in cinematic/NotificationDrawer.tsx.
+  // with NON_ACTIVITY_KINDS in cinematic/ActivityPanel.tsx.
   return (
     k !== "read" && k !== "edit" && k !== "write" && k !== "delete" && k !== "bash" && k !== "sql"
   );

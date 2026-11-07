@@ -254,7 +254,7 @@ Before applying any migration to a database that already holds application data 
 - Key components:
   - `App.tsx` — Root state, session selection, keyboard shortcuts, URL hash deep-linking
   - `Sidebar.tsx` — Resizable, collapsible sidebar; icon-channel nav (sessions/prompts/tags/bookmarks/notifications)
-  - `cinematic/CinematicSessionView.tsx` — The sole session view: full-screen workspace (timeline scrubber + playback, activity/plan/prompt drawer, console, file-access tree, markdown viewer, terminal)
+  - `cinematic/CinematicSessionView.tsx` — The sole session view: full-screen workspace (timeline scrubber + playback, one tabbed pane for Prompt/Activity/Plan/Workspace, console, file-access tree, markdown viewer, terminal)
   - `PromptsPanel.tsx` — Global prompt pad (type/paste, copy, pin, reorder, done)
   - `MarkdownContent.tsx` — Markdown renderer with syntax highlighting
   - `DiffRenderer.tsx` — Inline unified diff rendering

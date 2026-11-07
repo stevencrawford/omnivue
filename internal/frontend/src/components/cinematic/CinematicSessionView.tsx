@@ -22,15 +22,16 @@ import {
 } from "../../hooks/apiClient";
 import { isAbortError } from "../../utils/errors";
 import { useToast } from "../../hooks/useToast";
+import { useNavigation } from "../../hooks/useNavigation";
 import { SessionHeader } from "../SessionHeader";
 import { reconcileMessages } from "../../utils/reconcileMessages";
 import { TimelineScrubber } from "./TimelineScrubber";
-import { FileAccessTree } from "./FileAccessTree";
-import { FileDetail } from "./FileDetail";
-import { ConsolePane } from "./ConsolePane";
-import { NotificationDrawer, type ActivityTab } from "./NotificationDrawer";
+import { SessionTabBar, type SessionTab } from "./SessionTabBar";
+import { PromptPanel } from "./PromptPanel";
+import { ActivityPanel } from "./ActivityPanel";
+import { PlanPanel } from "./PlanPanel";
+import { WorkspacePanel } from "./WorkspacePanel";
 import { TerminalPanel } from "../TerminalPanel";
-import { ScratchEditor } from "../ScratchEditor";
 import { useTimeline } from "../../hooks/useTimeline";
 import { deriveFileAccess, type FileAccess } from "../../utils/fileAccess";
 import { mergeFileEdits, relativizePath, type MergedFileDiff } from "../../utils/diffTree";
@@ -38,25 +39,14 @@ import { Modal } from "../ui/Modal";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { LoadingState } from "../ui/LoadingState";
 import { useCopy } from "../../hooks/useCopy";
-import {
-  Check,
-  Copy,
-  PanelRightOpen,
-  Activity,
-  MessageSquare,
-  FileText,
-  FilePlus,
-} from "lucide-react";
+import { Check, Copy, FilePlus } from "lucide-react";
 import { MarkdownScreenshotButton } from "../MarkdownScreenshotButton";
-import { useResizable } from "../../hooks/useResizable";
-import { useElementWidth } from "../../hooks/useElementWidth";
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from "../../utils/storageKeys";
 import { isSpanContained, mergeSpanRange } from "../../utils/spanRange";
 import {
-  DRAWER_DEFAULT_WIDTH,
-  TREE_DEFAULT_WIDTH,
-  shouldAutoCollapseDrawer,
-} from "../../utils/cinematicLayout";
+  loadActivityFilters,
+  saveActivityFilters,
+  type ActivityFilters,
+} from "../../utils/activityFilters";
 
 interface CinematicSessionViewProps {
   session: Session;
@@ -118,27 +108,10 @@ export function CinematicSessionView({
     null,
   );
   const [terminalOpen, setTerminalOpen] = useState(false);
-  // The user's resting preference for the activity drawer, persisted across
-  // reloads and never touched by the width-driven auto-collapse.
-  const [drawerCollapsedPref, setDrawerCollapsedPref] = useState(
-    () => getStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED) === "true",
-  );
-  // Transient width-driven collapse. Deliberately not persisted: it is
-  // recomputed from the row width, so widening the window — or collapsing the
-  // LHS session list — restores whatever the user had chosen.
-  const [autoCollapsed, setAutoCollapsed] = useState(false);
-  // Set when the user (or a jump) explicitly expands the drawer on a narrow
-  // row, so the width-driven collapse does not immediately override them.
-  const [autoCollapseOverride, setAutoCollapseOverride] = useState(false);
-  const drawerCollapsed = drawerCollapsedPref || (autoCollapsed && !autoCollapseOverride);
-  const [consoleCollapsed, setConsoleCollapsed] = useState(
-    () => getStorageItem(STORAGE_KEYS.CINEMATIC_CONSOLE_COLLAPSED) === "true",
-  );
-  const [activityTab, setActivityTab] = useState<ActivityTab>(() => {
-    const v = getStorageItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_TAB);
-    if (v === "activity" || v === "prompt" || v === "plan") return v;
-    return "activity";
-  });
+  // The workspace tab. Every session opens on Activity; explicit navigation
+  // intents (plan bookmarks, scratch hits, keyboard shortcuts) override it.
+  const [sessionTab, setSessionTab] = useState<SessionTab>("activity");
+  const [activityFilters, setActivityFilters] = useState<ActivityFilters>(loadActivityFilters);
   const [selectedSpan, setSelectedSpan] = useState<{
     start: number;
     end: number;
@@ -149,9 +122,25 @@ export function CinematicSessionView({
   // inside the current range is a no-op (never shrinks).
   const anchorSpanRef = useRef<{ start: number; end: number } | null>(null);
   const { showErrorToast } = useToast();
+  const { setTab: setNavigationTab } = useNavigation();
+
+  // Switching tabs is also a navigation intent so the keyboard shortcuts and
+  // the tab strip never disagree about which pane is showing.
+  const handleSessionTabChange = useCallback(
+    (tab: SessionTab) => {
+      setSessionTab(tab);
+      setNavigationTab(tab);
+    },
+    [setNavigationTab],
+  );
+
+  const handleActivityFiltersChange = useCallback((next: ActivityFilters) => {
+    setActivityFilters(next);
+    saveActivityFilters(next);
+  }, []);
 
   // Search/message jump target. The timeline cursor is never moved by a jump:
-  // the drawer spotlight-includes the target message and scrolls to it.
+  // the Activity pane spotlight-includes the target message and scrolls to it.
   const { spotlightId } = useCinematicSearchJump({
     messages,
     loading,
@@ -161,57 +150,6 @@ export function CinematicSessionView({
     focusMessageKey,
     onClearFocus,
   });
-
-  const expandDrawer = useCallback(() => {
-    setDrawerCollapsedPref(false);
-    setAutoCollapseOverride(true);
-    setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "false");
-  }, []);
-
-  const { value: treeWidth, startResize: startTreeResize } = useResizable({
-    storageKey: STORAGE_KEYS.CINEMATIC_TREE_WIDTH,
-    axis: "horizontal",
-    min: 180,
-    max: 700,
-    defaultValue: TREE_DEFAULT_WIDTH,
-  });
-  const { value: drawerWidth, startResize: startDrawerResize } = useResizable({
-    storageKey: STORAGE_KEYS.CINEMATIC_DRAWER_WIDTH,
-    axis: "horizontal",
-    min: 260,
-    max: 900,
-    defaultValue: DRAWER_DEFAULT_WIDTH,
-    invert: true,
-  });
-  const { value: consoleHeight, startResize: startConsoleResize } = useResizable({
-    storageKey: STORAGE_KEYS.CINEMATIC_CONSOLE_HEIGHT,
-    axis: "vertical",
-    min: 140,
-    max: 650,
-    defaultValue: 260,
-  });
-
-  // The session row (tree | diff | drawer) is measured to decide when the
-  // activity drawer must auto-collapse. It deliberately excludes the LHS
-  // session sidebar, so collapsing that sidebar widens the row and restores the
-  // drawer on its own — no cross-component wiring needed.
-  const [rowRef, rowWidth] = useElementWidth<HTMLDivElement>();
-  const wasNarrowRef = useRef(false);
-  useEffect(() => {
-    if (rowWidth === null) return;
-    const narrow = shouldAutoCollapseDrawer(rowWidth);
-    const wasNarrow = wasNarrowRef.current;
-    wasNarrowRef.current = narrow;
-    if (narrow) {
-      setAutoCollapsed(true);
-      // A fresh narrow episode clears any earlier manual override so the
-      // drawer collapses again on the next squeeze.
-      if (!wasNarrow) setAutoCollapseOverride(false);
-    } else {
-      setAutoCollapsed(false);
-      setAutoCollapseOverride(false);
-    }
-  }, [rowWidth]);
 
   const loadRef = useRef<{ id: number; controller: AbortController | null }>({
     id: 0,
@@ -546,6 +484,8 @@ export function CinematicSessionView({
 
   const handleJumpToMessage = useCallback(
     (messageIndex: number, messageId?: string) => {
+      // Jumping out of a diff means the target message must become visible.
+      handleSessionTabChange("activity");
       anchorSpanRef.current = null;
       setSelectedSpan(null);
       releaseJumpFocus();
@@ -571,7 +511,14 @@ export function CinematicSessionView({
         }
       }
     },
-    [events, setCursorRaw, eventIndexByToolId, fileAccessAll, releaseJumpFocus],
+    [
+      events,
+      setCursorRaw,
+      eventIndexByToolId,
+      fileAccessAll,
+      releaseJumpFocus,
+      handleSessionTabChange,
+    ],
   );
 
   const visibleAccess = useMemo(() => {
@@ -743,9 +690,13 @@ export function CinematicSessionView({
     setSelectedScratchId(null);
   }, []);
 
-  const handleSelectScratch = useCallback((id: string) => {
-    setSelectedScratchId(id);
-  }, []);
+  const handleSelectScratch = useCallback(
+    (id: string) => {
+      setSelectedScratchId(id);
+      handleSessionTabChange("workspace");
+    },
+    [handleSessionTabChange],
+  );
 
   const handleCreateScratch = useCallback(async () => {
     try {
@@ -754,10 +705,11 @@ export function CinematicSessionView({
       setSelectedScratchId(f.id);
       setSelectedPath("");
       setCreateScratchOpen(false);
+      handleSessionTabChange("workspace");
     } catch (err) {
       showErrorToast(err, "Failed to create scratch file");
     }
-  }, [session.id, showErrorToast]);
+  }, [session.id, showErrorToast, handleSessionTabChange]);
 
   const handleRenameScratch = useCallback(
     async (id: string, title: string) => {
@@ -826,11 +778,12 @@ export function CinematicSessionView({
       if (cancelled) return;
       setSelectedScratchId(pinnedScratchId);
       setSelectedPath("");
+      handleSessionTabChange("workspace");
     })();
     return () => {
       cancelled = true;
     };
-  }, [pinnedScratchId, loadScratchFiles]);
+  }, [pinnedScratchId, loadScratchFiles, handleSessionTabChange]);
 
   const handleOpenModal = useCallback((content: string, title?: string) => {
     setMarkdownModal({ content, title });
@@ -858,65 +811,53 @@ export function CinematicSessionView({
     setTerminalOpen((v) => !v);
   }, [onJumpTerminal]);
 
-  const toggleDrawer = useCallback(() => {
-    if (drawerCollapsed) {
-      expandDrawer();
-    } else {
-      setDrawerCollapsedPref(true);
-      setStorageItem(STORAGE_KEYS.CINEMATIC_DRAWER_COLLAPSED, "true");
-    }
-  }, [drawerCollapsed, expandDrawer]);
+  // Plan is optional: a session without a generated plan has no Plan tab.
+  const planHasContent = (plan?.markdown.trim().length ?? 0) > 0;
+  // A plan intent keeps the tab (and its loading pane) around while the plan
+  // request is in flight, so a real plan can reveal itself. Once the request
+  // settles without a plan the view falls back to Activity.
+  const showPlanTab = planHasContent || (sessionTab === "plan" && planLoading);
+  const effectiveTab: SessionTab = sessionTab === "plan" && !showPlanTab ? "activity" : sessionTab;
 
-  const toggleConsole = useCallback(() => {
-    setConsoleCollapsed((v) => {
-      const next = !v;
-      setStorageItem(STORAGE_KEYS.CINEMATIC_CONSOLE_COLLAPSED, String(next));
-      return next;
-    });
-  }, []);
-
-  const handleActivityTabChange = useCallback((tab: ActivityTab) => {
-    setActivityTab(tab);
-    setStorageItem(STORAGE_KEYS.CINEMATIC_ACTIVITY_TAB, tab);
-  }, []);
-
-  const handleCollapsedActivitySelect = useCallback(
-    (tab: ActivityTab) => {
-      handleActivityTabChange(tab);
-      if (drawerCollapsed) expandDrawer();
-    },
-    [drawerCollapsed, handleActivityTabChange, expandDrawer],
-  );
-
-  // Target routing. Two independent triggers share this effect:
-  // - `activeTab` is a persistent navigation intent: "plan" opens the plan tab
-  //   (plan bookmarks, plan search hits, Cmd+2), `scratch:<id>` selects the
-  //   scratch file. It must fire on the value itself, not on the focus key —
-  //   plan bookmarks carry no message focus.
-  // - a message jump (focus key advanced, `activeTab === "session"`) reveals
-  //   the activity drawer so the spotlighted message is visible, and returning
-  //   to the session tab from plan/scratch hands the drawer back to activity.
+  // Target routing. `activeTab` is a persistent navigation intent:
+  // - "plan" opens Plan (plan bookmarks, plan search hits, Cmd+2)
+  // - "workspace"/"prompt" open their panes (Cmd+3/Cmd+4)
+  // - `scratch:<id>` selects the scratch file and opens Workspace
+  // - "session"/"activity" (and any focus jump) land on Activity, so the
+  //   spotlighted message is visible.
   // The timeline cursor is never moved by a jump.
-  const prevNavTabRef = useRef<Tab | undefined>(undefined);
   useEffect(() => {
-    const prev = prevNavTabRef.current;
-    prevNavTabRef.current = activeTab;
+    if (!activeTab) return;
     if (activeTab === "plan") {
-      handleActivityTabChange("plan");
-      expandDrawer();
+      setSessionTab("plan");
       return;
     }
-    if (activeTab?.startsWith("scratch:")) {
+    if (activeTab === "workspace") {
+      setSessionTab("workspace");
+      return;
+    }
+    if (activeTab === "prompt") {
+      setSessionTab("prompt");
+      return;
+    }
+    if (activeTab.startsWith("scratch:")) {
       setSelectedScratchId(activeTab.slice(8));
       setSelectedPath("");
+      setSessionTab("workspace");
       return;
     }
-    const returnedToSession = prev !== undefined && prev !== "session";
-    if (focusMessageKey !== 0 || returnedToSession) {
-      handleActivityTabChange("activity");
-      expandDrawer();
-    }
-  }, [focusMessageKey, activeTab, handleActivityTabChange, expandDrawer]);
+    setSessionTab("activity");
+  }, [focusMessageKey, activeTab]);
+
+  // A plan intent (bookmark, search hit, Cmd+2) on a session with no plan must
+  // not strand the user on a hidden tab: once the plan request settles, hand
+  // the view back to Activity. Running after the routing effect above means a
+  // freshly-arrived intent is evaluated on the next render, when `planLoading`
+  // is already true.
+  useEffect(() => {
+    if (sessionTab !== "plan" || planLoading || planHasContent) return;
+    handleSessionTabChange("activity");
+  }, [sessionTab, planLoading, planHasContent, handleSessionTabChange]);
 
   const firstMessage = messages[0];
 
@@ -996,167 +937,93 @@ export function CinematicSessionView({
             onClearSpan={handleClearSpan}
           />
 
-          <div ref={rowRef} className="flex flex-1 overflow-hidden min-h-0">
+          <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+            <SessionTabBar
+              active={effectiveTab}
+              onChange={handleSessionTabChange}
+              activityFilters={activityFilters}
+              onActivityFiltersChange={handleActivityFiltersChange}
+              showPlan={showPlanTab}
+            />
             {loading && messages.length === 0 ? (
               <LoadingState label="Loading session…" />
             ) : (
-              <>
-                <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-                  <div className="flex flex-1 overflow-hidden min-h-0">
-                    <div
-                      className="shrink-0 overflow-hidden flex flex-col border-r border-ov-border"
-                      style={{ width: treeWidth }}
-                    >
-                      <FileAccessTree
-                        accesses={treeAccesses}
-                        selectedPath={selectedPath}
-                        onSelect={handleSelectFile}
-                        scratchFiles={scratchFiles}
-                        selectedScratchId={selectedScratchId}
-                        onSelectScratch={handleSelectScratch}
-                        onNewScratch={
-                          !session.parentId ? () => setCreateScratchOpen(true) : undefined
-                        }
-                        onRenameScratch={handleRenameScratch}
-                        onDeleteScratch={(id) => setDeleteScratchId(id)}
-                      />
-                    </div>
-                    <div
-                      className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-                      onMouseDown={startTreeResize}
-                    >
-                      <div className="absolute inset-y-0 -left-1 -right-1" />
-                    </div>
-                    {selectedScratchId ? (
-                      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                        <ScratchEditor
-                          key={selectedScratchId}
-                          sessionId={session.id}
-                          fileId={selectedScratchId}
-                        />
-                      </div>
-                    ) : (
-                      <FileDetail
-                        access={selectedAccess}
-                        fileName={selectedPath.split("/").pop() || selectedPath}
-                        mergedDiff={selectedMergedDiff}
-                        sessionDirectory={session.directory}
-                        onJump={handleJumpToMessage}
-                        onOpenMarkdown={handleOpenMarkdown}
-                      />
-                    )}
-                  </div>
-
-                  {!consoleCollapsed && (
-                    <div
-                      className="h-1 shrink-0 bg-ov-border hover:bg-accent cursor-row-resize transition-colors relative"
-                      onMouseDown={startConsoleResize}
-                      title="Drag to resize console"
-                    >
-                      <div className="absolute inset-x-0 -top-1 -bottom-1" />
-                    </div>
-                  )}
-                  <div
-                    className="shrink-0 overflow-hidden flex flex-col"
-                    style={{ height: consoleCollapsed ? 36 : consoleHeight }}
-                  >
-                    <ConsolePane
-                      session={session}
-                      messages={messages}
-                      cursor={cursor}
-                      maxIndex={maxIndex}
-                      selectedSpan={selectedSpan}
-                      collapsed={consoleCollapsed}
-                      onToggleCollapse={toggleConsole}
-                    />
-                  </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div
+                  id="session-panel-prompt"
+                  role="tabpanel"
+                  aria-labelledby="session-tab-prompt"
+                  className={`h-full min-h-0 ${effectiveTab === "prompt" ? "" : "hidden"}`}
+                >
+                  <PromptPanel firstMessage={firstMessage} onOpenModal={handleOpenModal} />
                 </div>
-
-                {drawerCollapsed ? (
-                  <aside
-                    className="flex flex-col items-center w-12 shrink-0 border-l border-ov-border bg-ov-bg-sidebar py-1.5 cursor-pointer"
-                    aria-label="Activity panel (collapsed)"
-                    role="button"
-                    title="Expand activity panel"
-                    onClick={toggleDrawer}
-                  >
-                    {(
-                      [
-                        ["prompt", MessageSquare, "Prompt"],
-                        ["activity", Activity, "Activity"],
-                        ["plan", FileText, "Plan"],
-                      ] as const
-                    ).map(([tab, Icon, label]) => (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCollapsedActivitySelect(tab);
-                        }}
-                        className={`relative flex items-center justify-center w-full h-10 cursor-pointer transition-colors ${
-                          activityTab === tab
-                            ? "text-accent"
-                            : "text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-                        }`}
-                        title={label}
-                        aria-label={label}
-                      >
-                        {activityTab === tab && (
-                          <div className="absolute right-0 w-0.5 h-5 rounded-l-full bg-accent" />
-                        )}
-                        <Icon className="size-4" strokeWidth={1.5} />
-                      </button>
-                    ))}
-                    <div className="flex-1" />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleDrawer();
-                      }}
-                      className="flex items-center justify-center w-full h-10 text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-                      title="Expand activity panel"
-                      aria-label="Expand activity panel"
-                    >
-                      <PanelRightOpen className="size-4" strokeWidth={1.5} />
-                    </button>
-                  </aside>
-                ) : (
-                  <>
-                    <div
-                      className="w-1 shrink-0 bg-ov-border hover:bg-accent cursor-col-resize transition-colors relative"
-                      onMouseDown={startDrawerResize}
-                    >
-                      <div className="absolute inset-y-0 -left-1 -right-1" />
-                    </div>
-                    <div
-                      className="shrink-0 overflow-hidden flex flex-col border-l border-ov-border min-h-0"
-                      style={{ width: drawerWidth }}
-                    >
-                      <NotificationDrawer
-                        messages={messages}
-                        cursor={cursor}
-                        maxIndex={maxIndex}
-                        selectedSpan={selectedSpan}
-                        session={session}
-                        onOpenModal={handleOpenModal}
-                        plan={plan}
-                        planLoading={planLoading}
-                        onToggleCollapse={toggleDrawer}
-                        activeTab={activityTab}
-                        onTabChange={handleActivityTabChange}
-                        firstMessage={firstMessage}
-                        spotlightId={spotlightId}
-                        jumpKey={focusMessageKey}
-                        onBookmark={onBookmark}
-                        bookmarkIdByRef={bookmarkIdByRef}
-                        onPin={onPinMessage}
-                      />
-                    </div>
-                  </>
-                )}
-              </>
+                <div
+                  id="session-panel-activity"
+                  role="tabpanel"
+                  aria-labelledby="session-tab-activity"
+                  className={`h-full min-h-0 ${effectiveTab === "activity" ? "" : "hidden"}`}
+                >
+                  <ActivityPanel
+                    session={session}
+                    messages={messages}
+                    cursor={cursor}
+                    maxIndex={maxIndex}
+                    selectedSpan={selectedSpan}
+                    active={effectiveTab === "activity"}
+                    onOpenModal={handleOpenModal}
+                    filters={activityFilters}
+                    onFiltersChange={handleActivityFiltersChange}
+                    spotlightId={spotlightId}
+                    jumpKey={focusMessageKey}
+                    onBookmark={onBookmark}
+                    bookmarkIdByRef={bookmarkIdByRef}
+                    onPin={onPinMessage}
+                  />
+                </div>
+                <div
+                  id="session-panel-plan"
+                  role="tabpanel"
+                  aria-labelledby="session-tab-plan"
+                  className={`h-full min-h-0 ${effectiveTab === "plan" ? "" : "hidden"}`}
+                >
+                  <PlanPanel
+                    session={session}
+                    plan={plan}
+                    planLoading={planLoading}
+                    onOpenModal={handleOpenModal}
+                    onBookmark={onBookmark}
+                    bookmarkIdByRef={bookmarkIdByRef}
+                    onPin={onPinMessage}
+                  />
+                </div>
+                <div
+                  id="session-panel-workspace"
+                  role="tabpanel"
+                  aria-labelledby="session-tab-workspace"
+                  className={`h-full min-h-0 ${effectiveTab === "workspace" ? "" : "hidden"}`}
+                >
+                  <WorkspacePanel
+                    session={session}
+                    messages={messages}
+                    cursor={cursor}
+                    maxIndex={maxIndex}
+                    selectedSpan={selectedSpan}
+                    treeAccesses={treeAccesses}
+                    selectedPath={selectedPath}
+                    onSelectFile={handleSelectFile}
+                    scratchFiles={scratchFiles}
+                    selectedScratchId={selectedScratchId}
+                    onSelectScratch={handleSelectScratch}
+                    onNewScratch={!session.parentId ? () => setCreateScratchOpen(true) : undefined}
+                    onRenameScratch={handleRenameScratch}
+                    onDeleteScratch={(id) => setDeleteScratchId(id)}
+                    selectedAccess={selectedAccess}
+                    selectedMergedDiff={selectedMergedDiff}
+                    onJump={handleJumpToMessage}
+                    onOpenMarkdown={handleOpenMarkdown}
+                  />
+                </div>
+              </div>
             )}
           </div>
         </>

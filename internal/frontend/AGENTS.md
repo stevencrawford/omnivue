@@ -36,7 +36,7 @@ src/
 ├── components/
 │   ├── AppHeader.tsx           # Top bar (logo, search, theme toggle)
 │   ├── Sidebar.tsx             # Resizable sidebar with section panels
-│   ├── cinematic/              # The session view (CinematicSessionView + timeline/console/tree/drawer)
+│   ├── cinematic/              # The session view (CinematicSessionView + timeline/console/tree/tabbed panes)
 │   ├── ui/                     # Reusable presentational widgets (prop-driven)
 │   │   ├── MarkdownContent.tsx # Markdown renderer with syntax highlighting
 │   │   ├── Modal.tsx           # Dialog shell
@@ -140,9 +140,10 @@ export async function fetchSessions(): Promise<Session[]> {
 
 ### Session view
 - The cinematic view (`components/cinematic/`) is the sole session presentation. The
-  activity drawer's internal tabs (activity/plan) keep their panels mounted and toggle
-  visibility with `className="hidden"`; lazy-loaded data is fetched on first activation.
-  These are simple `useState<boolean>`, not Effect.
+  workspace tabs (Prompt/Activity/Plan/Workspace) keep their panels mounted and toggle
+  visibility with `className="hidden"`, so scroll position, tree state, and jump landing
+  survive tab switches. Activity is the default tab on session open; `⌘1`–`⌘4` switch
+  tabs. These are simple `useState`, not Effect.
 
 ## Tool Renderer Plugin System
 
