@@ -88,7 +88,7 @@ describe("PromptsPanel", () => {
     render(<PromptsPanel />);
     await screen.findByPlaceholderText("Type a prompt to save...");
 
-    fireEvent.click(screen.getByTitle("Paste from clipboard"));
+    fireEvent.click(screen.getByRole("button", { name: "Paste from clipboard" }));
 
     await waitFor(() => expect(createPrompt).toHaveBeenCalledWith({ promptText: "Pasted idea" }));
   });
@@ -98,7 +98,7 @@ describe("PromptsPanel", () => {
     render(<PromptsPanel />);
     const box = await screen.findByPlaceholderText("Type a prompt to save...");
 
-    fireEvent.click(screen.getByTitle("Paste from clipboard"));
+    fireEvent.click(screen.getByRole("button", { name: "Paste from clipboard" }));
 
     expect(await screen.findByText("Press ⌘V / Ctrl+V to paste")).toBeDefined();
     fireEvent.paste(box, { clipboardData: { getData: () => "Manual paste" } });
