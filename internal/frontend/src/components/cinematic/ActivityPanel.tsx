@@ -6,21 +6,16 @@ import {
   ChevronUp,
   ChevronDown,
   User as UserIcon,
-  FileText,
-  Maximize2,
   Activity,
   ListFilter,
-  PanelRightClose,
 } from "lucide-react";
-import type { BookmarkKind, Message, Plan, Session } from "../../hooks/types";
+import type { BookmarkKind, Message, Session } from "../../hooks/types";
 import { effectiveToolKind, getToolSummary } from "../../utils/toolDisplay";
 import {
   DEFAULT_ACTIVITY_FILTERS,
   isActivityKindVisible,
-  loadActivityFilters,
-  saveActivityFilters,
-  type ActivityFilters,
   type ActivityItemKind,
+  type ActivityFilters,
 } from "../../utils/activityFilters";
 import { MarkdownContent } from "../ui/MarkdownContent";
 import { ToolRendererWrapper } from "../tool-renderers/ToolRendererWrapper";
@@ -28,21 +23,16 @@ import { BookmarkButton } from "../tool-renderers/BookmarkButton";
 import { toolRendererRegistry } from "../tool-renderers/registry";
 import { DefaultToolDiff } from "../tool-renderers/builtin/DefaultToolDiff";
 import { useDisableCustomRenderers } from "../../hooks/useDisableCustomRenderers";
-import { PLAN_BOOKMARK_MESSAGE_ID, bookmarkRefKey } from "../../hooks/useBookmarks";
-import { UserPromptBubble } from "../UserPromptBubble";
-import { LoadingState } from "../ui/LoadingState";
+import { bookmarkRefKey } from "../../hooks/useBookmarks";
 import { EmptyPanel } from "../ui/EmptyPanel";
-import { ActivityFilterMenu } from "./ActivityFilterMenu";
 
-export type ActivityTab = "activity" | "prompt" | "plan";
-
-// File + console kinds have dedicated cinematic panels (tree/fileviewer,
+// File + console kinds have dedicated cinematic panes (tree/file viewer,
 // console). Everything else falls back to activity so no tool call is
 // invisible — search (grep/glob/codesearch/read_lints), web, memory, etc.
 const NON_ACTIVITY_KINDS = new Set(["read", "edit", "write", "delete", "bash", "sql"]);
 
 // v1 bookmark scope: keep it simple — only these tool kinds plus assistant
-// message content and the plan tab are bookmarkable in cinematic.
+// message content are bookmarkable in the activity pane.
 const BOOKMARKABLE_KINDS = new Set(["task_complete", "exit_plan_mode", "question"]);
 
 const fallbackActivityRenderer = {
@@ -61,19 +51,17 @@ interface DrawerItem {
   toolCallId?: string;
 }
 
-interface NotificationDrawerProps {
+interface ActivityPanelProps {
   session: Session;
   messages: Message[];
   cursor: number;
   maxIndex: number;
   selectedSpan?: { start: number; end: number; trailing?: boolean } | null;
+  /** Whether this pane is the visible tab (gates scroll/jump landing). */
+  active: boolean;
   onOpenModal?: (content: string, title?: string) => void;
-  plan?: Plan | null;
-  planLoading?: boolean;
-  onToggleCollapse?: () => void;
-  firstMessage?: Message | null;
-  activeTab?: ActivityTab;
-  onTabChange?: (tab: ActivityTab) => void;
+  filters: ActivityFilters;
+  onFiltersChange: (next: ActivityFilters) => void;
   /** Message id force-included past the cursor/span filter for a search jump. */
   spotlightId?: string | null;
   /** Focus key of the active jump; landing runs once per key. */
@@ -144,33 +132,6 @@ function cssEscape(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
-function ActivityTabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: (e: React.MouseEvent) => void;
-  icon: ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 h-full text-xs font-medium border-b-2 cursor-pointer transition-colors ${
-        active
-          ? "border-accent text-ov-text bg-ov-bg"
-          : "border-transparent text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover"
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
 // Floating scroll controls for the activity list: mirror the classic
 // conversation view's thresholds so the buttons appear only once the panel is
 // meaningfully scrolled in that direction.
@@ -183,25 +144,23 @@ function scrollButtonVisibility(el: HTMLDivElement): { top: boolean; bottom: boo
   };
 }
 
-export function NotificationDrawer({
+/** Conversation + tool-call activity, filtered by the timeline cursor/span. */
+export function ActivityPanel({
   session,
   messages,
   cursor,
   maxIndex,
   selectedSpan,
+  active,
   onOpenModal,
-  plan,
-  planLoading,
-  onToggleCollapse,
-  firstMessage,
-  activeTab: controlledTab,
-  onTabChange,
+  filters,
+  onFiltersChange,
   spotlightId,
   jumpKey,
   onBookmark,
   bookmarkIdByRef,
   onPin,
-}: NotificationDrawerProps) {
+}: ActivityPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const threshold = 80;
@@ -229,18 +188,9 @@ export function NotificationDrawer({
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
-  const [internalTab, setInternalTab] = useState<ActivityTab>("activity");
-  const activeTab = controlledTab ?? internalTab;
-  const setActiveTab = onTabChange ?? setInternalTab;
   // Developer setting: bypass custom renderers and show every tool call
   // with the raw input/output view (same fallback as ToolCallList).
   const disableCustomRenderers = useDisableCustomRenderers();
-
-  const [activityFilters, setActivityFilters] = useState<ActivityFilters>(loadActivityFilters);
-  const handleFiltersChange = useCallback((next: ActivityFilters) => {
-    setActivityFilters(next);
-    saveActivityFilters(next);
-  }, []);
 
   const visibleMessages = useMemo(() => {
     let eventIdx = 0;
@@ -395,7 +345,7 @@ export function NotificationDrawer({
       let hasVisibleTool = false;
       for (const tool of msg.toolCalls ?? []) {
         const kind = effectiveToolKind(tool);
-        // File/console kinds live in dedicated panels — except in raw mode,
+        // File/console kinds live in dedicated panes — except in raw mode,
         // where every tool call is shown for debugging.
         if (!disableCustomRenderers && NON_ACTIVITY_KINDS.has(kind)) continue;
         hasVisibleTool = true;
@@ -479,13 +429,13 @@ export function NotificationDrawer({
   const drawerItems = useMemo(
     () =>
       allDrawerItems.filter(
-        (it) => isActivityKindVisible(it.kind, activityFilters) || it.messageId === spotlightId,
+        (it) => isActivityKindVisible(it.kind, filters) || it.messageId === spotlightId,
       ),
-    [allDrawerItems, activityFilters, spotlightId],
+    [allDrawerItems, filters, spotlightId],
   );
 
   useEffect(() => {
-    if (activeTab !== "activity") return;
+    if (!active) return;
     // A jump landing owns the scroll; the follow-bottom must not yank it away.
     if (spotlightId) return;
     const el = scrollRef.current;
@@ -493,11 +443,12 @@ export function NotificationDrawer({
     if (!isAtBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
     updateScrollButtons(el);
-  }, [drawerItems, cursor, maxIndex, activeTab, spotlightId, updateScrollButtons]);
+  }, [drawerItems, cursor, maxIndex, active, spotlightId, updateScrollButtons]);
 
   // Keep the scroll controls in sync when the list grows or the panel resizes
-  // without a user scroll (items loading, drawer width drag, live streaming).
+  // without a user scroll (items loading, live streaming, tab reveal).
   useEffect(() => {
+    if (!active) return;
     const el = scrollRef.current;
     if (!el) return;
     const update = () => updateScrollButtons(el);
@@ -505,7 +456,7 @@ export function NotificationDrawer({
     observer.observe(el);
     update();
     return () => observer.disconnect();
-  }, [activeTab, drawerItems, updateScrollButtons]);
+  }, [active, drawerItems, updateScrollButtons]);
 
   // Guards re-landing the same jump on every drawer re-render. Tracked as a
   // (key, target) pair: the focus key is reset to 0 on clear and then reused
@@ -513,10 +464,10 @@ export function NotificationDrawer({
   const landedRef = useRef<{ key: number; id: string } | null>(null);
   const landTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Search/message jump landing: scroll the drawer to the spotlighted message
+  // Search/message jump landing: scroll the pane to the spotlighted message
   // and pulse it, mirroring the classic conversation jump. Re-runs when the
-  // items change so a jump issued while messages load still lands. Never
-  // touches the timeline cursor.
+  // items change or the tab becomes visible so a jump issued while another tab
+  // is showing still lands. Never touches the timeline cursor.
   //
   // The spotlight is intentionally *not* cleared after landing: it is what
   // keeps the landed message visible past the cursor/span filter until the
@@ -530,7 +481,7 @@ export function NotificationDrawer({
       landedRef.current = null;
       return;
     }
-    if (!jumpKey || activeTab !== "activity") return;
+    if (!active || !jumpKey) return;
     if (landedRef.current?.key === jumpKey && landedRef.current.id === spotlightId) return;
     const container = scrollRef.current;
     if (!container) return;
@@ -549,7 +500,7 @@ export function NotificationDrawer({
     landTimerRef.current = setTimeout(() => {
       el.classList.remove("sess-message-highlight");
     }, 2000);
-  }, [spotlightId, jumpKey, drawerItems, activeTab]);
+  }, [spotlightId, jumpKey, drawerItems, active]);
 
   useEffect(() => {
     return () => {
@@ -557,190 +508,72 @@ export function NotificationDrawer({
     };
   }, []);
 
-  const planContent = plan?.markdown ?? "";
-  const planRefKey = bookmarkRefKey(session.id, PLAN_BOOKMARK_MESSAGE_ID, undefined);
-  const planBookmarked = bookmarkIdByRef ? !!bookmarkIdByRef[planRefKey] : false;
-
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-ov-bg min-w-0">
+    <div className="relative h-full min-h-0 min-w-0 overflow-hidden">
       <div
-        className={`flex items-center gap-0 px-3 h-10 border-b border-ov-border bg-surface-elevated shrink-0 min-w-0 ${onToggleCollapse ? "cursor-pointer" : ""}`}
-        onClick={() => onToggleCollapse?.()}
-        role={onToggleCollapse ? "button" : undefined}
-        title={onToggleCollapse ? "Click to collapse" : undefined}
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto overflow-x-hidden p-2 space-y-2 min-w-0"
       >
-        <ActivityTabButton
-          active={activeTab === "prompt"}
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTab("prompt");
-          }}
-          icon={<MessageSquare size={12} />}
-          label="Prompt"
-        />
-        <ActivityTabButton
-          active={activeTab === "activity"}
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTab("activity");
-          }}
-          icon={<Activity size={12} />}
-          label="Activity"
-        />
-        <ActivityTabButton
-          active={activeTab === "plan"}
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveTab("plan");
-          }}
-          icon={<FileText size={12} />}
-          label="Plan"
-        />
-        <div className="ml-auto mr-1 flex items-center gap-0.5">
-          {activeTab === "activity" && (
-            <ActivityFilterMenu filters={activityFilters} onChange={handleFiltersChange} />
-          )}
-          {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCollapse();
-              }}
-              className="size-6 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-              title="Collapse activity panel"
-              aria-label="Collapse activity panel"
-            >
-              <PanelRightClose size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div
-        className={`relative flex-1 min-h-0 min-w-0 overflow-hidden ${activeTab !== "activity" ? "hidden" : ""}`}
-      >
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="h-full overflow-y-auto overflow-x-hidden p-2 space-y-2 min-w-0"
-        >
-          {drawerItems.length === 0 ? (
-            allDrawerItems.length === 0 ? (
-              <EmptyPanel
-                icon={<Activity size={20} />}
-                title="Assistant activity appears here"
-                hint="Scrub the timeline to reveal messages and tool calls."
-              />
-            ) : (
-              <div className="py-4 px-3 flex flex-col items-center gap-2">
-                <EmptyPanel
-                  icon={<ListFilter size={20} />}
-                  title="No activity matches the current filters"
-                  hint="Enable more activity types or scrub the timeline."
-                />
-                <button
-                  type="button"
-                  onClick={() => handleFiltersChange({ ...DEFAULT_ACTIVITY_FILTERS })}
-                  className="text-[11px] px-2.5 py-1 rounded-md border border-accent-border bg-accent-muted text-accent hover:bg-accent/20 cursor-pointer transition-colors"
-                >
-                  Show all
-                </button>
-              </div>
-            )
+        {drawerItems.length === 0 ? (
+          allDrawerItems.length === 0 ? (
+            <EmptyPanel
+              icon={<Activity size={20} />}
+              title="Assistant activity appears here"
+              hint="Scrub the timeline to reveal messages and tool calls."
+            />
           ) : (
-            drawerItems.map((it) => (
-              <div
-                key={it.key}
-                className="min-w-0 overflow-hidden"
-                data-message-id={it.messageId}
-                data-message-index={it.messageIndex}
-                data-tool-call-id={it.toolCallId}
-              >
-                {it.node}
-              </div>
-            ))
-          )}
-        </div>
-        {showScrollTop && (
-          <button
-            type="button"
-            onClick={scrollToTop}
-            className="absolute top-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
-            title="Scroll to top"
-            aria-label="Scroll to top"
-          >
-            <ChevronUp size={14} />
-          </button>
-        )}
-        {showScrollBottom && (
-          <button
-            type="button"
-            onClick={scrollToBottom}
-            className="absolute bottom-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
-            title="Scroll to bottom"
-            aria-label="Scroll to bottom"
-          >
-            <ChevronDown size={14} />
-          </button>
-        )}
-      </div>
-
-      <div
-        className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 ${activeTab !== "prompt" ? "hidden" : ""}`}
-      >
-        {firstMessage ? (
-          <UserPromptBubble message={firstMessage} onOpenModal={onOpenModal} />
-        ) : (
-          <p className="text-xs text-ov-text-secondary/70">This session has no initial prompt.</p>
-        )}
-      </div>
-
-      <div
-        className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 ${activeTab !== "plan" ? "hidden" : ""}`}
-      >
-        {planLoading ? (
-          <LoadingState label="Loading plan…" className="h-32" />
-        ) : planContent ? (
-          <div className="min-w-0 overflow-hidden">
-            <div className="flex items-center gap-1.5 mb-2 min-w-0">
-              <FileText size={12} className="text-ov-text-secondary shrink-0" />
-              <span className="text-[11px] font-semibold text-ov-text-secondary">Plan</span>
-              <span className="ml-auto flex items-center gap-0.5 shrink-0">
-                {onBookmark && (
-                  <BookmarkButton
-                    isBookmarked={planBookmarked}
-                    onClick={() =>
-                      onBookmark(session.id, PLAN_BOOKMARK_MESSAGE_ID, undefined, "Plan", "plan")
-                    }
-                    size="sm"
-                  />
-                )}
-                {onOpenModal && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenModal(planContent, "Plan")}
-                    className="size-5 flex items-center justify-center rounded text-ov-text-secondary hover:text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-                    title="Expand plan"
-                    aria-label="Expand plan"
-                  >
-                    <Maximize2 size={12} />
-                  </button>
-                )}
-              </span>
-            </div>
-            <div className="relative group min-w-0 overflow-hidden">
-              <MarkdownContent
-                content={planContent}
-                className="markdown-body--wide text-xs min-w-0 wrap-break-word"
-                onPin={onPin}
+            <div className="py-4 px-3 flex flex-col items-center gap-2">
+              <EmptyPanel
+                icon={<ListFilter size={20} />}
+                title="No activity matches the current filters"
+                hint="Enable more activity types or scrub the timeline."
               />
+              <button
+                type="button"
+                onClick={() => onFiltersChange({ ...DEFAULT_ACTIVITY_FILTERS })}
+                className="text-[11px] px-2.5 py-1 rounded-md border border-accent-border bg-accent-muted text-accent hover:bg-accent/20 cursor-pointer transition-colors"
+              >
+                Show all
+              </button>
             </div>
-          </div>
+          )
         ) : (
-          <EmptyPanel icon={<FileText size={20} />} title="No plan for this session yet" />
+          drawerItems.map((it) => (
+            <div
+              key={it.key}
+              className="min-w-0 overflow-hidden"
+              data-message-id={it.messageId}
+              data-message-index={it.messageIndex}
+              data-tool-call-id={it.toolCallId}
+            >
+              {it.node}
+            </div>
+          ))
         )}
       </div>
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="absolute top-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+          title="Scroll to top"
+          aria-label="Scroll to top"
+        >
+          <ChevronUp size={14} />
+        </button>
+      )}
+      {showScrollBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="absolute bottom-2 right-2 z-10 size-7 flex items-center justify-center rounded-md bg-ov-bg-secondary border border-ov-border text-ov-text-secondary hover:text-ov-text hover:border-accent-border transition-colors cursor-pointer shadow-sm"
+          title="Scroll to bottom"
+          aria-label="Scroll to bottom"
+        >
+          <ChevronDown size={14} />
+        </button>
+      )}
     </div>
   );
 }

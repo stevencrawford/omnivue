@@ -318,6 +318,46 @@ describe("navigationReducer", () => {
     });
   });
 
+  describe("HYDRATE_SESSION", () => {
+    it("keeps the tab when re-hydrating the already-selected session", () => {
+      // A plan bookmark sets the tab, then its route hydrates the same session.
+      const next = navigationReducer(base({ activeSessionId: "s1", activeTab: "plan" }), {
+        type: "HYDRATE_SESSION",
+        id: "s1",
+      });
+      expect(next.activeSessionId).toBe("s1");
+      expect(next.activeTab).toBe("plan");
+    });
+
+    it("resets to the default tab when hydrating a different session", () => {
+      const next = navigationReducer(base({ activeSessionId: "s1", activeTab: "diffs" }), {
+        type: "HYDRATE_SESSION",
+        id: "s2",
+      });
+      expect(next.activeSessionId).toBe("s2");
+      expect(next.activeTab).toBe("session");
+    });
+
+    it("resets the tab when a deep link opens a session from the overview", () => {
+      const next = navigationReducer(base({ activeSessionId: null, activeTab: "prompt" }), {
+        type: "HYDRATE_SESSION",
+        id: "s1",
+      });
+      expect(next.activeTab).toBe("session");
+    });
+  });
+
+  describe("HYDRATE_OVERVIEW", () => {
+    it("closes the session and resets the tab", () => {
+      const next = navigationReducer(base({ activeSessionId: "s1", activeTab: "plan" }), {
+        type: "HYDRATE_OVERVIEW",
+      });
+      expect(next.activeSessionId).toBeNull();
+      expect(next.showOverview).toBe(true);
+      expect(next.activeTab).toBe("session");
+    });
+  });
+
   describe("parseMessageTarget", () => {
     it("reads the canonical position", () => {
       expect(

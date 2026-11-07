@@ -110,8 +110,10 @@ export function useAppKeyboard(config: AppKeyboardConfig) {
 
       if ((e.metaKey || e.ctrlKey) && !isInput) {
         const tabMap: Record<string, Tab> = {
-          "1": "session",
+          "1": "activity",
           "2": "plan",
+          "3": "diffs",
+          "4": "prompt",
         };
         const tab = tabMap[e.key];
         if (tab) {
