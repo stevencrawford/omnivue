@@ -80,21 +80,22 @@ Analytics dashboard shown when the overview is active. Includes:
 
 `CinematicSessionView` is the **sole** session presentation: a full-screen workspace composed of
 - `TimelineScrubber` — timeline cursor with play/pause, step, speed, and go-live controls; Shift+Click isolates a contiguous range of turns
-- `NotificationDrawer` — the activity/plan/prompt drawer carrying conversation rendering, plans, and tool calls
-- `ConsolePane` — command/output console up to the cursor
-- `FileAccessTree` + `FileDetail` — the file-access tree (reads/edits/writes/deletes + scratch files) and the selected file's preview/diff
+- `SessionTabBar` — one full-width pane with four tabs: **Prompt**, **Activity** (default), **Plan**, and **Diffs**
+- `ActivityPanel` — the timeline-filtered conversation, reasoning, and tool calls
+- `PlanPanel` / `PromptPanel` — the session plan and its initial prompt
+- `DiffsPanel` — `FileAccessTree` + `FileDetail` (reads/edits/writes/deletes + scratch files) and `ConsolePane`, all filtered by the cursor/span
 - `TerminalPanel` (toggled from the header), scratch editor, and a markdown modal for the expanded file viewer
 
-The row layout (tree | detail | drawer) is resizable and the drawer auto-collapses on narrow widths; width/collapse/tab state persists via `omnivue-cinematic-*` localStorage keys. The session row falls back to 5s polling while a session is active, on top of SSE.
+All four panes stay mounted and are hidden with `className="hidden"` so scroll position, tree state, and jump landing survive tab switches. `⌘1`–`⌘4` switch Activity/Plan/Diffs/Prompt; opening a session defaults to Activity unless a navigation intent (plan bookmark, scratch hit) says otherwise. Tree width and console height/collapse persist via `omnivue-cinematic-*` localStorage keys. The session view falls back to 5s polling while a session is active, on top of SSE.
 
-The drawer's tabs are **activity** (conversation), **plan**, and **prompt**. Each activity item can contain:
+Each activity item can contain:
 - User request text (`UserPromptBubble`)
 - Assistant text with markdown (`ui/MarkdownContent`)
 - Tool calls (expandable cards via `ToolCallList`, `ToolRendererWrapper`) with `BookmarkButton` and `CopyButton`
 - Reasoning blocks (collapsible)
 - `PinMessageModal` — create a scratch file from selected message content
 
-Plan items (status indicators: pending, in_progress, completed, blocked, canceled) render in the drawer's plan tab.
+Plan items (status indicators: pending, in_progress, completed, blocked, canceled) render in the Plan tab.
 
 Diff hunks are structured `DiffLine` objects (`utils/diff.ts`); `mergeFileEdits` (`utils/diffTree.ts`) merges edits per file, and `DiffRenderer` renders the structured hunks inline inside `FileDetail`.
 
@@ -149,7 +150,7 @@ Inline PTY terminal inside the session view. Uses xterm.js backed by a WebSocket
 - `SessionHeader` — Session detail header with title, model, agent, status, timestamps; resume menu (`ResumeButton`), terminal toggle; and — when the session has sub-agents — a family selector (`sessions/SessionFamilySelect`) to switch between the main session and its sub-agents
 - `ResumeButton` — Dropdown that copies the resume command variants (absolute, `cd`-stripped, in-harness) or opens the embedded terminal; also used by overview session rows
 - `session-summary/format.ts` — Duration/number formatting shared by the console and session summaries
-- `UserPromptBubble` — User request bubble (rendered inline in the drawer's prompt tab)
+- `UserPromptBubble` — User request bubble (rendered in the Prompt tab)
 - `TimeRangeSelector` — Overview time-range filtering
 - `MarkdownScreenshotButton` + `ScreenshotWindow` + `ScreenshotCaptureLayer` — Markdown screenshot capture (`lib/screenshot.ts`, `html-to-image`)
 - `ShortcutsModal` — Keyboard shortcuts reference modal (opens with `?`)
@@ -221,8 +222,7 @@ type Tab = "session" | "plan" | `scratch:${string}`
 | `useConversationScroll` | `hooks/useConversationScroll.ts` | Scroll position tracking in conversation |
 | `useDisableCustomRenderers` | `hooks/useDisableCustomRenderers.ts` | Custom tool renderer opt-out |
 | `useHideCosts` | `hooks/useHideCosts.ts` | Hide cost display |
-| `useResizable` | `hooks/useResizable.ts` | Resizable panels (sidebar, drawers, console, tree) |
-| `useElementWidth` | `hooks/useElementWidth.ts` | ResizeObserver element width measurement |
+| `useResizable` | `hooks/useResizable.ts` | Resizable panels (sidebar, console, tree) |
 | `useToast` | `hooks/useToast.tsx` | Toast notification system |
 | `useCopy` | `hooks/useCopy.ts` | Clipboard copy with feedback |
 | `useAppKeyboard` | `hooks/useAppKeyboard.ts` | Keyboard shortcut dispatch |
@@ -245,7 +245,6 @@ No external state library. Core state lives in `App.tsx`:
 | File | Purpose |
 |------|---------|
 | `utils/buildTree.ts` | Groups sessions by repository |
-| `utils/cinematicLayout.ts` | Cinematic row layout constants/math (min widths, handles, auto-collapse) |
 | `utils/detectLanguage.ts` | Language detection for syntax highlighting |
 | `utils/diff.ts` | Structured diff hunks (`DiffLine`/`DiffHunk`), compute/parse/render, `hunksContain` search |
 | `utils/diffTree.ts` | Merge file edits into a diff tree (`MergedHunk`/`MergedFileDiff`) |
@@ -283,12 +282,10 @@ All use `omnivue-` prefix (centralized in `utils/storageKeys.ts` as `STORAGE_KEY
 | `omnivue-sidebar-collapsed` | Collapsed repo groups | `SessionPanel` |
 | `omnivue-sidebar-group` | Session group-by option | `SessionPanel` |
 | `omnivue-sidebar-display` | Condensed/verbose | `SessionPanel` |
-| `omnivue-cinematic-tree-width` | Cinematic tree width | Cinematic view |
-| `omnivue-cinematic-drawer-width` | Cinematic drawer width | Cinematic view |
-| `omnivue-cinematic-console-height` | Cinematic console height | Cinematic view |
-| `omnivue-cinematic-drawer-collapsed` | Cinematic drawer collapsed | Cinematic view |
-| `omnivue-cinematic-console-collapsed` | Cinematic console collapsed | Cinematic view |
-| `omnivue-cinematic-activity-tab` | Cinematic activity tab | Cinematic view |
+| `omnivue-cinematic-tree-width` | Diffs tree width | `DiffsPanel` (`useResizable`) |
+| `omnivue-cinematic-console-height` | Diffs console height | `DiffsPanel` (`useResizable`) |
+| `omnivue-cinematic-console-collapsed` | Diffs console collapsed | `DiffsPanel` |
+| `omnivue-cinematic-activity-filters` | Activity kind visibility filters | `ActivityFilterMenu` |
 | `omnivue-cinematic-tree-filters` | File-tree kind visibility filters | `FileAccessTree` |
 | `omnivue-tags-expanded` | Expanded tags | `TagPanel` |
 | `omnivue-tag-sort` | Tag sort order | `TagPanel` |
