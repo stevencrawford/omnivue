@@ -18,7 +18,6 @@ import { CreateTagModal } from "./CreateTagModal";
 import { ResumeButton } from "./ResumeButton";
 import { SessionFamilySelect } from "./sessions/SessionFamilySelect";
 import { PathBreadcrumb } from "./sessions/PathBreadcrumb";
-import { SubAgentBackButton } from "./sessions/SubAgentBackButton";
 import { useNavigation } from "../hooks/useNavigation";
 
 export function SessionHeader({
@@ -57,14 +56,6 @@ export function SessionHeader({
   // Root session plus any sub-agents, shown as a selector beside the title. The
   // selector renders itself only when the family has more than one member.
   const family = useMemo(() => activeSessionFamily(sessions, session.id), [sessions, session.id]);
-
-  // While a sub-agent is open the selector is replaced by a "Back" control: the
-  // only way to reach a sub-agent is by descending from the root, so leaving one
-  // is always to its parent rather than sideways to a sibling.
-  const parent = useMemo(
-    () => (session.parentId ? (sessions.find((s) => s.id === session.parentId) ?? null) : null),
-    [sessions, session.parentId],
-  );
 
   useEffect(() => {
     setDisplayTitle(session.title);
@@ -223,12 +214,6 @@ export function SessionHeader({
   return (
     <div className="px-4 py-3 border-b border-ov-border shrink-0">
       <div className="flex items-center gap-2 min-w-0">
-        {parent && (
-          <SubAgentBackButton
-            parentLabel={parent.title || parent.id}
-            onBack={() => navigation.navigateToSession(parent.id)}
-          />
-        )}
         {editing ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <input
@@ -266,13 +251,11 @@ export function SessionHeader({
             )}
           </>
         )}
-        {!parent && (
-          <SessionFamilySelect
-            family={family}
-            activeId={session.id}
-            onSelect={navigation.navigateToSession}
-          />
-        )}
+        <SessionFamilySelect
+          family={family}
+          activeId={session.id}
+          onSelect={navigation.navigateToSession}
+        />
         <span className={`${badgeClass} shrink-0`}>{agentLabel(session.agent)}</span>
         {hasPrivacy && <span className="sess-privacy-badge shrink-0">Privacy mode</span>}
 

@@ -147,7 +147,7 @@ Inline PTY terminal inside the session view. Uses xterm.js backed by a WebSocket
 ### Other components
 
 - `AppHeader` — Top bar with home button, search, connection indicator, running version, theme toggle
-- `SessionHeader` — Session detail header with title, model, agent, status, timestamps; resume menu (`ResumeButton`), terminal toggle; and — when the session has sub-agents — a family selector (`sessions/SessionFamilySelect`) to switch between the main session and its sub-agents
+- `SessionHeader` — Session detail header with title, model, agent, status, timestamps; resume menu (`ResumeButton`), terminal toggle; and — when the session has sub-agents — a family selector (`sessions/SessionFamilySelect`) listing Main plus its sub-agents, shown on both the root and sub-agent views so the user switches between them in place
 - `ResumeButton` — Dropdown that copies the resume command variants (absolute, `cd`-stripped, in-harness) or opens the embedded terminal; also used by overview session rows
 - `session-summary/format.ts` — Duration/number formatting shared by the console and session summaries
 - `UserPromptBubble` — User request bubble (rendered in the Prompt tab)

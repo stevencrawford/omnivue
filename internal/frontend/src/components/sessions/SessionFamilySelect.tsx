@@ -9,31 +9,37 @@ interface SessionFamilySelectProps {
   onSelect: (sessionId: string) => void;
 }
 
-// The trigger's static label and the menu's non-selectable first row: the
-// control only ever opens sub-agents, so it names them rather than pretending to
-// select the root ("Main") the user is already on.
-const PLACEHOLDER = "Sub-agent";
-
 /**
- * Header control for opening one of a session's sub-agents. Renders nothing when
- * the session has no sub-agents, so the title row is unchanged for the common
- * case. The root session is not offered — it is the view the control sits in.
+ * Header control for switching between a session's main view and its
+ * sub-agents. The trigger names the current member, so the dropdown doubles as
+ * a position indicator while the user navigates the family in place. Renders
+ * nothing when the session has no sub-agents, so the title row is unchanged for
+ * the common case.
  */
 export function SessionFamilySelect({ family, activeId, onSelect }: SessionFamilySelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!open) return;
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [open]);
 
   // Only meaningful when at least one sub-agent exists.
-  const subAgents = family.filter((m) => !m.isMain);
-  if (subAgents.length === 0) return null;
+  if (family.length <= 1) return null;
+
+  const activeMember = family.find((m) => m.session.id === activeId) ?? family[0];
 
   const handleSelect = (id: string) => {
     setOpen(false);
@@ -46,11 +52,12 @@ export function SessionFamilySelect({ family, activeId, onSelect }: SessionFamil
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 max-w-[16rem] px-1.5 py-0.5 rounded-md border border-ov-border bg-ov-bg-secondary text-xs text-ov-text hover:bg-ov-bg-hover cursor-pointer transition-colors"
-        title="Open a sub-agent session"
+        title="Switch between the main session and its sub-agents"
+        aria-label={`Session family: ${activeMember.label}`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="truncate">{PLACEHOLDER}</span>
+        <span className="truncate">{activeMember.label}</span>
         <ChevronDown
           size={12}
           className={`shrink-0 text-ov-text-secondary transition-transform ${open ? "rotate-180" : ""}`}
@@ -59,16 +66,10 @@ export function SessionFamilySelect({ family, activeId, onSelect }: SessionFamil
       {open && (
         <div
           role="listbox"
+          aria-label="Session family"
           className="absolute left-0 top-full mt-1 min-w-full max-w-[20rem] bg-surface-elevated border border-ov-border rounded-lg shadow-lg z-30 py-1 max-h-72 overflow-y-auto"
         >
-          <div
-            role="presentation"
-            className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-ov-text-secondary select-none"
-          >
-            <span className="w-3 shrink-0" />
-            <span className="truncate flex-1">{PLACEHOLDER}</span>
-          </div>
-          {subAgents.map((member) => {
+          {family.map((member) => {
             const isCurrent = member.session.id === activeId;
             return (
               <button
