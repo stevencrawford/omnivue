@@ -25,49 +25,37 @@ const pressEscape = (target: EventTarget = window) => {
   target.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 };
 
-describe("useAppKeyboard — sub-agent back", () => {
-  it("returns to the parent on Escape while a sub-agent is open", () => {
-    const backToParent = vi.fn();
-    renderHook(() => useAppKeyboard(baseConfig({ backToParent })));
+describe("useAppKeyboard — Escape", () => {
+  it("closes the search drawer first", () => {
+    const setDrawerOpen = vi.fn();
+    const setDrawerResults = vi.fn();
+    renderHook(() =>
+      useAppKeyboard(baseConfig({ drawerOpen: true, setDrawerOpen, setDrawerResults })),
+    );
 
     pressEscape();
 
-    expect(backToParent).toHaveBeenCalledTimes(1);
+    expect(setDrawerOpen).toHaveBeenCalledWith(false);
+    expect(setDrawerResults).toHaveBeenCalledWith([]);
   });
 
-  it("does nothing on Escape when no parent is available", () => {
-    const backToParent = vi.fn();
-    renderHook(() => useAppKeyboard(baseConfig({ backToParent: null })));
+  it("closes the search panel when the drawer is closed", () => {
+    const setSearchOpen = vi.fn();
+    renderHook(() => useAppKeyboard(baseConfig({ searchOpen: true, setSearchOpen })));
 
     pressEscape();
 
-    expect(backToParent).not.toHaveBeenCalled();
+    expect(setSearchOpen).toHaveBeenCalledWith(false);
   });
 
-  it("defers Escape to an open dialog", () => {
-    const backToParent = vi.fn();
-    const dialog = document.createElement("div");
-    dialog.setAttribute("role", "dialog");
-    document.body.appendChild(dialog);
-    try {
-      renderHook(() => useAppKeyboard(baseConfig({ backToParent })));
-      pressEscape();
-      expect(backToParent).not.toHaveBeenCalled();
-    } finally {
-      dialog.remove();
-    }
-  });
+  it("clears the search highlight last", () => {
+    const clearSearchHighlight = vi.fn();
+    renderHook(() =>
+      useAppKeyboard(baseConfig({ searchHighlightQuery: "needle", clearSearchHighlight })),
+    );
 
-  it("ignores Escape originating from a text input", () => {
-    const backToParent = vi.fn();
-    renderHook(() => useAppKeyboard(baseConfig({ backToParent })));
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    try {
-      pressEscape(input);
-      expect(backToParent).not.toHaveBeenCalled();
-    } finally {
-      input.remove();
-    }
+    pressEscape();
+
+    expect(clearSearchHighlight).toHaveBeenCalledTimes(1);
   });
 });
