@@ -44,16 +44,35 @@ jobs:
         if: runner.os == 'Linux'
         run: cd internal/frontend && pnpm run fmt:check
 
+      # Install both tools from the Go module proxy instead of GitHub release
+      # assets, which intermittently return 504 and fail CI before lint runs.
+      - name: Install linters
+        if: runner.os == 'Linux'
+        run: |
+          GOBIN="$RUNNER_TEMP/go-bin" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          GOBIN="$RUNNER_TEMP/go-bin" go install github.com/reviewdog/reviewdog/cmd/reviewdog@v0.21.3
+          echo "$RUNNER_TEMP/go-bin" >> "$GITHUB_PATH"
+
       - name: Run lint
         if: runner.os == 'Linux'
-        uses: reviewdog/action-golangci-lint@284129a3ac23bc5d8ac1522e0b6511df74a8836d # v2.10.2
-        with:
-          fail_level: error
-          go_version_file: go.mod
-          cache: false
-          # Pin reviewdog so the action does not query the GitHub releases API
-          # for "latest" on every run (that lookup intermittently 504s).
-          reviewdog_version: v0.21.3
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          code=0
+          out="$(golangci-lint run --output.text.path stdout)" || code=$?
+          if [ "$code" -gt 2 ]; then
+            printf '%s\n' "$out"
+            exit "$code"
+          fi
+          printf '%s\n' "$out" | reviewdog \
+            -f=golangci-lint \
+            -name=golangci \
+            -reporter=github-pr-check \
+            -filter-mode=added \
+            -fail-level=error \
+            -fail-on-error=false \
+            -level=error
 
       - name: Run gostyle
         if: runner.os == 'Linux'
