@@ -51,6 +51,9 @@ jobs:
           fail_level: error
           go_version_file: go.mod
           cache: false
+          # Pin reviewdog so the action does not query the GitHub releases API
+          # for "latest" on every run (that lookup intermittently 504s).
+          reviewdog_version: v0.21.3
 
       - name: Run gostyle
         if: runner.os == 'Linux'
