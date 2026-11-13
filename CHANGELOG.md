@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.3.2](https://github.com/stevencrawford/omnivue/compare/v0.3.1...v0.3.2) - 2026-11-07
+
+### Dependency Updates ⬆️
+- chore(deps): bump Songmu/tagpr from 1.21.2 to 1.21.3 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/219
+- chore(deps): bump the dependencies group across 1 directory with 26 updates by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/222
+- chore(deps): bump modernc.org/sqlite from 1.60.1 to 1.61.0 in the dependencies group by @dependabot[bot] in https://github.com/stevencrawford/omnivue/pull/221
+### Other Changes
+- fix(opencode): Read v2 schema only when complete by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/211
+- feat(cinematic): Add activity kind filters by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/213
+- docs: Refresh docs to match current code by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/214
+- feat: Add workspace-aware project navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/215
+- fix: Address review gaps in workspace navigation by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/217
+- fix(prompts): Remove redundant paste button tooltip by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/218
+- feat(cinematic): Add tabbed session workspace by @stevencrawford in https://github.com/stevencrawford/omnivue/pull/223
+
 ## [v0.3.1](https://github.com/stevencrawford/omnivue/compare/v0.3.0...v0.3.1) - 2026-10-16
 
 ### Dependency Updates ⬆️
