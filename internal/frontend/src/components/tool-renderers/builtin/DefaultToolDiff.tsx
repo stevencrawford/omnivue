@@ -38,10 +38,22 @@ export function DefaultToolDiff({ tool, variant }: ToolRendererProps) {
   const summary = getToolSummary(tool);
 
   if (variant === "summary") {
+    // Unrecognized tools have no summary of their own, so the summary falls
+    // back to the tool name. Print it once instead of "name: name", and strip
+    // the kind prefix built-in summaries already carry (e.g. "grep: TODO").
+    const prefix = `${kind}: `;
+    const label = summary.startsWith(prefix) ? summary.slice(prefix.length) : summary;
+    const showKind = label.length > 0 && label !== kind;
     return (
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono min-w-0">
-        <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>
-        <span className="text-ov-text truncate min-w-0">{summary}</span>
+        {showKind ? (
+          <>
+            <span className="text-ov-text-secondary/70 font-medium shrink-0">{kind}:</span>
+            <span className="text-ov-text truncate min-w-0">{label}</span>
+          </>
+        ) : (
+          <span className="text-ov-text truncate min-w-0">{kind}</span>
+        )}
       </div>
     );
   }

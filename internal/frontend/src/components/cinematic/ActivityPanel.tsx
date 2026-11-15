@@ -349,9 +349,15 @@ export function ActivityPanel({
         // where every tool call is shown for debugging.
         if (!disableCustomRenderers && NON_ACTIVITY_KINDS.has(kind)) continue;
         hasVisibleTool = true;
-        const renderer = disableCustomRenderers
-          ? fallbackActivityRenderer
-          : (toolRendererRegistry.getRenderer(kind) ?? fallbackActivityRenderer);
+        // A registered renderer draws the rich inline card. Raw mode — the
+        // developer toggle, or a tool kind nobody renders (MCP tools, agent
+        // harness verbs) — falls back to the same collapsed summary card that
+        // expands to the input/output detail.
+        const registered = disableCustomRenderers
+          ? undefined
+          : toolRendererRegistry.getRenderer(kind);
+        const renderer = registered ?? fallbackActivityRenderer;
+        const raw = !registered;
         flushReasoning();
         const bookmarkable = BOOKMARKABLE_KINDS.has(kind);
         const toolRefKey = bookmarkRefKey(session.id, msg.id, tool.id);
@@ -370,7 +376,7 @@ export function ActivityPanel({
             <ToolRendererWrapper
               renderer={renderer}
               tool={tool}
-              variant={disableCustomRenderers ? "summary" : "detail"}
+              variant={raw ? "summary" : "detail"}
               onPin={onPin}
               onBookmark={
                 bookmarkable && onBookmark

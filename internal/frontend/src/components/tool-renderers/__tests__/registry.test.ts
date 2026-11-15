@@ -134,6 +134,44 @@ describe("allMarkerDisplayTypes", () => {
   });
 });
 
+describe("unrecognized tool kinds", () => {
+  it("does not guess a kind from MCP tool input fields", () => {
+    const { kind, renderer, summary } = toolRendererRegistry.resolve({
+      id: "1",
+      name: "context7_query-docs",
+      input: JSON.stringify({ libraryId: "/x/y", query: "useEffect cleanup" }),
+      output: "",
+      status: "completed",
+    });
+    expect(kind).toBe("context7_query-docs");
+    expect(renderer).toBeUndefined();
+    // Summary falls back to the tool name (the raw card prints it once).
+    expect(summary).toBe("context7_query-docs");
+  });
+
+  it("still infers a kind for a generic harness wrapper", () => {
+    const { kind } = toolRendererRegistry.resolve({
+      id: "1",
+      name: "build",
+      input: JSON.stringify({ command: "ls -la" }),
+      output: "",
+      status: "completed",
+    });
+    expect(kind).toBe("bash");
+  });
+
+  it("still unwraps a harness wrapper's inner tool name", () => {
+    const { kind } = toolRendererRegistry.resolve({
+      id: "1",
+      name: "tool",
+      input: JSON.stringify({ name: "jira_create_issue" }),
+      output: "",
+      status: "completed",
+    });
+    expect(kind).toBe("jira_create_issue");
+  });
+});
+
 describe("override priority", () => {
   it("unique vendor kind from vendor modules is registered", () => {
     // jira_get_issue is not in our mocked builtin/index.ts,

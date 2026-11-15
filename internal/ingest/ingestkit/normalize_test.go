@@ -101,6 +101,14 @@ func TestCanonicalizeToolName(t *testing.T) {
 		{"Task:Task", "task"},
 		{"Read:Read", "read"},
 
+		// MCP tools keep their server-qualified name: the generic prefix rules
+		// must not reinterpret them as native tools.
+		{"mcp__github__create_issue", "mcp__github__create_issue"},
+		{"mcp_github_create_issue", "mcp_github_create_issue"},
+		{"read_mcp_resource", "read_mcp_resource"},
+		{"list_mcp_resources", "list_mcp_resources"},
+		{"mcp_edit_file", "mcp_edit_file"},
+
 		// Unmapped names pass through unchanged
 		{"multi_tool_use.parallel", "multi_tool_use.parallel"},
 		{"unknown_tool", "unknown_tool"},
