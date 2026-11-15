@@ -36,6 +36,26 @@ const HEURISTIC_KIND_ALIASES: Record<string, string> = {
   apply_patch: "edit",
 };
 
+// Generic wrapper names carry no tool identity of their own (e.g. OpenCode's
+// `build` wrapper), so their input fields are the only way to tell what ran.
+// Every other unmapped name keeps its own kind and renders raw rather than
+// being mistaken for a built-in tool because its input happens to look similar
+// — MCP tools such as `context7_query-docs` take `query` fields but are not
+// greps.
+const GENERIC_HARNESS_LABELS = new Set([
+  "build",
+  "tool",
+  "step",
+  "action",
+  "run",
+  "execute",
+  "invoke",
+]);
+
+function isGenericHarnessLabel(name: string): boolean {
+  return GENERIC_HARNESS_LABELS.has(name.toLowerCase());
+}
+
 class ToolRendererRegistry {
   private nameToKind: Map<string, string> = new Map();
   private definitions: Map<string, ToolRendererDefinition> = new Map();
@@ -210,6 +230,11 @@ class ToolRendererRegistry {
     const alias = HEURISTIC_KIND_ALIASES[tool.name];
     if (alias) return alias;
 
+    // Only wrapped/generic harness calls get the input-field guesses below.
+    // Anything else is an unrecognized tool (notably an MCP server tool) and
+    // must fall through to the raw input/output card.
+    if (!isGenericHarnessLabel(tool.name)) return tool.name;
+
     const input = tool.input;
 
     if (extractJSONField(input, "command")) return "bash";
@@ -256,14 +281,9 @@ class ToolRendererRegistry {
       if (toolName) return toolName;
     }
 
-    if (this.isGenericHarnessLabel(tool.name)) return "tool";
+    if (isGenericHarnessLabel(tool.name)) return "tool";
 
     return tool.name;
-  }
-
-  private isGenericHarnessLabel(name: string): boolean {
-    const generic = new Set(["build", "tool", "step", "action", "run", "execute", "invoke"]);
-    return generic.has(name.toLowerCase());
   }
 }
 

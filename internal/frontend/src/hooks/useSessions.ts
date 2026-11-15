@@ -15,6 +15,12 @@ export interface SessionsState {
    */
   indexing: boolean | null;
   liveChangedIds: Set<string>;
+  /**
+   * Increments on every server poll pulse (SSE `update`). Consumers that read
+   * data outside the session list — e.g. the plan — re-check it on each tick,
+   * so a change that does not move the selected session's row still surfaces.
+   */
+  pollTick: number;
   connected: boolean;
   loadSessions: () => Promise<void>;
   /** Remove a session id from the pending live-change set once handled. */
@@ -35,6 +41,7 @@ export function useSessions(): SessionsState {
   const [loading, setLoading] = useState(true);
   const [indexing, setIndexing] = useState<boolean | null>(null);
   const [liveChangedIds, setLiveChangedIds] = useState<Set<string>>(new Set());
+  const [pollTick, setPollTick] = useState(0);
   const [connected, setConnected] = useState(false);
 
   const loadSessions = useCallback(async () => {
@@ -104,6 +111,9 @@ export function useSessions(): SessionsState {
 
   useSSE({
     onUpdate: () => {
+      // The server re-read the adapters: re-check data that lives outside the
+      // session list (the plan) as well as the list itself.
+      setPollTick((tick) => tick + 1);
       loadSessions();
     },
     onSessionChanged: (ids) => {
@@ -136,6 +146,7 @@ export function useSessions(): SessionsState {
     loading,
     indexing,
     liveChangedIds,
+    pollTick,
     connected,
     loadSessions,
     ackSessionChange,

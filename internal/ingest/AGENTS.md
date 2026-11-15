@@ -196,9 +196,19 @@ Tool-name canonicalization is centralized in `internal/ingest/ingestkit/normaliz
 
 - `ingestkit.CanonicalizeToolName(name)` — maps agent-native names to the standard set:
   1. Exact match in the cross-adapter alias table (Cursor, Pi, Claude Code, Codex spellings)
-  2. Codex conventions (`exec_*`, `edit_*`, `*_patch`, `read_*` prefixes/suffixes)
-  3. Claude Code harness convention (`ToolName:...` → `ToolName`)
-  4. Otherwise returns the name unchanged
+  2. MCP tools returned unchanged — see below
+  3. Codex conventions (`exec_*`, `edit_*`, `*_patch`, `read_*` prefixes/suffixes)
+  4. Claude Code harness convention (`ToolName:...` → `ToolName`)
+  5. Otherwise returns the name unchanged
+
+**MCP tools keep their server-qualified name.** `isMCPToolName` (`ingestkit/normalize.go`)
+matches any `_`/`-`-separated segment equal to `mcp` — covering `mcp__github__create_issue`,
+`mcp_github_create_issue`, and OpenCode's `read_mcp_resource` — and `CanonicalizeToolName`
+returns those names before the Codex prefix rules run. Without this exemption
+`read_mcp_resource` would collapse to `read`, losing the tool's identity and causing the
+frontend to render it as a native read instead of the generic raw card. The alias-table step
+still wins for names an agent deliberately aliases (e.g. `TaskOutput`), so an MCP-named tool
+never needs an entry in that table.
 
 All adapters should call `CanonicalizeToolName` on every tool call name (and must still keep
 their agent-native name available for any agent-specific handling, e.g. Claude Code gates
@@ -222,7 +232,7 @@ aliases into a shared table.
 
 The `effectiveToolKind()` function (`internal/frontend/src/utils/toolDisplay.ts:18`) provides a second layer of normalization:
 - Maps `view` → `read`, `create` → `write`, `edit_file_v2` → `edit`
-- Guesses tool kind from input field presence (e.g., `command` field → `bash`, `filePath` + `offset` → `read`)
+- Guesses tool kind from input field presence (e.g., `command` field → `bash`, `filePath` + `offset` → `read`) — **only for generic harness wrapper names** (`build`, `tool`, `step`, `action`, `run`, `execute`, `invoke`). Every other unmapped name keeps its own kind and renders raw, so an MCP tool such as `context7_query-docs` (which also takes a `query` field) is not mistaken for `grep`.
 - Uses `extractJSONField()` to peek into input JSON without full parsing
 
 **When adding a new adapter**: implement backend normalization in the adapter to map agent-native names to the standard set. This keeps the frontend renderer list clean and avoids frontend changes for each new agent.

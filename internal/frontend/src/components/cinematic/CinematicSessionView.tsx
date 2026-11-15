@@ -3,16 +3,15 @@ import type {
   Session,
   Message,
   BookmarkKind,
-  Plan,
   FileEdit,
   Position,
   ScratchFile,
   Tab,
 } from "../../hooks/types";
+import { useSessionPlan } from "../../hooks/useSessionPlan";
 import { useCinematicSearchJump } from "../../hooks/useCinematicSearchJump";
 import {
   fetchMessages,
-  fetchPlan,
   fetchEdits,
   fetchScratchFiles,
   fetchSessionFile,
@@ -52,6 +51,8 @@ interface CinematicSessionViewProps {
   session: Session;
   sessions: Session[];
   liveChangedIds: Set<string>;
+  /** Server poll pulse — re-checks the plan so a late plan still adds its tab. */
+  pollTick?: number;
   ackSessionChange?: (id: string) => void;
   onNameChanged?: () => void;
   onBookmark?: (
@@ -80,6 +81,7 @@ export function CinematicSessionView({
   session,
   sessions,
   liveChangedIds,
+  pollTick = 0,
   ackSessionChange,
   onNameChanged,
   onBookmark,
@@ -96,8 +98,10 @@ export function CinematicSessionView({
 }: CinematicSessionViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [planLoading, setPlanLoading] = useState(false);
+  // The plan is optional and can appear after the session already rendered (a
+  // sub-agent's plan comes from its parent's task output, file-backed plans can
+  // land last), so the hook re-checks it on every server poll pulse.
+  const { plan, planLoading, reloadPlan } = useSessionPlan(session.id, pollTick);
   const [edits, setEdits] = useState<FileEdit[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [selectedScratchId, setSelectedScratchId] = useState<string | null>(null);
@@ -179,26 +183,6 @@ export function CinematicSessionView({
     [session.id, showErrorToast],
   );
 
-  const loadPlan = useCallback(
-    async (background = false) => {
-      if (!background) setPlanLoading(true);
-      try {
-        const data = await fetchPlan(session.id);
-        // Avoid re-rendering the Plan tab when the polled content is
-        // identical — a new object identity alone would flash the view.
-        setPlan((prev) => {
-          if (prev?.markdown === data?.markdown && prev?.source === data?.source) return prev;
-          return data;
-        });
-      } catch {
-        if (!background) setPlan(null);
-      } finally {
-        if (!background) setPlanLoading(false);
-      }
-    },
-    [session.id],
-  );
-
   const loadEdits = useCallback(async () => {
     try {
       const data = await fetchEdits(session.id);
@@ -219,10 +203,9 @@ export function CinematicSessionView({
 
   useEffect(() => {
     loadMessages();
-    loadPlan();
     loadEdits();
     loadScratchFiles();
-  }, [loadMessages, loadPlan, loadEdits, loadScratchFiles]);
+  }, [loadMessages, loadEdits, loadScratchFiles]);
 
   useEffect(() => {
     setSelectedScratchId(null);
@@ -241,7 +224,7 @@ export function CinematicSessionView({
     const handle = setTimeout(() => {
       ackSessionChange?.(session.id);
       loadMessages(true);
-      loadPlan(true);
+      reloadPlan(true);
       loadEdits();
       loadScratchFiles();
     }, 300);
@@ -250,7 +233,7 @@ export function CinematicSessionView({
     liveChangedIds,
     session.id,
     loadMessages,
-    loadPlan,
+    reloadPlan,
     loadEdits,
     loadScratchFiles,
     messages.length,
@@ -286,7 +269,7 @@ export function CinematicSessionView({
     if (liveChangedIds.has(session.id)) return; // already scheduled via SSE
     const handle = setTimeout(() => {
       loadMessages(true);
-      loadPlan(true);
+      reloadPlan(true);
       loadEdits();
       loadScratchFiles();
     }, 300);
@@ -299,7 +282,7 @@ export function CinematicSessionView({
     messages.length,
     loading,
     loadMessages,
-    loadPlan,
+    reloadPlan,
     loadEdits,
     loadScratchFiles,
   ]);
@@ -307,17 +290,17 @@ export function CinematicSessionView({
   // Polling fallback when a session is active: guarantees the cinematic
   // panels (tree, file detail, console, activity + timeline) keep moving even
   // if an SSE event is dropped or deduped. Backs off immediately once the
-  // session goes idle.
+  // session goes idle. The plan is refreshed by the poll tick instead, so it is
+  // not fetched twice per cycle.
   useEffect(() => {
     if (!isActive) return;
     const iv = setInterval(() => {
       loadMessages(true);
-      loadPlan(true);
       loadEdits();
       loadScratchFiles();
     }, 5000);
     return () => clearInterval(iv);
-  }, [isActive, loadMessages, loadPlan, loadEdits, loadScratchFiles]);
+  }, [isActive, loadMessages, loadEdits, loadScratchFiles]);
 
   const {
     cursor,

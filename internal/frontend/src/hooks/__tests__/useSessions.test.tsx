@@ -67,6 +67,17 @@ describe("useSessions", () => {
     expect(result.current.liveChangedIds.has("ses_b")).toBe(false);
   });
 
+  it("increments pollTick on every server poll pulse", () => {
+    const { result } = renderHook(() => useSessions());
+    expect(result.current.pollTick).toBe(0);
+
+    act(() => sseCallbacks.onUpdate());
+    expect(result.current.pollTick).toBe(1);
+
+    act(() => sseCallbacks.onUpdate());
+    expect(result.current.pollTick).toBe(2);
+  });
+
   it("ignores empty changed-id lists", () => {
     const { result } = renderHook(() => useSessions());
 

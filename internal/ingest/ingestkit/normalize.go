@@ -1,6 +1,7 @@
 package ingestkit
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -89,12 +90,17 @@ var toolAliases = map[string]string{
 // CanonicalizeToolName maps an agent-native tool call name to the canonical
 // ingest name. Resolution order:
 //  1. exact alias match in toolAliases
-//  2. Codex prefix/suffix rules: exec_*, edit_* / *_patch, read_*
-//  3. Claude Code harness rule: "X:X" -> "x"
-//  4. otherwise the name is returned unchanged
+//  2. MCP tool names are returned unchanged — their server prefix is not a
+//     native-tool idiom, so the heuristics below must not reinterpret them
+//  3. Codex prefix/suffix rules: exec_*, edit_* / *_patch, read_*
+//  4. Claude Code harness rule: "X:X" -> "x"
+//  5. otherwise the name is returned unchanged
 func CanonicalizeToolName(name string) string {
 	if canon, ok := toolAliases[name]; ok {
 		return canon
+	}
+	if isMCPToolName(name) {
+		return name
 	}
 	switch {
 	case strings.HasPrefix(name, "exec_"):
@@ -108,6 +114,19 @@ func CanonicalizeToolName(name string) string {
 		return strings.ToLower(name[:idx])
 	}
 	return name
+}
+
+// isMCPToolName reports whether name is an MCP server tool. Agents either use a
+// reserved prefix (`mcp__github__create_issue`, `mcp_github_create_issue`) or,
+// like OpenCode, join the server name to the tool (`read_mcp_resource`). The
+// generic prefix rules above would otherwise turn server-named tools such as
+// `read_mcp_resource` into native `read` calls, losing both the tool's identity
+// and the raw renderer fallback.
+func isMCPToolName(name string) bool {
+	segments := strings.FieldsFunc(strings.ToLower(name), func(r rune) bool {
+		return r == '_' || r == '-'
+	})
+	return slices.Contains(segments, "mcp")
 }
 
 // RenameRules describes how to canonicalize the JSON fields of a tool call

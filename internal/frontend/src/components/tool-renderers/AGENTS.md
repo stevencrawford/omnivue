@@ -89,6 +89,22 @@ The two display types produce distinct visual patterns. These names are used thr
 | Vendor registers `kind: "bash"` with `priority: 0`  | `console.warn("Clash")` — builtin wins |
 | Vendor registers new `kind: "jira_create_issue"`    | Registered as new kind                 |
 | Tool name `"jira_create_issue"`                     | Maps to kind `"jira_create_issue"`     |
+| Tool kind with no registered renderer               | Raw collapsed card (see below)         |
+
+### Unrecognized Tools
+
+Any kind with no registered renderer — MCP server tools (`context7_query-docs`), agent-specific
+harness verbs, future agent tools — renders as the **raw collapsed card**: the summary header
+shows the tool name as-is (once, not `name: name`) and expanding it reveals `Input` / `Output`.
+This is the same presentation as the Developer → "Disable custom tool call renderers" toggle, and
+`ActivityPanel` passes `variant="summary"` for it so the card starts collapsed.
+
+Kind resolution must not mis-dress these tools. `resolveKind` in `registry.ts` only guesses a kind
+from input fields for generic harness wrapper names — `build`, `tool`, `step`, `action`, `run`,
+`execute`, `invoke` — because those names carry no identity of their own. A name the alias table
+does not know keeps its own string as the kind, so an MCP tool whose input has a `query` field is
+not rendered as a grep. Add a renderer (or an alias entry) when a tool deserves richer output;
+otherwise it needs no work at all.
 
 ### Summary/Detail Variant Contract
 

@@ -312,6 +312,40 @@ describe("ActivityPanel raw fallback", () => {
     expect(screen.getByTitle("TODO")).toBeDefined();
     expect(screen.queryByText("Input")).toBeNull();
   });
+
+  it("renders an unrecognized tool as the collapsed raw card", () => {
+    const mcpTool: ToolCall = {
+      id: "mcp-1",
+      name: "context7_query-docs",
+      input: JSON.stringify({ libraryId: "/x/y", query: "useEffect cleanup" }),
+      output: "Docs for useEffect cleanup",
+      status: "success",
+    };
+    const mcpMessages: Message[] = [
+      {
+        id: "msg-mcp",
+        role: "assistant",
+        content: "",
+        timestamp: "2026-01-01T00:00:00Z",
+        toolCalls: [mcpTool],
+      },
+    ];
+    const { container } = renderPanel({ messages: mcpMessages, cursor: 10, maxIndex: 10 });
+
+    // The tool name is printed once, not "name: name", and input-field
+    // guessing does not dress it up as a grep (which would title the card
+    // with the query).
+    expect(screen.getByText("context7_query-docs")).toBeDefined();
+    expect(screen.queryByText("context7_query-docs:")).toBeNull();
+    expect(screen.queryByTitle("useEffect cleanup")).toBeNull();
+    expect(screen.queryByText("Input")).toBeNull();
+    expect(container.textContent).not.toContain("Docs for useEffect cleanup");
+
+    fireEvent.click(screen.getByText("context7_query-docs").closest("button")!);
+    expect(screen.getByText("Input")).toBeDefined();
+    expect(screen.getByText("Output")).toBeDefined();
+    expect(container.textContent).toContain("Docs for useEffect cleanup");
+  });
 });
 
 describe("ActivityPanel scroll controls", () => {
