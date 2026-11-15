@@ -88,6 +88,8 @@ Analytics dashboard shown when the overview is active. Includes:
 
 All panes stay mounted and are hidden with `className="hidden"` so scroll position, tree state, and jump landing survive tab switches. `⌘1`–`⌘4` switch Activity/Plan/Workspace/Prompt; opening a session defaults to Activity unless a navigation intent (plan bookmark, scratch hit) says otherwise. A plan intent on a session with no plan falls back to Activity once the plan request settles. Tree width and console height/collapse persist via `omnivue-cinematic-*` localStorage keys. The session view falls back to 5s polling while a session is active, on top of SSE.
 
+The **Plan tab is derived from `useSessionPlan`** (`hooks/useSessionPlan.ts`), which owns the plan state for the mounted session. The plan can appear *after* the session has rendered — a sub-agent's plan arrives in its parent's task output, and file-backed plans can land after the last transcript write — so waiting for a `session-changed` event for the selected session is not enough (the tab would only appear after a reload). `useSessions` therefore exposes `pollTick`, incremented on every SSE `update` pulse (the server re-reads adapters on each 5s live / 30s idle refresh pass) and passed down to `CinematicSessionView`. Each tick re-checks the plan in the background: no spinner, content-identical responses are discarded so the Plan pane never flashes, and a failed background refresh keeps the last known plan.
+
 Each activity item can contain:
 - User request text (`UserPromptBubble`)
 - Assistant text with markdown (`ui/MarkdownContent`)

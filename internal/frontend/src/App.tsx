@@ -46,6 +46,7 @@ export function App() {
     loading: sessionsLoading,
     indexing,
     liveChangedIds,
+    pollTick,
     connected,
     loadSessions,
     ackSessionChange,
@@ -338,6 +339,7 @@ export function App() {
                             session={activeSession}
                             sessions={sessions}
                             liveChangedIds={liveChangedIds}
+                            pollTick={pollTick}
                             ackSessionChange={ackSessionChange}
                             onNameChanged={loadSessions}
                             onBookmark={handleBookmark}
