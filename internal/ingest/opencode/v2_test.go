@@ -437,6 +437,187 @@ func TestLastModified_V2(t *testing.T) {
 	}
 }
 
+// addSessionPartsTable adds the session_part table OpenCode 2.4 introduced,
+// where transcript parts live instead of in session_message.data.content.
+func addSessionPartsTable(t *testing.T, db *sql.DB) {
+	t.Helper()
+	execFixture(t, db, `
+		CREATE TABLE session_part (
+			message_id text NOT NULL,
+			session_id text NOT NULL,
+			ordinal integer NOT NULL,
+			type text NOT NULL,
+			call_id text,
+			time_created integer NOT NULL,
+			time_updated integer NOT NULL,
+			data text NOT NULL,
+			PRIMARY KEY (message_id, ordinal)
+		);
+	`)
+}
+
+func TestMessages_V2_SessionParts(t *testing.T) {
+	dir, db := newV2Fixture(t)
+	addSessionPartsTable(t, db)
+	execFixture(t, db, `INSERT INTO project (id, name) VALUES ('p1', 'repo')`)
+	execFixture(t, db, `INSERT INTO session_v2 (id, project_id, slug, directory, title, version, time_created, time_updated)
+		VALUES ('ses_a', 'p1', 's', '/proj', 't', '2.4.1', 1000, 2000)`)
+	execFixture(t, db, `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+		VALUES ('m1', 'ses_a', 'user', 1, 1100, 1100, '{"text":"hello"}')`)
+	// OpenCode 2.4 leaves the inline content array empty and writes each part to
+	// session_part instead.
+	execFixture(t, db, `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+		VALUES ('m2', 'ses_a', 'assistant', 2, 1200, 1250, '{
+			"agent":"build",
+			"model":{"id":"m1","providerID":"openai"},
+			"content":[],
+			"cost":0.01,
+			"tokens":{"input":10,"output":20,"reasoning":5,"cache":{"read":3,"write":1}},
+			"finish":"tool-calls"
+		}')`)
+	insertPart := func(messageID, kind string, ordinal int, data string) {
+		execFixture(t, db, `INSERT INTO session_part
+			(message_id, session_id, ordinal, type, call_id, time_created, time_updated, data)
+			VALUES (?, 'ses_a', ?, ?, NULL, 1200, 1200, ?)`, messageID, ordinal, kind, data)
+	}
+	insertPart("m2", "reasoning", 0, `{"type":"reasoning","text":"thinking","time":{"created":1200,"completed":1300}}`)
+	insertPart("m2", "text", 1, `{"type":"text","text":"here you go"}`)
+	insertPart("m2", "tool", 2, `{"type":"tool","id":"call_1","name":"edit","state":{
+		"status":"completed",
+		"input":{"filePath":"/a.go","oldString":"x","newString":"y\nz"},
+		"content":[{"type":"text","text":"ok"}],
+		"metadata":{"truncated":false}
+	},"time":{"created":1310,"completed":1320}}`)
+	// A message that still carries inline content keeps being read from the row
+	// when no part was written for it.
+	execFixture(t, db, `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+		VALUES ('m3', 'ses_a', 'assistant', 3, 1400, 1400, '{"content":[{"type":"text","text":"inline text"}]}')`)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter, err := opencode.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	messages, err := adapter.Messages(context.Background(), "ses_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 3 {
+		t.Fatalf("expected 3 messages, got %d: %+v", len(messages), roles(messages))
+	}
+
+	assistant := messages[1]
+	if assistant.Content != "here you go" {
+		t.Errorf("assistant content = %q, want %q", assistant.Content, "here you go")
+	}
+	if assistant.Reasoning != "thinking" {
+		t.Errorf("assistant reasoning = %q", assistant.Reasoning)
+	}
+	if len(assistant.ToolCalls) != 1 {
+		t.Fatalf("assistant tool calls = %d, want 1", len(assistant.ToolCalls))
+	}
+	tc := assistant.ToolCalls[0]
+	if tc.Name != "edit" || tc.ID != "call_1" || tc.Output != "ok" || tc.Duration != 10 {
+		t.Errorf("tool call = %+v", tc)
+	}
+	// Cost and tokens stay on the message row, so step events still attach.
+	if len(assistant.StepEvents) != 1 || assistant.StepEvents[0].Tokens.Input != 10 {
+		t.Errorf("assistant step events = %+v", assistant.StepEvents)
+	}
+	if tc.Usage == nil || tc.Usage.Tokens.CacheRead != 3 {
+		t.Errorf("tool usage = %+v", tc.Usage)
+	}
+	if messages[2].Content != "inline text" {
+		t.Errorf("inline fallback content = %q", messages[2].Content)
+	}
+}
+
+func TestEdits_DiffMetrics_V2_SessionParts(t *testing.T) {
+	dir, db := newV2Fixture(t)
+	addSessionPartsTable(t, db)
+	execFixture(t, db, `INSERT INTO project (id, name) VALUES ('p1', 'repo')`)
+	execFixture(t, db, `INSERT INTO session_v2 (id, project_id, slug, directory, title, version, time_created, time_updated)
+		VALUES ('ses_a', 'p1', 's', '/proj', 't', '2.4.1', 1000, 2000)`)
+	execFixture(t, db, `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+		VALUES ('m1', 'ses_a', 'assistant', 1, 1100, 1100, '{"content":[]}')`)
+	execFixture(t, db, `INSERT INTO session_part
+		(message_id, session_id, ordinal, type, call_id, time_created, time_updated, data)
+		VALUES ('m1', 'ses_a', 0, 'tool', 'call_1', 1100, 1150, ?)`,
+		`{"type":"tool","id":"call_1","name":"edit","state":{"status":"completed","input":{"filePath":"/a.go","oldString":"x","newString":"y\nz"},"content":[{"type":"text","text":"ok"}]}}`)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter, err := opencode.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	edits, err := adapter.Edits(context.Background(), "ses_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 edit, got %d", len(edits))
+	}
+	if edits[0].FilePath != "/a.go" || edits[0].NewStr != "y\nz" {
+		t.Errorf("edit = %+v", edits[0])
+	}
+
+	sessions, err := adapter.ListSessions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 session, got %d", len(sessions))
+	}
+	s := sessions[0]
+	if s.DiffFiles != 1 || s.DiffAdditions != 2 || s.DiffDeletions != 1 {
+		t.Errorf("diff metrics = files %d, +%d, -%d; want 1, +2, -1", s.DiffFiles, s.DiffAdditions, s.DiffDeletions)
+	}
+}
+
+func TestPlan_V2_SessionParts(t *testing.T) {
+	dir, db := newV2Fixture(t)
+	addSessionPartsTable(t, db)
+	execFixture(t, db, `INSERT INTO project (id, name) VALUES ('p1', 'repo')`)
+	execFixture(t, db, `INSERT INTO session_v2 (id, project_id, slug, directory, title, version, agent, time_created, time_updated)
+		VALUES ('ses_plan', 'p1', 's', '/proj', 't', '2.4.1', 'plan', 1000, 2000)`)
+	long := "## Objective\n\n" + strings.Repeat("Detailed plan step. ", 20)
+	execFixture(t, db, `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+		VALUES ('m1', 'ses_plan', 'assistant', 1, 1100, 1100, '{"content":[]}')`)
+	execFixture(t, db, `INSERT INTO session_part
+		(message_id, session_id, ordinal, type, call_id, time_created, time_updated, data)
+		VALUES ('m1', 'ses_plan', 0, 'text', NULL, 1100, 1100, ?)`,
+		`{"type":"text","text":`+jsonString(t, long)+`}`)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter, err := opencode.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	plan, err := adapter.Plan(context.Background(), "ses_plan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil {
+		t.Fatal("expected a plan, got nil")
+		return
+	}
+	if !strings.Contains(plan.Markdown, "## Objective") {
+		t.Errorf("plan markdown missing objective: %q", plan.Markdown)
+	}
+}
+
 func roles(messages []ingest.Message) []string {
 	out := make([]string, len(messages))
 	for i, m := range messages {
