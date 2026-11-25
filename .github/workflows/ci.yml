@@ -100,8 +100,16 @@ jobs:
       - name: Run tests
         run: make test
 
+      # octocov stores its report as a GitHub Actions artifact, which needs
+      # ACTIONS_RUNTIME_TOKEN. A `run` step is not given that env, only an
+      # action is, so invoke the binary installed above from a JavaScript
+      # action instead of a shell step.
       - name: Run octocov
         if: runner.os == 'Linux'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           OCTOCOV_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: octocov
+        with:
+          script: |
+            const octocov = await io.which('octocov', true)
+            await exec.exec(`"${octocov}"`)
