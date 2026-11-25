@@ -256,9 +256,83 @@ func (a *Adapter) hasOpenStepV2(ctx context.Context, sessionID string) (bool, er
 	return count > 0, nil
 }
 
-func (a *Adapter) messagesV2(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+// v2TranscriptMessage is one session_message row with its transcript parts
+// resolved. OpenCode 2.4 moved the parts out of the message row into the
+// session_part table (leaving data.content empty), while older databases still
+// carry them inline.
+type v2TranscriptMessage struct {
+	ID      string
+	Kind    string
+	Seq     int64
+	Created int64
+	Data    sessionMessageData
+	Parts   []v2ContentPart
+}
+
+// contentParts returns the parts to read for this message: the session_part rows
+// when OpenCode wrote them, otherwise the message's inline content array.
+func (m *v2TranscriptMessage) contentParts() []v2ContentPart {
+	if len(m.Parts) > 0 {
+		return m.Parts
+	}
+	return m.Data.Content
+}
+
+// hasSessionPartsV2 reports whether the database has the session_part table
+// introduced by OpenCode 2.4. The probe runs on every read because a live
+// OpenCode upgrade creates the table while Omnivue keeps polling.
+func (a *Adapter) hasSessionPartsV2(ctx context.Context) bool {
+	var count int
+	err := a.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM sqlite_master
+		WHERE type = 'table' AND name = 'session_part'
+	`).Scan(&count)
+	return err == nil && count > 0
+}
+
+// assistantPartsV2 loads the transcript parts OpenCode 2.4+ writes to the
+// session_part table, keyed by message id and ordered by the message sequence
+// and the part's ordinal. Databases that predate the table (or sessions with no
+// parts yet) yield no entries, and readers fall back to inline content.
+func (a *Adapter) assistantPartsV2(ctx context.Context, sessionID string) (map[string][]v2ContentPart, error) {
+	if !a.hasSessionPartsV2(ctx) {
+		return nil, nil
+	}
 	rows, err := a.db.QueryContext(ctx, `
-		SELECT id, type, data, time_created
+		SELECT p.message_id, p.data
+		FROM session_part p
+		JOIN session_message m ON m.id = p.message_id
+		WHERE p.session_id = ? AND m.type = 'assistant'
+		ORDER BY m.seq ASC, p.ordinal ASC
+	`, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("querying session parts: %w", err)
+	}
+	defer rows.Close()
+
+	parts := make(map[string][]v2ContentPart)
+	for rows.Next() {
+		var (
+			messageID string
+			partJSON  string
+		)
+		if err := rows.Scan(&messageID, &partJSON); err != nil {
+			return nil, fmt.Errorf("scanning session part: %w", err)
+		}
+		var part v2ContentPart
+		if err := json.Unmarshal([]byte(partJSON), &part); err != nil {
+			continue
+		}
+		parts[messageID] = append(parts[messageID], part)
+	}
+	return parts, rows.Err()
+}
+
+// transcriptV2 reads a session's message rows in sequence order and resolves
+// each assistant row's parts from session_part when that table is populated.
+func (a *Adapter) transcriptV2(ctx context.Context, sessionID string) ([]v2TranscriptMessage, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT id, type, seq, data, time_created
 		FROM session_message
 		WHERE session_id = ?
 		ORDER BY seq ASC
@@ -268,49 +342,66 @@ func (a *Adapter) messagesV2(ctx context.Context, sessionID string) ([]ingest.Me
 	}
 	defer rows.Close()
 
-	type messageRow struct {
-		id          string
-		kind        string
-		dataJSON    string
-		timeCreated int64
-	}
-	var msgRows []messageRow
+	var transcript []v2TranscriptMessage
 	for rows.Next() {
-		var r messageRow
-		if err := rows.Scan(&r.id, &r.kind, &r.dataJSON, &r.timeCreated); err != nil {
+		var (
+			msg      v2TranscriptMessage
+			dataJSON string
+		)
+		if err := rows.Scan(&msg.ID, &msg.Kind, &msg.Seq, &dataJSON, &msg.Created); err != nil {
 			return nil, fmt.Errorf("scanning session message: %w", err)
 		}
-		msgRows = append(msgRows, r)
+		if err := json.Unmarshal([]byte(dataJSON), &msg.Data); err != nil {
+			continue
+		}
+		transcript = append(transcript, msg)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if len(msgRows) == 0 {
+	if len(transcript) == 0 {
 		return nil, nil
 	}
 
-	messages := make([]ingest.Message, 0, len(msgRows))
+	parts, err := a.assistantPartsV2(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range transcript {
+		if p := parts[transcript[i].ID]; len(p) > 0 {
+			transcript[i].Parts = p
+		}
+	}
+	return transcript, nil
+}
+
+func (a *Adapter) messagesV2(ctx context.Context, sessionID string) ([]ingest.Message, error) {
+	transcript, err := a.transcriptV2(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(transcript) == 0 {
+		return nil, nil
+	}
+
+	messages := make([]ingest.Message, 0, len(transcript))
 	var pendingCompaction *ingest.ToolCall
 	var prevModel string
 
-	for _, r := range msgRows {
+	for _, r := range transcript {
 		// synthetic rows are harness-injected system reminders, not transcript.
-		if r.kind == "synthetic" {
+		if r.Kind == "synthetic" {
 			continue
 		}
 
-		var data sessionMessageData
-		if err := json.Unmarshal([]byte(r.dataJSON), &data); err != nil {
-			continue
-		}
-
+		data := r.Data
 		msg := ingest.Message{
-			ID:        r.id,
-			Timestamp: time.UnixMilli(r.timeCreated),
+			ID:        r.ID,
+			Timestamp: time.UnixMilli(r.Created),
 		}
 		var curModel, curProvider string
 
-		switch r.kind {
+		switch r.Kind {
 		case "assistant":
 			msg.Role = ingest.MessageRoleAssistant
 			msg.Agent = data.Agent
@@ -322,7 +413,7 @@ func (a *Adapter) messagesV2(ctx context.Context, sessionID string) ([]ingest.Me
 					curProvider = mi.Provider
 				}
 			}
-			applyAssistantContent(&msg, data)
+			applyAssistantContent(&msg, data, r.contentParts())
 		case "user":
 			msg.Role = ingest.MessageRoleUser
 			msg.Content = data.Text
@@ -331,7 +422,7 @@ func (a *Adapter) messagesV2(ctx context.Context, sessionID string) ([]ingest.Me
 			msg.Content = data.Text
 		case "compaction":
 			comp := ingest.ToolCall{
-				ID:     r.id,
+				ID:     r.ID,
 				Name:   "compaction",
 				Input:  marshalCompactionInputV2(data),
 				Output: data.Summary,
@@ -393,13 +484,13 @@ func (a *Adapter) messagesV2(ctx context.Context, sessionID string) ([]ingest.Me
 	return messages, nil
 }
 
-// applyAssistantContent flattens a v2 assistant message's content array into the
-// unified Message shape: text -> Content, reasoning -> Reasoning, tool -> a
-// ToolCall. Each v2 assistant message is a single model step, so it also yields
-// one synthesized step-finish event carrying the message's cost and tokens.
-func applyAssistantContent(msg *ingest.Message, data sessionMessageData) {
+// applyAssistantContent flattens a v2 assistant message's parts into the unified
+// Message shape: text -> Content, reasoning -> Reasoning, tool -> a ToolCall. Each
+// v2 assistant message is a single model step, so it also yields one synthesized
+// step-finish event carrying the message's cost and tokens.
+func applyAssistantContent(msg *ingest.Message, data sessionMessageData, parts []v2ContentPart) {
 	var reasoningAt int64
-	for _, part := range data.Content {
+	for _, part := range parts {
 		switch part.Type {
 		case "text":
 			msg.Content = joinText(msg.Content, part.Text)
@@ -488,75 +579,55 @@ func toolCallFromV2(part v2ContentPart) ingest.ToolCall {
 }
 
 func (a *Adapter) editsV2(ctx context.Context, sessionID string) ([]ingest.FileEdit, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT m.id, m.time_created, j.value,
-			(SELECT COUNT(*) FROM session_message m2
-			 WHERE m2.session_id = m.session_id AND m2.seq < m.seq) AS message_index
-		FROM session_message m, json_each(m.data, '$.content') j
-		WHERE m.session_id = ?
-		  AND m.type = 'assistant'
-		  AND json_extract(j.value, '$.type') = 'tool'
-		  AND json_extract(j.value, '$.name') IN ('edit', 'write')
-		ORDER BY m.seq ASC, j.key ASC
-	`, sessionID)
+	transcript, err := a.transcriptV2(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("querying edit parts: %w", err)
+		return nil, err
 	}
-	defer rows.Close()
 
 	var edits []ingest.FileEdit
-	for rows.Next() {
-		var (
-			messageID    string
-			timeCreated  int64
-			partJSON     string
-			messageIndex int
-		)
-		if err := rows.Scan(&messageID, &timeCreated, &partJSON, &messageIndex); err != nil {
+	for messageIndex, msg := range transcript {
+		if msg.Kind != "assistant" {
 			continue
 		}
+		for _, part := range msg.contentParts() {
+			if part.Type != "tool" || part.State == nil {
+				continue
+			}
 
-		var part v2ContentPart
-		if err := json.Unmarshal([]byte(partJSON), &part); err != nil {
-			continue
-		}
-		if part.State == nil {
-			continue
-		}
+			toolName := ingestkit.CanonicalizeToolName(part.Name)
+			if toolName != "edit" && toolName != "write" {
+				continue
+			}
 
-		toolName := ingestkit.CanonicalizeToolName(part.Name)
-		if toolName != "edit" && toolName != "write" {
-			continue
-		}
+			inputJSON := ingestkit.MarshalJSON(part.State.Input)
+			if inputJSON == "" {
+				continue
+			}
+			var in editInput
+			if err := json.Unmarshal([]byte(inputJSON), &in); err != nil {
+				continue
+			}
 
-		inputJSON := ingestkit.MarshalJSON(part.State.Input)
-		if inputJSON == "" {
-			continue
-		}
-		var in editInput
-		if err := json.Unmarshal([]byte(inputJSON), &in); err != nil {
-			continue
-		}
+			filePath := in.FilePathResolved()
+			if filePath == "" {
+				continue
+			}
 
-		filePath := in.FilePathResolved()
-		if filePath == "" {
-			continue
+			edits = append(edits, ingest.FileEdit{
+				FilePath:     filePath,
+				ToolName:     toolName,
+				OldStr:       in.OldStrResolved(),
+				NewStr:       in.NewStrResolved(),
+				Content:      in.Content,
+				ViewRange:    in.ViewRange,
+				Timestamp:    time.UnixMilli(msg.Created),
+				MessageIndex: messageIndex,
+				MessageID:    msg.ID,
+			})
 		}
-
-		edits = append(edits, ingest.FileEdit{
-			FilePath:     filePath,
-			ToolName:     toolName,
-			OldStr:       in.OldStrResolved(),
-			NewStr:       in.NewStrResolved(),
-			Content:      in.Content,
-			ViewRange:    in.ViewRange,
-			Timestamp:    time.UnixMilli(timeCreated),
-			MessageIndex: messageIndex,
-			MessageID:    messageID,
-		})
 	}
 
-	return edits, rows.Err()
+	return edits, nil
 }
 
 func (a *Adapter) computeDiffMetricsV2(ctx context.Context, ids []string) (map[string][3]int, error) {
@@ -571,52 +642,72 @@ func (a *Adapter) computeDiffMetricsV2(ctx context.Context, ids []string) (map[s
 		args[i] = id
 	}
 
+	// OpenCode 2.4+ stores assistant parts in session_part and leaves the inline
+	// content array empty, so prefer those rows and read inline content only for
+	// messages that have no parts row.
+	partsSource := `
+		SELECT m.session_id AS session_id, j.value AS part
+		FROM session_message m, json_each(m.data, '$.content') j
+		WHERE m.type = 'assistant'`
+	if a.hasSessionPartsV2(ctx) {
+		partsSource = `
+			SELECT m.session_id AS session_id, p.data AS part
+			FROM session_part p
+			JOIN session_message m ON m.id = p.message_id
+			WHERE m.type = 'assistant'
+			UNION ALL
+			SELECT m.session_id, j.value
+			FROM session_message m, json_each(m.data, '$.content') j
+			WHERE m.type = 'assistant'
+			  AND NOT EXISTS (SELECT 1 FROM session_part p2 WHERE p2.message_id = m.id)`
+	}
+
 	//nolint:gosec
 	query := fmt.Sprintf(`
+		WITH part_rows AS (%s)
 		SELECT
-			m.session_id,
+			session_id,
 			COUNT(DISTINCT COALESCE(
-				json_extract(j.value, '$.state.input.filePath'),
-				json_extract(j.value, '$.state.input.file_path'),
-				json_extract(j.value, '$.state.input.path')
+				json_extract(part, '$.state.input.filePath'),
+				json_extract(part, '$.state.input.file_path'),
+				json_extract(part, '$.state.input.path')
 			)) AS file_count,
 			COALESCE(SUM(CASE
-				WHEN json_extract(j.value, '$.name') = 'edit'
+				WHEN json_extract(part, '$.name') = 'edit'
 					THEN CASE
-						WHEN json_extract(j.value, '$.state.input.newString') IS NOT NULL
-						 AND json_extract(j.value, '$.state.input.newString') != ''
-						THEN LENGTH(json_extract(j.value, '$.state.input.newString'))
-						   - LENGTH(REPLACE(json_extract(j.value, '$.state.input.newString'), CHAR(10), '')) + 1
+						WHEN json_extract(part, '$.state.input.newString') IS NOT NULL
+						 AND json_extract(part, '$.state.input.newString') != ''
+						THEN LENGTH(json_extract(part, '$.state.input.newString'))
+						   - LENGTH(REPLACE(json_extract(part, '$.state.input.newString'), CHAR(10), '')) + 1
 						ELSE 0
 					END
-				WHEN json_extract(j.value, '$.name') = 'write'
+				WHEN json_extract(part, '$.name') = 'write'
 					THEN CASE
-						WHEN json_extract(j.value, '$.state.input.content') IS NOT NULL
-						 AND json_extract(j.value, '$.state.input.content') != ''
-						THEN LENGTH(json_extract(j.value, '$.state.input.content'))
-						   - LENGTH(REPLACE(json_extract(j.value, '$.state.input.content'), CHAR(10), '')) + 1
+						WHEN json_extract(part, '$.state.input.content') IS NOT NULL
+						 AND json_extract(part, '$.state.input.content') != ''
+						THEN LENGTH(json_extract(part, '$.state.input.content'))
+						   - LENGTH(REPLACE(json_extract(part, '$.state.input.content'), CHAR(10), '')) + 1
 						ELSE 0
 					END
 				ELSE 0
 			END), 0) AS total_additions,
 			COALESCE(SUM(CASE
-				WHEN json_extract(j.value, '$.name') = 'edit'
+				WHEN json_extract(part, '$.name') = 'edit'
 					THEN CASE
-						WHEN json_extract(j.value, '$.state.input.oldString') IS NOT NULL
-						 AND json_extract(j.value, '$.state.input.oldString') != ''
-						THEN LENGTH(json_extract(j.value, '$.state.input.oldString'))
-						   - LENGTH(REPLACE(json_extract(j.value, '$.state.input.oldString'), CHAR(10), '')) + 1
+						WHEN json_extract(part, '$.state.input.oldString') IS NOT NULL
+						 AND json_extract(part, '$.state.input.oldString') != ''
+						THEN LENGTH(json_extract(part, '$.state.input.oldString'))
+						   - LENGTH(REPLACE(json_extract(part, '$.state.input.oldString'), CHAR(10), '')) + 1
 						ELSE 0
 					END
 				ELSE 0
 			END), 0) AS total_deletions
-		FROM session_message m, json_each(m.data, '$.content') j
-		WHERE m.session_id IN (%s)
-		  AND m.type = 'assistant'
-		  AND json_extract(j.value, '$.type') = 'tool'
-		  AND json_extract(j.value, '$.name') IN ('edit', 'write')
-		GROUP BY m.session_id
-	`, strings.Join(placeholders, ","))
+		FROM part_rows
+		WHERE session_id IN (%s)
+		  AND json_extract(part, '$.type') = 'tool'
+		  AND json_extract(part, '$.name') IN ('edit', 'write')
+		GROUP BY session_id
+	`, partsSource, strings.Join(placeholders, ","))
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -666,24 +757,23 @@ func (a *Adapter) planV2(ctx context.Context, sessionID string) (*ingest.Plan, e
 }
 
 func (a *Adapter) planFromLastMessageV2(ctx context.Context, sessionID string) (*ingest.Plan, error) {
-	var dataJSON string
-	err := a.db.QueryRowContext(ctx, `
-		SELECT data FROM session_message
-		WHERE session_id = ? AND type = 'assistant'
-		ORDER BY seq DESC
-		LIMIT 1
-	`, sessionID).Scan(&dataJSON)
+	transcript, err := a.transcriptV2(ctx, sessionID)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
-	var data sessionMessageData
-	if err := json.Unmarshal([]byte(dataJSON), &data); err != nil {
+	var last *v2TranscriptMessage
+	for i := range transcript {
+		if transcript[i].Kind == "assistant" {
+			last = &transcript[i]
+		}
+	}
+	if last == nil {
 		return nil, nil
 	}
 
 	var sections []string
-	for _, part := range data.Content {
+	for _, part := range last.contentParts() {
 		if (part.Type == "text" || part.Type == "reasoning") && strings.Contains(part.Text, "## ") && len(part.Text) > 200 {
 			sections = append(sections, part.Text)
 		}
@@ -716,109 +806,81 @@ func (a *Adapter) planFromMessagesV2(ctx context.Context, sessionID string) (*in
 }
 
 func (a *Adapter) planTextSectionsV2(ctx context.Context, sessionID string) ([]string, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT j.value
-		FROM session_message m, json_each(m.data, '$.content') j
-		WHERE m.session_id = ?
-		  AND m.type = 'assistant'
-		  AND json_extract(j.value, '$.type') = 'text'
-		ORDER BY m.seq ASC, j.key ASC
-	`, sessionID)
+	transcript, err := a.transcriptV2(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("querying plan parts: %w", err)
+		return nil, err
 	}
-	defer rows.Close()
 
 	var sections []string
-	for rows.Next() {
-		var partJSON string
-		if err := rows.Scan(&partJSON); err != nil {
+	for _, msg := range transcript {
+		if msg.Kind != "assistant" {
 			continue
 		}
-		var part v2ContentPart
-		if err := json.Unmarshal([]byte(partJSON), &part); err != nil {
-			continue
-		}
-		if ingestkit.HasPlanContent(part.Text) {
-			sections = append(sections, part.Text)
+		for _, part := range msg.contentParts() {
+			if part.Type == "text" && ingestkit.HasPlanContent(part.Text) {
+				sections = append(sections, part.Text)
+			}
 		}
 	}
-	return sections, rows.Err()
+	return sections, nil
 }
 
 func (a *Adapter) planTodoSectionsV2(ctx context.Context, sessionID string) ([]string, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT j.value
-		FROM session_message m, json_each(m.data, '$.content') j
-		WHERE m.session_id = ?
-		  AND m.type = 'assistant'
-		  AND json_extract(j.value, '$.type') = 'tool'
-		  AND json_extract(j.value, '$.name') = 'todowrite'
-		ORDER BY m.seq ASC, j.key ASC
-	`, sessionID)
+	transcript, err := a.transcriptV2(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("querying todo parts: %w", err)
+		return nil, err
 	}
-	defer rows.Close()
 
 	var sections []string
-	for rows.Next() {
-		var partJSON string
-		if err := rows.Scan(&partJSON); err != nil {
+	for _, msg := range transcript {
+		if msg.Kind != "assistant" {
 			continue
 		}
-		var part v2ContentPart
-		if err := json.Unmarshal([]byte(partJSON), &part); err != nil {
-			continue
+		for _, part := range msg.contentParts() {
+			if part.Type != "tool" || part.Name != "todowrite" {
+				continue
+			}
+			if part.State == nil || part.State.Input == nil {
+				continue
+			}
+			inputJSON := ingestkit.MarshalJSON(part.State.Input)
+			if inputJSON == "" {
+				continue
+			}
+			sections = append(sections, todoLines(inputJSON)...)
 		}
-		if part.State == nil || part.State.Input == nil {
-			continue
-		}
-		inputJSON := ingestkit.MarshalJSON(part.State.Input)
-		if inputJSON == "" {
-			continue
-		}
-		sections = append(sections, todoLines(inputJSON)...)
 	}
-	return sections, rows.Err()
+	return sections, nil
 }
 
 func (a *Adapter) findTaskOutputV2(ctx context.Context, parentID, childID string) (string, error) {
-	rows, err := a.db.QueryContext(ctx, `
-		SELECT j.value
-		FROM session_message m, json_each(m.data, '$.content') j
-		WHERE m.session_id = ?
-		  AND m.type = 'assistant'
-		  AND json_extract(j.value, '$.type') = 'tool'
-		  AND json_extract(j.value, '$.name') = 'task'
-	`, parentID)
+	transcript, err := a.transcriptV2(ctx, parentID)
 	if err != nil {
-		return "", fmt.Errorf("querying task parts: %w", err)
+		return "", err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var partJSON string
-		if err := rows.Scan(&partJSON); err != nil {
+	for _, msg := range transcript {
+		if msg.Kind != "assistant" {
 			continue
 		}
-		var part v2ContentPart
-		if err := json.Unmarshal([]byte(partJSON), &part); err != nil {
-			continue
-		}
-		if part.State == nil || part.State.Metadata == nil {
-			continue
-		}
-		meta, ok := part.State.Metadata.(map[string]any)
-		if !ok {
-			continue
-		}
-		sid, _ := meta["sessionId"].(string)
-		if sid == childID {
-			return joinContentText(part.State.Content), nil
+		for _, part := range msg.contentParts() {
+			if part.Type != "tool" || part.Name != "task" {
+				continue
+			}
+			if part.State == nil || part.State.Metadata == nil {
+				continue
+			}
+			meta, ok := part.State.Metadata.(map[string]any)
+			if !ok {
+				continue
+			}
+			sid, _ := meta["sessionId"].(string)
+			if sid == childID {
+				return joinContentText(part.State.Content), nil
+			}
 		}
 	}
-	return "", rows.Err()
+	return "", nil
 }
 
 // todoLines renders a todowrite tool input (a JSON array of todo items) as

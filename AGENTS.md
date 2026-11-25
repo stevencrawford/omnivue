@@ -285,7 +285,7 @@ Before applying any migration to a database that already holds application data 
 | Agent | Location | Format | Data |
 |-------|----------|--------|------|
 | OpenCode (v1) | `~/.local/share/opencode/opencode.db` | SQLite (`session`, `message`, `part`) | Sessions, messages, parts, todos, diffs, tokens, costs |
-| OpenCode (v2) | `~/.local/share/opencode/opencode.db` | SQLite (`session_v2`, `session_message`) | Sessions, turns, tool calls, plans, diffs, step usage |
+| OpenCode (v2) | `~/.local/share/opencode/opencode.db` | SQLite (`session_v2`, `session_message`, `session_part`) | Sessions, turns, tool calls, plans, diffs, step usage |
 | OpenCode snapshots | `~/.local/share/opencode/snapshot/` | Git bare repos | File-level rewind |
 | Copilot | `~/.copilot/session-store.db` | SQLite | Sessions, turns, checkpoints, FTS index |
 | Copilot events | `~/.copilot/session-state/<uuid>/events.jsonl` | JSONL | Full conversation + tool calls |
